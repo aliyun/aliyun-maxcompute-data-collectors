@@ -27,9 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.aliyun.odps.data.Binary;
-import com.aliyun.odps.data.Char;
-import com.aliyun.odps.data.Varchar;
+//import com.aliyun.odps.data.Binary;
+//import com.aliyun.odps.data.Char;
+//import com.aliyun.odps.data.Varchar;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowMetaInterface;
@@ -131,7 +131,7 @@ public class OdpsOutput extends BaseStep implements StepInterface {
                         String fieldValue = String.valueOf(row[pos]);
 
                         Column column = schema.getColumn(i);
-                        switch (column.getTypeInfo().getOdpsType()) {
+                        switch (column.getType()) {
                             case BIGINT:
                                 record.setBigint(i, Long.parseLong(fieldValue));
                                 break;
@@ -155,36 +155,36 @@ public class OdpsOutput extends BaseStep implements StepInterface {
                             case DECIMAL:
                                 record.setDecimal(i, new BigDecimal(fieldValue));
                                 break;
-                            case CHAR:
-                                record.setChar(i, new Char(fieldValue));
-                                break;
-                            case VARCHAR:
-                                record.setVarchar(i, new Varchar(fieldValue));
-                                break;
-                            case TINYINT:
-                                record.setTinyint(i, Byte.parseByte(fieldValue));
-                                break;
-                            case SMALLINT:
-                                record.setSmallint(i, Short.parseShort(fieldValue));
-                                break;
-                            case INT:
-                                record.setInt(i, Integer.parseInt(fieldValue));
-                                break;
-                            case FLOAT:
-                                record.setFloat(i, Float.parseFloat(fieldValue));
-                                break;
-                            case DATE:
-                                record.setDate(i, new java.sql.Date(dateFormat.parse(fieldValue).getTime()));
-                                break;
-                            case TIMESTAMP:
-                                record.setTimestamp(i, new Timestamp(dateFormat.parse(fieldValue).getTime()));
-                                break;
-                            case BINARY:
-                                record.setBinary(i, new Binary(fieldValue.getBytes()));
-                                break;
+//                            case CHAR:
+//                                record.setChar(i, new Char(fieldValue));
+//                                break;
+//                            case VARCHAR:
+//                                record.setVarchar(i, new Varchar(fieldValue));
+//                                break;
+//                            case TINYINT:
+//                                record.setTinyint(i, Byte.parseByte(fieldValue));
+//                                break;
+//                            case SMALLINT:
+//                                record.setSmallint(i, Short.parseShort(fieldValue));
+//                                break;
+//                            case INT:
+//                                record.setInt(i, Integer.parseInt(fieldValue));
+//                                break;
+//                            case FLOAT:
+//                                record.setFloat(i, Float.parseFloat(fieldValue));
+//                                break;
+//                            case DATE:
+//                                record.setDate(i, new java.sql.Date(dateFormat.parse(fieldValue).getTime()));
+//                                break;
+//                            case TIMESTAMP:
+//                                record.setTimestamp(i, new Timestamp(dateFormat.parse(fieldValue).getTime()));
+//                                break;
+//                            case BINARY:
+//                                record.setBinary(i, new Binary(fieldValue.getBytes()));
+//                                break;
                             default:
                                 throw new RuntimeException(
-                                    "Unknown column type: " + column.getTypeInfo().getOdpsType());
+                                    "Unknown column type: " + column.getType());
                         }
                     }
                 }

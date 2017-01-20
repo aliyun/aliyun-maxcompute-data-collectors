@@ -29,9 +29,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.aliyun.odps.data.Binary;
-import com.aliyun.odps.data.Char;
-import com.aliyun.odps.data.Varchar;
+//import com.aliyun.odps.data.Binary;
+//import com.aliyun.odps.data.Char;
+//import com.aliyun.odps.data.Varchar;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowDataUtil;
 import org.pentaho.di.core.row.RowMeta;
@@ -212,55 +212,55 @@ public class OdpsInput extends BaseStep implements StepInterface {
                 colValue = v == null ? null : v.toPlainString();
                 break;
             }
-            case CHAR: {
-                Char v = record.getChar(pos);
-                colValue = v == null ? null : v.getValue();
-                break;
-            }
-            case VARCHAR: {
-                Varchar v = record.getVarchar(pos);
-                colValue = v == null ? null : v.getValue();
-                break;
-            }
-            case TINYINT: {
-                Byte v = record.getTinyint(pos);
-                colValue = v == null ? null : String.valueOf(v.byteValue());
-                break;
-            }
-            case SMALLINT: {
-                Short v = record.getSmallint(pos);
-                colValue = v == null ? null : String.valueOf(v.shortValue());
-                break;
-            }
-            case INT: {
-                Integer v = record.getInt(pos);
-                colValue = v == null ? null : String.valueOf(v.intValue());
-                break;
-            }
-            case FLOAT: {
-                Float v = record.getFloat(pos);
-                colValue = v == null ? null : String.valueOf(v.floatValue());
-                break;
-            }
-            case DATE: {
-                java.sql.Date v = record.getDate(pos);
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                colValue = v == null ? null : sdf.format(v);
-                break;
-            }
-            case TIMESTAMP: {
-                Timestamp v = record.getTimestamp(pos);
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                colValue = v == null ? null : sdf.format(v);
-                break;
-            }
-            case BINARY: {
-                Binary v = record.getBinary(pos);
-                colValue = v == null ? null : v.toString();
-                break;
-            }
+//            case CHAR: {
+//                Char v = record.getChar(pos);
+//                colValue = v == null ? null : v.getValue();
+//                break;
+//            }
+//            case VARCHAR: {
+//                Varchar v = record.getVarchar(pos);
+//                colValue = v == null ? null : v.getValue();
+//                break;
+//            }
+//            case TINYINT: {
+//                Byte v = record.getTinyint(pos);
+//                colValue = v == null ? null : String.valueOf(v.byteValue());
+//                break;
+//            }
+//            case SMALLINT: {
+//                Short v = record.getSmallint(pos);
+//                colValue = v == null ? null : String.valueOf(v.shortValue());
+//                break;
+//            }
+//            case INT: {
+//                Integer v = record.getInt(pos);
+//                colValue = v == null ? null : String.valueOf(v.intValue());
+//                break;
+//            }
+//            case FLOAT: {
+//                Float v = record.getFloat(pos);
+//                colValue = v == null ? null : String.valueOf(v.floatValue());
+//                break;
+//            }
+//            case DATE: {
+//                java.sql.Date v = record.getDate(pos);
+//                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//                colValue = v == null ? null : sdf.format(v);
+//                break;
+//            }
+//            case TIMESTAMP: {
+//                Timestamp v = record.getTimestamp(pos);
+//                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//                colValue = v == null ? null : sdf.format(v);
+//                break;
+//            }
+//            case BINARY: {
+//                Binary v = record.getBinary(pos);
+//                colValue = v == null ? null : v.toString();
+//                break;
+//            }
             default:
-                throw new RuntimeException("Unknown column type: " + column.getTypeInfo().getOdpsType());
+                throw new RuntimeException("Unknown column type: " + column.getType());
         }
         return colValue;
     }

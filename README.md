@@ -1,4 +1,4 @@
-# Aliyun MaxCompute Bigdata Plugins
+# Aliyun MaxCompute Data Collectors
 
 This project is a group of bigdata plugins for exchanging data with aliyun maxcompute.
 The plugins contain flume-plugin, kettle-plugin, ogg-plugin and odps-sqoop.

@@ -1,0 +1,7 @@
+extract dhwriter
+getEnv (JAVA_HOME)
+getEnv (LD_LIBRARY_PATH)
+getEnv (PATH)
+CUSEREXIT ./libggjava_ue.so CUSEREXIT PASSTHRU INCLUDEUPDATEBEFORES, PARAMS "{YOUR_HOME}/datahub-ogg-plugin/conf/javaue.properties"
+sourcedefs ./dirdef/ogg_test.def
+table OGG_TEST.*;

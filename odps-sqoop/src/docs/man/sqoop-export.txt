@@ -1,0 +1,116 @@
+sqoop-export(1)
+===============
+
+NAME
+----
+sqoop-export - Export records from HDFS to a table in an RDBMS
+
+SYNOPSIS
+--------
+'sqoop-export' <generic-options> <tool-options>
+
+'sqoop export' <generic-options> <tool-options>
+
+
+DESCRIPTION
+-----------
+
+include::../user/export-purpose.txt[]
+
+OPTIONS
+-------
+
+The +--connect+, +--export-dir+, and +--table+ options are required.
+
+include::common-args.txt[]
+
+Export control options
+~~~~~~~~~~~~~~~~~~~~~~
+
+--columns (col-names)::
+  Columns to export to table
+
+--direct::
+  Use direct import fast path (MySQL)
+
+--export-dir (dir)::
+  HDFS source path for the export
+
+-m::
+--num-mappers (n)::
+  Use 'n' map tasks to import in parallel
+
+--table (table-name)::
+  The table to read (required)
+
+--update-key (col-names)::
+  Anchor column to use for updates. More than one column names may be specified
+  as a comma separated list of column names.
+
+--update-mode (mode)::
+  Specify how updates are performed when new rows are found with non-matching keys
+  in database. By default, "mode" is +updateonly+, in which case new rows are
+  silently ignored. Alternatively, "mode" can be +allowinsert+, in which case
+  new rows are inserted instead.
+
+--input-null-string::
+  The string to be interpreted as null for string columns
+
+--input-null-non-string::
+  The string to be interpreted as null for non-string columns
+
+--staging-table::
+  The table in which data will be staged before being inserted in destination table.
+
+--clear-staging-table::
+  Will result in deletion of any data that exists in the staging table.
+
+--batch::
+  Use batch mode for underlying statement execution. This is useful, for example,
+  for those databases that do not support multirow insert in a single statement yet.
+
+include::input-args.txt[]
+
+include::output-args.txt[]
+
+include::codegen-args.txt[]
+
+Database-specific options
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Additional arguments may be passed to the database manager
+after a lone '--' on the command-line.
+
+In MySQL direct mode, additional arguments are passed directly to
+mysqldump.
+
+Note: When using MySQL direct mode, the MySQL bulk utilities
++mysqldump+ and +mysqlimport+ should be available on the task nodes and
+present in the shell path of the task process.
+
+ENVIRONMENT
+-----------
+
+See 'sqoop(1)'
+
+
+////
+  Copyright 2011 The Apache Software Foundation
+
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+

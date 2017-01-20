@@ -1,0 +1,106 @@
+sqoop-import(1)
+===============
+
+NAME
+----
+sqoop-import - Import a table from an RDBMS to HDFS
+
+SYNOPSIS
+--------
+'sqoop-import' <generic-options> <tool-options>
+
+'sqoop import' <generic-options> <tool-options>
+
+
+DESCRIPTION
+-----------
+
+include::../user/import-purpose.txt[]
+
+OPTIONS
+-------
+
+The +--connect+ and +--table+ options are required.
+
+include::common-args.txt[]
+
+include::import-args.txt[]
+
+include::output-args.txt[]
+
+include::input-args.txt[]
+
+include::hive-args.txt[]
+
+include::hbase-args.txt[]
+
+include::codegen-args.txt[]
+
+
+Incremental import options
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sqoop can be configured to import only "new" data from the source database
+using the arguments in this section. While any import job can make use of
+these arguments, they are most powerful when used to initialize a recurring
+job with +sqoop job --create ...+. After executing a saved job, the last
+observed value of the check column is updated in the saved job.
+
+--incremental (mode)::
+  Specifies that this is an incremental import. Determines how Sqoop should
+  discover new data. "mode" may be +append+, in which case new rows are
+  expected to be added with increasing id values, or +lastmodified+, in which
+  case new data is discovered by comparing a timestamp column with the
+  timestamp at which the last import was performed.
+
+--check-column (col)::
+  Specifies a column whose value should be compared to the last imported
+  id or the last import timestamp to determine rows to import.
+
+--last-value (value)::
+  Specifies the most recent id imported, or the timestamp of the most recent
+  id. This argument is unnecessary for an initial import.
+
+
+Database-specific options
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Additional arguments may be passed to the database manager
+after a lone '--' on the command-line.
+
+In MySQL direct mode, additional arguments are passed directly to
+mysqldump.
+
+Note: When using MySQL direct mode, the MySQL bulk utilities
++mysqldump+ and +mysqlimport+ should be available on the task nodes and
+present in the shell path of the task process.
+
+Note: When using PostgreSQL direct mode, the PostgreSQL client utility
++psql+ should be available on the task nodes and present in the shell path
+of the task process.
+
+ENVIRONMENT
+-----------
+
+See 'sqoop(1)'
+
+////
+  Copyright 2011 The Apache Software Foundation
+ 
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+ 
+      http://www.apache.org/licenses/LICENSE-2.0
+ 
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+

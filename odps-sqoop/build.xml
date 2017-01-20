@@ -1,0 +1,1549 @@
+<?xml version="1.0"?>
+
+<!--
+  Copyright 2011 The Apache Software Foundation
+
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<project name="sqoop" default="jar-all"
+    xmlns:artifact="urn:maven-artifact-ant"
+    xmlns:ivy="antlib:org.apache.ivy.ant">
+
+    <property name="build.compiler" value="extJavac"/>
+  <!-- load ant-contrib tasks to get the "if" task. -->
+  <taskdef resource="net/sf/antcontrib/antcontrib.properties">
+    <classpath>
+      <pathelement location="${basedir}/lib/ant-contrib-1.0b3.jar"/>
+    </classpath>
+  </taskdef>
+
+  <!-- Set default Hadoop version if not set -->
+  <if>
+    <isset property="hadoopversion" />
+    <then>
+      <echo message="Use Hadoop ${hadoopversion}" />
+    </then>
+    <else>
+      <echo message="Use Hadoop 2.x by default" />
+      <property name="hadoopversion" value="200" />
+    </else>
+  </if>
+
+  <!--
+    Set default HCatalog profile if not set
+
+    In Hive 0.12, the HCatalog artifcacts moved from org.apache.hcatalog
+    to org.apache.hive.hcatalog.   With the advent of hive 0.14, the older
+    hcatalog interfaces used by Sqoop are being removed.  So, we are upgrading
+    the hcatalog version to 0.13.   This will allow as to support the hcatalog
+    features in terms of datatype parity.
+
+    hcatalog 0.13 will be the default for now.
+
+  -->
+  <if>
+    <isset property="hcatprofile" />
+    <then>
+      <if>
+        <or>
+          <equals arg1="${hcatprofile}" arg2="13" />
+        </or>
+        <then>
+          <echo message="Using HCatalog profile ${hcatprofile}" />
+        </then>
+        <else>
+          <fail message="Invalid value for hcatprofile" />
+        </else>
+      </if>
+    </then>
+    <else>
+      <echo message="Using HCatalog profile 0.13" />
+      <property name="hcatprofile" value="13" />
+    </else>
+  </if>
+
+  <!--
+    Set default Accumulo version
+
+    We use 1.5.0 by default if not specified.
+  -->
+  <if>
+    <isset property="accumulo.version" />
+    <then>
+      <echo message="Use Accumulo version ${accumulo.version}" />
+    </then>
+    <else>
+      <echo message="Using Accumulo profile 1.5.0 by default" />
+      <property name="accumulo.version" value="1.5.0" />
+    </else>
+  </if>
+  <!--
+    Set default HBase profile if not set
+
+    HBase 0.95 has broken one big monolithic archive into smaller pieces, so
+    that the build dependencies are different between HBase 0.94 and 0.95.
+    In addition, HBase since 0.95 is providing artifacts compatible with Hadoop 2.0.
+
+    For HBase 0.95 on Hadoop 2.0.0:
+    ant -Dhadoopversion=200 -Dhbaseprofile=95
+
+    For HBase 0.95 on Hadoop 1.0.0:
+    ant -Dhadoopversion=100 -Dhbaseprofile=95
+
+    For HBase 0.94 on Hadoop 1.0.0:
+    ant -Dhadoopversion=100
+
+    For HBase 0.94 on Hadoop 2.0.0:
+    - upstream HBase did not published Hadoop 2 compatible artifacts
+  -->
+  <if>
+    <isset property="hbaseprofile" />
+    <then>
+      <echo message="Use HBase profile ${hbaseprofile}" />
+    </then>
+    <else>
+      <echo message="Use HBase profile 0.94 by default" />
+      <property name="hbaseprofile" value="94" />
+    </else>
+  </if>
+
+	<!-- Set dependency versions per target Hadoop version -->
+  <if>
+    <equals arg1="${hadoopversion}" arg2="20" />
+    <then>
+      <property name="hadoop.version" value="0.20.2-cdh3u5" />
+      <property name="hbase94.version" value="0.90.6-cdh3u5" />
+      <property name="zookeeper.version" value="3.3.3-cdh3u5" />
+      <property name="hadoop.version.full" value="0.20" />
+      <property name="hcatalog.version" value="0.13.0" />
+      <property name="hbasecompatprofile" value="1" />
+      <property name="avrohadoopprofile" value="1" />
+    </then>
+
+    <elseif>
+      <equals arg1="${hadoopversion}" arg2="23" />
+      <then>
+        <property name="hadoop.version" value="0.23.1" />
+        <property name="hbase94.version" value="0.92.0" />
+        <property name="zookeeper.version" value="3.4.2" />
+        <property name="hadoop.version.full" value="0.23" />
+        <property name="hcatalog.version" value="0.13.0" />
+        <property name="hbasecompatprofile" value="2" />
+        <property name="avrohadoopprofile" value="2" />
+      </then>
+    </elseif>
+
+    <elseif>
+      <equals arg1="${hadoopversion}" arg2="100" />
+      <then>
+        <property name="hadoop.version" value="1.0.4" />
+        <property name="hbase94.version" value="0.92.0" />
+        <property name="zookeeper.version" value="3.4.2" />
+        <property name="hadoop.version.full" value="1.0.0" />
+        <property name="hcatalog.version" value="0.13.0" />
+        <property name="hbasecompatprofile" value="1" />
+        <property name="avrohadoopprofile" value="1" />
+      </then>
+    </elseif>
+
+    <elseif>
+      <equals arg1="${hadoopversion}" arg2="200" />
+      <then>
+        <property name="hadoop.version" value="2.0.4-alpha" />
+        <property name="hbase94.version" value="0.94.2" />
+        <property name="zookeeper.version" value="3.4.2" />
+        <property name="hadoop.version.full" value="2.0.4-alpha" />
+        <property name="hcatalog.version" value="0.13.0" />
+        <property name="hbasecompatprofile" value="2" />
+        <property name="avrohadoopprofile" value="2" />
+      </then>
+    </elseif>
+
+    <elseif>
+      <equals arg1="${hadoopversion}" arg2="210" />
+      <then>
+        <property name="hadoop.version" value="2.1.0-beta" />
+        <property name="hbase94.version" value="0.94.2" />
+        <property name="zookeeper.version" value="3.4.2" />
+        <property name="hadoop.version.full" value="2.1.0-beta" />
+        <property name="hcatalog.version" value="0.13.0" />
+        <property name="hbasecompatprofile" value="2" />
+        <property name="avrohadoopprofile" value="2" />
+      </then>
+    </elseif>
+    <else>
+      <fail message="Unrecognized hadoopversion. Can only be 20, 23, 100, 200 or 210." />
+    </else>
+  </if>
+
+  <!-- Set dependency versions that are working with all Hadoop versions-->
+  <property name="hbase95.version" value="0.95.2-hadoop${hbasecompatprofile}-SNAPSHOT" />
+
+  <!-- Load system-wide and project-wide default properties set by
+       the user, to avoid needing to override with -D. -->
+  <property file="${user.home}/build.properties" />
+  <property file="${basedir}/build.properties" />
+
+  <!-- some basic properties -->
+  <property environment="env"/>
+  <property name="name" value="sqoop" />
+  <property name="Name" value="Sqoop" />
+  <property name="version" value="1.4.6-ODPS" />
+
+  <!-- The last version released. -->
+  <property name="oldversion" value="1.4.6" />
+  <!-- The point when we branched for the previous release. -->
+  <property name="prev.git.hash"
+      value="81624ddf3c8ca5834ab015ebafc8b8649ac36ab7" />
+
+  <property name="artifact.name" value="${name}-${version}" />
+  <property name="dest.jar" value="${artifact.name}.jar" />
+  <property name="test.jar" value="${name}-test-${version}.jar" />
+  <property name="git.hash" value="" />
+
+  <!-- programs used -->
+  <property name="python" value="python" />
+
+  <!-- locations in the source tree -->
+  <property name="base.src.dir" location="${basedir}/src" />
+  <property name="src.dir" location="${base.src.dir}/java" />
+  <property name="test.dir" location="${base.src.dir}/test" />
+  <property name="perftest.src.dir" location="${base.src.dir}/perftest" />
+  <property name="lib.dir" location="${basedir}/lib" />
+  <property name="docs.src.dir" location="${base.src.dir}/docs" />
+  <property name="script.src.dir" location="${base.src.dir}/scripts" />
+
+  <!-- base directory for all build/test process output -->
+  <property name="build.dir" location="${basedir}/build" />
+
+  <!-- generated bin scripts -->
+  <property name="build.bin.dir" location="${build.dir}/bin" />
+
+  <!-- generated source code -->
+  <property name="build.src.dir" location="${build.dir}/src" />
+
+  <!-- staging area for *-sources.jar files -->
+  <property name="build.srcjar.dir" location="${build.dir}/srcjars" />
+
+  <!-- compiled classes for the main sqoop artifact. -->
+  <property name="build.classes" location="${build.dir}/classes"/>
+
+  <!-- root directory for output/intermediate data for testing -->
+  <property name="build.test" location="${build.dir}/test"/>
+  <property name="test.log.dir" location="${build.dir}/test/logs"/>
+  <property name="test.build.extraconf" value="${build.test}/extraconf" />
+
+  <!-- compiled test classes -->
+  <property name="build.test.classes" location="${build.test}/classes" />
+
+  <!-- compiled "perftest" programs -->
+  <property name="build.perftest" location="${build.dir}/perftest"/>
+  <property name="build.perftest.classes" location="${build.perftest}/classes"/>
+
+  <!-- generated documentation output directory -->
+  <property name="build.javadoc" location="${build.dir}/docs/api" />
+
+  <!-- Target dir for release notes file. -->
+  <property name="build.relnotes.dir" location="${build.dir}/docs" />
+  <property name="relnotes.filename"
+      location="${build.relnotes.dir}/sqoop-${version}.releasenotes.html" />
+
+  <property name="bin.artifact.name" value="${artifact.name}.bin__hadoop-${hadoop.version.full}" />
+  <property name="dist.dir" location="${build.dir}/${bin.artifact.name}" />
+  <property name="tar.file" location="${build.dir}/${bin.artifact.name}.tar.gz" />
+  <property name="build.docs.timestamp"
+      location="${build.dir}/docs.timestamp" />
+
+  <property name="src.artifact.name" value="${artifact.name}" />
+  <property name="src.dist.dir" location="${build.dir}/${src.artifact.name}" />
+  <property name="src.tar.file" location="${build.dir}/${src.artifact.name}.tar.gz" />
+
+  <!-- compilation -->
+  <property name="targetJavaVersion" value="1.6" />
+  <property name="sourceJavaVersion" value="1.6" />
+  <property name="javac.deprecation" value="off"/>
+  <property name="javac.debug" value="on"/>
+  <property name="build.encoding" value="ISO-8859-1"/>
+
+  <!-- testing with JUnit -->
+  <property name="test.junit.output.format" value="plain"/>
+  <property name="test.output" value="no"/>
+  <property name="test.timeout" value="1200000"/>
+
+  <!-- static analysis -->
+  <property name="findbugs.out.dir" value="${build.dir}/findbugs" />
+  <property name="findbugs.output.xml.file"
+      value="${findbugs.out.dir}/report.xml" />
+  <property name="findbugs.output.html.file"
+      value="${findbugs.out.dir}/report.html" />
+  <property name="findbugs.excludes"
+      location="${test.dir}/findbugsExcludeFile.xml" />
+
+  <!-- maven -->
+  <property name="mvn.build.dir" value="${build.dir}/m2" />
+  <property name="mvn.repo" value="snapshots" />
+  <property name="mvn.repo.id" value="cloudera.${mvn.repo}.repo" />
+  <property name="mvn.deploy.url"
+      value="https://repository.cloudera.com/content/repositories/${mvn.repo}"/>
+  <property name="sqoop.pom" value="${mvn.build.dir}/sqoop.pom" />
+  <property name="sqooptest.pom" value="${mvn.build.dir}/sqoop-test.pom" />
+
+  <!-- code coverage -->
+  <property name="cobertura.dir" value="${build.dir}/cobertura" />
+  <property name="cobertura.home" value="${cobertura.dir}" />
+  <property name="cobertura.report.dir" value="${cobertura.dir}/report" />
+  <property name="cobertura.format" value="html" /> <!-- may be 'xml' -->
+  <property name="cobertura.class.dir" value="${cobertura.dir}/classes" />
+
+  <!-- aspectJ fault injection -->
+  <import file="${test.dir}/aop/build/aop.xml"/>
+  <!-- Checking code style -->
+  <property name="checkstyle.xml" value="${test.dir}/checkstyle.xml" />
+  <property name="checkstyle.format.xsl"
+      value="${test.dir}/checkstyle-noframes.xsl" />
+  <property name="checkstyle.report.dir" value="${build.dir}" />
+
+  <!-- Release audit -->
+  <property name="rat.reporting.classname" value="rat.Report"/>
+
+  <!-- When testing with non-free JDBC drivers, override this parameter
+       to contain the path to the driver library dir.
+    -->
+  <property name="sqoop.thirdparty.lib.dir" value="" />
+
+
+  <!-- Ivy library properties -->
+  <property name="ivy.dir" location="${basedir}/ivy" />
+  <loadproperties srcfile="${ivy.dir}/libraries.properties"/>
+
+  <!-- Ivy-based dependency resolution -->
+  <property name="ivysettings.xml" location="${ivy.dir}/ivysettings.xml"/>
+  <property name="ivy.jar" location="${lib.dir}/ivy-${ivy.version}.jar"/>
+  <property name="ivy_repo_url"
+  value="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.version}/ivy-${ivy.version}.jar" />
+  <property name="mvn_repo_url"
+  value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks/${mvn.version}/maven-ant-tasks-${mvn.version}.jar"/>
+  <property name="mvn.jar"
+      location="${build.dir}/maven-ant-tasks-${mvn.version}.jar" />
+  <property name="build.ivy.dir" location="${build.dir}/ivy" />
+  <property name="build.ivy.lib.dir" location="${build.ivy.dir}/lib" />
+  <property name="build.ivy.report.dir" location="${build.ivy.dir}/report" />
+  <property name="redist.ivy.lib.dir"
+      location="${build.ivy.lib.dir}/${name}/redist"/>
+
+  <!--this is the naming policy for artifacts we want pulled down-->
+  <property name="ivy.artifact.retrieve.pattern"
+      value="${name}/[conf]/[artifact]-[revision](-[classifier]).[ext]"/>
+
+  <!--test related properties -->
+  <property name="sqoop.test.oracle.connectstring"
+            value="jdbc:oracle:thin:@//localhost/xe"/>
+
+  <property name="sqoop.test.mysql.connectstring.host_url"
+            value="jdbc:mysql://localhost/"/>
+
+  <property name="sqoop.test.cubrid.connectstring.host_url"
+            value="jdbc:cubrid:localhost:30000"/>
+  <property name="sqoop.test.cubrid.connectstring.database" value="SQOOPCUBRIDTEST" />
+  <property name="sqoop.test.cubrid.connectstring.username" value="SQOOPUSER" />
+  <property name="sqoop.test.cubrid.connectstring.password" value="PASSWORD" />
+
+  <property name="sqoop.test.postgresql.connectstring.host_url"
+            value="jdbc:postgresql://localhost/"/>
+
+  <property name="sqoop.test.postgresql.database"
+            value="sqooptest" />
+
+  <property name="sqoop.test.postgresql.tablespace"
+            value="sqooptest" />
+
+  <property name="sqoop.test.postgresql.username"
+            value="sqooptest" />
+
+  <property name="sqoop.test.postgresql.pg_bulkload"
+            value="pg_bulkload" />
+
+  <property name="sqoop.test.sqlserver.connectstring.host_url"
+            value="jdbc:sqlserver://sqlserverhost:1433"/>
+
+  <property name="java.security.krb5.realm"
+            value="OX.AC.UK"/>
+
+  <property name="java.security.krb5.kdc"
+            value="kdc0.ox.ac.uk:kdc1.ox.ac.uk"/>
+  <property name="ms.sqlserver.username"
+            value="SQOOPUSER"/>
+
+  <property name="ms.sqlserver.password"
+            value="PASSWORD"/>
+
+  <property name="sqoop.test.db2.connectstring.host_url" value="jdbc:db2://db2host:50000" />
+  <property name="sqoop.test.db2.connectstring.database" value="SQOOP" />
+  <property name="sqoop.test.db2.connectstring.username" value="SQOOP" />
+  <property name="sqoop.test.db2.connectstring.password" value="SQOOP" />
+
+  <property name="sqoop.test.netezza.host" value="nz-host" />
+  <property name="sqoop.test.netezza.port" value="5480" />
+  <property name="sqoop.test.netezza.username" value="ADMIN" />
+  <property name="sqoop.test.netezza.password" value="password" />
+  <property name="sqoop.test.netezza.db.name" value="SQOOP" />
+  <property name="sqoop.test.netezza.table.name" value="EMPNZ" />
+
+
+  <condition property="windows">
+    <os family="windows" />
+  </condition>
+
+  <condition property="skip-real-docs">
+    <or>
+      <isset property="docs.uptodate" />
+      <os family="windows" />
+    </or>
+  </condition>
+
+  <if>
+    <isset property="sqoop.test.msserver.connector.factory"/>
+    <then>
+      <echo message="Use ${sqoop.test.msserver.connector.factory}"/>
+    </then>
+    <else>
+      <echo message="Use built-in SQL server connector by default"/>
+      <property name="sqoop.test.msserver.connector.factory"
+                value="org.apache.sqoop.manager.DefaultManagerFactory"/>
+    </else>
+  </if>
+
+  <!-- The classpath for compiling and running Sqoop -->
+  <if>
+    <isset property="hadoop.home" />
+    <then>
+      <path id="compile.classpath">
+        <pathelement location="${build.classes}"/>
+        <path refid="lib.path"/>
+        <fileset dir="${hadoop.home}">
+          <include name="hadoop-core-*.jar" />
+          <include name="hadoop-*-core.jar" />
+          <include name="hadoop-common-*.jar" />
+          <include name="hadoop-mapred-*.jar" />
+          <include name="hadoop-hdfs-*.jar" />
+        </fileset>
+        <fileset dir="${hadoop.home}/lib">
+          <include name="*.jar" />
+        </fileset>
+        <path refid="${name}.hadoop.classpath"/>
+      </path>
+    </then>
+    <else>
+      <path id="compile.classpath">
+        <pathelement location="${build.classes}"/>
+        <path refid="lib.path"/>
+        <path refid="${name}.hadoop.classpath"/>
+      </path>
+    </else>
+  </if>
+
+  <path id="cobertura.classpath">
+    <fileset dir="${cobertura.home}">
+      <include name="**/*.jar" />
+    </fileset>
+  </path>
+
+  <!-- "init" target used for setup purposes. -->
+  <target name="init">
+    <!-- Path containing third-party libraries deployed directly with Sqoop.
+         This does not include anything that Ivy can retrieve for us.
+      -->
+    <path id="lib.path">
+      <fileset dir="${lib.dir}">
+        <include name="*.jar" />
+      </fileset>
+    </path>
+
+    <!-- Classpath for unit tests (superset of compile.classpath) -->
+    <path id="test.classpath">
+      <pathelement location="${build.test.classes}" />
+      <pathelement location="${test.build.extraconf}"/>
+      <path refid="${name}.hadooptest.classpath" />
+      <path refid="compile.classpath" />
+    </path>
+  </target>
+
+  <!-- generate the version information class. -->
+  <target name="gen-version" depends="init">
+    <if>
+      <equals arg1="${windows}" arg2="true" />
+      <then>
+        <exec executable="${script.src.dir}/write-version-info.cmd"
+            dir="${basedir}" failonerror="true">
+          <arg value="${build.dir}" />
+          <arg value="${version}" />
+          <arg value="${git.hash}" />
+        </exec>
+      </then>
+      <else>
+        <exec executable="${script.src.dir}/write-version-info.sh"
+            dir="${basedir}" failonerror="true">
+          <arg value="${build.dir}" />
+          <arg value="${version}" />
+          <arg value="${git.hash}" />
+        </exec>
+      </else>
+    </if>
+  </target>
+
+  <!-- Compile core classes for the project -->
+  <target name="compile"
+      depends="init, gen-version, ivy-retrieve-hadoop"
+      description="Compile core classes for the project">
+    <!-- don't use an out-of-date instrumented build. -->
+    <delete dir="${cobertura.class.dir}" />
+    <!-- ensure normal build target dir exists -->
+    <mkdir dir="${build.classes}" />
+
+    <!-- Compile generated code first. -->
+    <javac
+        encoding="${build.encoding}"
+        srcdir="${build.src.dir}"
+        includes="**/*.java"
+        destdir="${build.classes}"
+        debug="${javac.debug}"
+        source="${sourceJavaVersion}"
+        target="${targetJavaVersion}"
+        deprecation="${javac.deprecation}">
+      <classpath refid="compile.classpath"/>
+    </javac>
+
+    <!-- Compile the main code. -->
+    <javac
+        encoding="${build.encoding}"
+        srcdir="${src.dir}"
+        includes="**/*.java"
+        destdir="${build.classes}"
+        debug="${javac.debug}"
+        source="${sourceJavaVersion}"
+        target="${targetJavaVersion}"
+        deprecation="${javac.deprecation}">
+      <classpath refid="compile.classpath"/>
+    </javac>
+  </target>
+
+  <target name="compile-test"
+      depends="compile, ivy-retrieve-hadoop-test"
+      description="Compile test classes">
+    <mkdir dir="${build.test.classes}" />
+    <mkdir dir="${test.build.extraconf}"/>
+    <javac
+        encoding="${build.encoding}"
+        srcdir="${test.dir}"
+        includes="**/*.java"
+        destdir="${build.test.classes}"
+        source="${sourceJavaVersion}"
+        target="${targetJavaVersion}"
+        debug="${javac.debug}">
+      <classpath>
+        <path refid="test.classpath"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="compile-perf-test"
+      depends="compile, ivy-retrieve-hadoop-test"
+      description="Compile manual performance tests">
+    <mkdir dir="${build.perftest.classes}" />
+    <javac
+        encoding="${build.encoding}"
+        srcdir="${perftest.src.dir}"
+        includes="**/*.java"
+        destdir="${build.perftest.classes}"
+        source="${sourceJavaVersion}"
+        target="${targetJavaVersion}"
+        debug="${javac.debug}">
+      <classpath>
+        <path refid="test.classpath"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="jar" depends="compile" description="Create main jar">
+    <jar jarfile="${build.dir}/${dest.jar}" basedir="${build.classes}" />
+  </target>
+
+  <target name="jar-test" depends="compile-test" description="Create test jar">
+    <jar jarfile="${build.dir}/${test.jar}" basedir="${build.test.classes}" />
+  </target>
+
+  <!-- Ensure that all source code can be built -->
+  <target name="compile-all"
+      depends="compile,compile-test,compile-perf-test"
+      description="Compile all sources"/>
+
+  <!-- Create all jars. Note this does not include the perftests. -->
+  <target name="jar-all" depends="jar,jar-test"
+      description="Create all jar artifacts" />
+
+  <target name="scripts" depends="jar"
+      description="Create tool-specific wrapper scripts">
+    <!-- Take the list of available tools from 'sqoop help' and generate
+         the wrapper scripts to invoke each of these.
+      -->
+    <mkdir dir="${build.bin.dir}" />
+    <if>
+      <equals arg1="${windows}" arg2="true" />
+      <then>
+        <java classname="com.cloudera.sqoop.Sqoop"
+            fork="true"
+            failonerror="true"
+            output="${build.dir}/tools-list"
+            error="NUL">
+          <jvmarg value="-Dhadoop.security.log.file=./build/security-audit.log" />
+          <arg value="help" />
+          <classpath refid="compile.classpath"/>
+        </java>
+        <exec executable="${script.src.dir}/create-tool-scripts.cmd"
+            dir="${basedir}" failonerror="true">
+          <arg value="${build.bin.dir}" />
+          <arg value="${script.src.dir}/tool-script.cmd.template" />
+          <arg value="${build.dir}/tools-list" />
+        </exec>
+      </then>
+      <else>
+        <java classname="com.cloudera.sqoop.Sqoop"
+            fork="true"
+            failonerror="true"
+            output="${build.dir}/tools-list"
+            error="/dev/null">
+          <jvmarg value="-Dhadoop.security.log.file=./build/security-audit.log" />
+          <arg value="help" />
+          <classpath refid="compile.classpath"/>
+        </java>
+        <exec executable="${script.src.dir}/create-tool-scripts.sh"
+            dir="${basedir}" failonerror="true">
+          <arg value="${build.bin.dir}" />
+          <arg value="${script.src.dir}/tool-script.sh.template" />
+          <arg value="${build.dir}/tools-list" />
+        </exec>
+      </else>
+    </if>
+  </target>
+
+  <target name="package"
+      depends="jar-all,compile-all,docs,ivy-retrieve-redist,scripts"
+      description="Create a redistributable package">
+
+    <mkdir dir="${dist.dir}"/>
+
+    <!-- copy in the build artifact -->
+    <copy todir="${dist.dir}" includeEmptyDirs="false" flatten="true">
+      <fileset dir="${build.dir}">
+        <include name="${dest.jar}" />
+      </fileset>
+    </copy>
+
+    <!-- copy the test artifact -->
+    <copy todir="${dist.dir}" includeEmptyDirs="false" flatten="true">
+      <fileset dir="${build.dir}">
+        <include name="${test.jar}" />
+      </fileset>
+    </copy>
+
+    <!-- copy in various components of the initial source layout
+         so that the redistributable can bootstrap itself. -->
+    <copy todir="${dist.dir}" includeEmptyDirs="false" flatten="false">
+      <fileset dir="${basedir}" defaultexcludes="no">
+        <include name="**/*" />
+        <exclude name="build/**" />
+        <exclude name="lib/**" />
+        <exclude name=".git/**" />
+        <exclude name="tags" />
+        <exclude name=".project" />
+        <exclude name=".classpath" />
+        <exclude name="conf/managers.d/**" />
+        <exclude name="conf/tools.d/**" />
+      </fileset>
+    </copy>
+
+    <!-- copy the dependency libraries from ivy into the output lib dir -->
+    <mkdir dir="${dist.dir}/lib"/>
+    <copy todir="${dist.dir}/lib" includeEmptyDirs="false" flatten="true">
+      <fileset dir="${redist.ivy.lib.dir}">
+        <include name="**/*.jar" />
+      </fileset>
+    </copy>
+
+    <copy todir="${dist.dir}/lib" includeEmptyDirs="false">
+      <fileset dir="${lib.dir}">
+        <include name="**/*" />
+        <exclude name="ivy*" />
+      </fileset>
+    </copy>
+
+    <!-- copy in documentation build artifacts -->
+    <copy todir="${dist.dir}/docs" includeEmptyDirs="false" flatten="false">
+      <fileset dir="${build.dir}/docs">
+        <include name="**/*.html" />
+        <include name="**/*.css" />
+        <include name="images/**" />
+      </fileset>
+    </copy>
+    <copy todir="${dist.dir}/docs/man" includeEmptyDirs="false" flatten="false">
+      <fileset dir="${build.dir}/docs">
+        <include name="**/*.gz" />
+      </fileset>
+    </copy>
+
+    <!-- copy in auto-generated bin scripts -->
+    <copy todir="${dist.dir}/bin" includeEmptyDirs="false" flatten="true">
+      <fileset dir="${build.bin.dir}">
+        <include name="*" />
+      </fileset>
+    </copy>
+
+    <!-- make sure the bin scripts are executable. -->
+    <chmod perm="ugo+x" type="file" parallel="false">
+      <fileset dir="${dist.dir}/bin" />
+      <fileset dir="${dist.dir}/testdata/hive/bin" />
+    </chmod>
+
+    <!-- make sure any scripts named *.sh are executable. -->
+    <chmod perm="ugo+x" type="file" parallel="false">
+      <fileset dir="${dist.dir}">
+        <include name="**/*.sh" />
+      </fileset>
+    </chmod>
+
+    <!-- In the configuration directory, take the sqoop-site-template
+         and copy it to sqoop-site.xml, overwriting any user-specified
+         sqoop-site.xml in there.
+     -->
+    <copy file="${dist.dir}/conf/sqoop-site-template.xml"
+        tofile="${dist.dir}/conf/sqoop-site.xml"
+        overwrite="true" />
+  </target>
+
+  <target name="tar" depends="package" description="Create release tarball">
+    <tar compression="gzip" longfile="gnu" destfile="${tar.file}">
+      <tarfileset dir="${build.dir}" mode="664">
+        <exclude name="${bin.artifact.name}/bin/*" />
+        <exclude name="${bin.artifact.name}/testdata/hive/bin/*" />
+        <exclude name="${bin.artifact.name}/**/*.sh" />
+        <include name="${bin.artifact.name}/**" />
+      </tarfileset>
+      <tarfileset dir="${build.dir}" mode="755">
+        <include name="${bin.artifact.name}/bin/*" />
+        <include name="${bin.artifact.name}/testdata/hive/bin/*" />
+        <include name="${bin.artifact.name}/testdata/hcatalog/conf/*" />
+        <include name="${bin.artifact.name}/**/*.sh" />
+      </tarfileset>
+    </tar>
+  </target>
+
+  <target name="srcpackage" description="Create a redistributable source package">
+
+    <mkdir dir="${src.dist.dir}"/>
+
+    <!-- copy in various components of the initial source layout
+         so that the redistributable can bootstrap itself. -->
+    <copy todir="${src.dist.dir}" includeEmptyDirs="false" flatten="false">
+      <fileset dir="${basedir}" defaultexcludes="no">
+        <include name="**/*" />
+        <exclude name="build/**" />
+        <exclude name=".git/**" />
+        <exclude name="tags" />
+        <exclude name=".project" />
+        <exclude name=".classpath" />
+        <exclude name="conf/managers.d/**" />
+        <exclude name="conf/tools.d/**" />
+      </fileset>
+    </copy>
+
+    <!-- make sure the bin scripts are executable. -->
+    <chmod perm="ugo+x" type="file" parallel="false">
+      <fileset dir="${src.dist.dir}/bin" />
+      <fileset dir="${src.dist.dir}/testdata/hive/bin" />
+    </chmod>
+
+    <!-- make sure any scripts named *.sh are executable. -->
+    <chmod perm="ugo+x" type="file" parallel="false">
+      <fileset dir="${src.dist.dir}">
+        <include name="**/*.sh" />
+      </fileset>
+    </chmod>
+  </target>
+
+  <target name="srctar" depends="srcpackage" description="Create release source tarball">
+    <tar compression="gzip" longfile="gnu" destfile="${src.tar.file}">
+      <tarfileset dir="${build.dir}" mode="664">
+        <exclude name="${src.artifact.name}/bin/*" />
+        <exclude name="${src.artifact.name}/testdata/hive/bin/*" />
+        <exclude name="${src.artifact.name}/testdata/hcatalog/conf/*" />
+        <exclude name="${src.artifact.name}/**/*.sh" />
+        <include name="${src.artifact.name}/**" />
+      </tarfileset>
+      <tarfileset dir="${build.dir}" mode="755">
+        <include name="${src.artifact.name}/bin/*" />
+        <include name="${src.artifact.name}/testdata/hive/bin/*" />
+        <include name="${src.artifact.name}/testdata/hcatalog/conf/*" />
+        <include name="${src.artifact.name}/**/*.sh" />
+      </tarfileset>
+    </tar>
+  </target>
+
+  <!-- set variables that configure the actual test -->
+  <target name="test-prep" depends="test-prep-normal,test-prep-thirdparty,
+                                    test-prep-manual"/>
+
+  <path id="hcatalog.conf.dir">
+     <pathelement location="${basedir}/testdata/hcatalog/conf"/>
+  </path>
+  <target name="test-eval-condition">
+    <condition property="thirdparty_or_manual">
+      <or>
+        <isset property="thirdparty"/>
+        <isset property="manual"/>
+      </or>
+    </condition>
+  </target>
+
+
+
+  <target name="test-prep-normal" unless="thirdparty_or_manual"
+                                  depends="test-eval-condition">
+    <!-- Set this to run all the "standard" tests -->
+    <property name="test.pattern" value="Test*" />
+    <property name="cobertura.testset" value="base" />
+  </target>
+
+  <target name="test-prep-thirdparty" if="thirdparty">
+    <!-- Run tests that *end* with the name Test, instead of starting with it;
+         this runs non-standard tests e.g. third-party database tests. -->
+    <property name="test.pattern" value="*Test" />
+    <property name="test.exclude" value="*ManualTest" />
+    <property name="cobertura.testset" value="thirdparty" />
+  </target>
+
+  <target name="test-prep-manual" if="manual">
+    <!-- Run tests that are marked for manualtest execution -->
+    <property name="test.pattern" value="*ManualTest" />
+    <property name="cobertura.testset" value="manual" />
+  </target>
+
+  <!-- ================================================================== -->
+  <!-- Run unit tests                                                     -->
+  <!-- By default, we'll run the "normal" tests: Test*.java               -->
+  <!-- To run third-party tests, run with -Dthirdparty=true               -->
+  <!-- ================================================================== -->
+  <target name="test"
+      depends="compile-test,compile,test-prep,run-tests"
+      description="Run unit tests" />
+
+  <!-- actually run the selected unit tests -->
+  <target name="run-tests"
+      depends="compile-test,compile,test-prep">
+    <antcall target="checkfailure" inheritRefs="true" />
+  </target>
+
+  <target name="test-core">
+    <!-- inner target only intended to be used via antcall.
+         Does not define its dependencies. Should be invoked through the
+         'test' target. Does not fail the build if tests fail.
+    -->
+
+    <delete dir="${test.log.dir}"/>
+    <mkdir dir="${test.log.dir}"/>
+    <delete dir="${build.test}/data"/>
+    <mkdir dir="${build.test}/data/sqoop" />
+    <mkdir dir="${cobertura.class.dir}" />
+    <copy file="${test.dir}/fi-site.xml"
+            todir="${test.build.extraconf}" />
+    <copy file="${basedir}/conf/oraoop-site-template.xml"
+            todir="${test.build.extraconf}" />
+    <copy todir="${test.build.extraconf}/oraoop">
+      <fileset dir="${test.dir}/oraoop"/>
+    </copy>
+    <junit
+      printsummary="yes" showoutput="${test.output}"
+      haltonfailure="no" fork="yes" maxmemory="1024m"
+      errorProperty="tests.failed" failureProperty="tests.failed"
+      timeout="${test.timeout}"
+      dir="${build.test}/data">
+
+      <!-- enable asserts in tests -->
+      <jvmarg value="-ea" />
+
+      <!-- uncomment this if you want to attach a debugger -->
+      <!--
+      <jvmarg line="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=2601" />
+      -->
+
+      <sysproperty key="test.build.data" value="${build.test}/data"/>
+      <sysproperty key="build.test" value="${build.test}"/>
+
+      <!-- microsoft sqlserver manual test related properties-->
+      <sysproperty key="test.data.dir" value="${basedir}/testdata"/>
+      <sysproperty key="ms.datatype.test.data.file.export" value="DatatypeTestData-export-lite.txt"/>
+      <sysproperty key="ms.datatype.test.data.file.import" value="DatatypeTestData-import-lite.txt"/>
+      <sysproperty key="ms.datatype.test.data.file.delim" value=","/>
+      <sysproperty key="ms.datatype.test.hdfsprefix" value="file:///"/>
+      <sysproperty key="ms.sqlserver.username" value="${ms.sqlserver.username}"/>
+      <sysproperty key="ms.sqlserver.password" value="${ms.sqlserver.password}"/>
+
+      <sysproperty key="net.sourceforge.cobertura.datafile"
+          value="${cobertura.dir}/cobertura-${cobertura.testset}.ser" />
+
+      <!-- define this property to force Sqoop to throw better exceptions on
+           errors during testing, instead of printing a short message and
+           exiting with status 1.
+        -->
+      <sysproperty key="sqoop.throwOnError" value="" />
+
+      <!-- we want more log4j output when running unit tests -->
+      <sysproperty key="hadoop.root.logger"
+        value="DEBUG,console" />
+
+      <!-- requires fork=yes for:
+        relative File paths to use the specified user.dir
+        classpath to use build/*.jar
+      -->
+      <sysproperty key="user.dir" value="${build.test}/data"/>
+
+      <!-- Setting the user.dir property is actually meaningless as it
+          is read-only in the Linux Sun JDK. Provide an alternate sysprop
+          to specify where generated code should go.
+      -->
+      <sysproperty key="sqoop.src.dir" value="${build.test}/data"/>
+
+      <!-- Override standalone Hadoop's working dirs to allow parallel
+           execution of multiple Hudson builders
+      -->
+      <sysproperty key="hadoop.tmp.dir" value="${build.test}/hadoop"/>
+
+     <!--
+       Set to an empty string below due to MAPREDUCE-3736
+     <sysproperty key="fs.default.name" value="${fs.default.name}"/>
+     -->
+      <sysproperty key="fs.default.name" value=""/>
+      <sysproperty key="hadoop.test.localoutputfile"
+          value="${hadoop.test.localoutputfile}"/>
+      <sysproperty key="hadoop.log.dir" value="${test.log.dir}"/>
+
+      <!-- we have a mock "hive" shell instance in our testdata directory
+           for testing hive integration. Set this property here to ensure
+           that the unit tests pick it up.
+      -->
+      <sysproperty key="hive.home" value="${basedir}/testdata/hive" />
+
+      <!-- By default the Oracle tests assume an Oracle XE installation
+           with a hardcoded connection string. If you want to overwrite
+           that specify the value at command line or via
+           build.properties file.
+      -->
+      <sysproperty key="sqoop.test.odps.project"
+                   value="${sqoop.test.odps.project}" />
+
+      <sysproperty key="sqoop.test.odps.accessid"
+                   value="${sqoop.test.odps.accessid}" />
+
+      <sysproperty key="sqoop.test.odps.accesskey"
+                   value="${sqoop.test.odps.accesskey}" />
+
+      <sysproperty key="sqoop.test.odps.endpoint"
+                   value="${sqoop.test.odps.endpoint}" />
+
+      <sysproperty key="sqoop.test.odps.tunnel_endpoint"
+                   value="${sqoop.test.odps.tunnel_endpoint}" />
+
+      <sysproperty key="sqoop.test.odps.datahub_endpoint"
+                   value="${sqoop.test.odps.datahub_endpoint}" />
+
+      <sysproperty key="sqoop.test.oracle.connectstring"
+                   value="${sqoop.test.oracle.connectstring}"/>
+
+      <sysproperty key="sqoop.test.mysql.connectstring.host_url"
+                   value="${sqoop.test.mysql.connectstring.host_url}"/>
+
+      <sysproperty key="sqoop.test.cubrid.connectstring.host_url"
+                   value="${sqoop.test.cubrid.connectstring.host_url}"/>
+
+      <sysproperty key="sqoop.test.cubrid.connectstring.database"
+                   value="${sqoop.test.cubrid.connectstring.database}"/>
+
+      <sysproperty key="sqoop.test.cubrid.connectstring.username"
+                   value="${sqoop.test.cubrid.connectstring.username}"/>
+
+      <sysproperty key="sqoop.test.cubrid.connectstring.password"
+                   value="${sqoop.test.cubrid.connectstring.password}"/>
+
+      <sysproperty key="sqoop.test.postgresql.connectstring.host_url"
+                   value="${sqoop.test.postgresql.connectstring.host_url}"/>
+
+      <sysproperty key="sqoop.test.postgresql.database"
+                   value="${sqoop.test.postgresql.database}" />
+
+      <sysproperty key="sqoop.test.postgresql.tablespace"
+                   value="${sqoop.test.postgresql.tablespace}" />
+
+      <sysproperty key="sqoop.test.postgresql.username"
+                   value="${sqoop.test.postgresql.username}" />
+
+      <sysproperty key="sqoop.test.postgresql.pg_bulkload"
+                   value="${sqoop.test.postgresql.pg_bulkload}" />
+
+      <sysproperty key="sqoop.test.sqlserver.connectstring.host_url"
+                   value="${sqoop.test.sqlserver.connectstring.host_url}"/>
+
+      <sysproperty key="sqoop.test.msserver.connector.factory"
+                   value="${sqoop.test.msserver.connector.factory}"/>
+
+      <sysproperty key="java.security.krb5.realm"
+                   value="${java.security.krb5.realm}"/>
+
+      <sysproperty key="java.security.krb5.kdc"
+                   value="${java.security.krb5.kdc}"/>
+
+      <sysproperty key="sqoop.test.db2.connectstring.host_url" value="${sqoop.test.db2.connectstring.host_url}" />
+      <sysproperty key="sqoop.test.db2.connectstring.database" value="${sqoop.test.db2.connectstring.database}" />
+      <sysproperty key="sqoop.test.db2.connectstring.username" value="${sqoop.test.db2.connectstring.username}" />
+      <sysproperty key="sqoop.test.db2.connectstring.password" value="${sqoop.test.db2.connectstring.password}" />
+
+      <sysproperty key="sqoop.test.netezza.host" value="${sqoop.test.netezza.host}" />
+      <sysproperty key="sqoop.test.netezza.port" value="${sqoop.test.netezza.port}" />
+      <sysproperty key="sqoop.test.netezza.username" value="${sqoop.test.netezza.username}" />
+      <sysproperty key="sqoop.test.netezza.password" value="${sqoop.test.netezza.password}" />
+      <sysproperty key="sqoop.test.netezza.db.name" value="${sqoop.test.netezza.db.name}" />
+      <sysproperty key="sqoop.test.netezza.table.name" value="${sqoop.test.netezza.table.name}" />
+
+      <!-- Location of Hive logs -->
+      <!--<sysproperty key="hive.log.dir"
+                   value="${test.build.data}/sqoop/logs"/> -->
+
+      <classpath>
+        <!-- instrumented classes go ahead of normal classes -->
+        <pathelement location="${cobertura.class.dir}" />
+
+        <!-- Location of hive-site xml and other hadoop config files -->
+        <path refid="hcatalog.conf.dir" />
+
+        <!-- main classpath here. -->
+        <path refid="test.classpath" />
+
+        <!-- need thirdparty JDBC drivers for thirdparty tests -->
+        <fileset dir="${sqoop.thirdparty.lib.dir}"
+            includes="*.jar" />
+
+        <!-- include cobertura itself on the classpath -->
+        <path refid="cobertura.classpath" />
+      </classpath>
+      <formatter type="${test.junit.output.format}" />
+      <batchtest todir="${build.test}" unless="testcase">
+        <fileset dir="${test.dir}"
+                 includes="**/${test.pattern}.java"
+                 excludes="**/${test.exclude}.java" />
+      </batchtest>
+      <batchtest todir="${build.test}" if="testcase">
+        <fileset dir="${test.dir}" includes="**/${testcase}.java"/>
+      </batchtest>
+    </junit>
+  </target>
+
+  <target name="releaseaudit" depends="package,ivy-retrieve-releaseaudit"
+      description="Audit license headers for release">
+    <fail unless="rat.present"
+        message="Failed to load class [${rat.reporting.classname}]." />
+    <java classname="${rat.reporting.classname}" fork="true"
+        output="${build.dir}/rat.log">
+      <classpath refid="${name}.releaseaudit.classpath" />
+      <arg value="${dist.dir}" />
+    </java>
+    <exec executable="${script.src.dir}/rat-violations.sh" failOnError="true">
+        <arg value="${build.dir}/rat.log" />
+        <arg value="${dist.dir}" />
+    </exec>
+    <echo message="Release audit appears okay. Full results are in " />
+    <echo message="${build.dir}/rat.log" />
+  </target>
+
+  <target name="docs-uptodate" depends="init">
+    <uptodate property="docs.uptodate">
+      <srcfiles dir="${basedir}/src/docs/">
+        <include name="**/*.txt" />
+      </srcfiles>
+      <mapper type="merge" to="${build.docs.timestamp}" />
+    </uptodate>
+  </target>
+
+  <target name="checkversion">
+    <if>
+      <contains string="${version}" substring="SNAPSHOT" />
+      <then>
+        <fail message="Error: cannot release a snapshot. Set -Dversion" />
+      </then>
+    </if>
+  </target>
+
+  <target name="relnotes-uptodate" depends="init">
+    <!-- releasenotes are considered up-to-date if they exist. -->
+    <available property="relnotes.exists" file="${relnotes.filename}" />
+
+    <!-- if we're building a snapshot release, don't make release notes. -->
+    <if>
+      <contains string="${version}" substring="SNAPSHOT" />
+      <then>
+        <property name="relnotes.exists" value="true" />
+      </then>
+    </if>
+  </target>
+
+  <target name="relnotes" depends="relnotes-uptodate" unless="relnotes.exists"
+      description="Generate release notes">
+    <exec executable="${python}" failonerror="yes">
+      <arg value="${script.src.dir}/relnotes.py" />
+      <arg value="${build.relnotes.dir}" />
+      <arg value="${basedir}" />
+      <arg value="${prev.git.hash}..HEAD" />
+      <arg value="${version}" />
+      <arg value="${oldversion}" />
+    </exec>
+  </target>
+
+  <target name="release" depends="checkversion,tar,releaseaudit"
+      description="Roll a release artifact">
+    <echo message="Release complete" />
+    <echo message="Binary tar: ${tar.file}" />
+    <echo message="Documentation: ${build.dir}/docs" />
+    <echo message="Release notes: ${relnotes.filename}" />
+    <echo message="Release audit report: ${build.dir}/rat.log" />
+  </target>
+
+  <target name="mvn-prep" depends="init,ivy-resolve-test">
+    <!-- prepare for mvn tasks. -->
+
+    <!-- Download maven -->
+    <mkdir dir="${build.dir}" />
+    <get src="${mvn_repo_url}" dest="${mvn.jar}" usetimestamp="true" />
+
+    <!-- Register mvn tasks -->
+    <path id="mvn-ant-task.classpath" path="${mvn.jar}" />
+    <typedef resource="org/apache/maven/artifact/ant/antlib.xml"
+        uri="urn:maven-artifact-ant"
+        classpathref="mvn-ant-task.classpath"/>
+
+    <!-- generate our poms from our ivy files. -->
+    <mkdir dir="${mvn.build.dir}" />
+    <ivy:makepom ivyfile="ivy/sqoop.xml" pomfile="${sqoop.pom}"
+        settingsRef="${name}.ivy.settings">
+      <mapping conf="default" scope="compile" />
+      <mapping conf="runtime" scope="runtime" />
+    </ivy:makepom>
+    <ivy:makepom ivyfile="ivy/sqoop-test.xml" pomfile="${sqooptest.pom}"
+        settingsRef="${name}.ivy.settings">
+      <mapping conf="default" scope="compile" />
+      <mapping conf="runtime" scope="runtime" />
+    </ivy:makepom>
+
+    <!-- Change the version in the pom file to reflect our claimed version. -->
+    <replaceregexp>
+      <regexp pattern="&lt;version&gt;.*&lt;/version&gt;" />
+      <substitution expression="&lt;version&gt;${version}&lt;/version&gt;" />
+      <fileset dir="${mvn.build.dir}">
+        <include name="*.pom" />
+      </fileset>
+    </replaceregexp>
+  </target>
+
+  <target name="srcjars" depends="init,jar-all"
+      description="Create source jars">
+    <mkdir dir="${build.srcjar.dir}" />
+    <jar jarfile="${build.srcjar.dir}/${artifact.name}-sources.jar">
+      <fileset dir="${src.dir}" />
+      <fileset dir="${build.src.dir}" />
+    </jar>
+    <jar jarfile="${build.srcjar.dir}/${name}-test-${version}-sources.jar">
+      <fileset dir="${test.dir}" />
+    </jar>
+  </target>
+
+  <target name="mvn-install" depends="init,mvn-prep,jar-all,srcjars"
+      description="Install Sqoop in local m2 repository">
+    <artifact:pom file="${sqoop.pom}" id="sqoop" />
+    <artifact:install file="${build.dir}/${dest.jar}">
+      <pom refid="sqoop" />
+      <attach file="${build.srcjar.dir}/${artifact.name}-sources.jar"
+          classifier="sources" />
+    </artifact:install>
+
+    <artifact:pom file="${sqooptest.pom}" id="sqoop-test" />
+    <artifact:install file="${build.dir}/${test.jar}">
+      <pom refid="sqoop-test" />
+      <attach file="${build.srcjar.dir}/${name}-test-${version}-sources.jar"
+          classifier="sources" />
+    </artifact:install>
+  </target>
+
+  <target name="mvn-deploy" depends="init,mvn-prep,jar-all,srcjars"
+      description="Deploy Sqoop to public maven repository">
+    <artifact:pom file="${sqoop.pom}" id="sqoop" />
+    <artifact:deploy file="${build.dir}/${dest.jar}">
+      <remoteRepository id="${mvn.repo.id}" url="${mvn.deploy.url}"/>
+      <pom refid="sqoop" />
+      <attach file="${build.srcjar.dir}/${artifact.name}-sources.jar"
+          classifier="sources" />
+    </artifact:deploy>
+
+    <artifact:pom file="${sqooptest.pom}" id="sqoop-test" />
+    <artifact:deploy file="${build.dir}/${test.jar}">
+      <remoteRepository id="${mvn.repo.id}" url="${mvn.deploy.url}"/>
+      <pom refid="sqoop-test" />
+      <attach file="${build.srcjar.dir}/${name}-test-${version}-sources.jar"
+          classifier="sources" />
+    </artifact:deploy>
+
+  </target>
+
+  <target name="docs" depends="real-docs,relnotes,javadoc"
+      description="Build documentation"/>
+
+  <target name="real-docs" depends="docs-uptodate,init" unless="skip-real-docs">
+    <exec executable="make" failonerror="true">
+      <arg value="-C" />
+      <arg value="${basedir}/src/docs" />
+      <arg value="BUILDROOT=${build.dir}" />
+      <arg value="VERSION=${version}" />
+    </exec>
+    <touch file="${build.docs.timestamp}" />
+  </target>
+
+  <target name="javadoc-uptodate" depends="init">
+    <uptodate property="javadoc.is.uptodate">
+      <srcfiles dir="${src.dir}">
+        <include name="**/*.java" />
+        <include name="**/*.html" />
+      </srcfiles>
+      <mapper type="merge" to="${build.javadoc}/index.html" />
+    </uptodate>
+  </target>
+
+  <target name="javadoc" description="Build javadoc"
+      depends="init,javadoc-uptodate,compile" unless="javadoc.is.uptodate">
+    <mkdir dir="${build.javadoc}" />
+    <exec executable="date" outputproperty="year">
+      <arg value="+%Y" />
+    </exec>
+    <javadoc
+      destdir="${build.javadoc}"
+      author="true"
+      version="true"
+      use="true"
+      windowtitle="${Name} ${version} API"
+      doctitle="${Name} ${version} API"
+      bottom="Copyright &amp;copy; ${year} The Apache Software Foundation">
+      <packageset dir="${src.dir}">
+        <include name="com/cloudera/sqoop/lib/**" />
+        <include name="org/apache/sqoop/lib/**" />
+      </packageset>
+      <classpath>
+        <path refid="compile.classpath" />
+      </classpath>
+    </javadoc>
+  </target>
+
+  <target name="checkfailure" depends="test-core" if="tests.failed">
+    <touch file="${build.dir}/testsfailed"/>
+    <fail unless="continueOnFailure">Unit tests failed!</fail>
+  </target>
+
+  <target name="clean" description="Clean build target files">
+    <delete dir="${build.dir}"/>
+  </target>
+
+  <target name="clean-cache" description="Remove cached dependencies">
+    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop" />
+    <delete dir="${user.home}/.ivy2/cache/com.cloudera.hadoop" />
+    <delete dir="${user.home}/.ivy2/cache/com.cloudera.hadoop" />
+    <delete file="${ivy.jar}" />
+  </target>
+
+  <target name="veryclean"
+      depends="clean,clean-cache"
+      description="Clean build and remove cached dependencies">
+  </target>
+
+  <target name="findbugs" depends="check-for-findbugs,jar,compile-test"
+      if="findbugs.present" description="Run FindBugs">
+    <taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask"
+        classpath="${findbugs.home}/lib/findbugs-ant.jar" />
+    <mkdir dir="${findbugs.out.dir}"/>
+    <findbugs home="${findbugs.home}" output="xml:withMessages"
+        outputFile="${findbugs.output.xml.file}" effort="max"
+        excludeFilter="${findbugs.excludes}" jvmargs="-Xms512m -Xmx512m">
+      <auxClasspath>
+        <path refid="test.classpath"/>
+      </auxClasspath>
+      <sourcePath path="${src.dir}" />
+      <sourcePath path="${test.dir}" />
+      <class location="${build.dir}/${dest.jar}" />
+      <class location="${build.test.classes}" />
+    </findbugs>
+    <xslt style="${findbugs.home}/src/xsl/default.xsl"
+        in="${findbugs.output.xml.file}"
+        out="${findbugs.output.html.file}" />
+  </target>
+
+  <target name="warn-findbugs-unset" unless="findbugs.home">
+    <fail message="You need to set -Dfindbugs.home=/path/to/findbugs" />
+  </target>
+
+  <target name="check-for-findbugs" depends="warn-findbugs-unset">
+    <available property="findbugs.present"
+        file="${findbugs.home}/lib/findbugs.jar" />
+  </target>
+
+  <target name="cobertura"
+      depends="check-for-cobertura,warn-cobertura-unset,jar,compile-test,test-prep"
+      if="cobertura.present" description="Run Cobertura (code coverage)">
+    <taskdef classpathref="cobertura.classpath"
+        resource="tasks.properties"/>
+    <mkdir dir="${cobertura.class.dir}" />
+    <cobertura-instrument todir="${cobertura.class.dir}"
+        datafile="${cobertura.dir}/cobertura-${cobertura.testset}.ser">
+      <fileset dir="${build.classes}">
+        <include name="**/*.class" />
+      </fileset>
+    </cobertura-instrument>
+
+    <!-- Run the unit tests, but do not fail the build if tests fail. -->
+    <antcall target="test-core" inheritRefs="true" />
+
+    <!-- merge the reports together from the internal and thirdparty tests -->
+    <delete file="${cobertura.dir}/cobertura.ser" />
+    <cobertura-merge datafile="${cobertura.dir}/cobertura.ser">
+      <fileset dir="${cobertura.dir}">
+        <include name="*.ser" />
+      </fileset>
+    </cobertura-merge>
+    <delete dir="${cobertura.report.dir}" />
+    <cobertura-report srcdir="${src.dir}" destdir="${cobertura.report.dir}"
+        format="${cobertura.format}"
+        datafile="${cobertura.dir}/cobertura.ser" />
+  </target>
+
+  <target name="warn-cobertura-unset" depends="check-for-cobertura"
+      unless="cobertura.present">
+    <fail message="You need to set -Dcobertura.home=/path/to/cobertura" />
+  </target>
+
+  <target name="check-for-cobertura">
+    <available property="cobertura.present"
+        file="${cobertura.home}/cobertura.jar" />
+  </target>
+
+  <target name="checkstyle" depends="ivy-retrieve-checkstyle,compile-all"
+      description="Check source code conventions">
+    <taskdef resource="checkstyletask.properties">
+      <classpath refid="${name}.checkstyle.classpath" />
+    </taskdef>
+
+    <mkdir dir="${checkstyle.report.dir}" />
+    <checkstyle config="${checkstyle.xml}" failOnViolation="false">
+      <fileset dir="${base.src.dir}" includes="**/*.java" />
+      <classpath refid="test.classpath"/>
+      <formatter type="xml"
+          toFile="${checkstyle.report.dir}/checkstyle-errors.xml" />
+    </checkstyle>
+
+    <xslt style="${checkstyle.format.xsl}"
+        in="${checkstyle.report.dir}/checkstyle-errors.xml"
+        out="${checkstyle.report.dir}/checkstyle-errors.html" />
+  </target>
+
+  <target name="ivy-probe-antlib" >
+    <condition property="ivy.found">
+      <typefound uri="antlib:org.apache.ivy.ant" name="cleancache"/>
+    </condition>
+  </target>
+
+  <!-- Downloads the ivy jar itself. -->
+  <target name="ivy-download" unless="offline">
+    <mkdir dir="${lib.dir}" />
+    <get src="${ivy_repo_url}" dest="${ivy.jar}" usetimestamp="true"/>
+  </target>
+
+  <target name="ivy-init-antlib" depends="ivy-download,ivy-probe-antlib"
+      unless="ivy.found">
+    <typedef uri="antlib:org.apache.ivy.ant" onerror="fail"
+      loaderRef="ivyLoader">
+      <classpath>
+        <pathelement location="${ivy.jar}"/>
+      </classpath>
+    </typedef>
+    <fail >
+      <condition >
+        <not>
+          <typefound uri="antlib:org.apache.ivy.ant" name="cleancache"/>
+        </not>
+      </condition>
+      You need Apache Ivy 2.0 or later from http://ant.apache.org/
+      It could not be loaded from ${ivy_repo_url}
+    </fail>
+  </target>
+
+  <target name="ivy-init" depends="ivy-init-antlib" unless="ivy.configured">
+    <ivy:configure settingsid="${name}.ivy.settings" file="${ivysettings.xml}"/>
+    <property name="ivy.configured" value="true" />
+  </target>
+
+
+  <!-- retrieve ivy-managed artifacts for the compile configuration -->
+  <target name="ivy-resolve-common" depends="ivy-init">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="common" />
+  </target>
+  <target name="ivy-retrieve-common" depends="ivy-resolve-common">
+    <ivy:retrieve settingsRef="${name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" sync="true" />
+    <ivy:cachepath pathid="${name}.common.classpath" conf="common" />
+  </target>
+
+
+  <!-- retrieve ivy-managed artifacts for the test configuration -->
+  <target name="ivy-resolve-test" depends="ivy-init">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="test" />
+  </target>
+  <target name="ivy-retrieve-test" depends="ivy-resolve-test">
+    <ivy:retrieve settingsRef="${name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" sync="true" />
+    <ivy:cachepath pathid="${name}.test.classpath" conf="test" />
+  </target>
+
+
+  <!-- retrieve ivy-managed artifacts for the redist configuration -->
+  <target name="ivy-resolve-redist" depends="ivy-init">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="redist" />
+  </target>
+  <target name="ivy-retrieve-redist" depends="ivy-resolve-redist">
+    <ivy:retrieve settingsRef="${name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" sync="true" />
+    <ivy:cachepath pathid="${name}.redist.classpath" conf="redist" />
+  </target>
+
+  <!-- retrieve ivy-managed artifacts from the Hadoop distribution -->
+  <target name="ivy-resolve-hadoop" depends="ivy-init"
+      unless="hadoop.is.local">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="hadoop${hadoopversion}" />
+  </target>
+  <target name="ivy-retrieve-hadoop" depends="ivy-init,ivy-resolve-hadoop">
+    <!-- retrieve hadoop refs normally. -->
+    <ivy:retrieve settingsRef="${name}.ivy.settings"
+       pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+       sync="true" />
+    <ivy:cachepath pathid="${name}.hadoop.classpath" conf="hadoop${hadoopversion}" />
+  </target>
+
+  <!-- retrieve ivy-managed test artifacts from the Hadoop distribution -->
+  <target name="ivy-resolve-hadoop-test" depends="ivy-init"
+      unless="hadoop.is.local">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="hadoop${hadoopversion}test" />
+  </target>
+  <target name="ivy-retrieve-hadoop-test"
+      depends="ivy-init,ivy-resolve-hadoop-test">
+        <ivy:retrieve settingsRef="${name}.ivy.settings"
+          pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+          sync="true" />
+        <ivy:cachepath pathid="${name}.hadooptest.classpath"
+          conf="hadoop${hadoopversion}test" />
+  </target>
+
+  <!-- retrieve ivy-managed artifacts for checkstyle -->
+  <target name="ivy-resolve-checkstyle" depends="ivy-init">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="checkstyle" />
+  </target>
+  <target name="ivy-retrieve-checkstyle" depends="ivy-resolve-checkstyle">
+    <ivy:retrieve settingsRef="${name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" sync="true" />
+    <ivy:cachepath pathid="${name}.checkstyle.classpath" conf="checkstyle" />
+  </target>
+
+  <!-- retrieve ivy-managed artifacts for releaseaudit -->
+  <target name="ivy-resolve-releaseaudit" depends="ivy-init">
+    <ivy:resolve settingsRef="${name}.ivy.settings" conf="releaseaudit" />
+  </target>
+  <target name="ivy-retrieve-releaseaudit" depends="ivy-resolve-releaseaudit">
+    <ivy:retrieve settingsRef="${name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" sync="true" />
+    <ivy:cachepath pathid="${name}.releaseaudit.classpath" conf="releaseaudit" />
+    <available classname="${rat.reporting.classname}"
+        classpathref="${name}.releaseaudit.classpath" property="rat.present"
+        value="true" />
+  </target>
+
+  <target name="eclipse" description="Generate Eclipse project"
+      depends="init,ivy-retrieve-hadoop,ivy-retrieve-hadoop-test">
+    <taskdef name="eclipse" classname="prantl.ant.eclipse.EclipseTask"
+        classpath="${lib.dir}/ant-eclipse-1.0-jvm1.2.jar" />
+    <eclipse failonerror="true" updatealways="true">
+      <project name="${name}" />
+      <classpath>
+        <source path="src/java" />
+        <source path="src/perftest" />
+        <source path="src/test" />
+        <output path="${build.dir}/eclipse-build" />
+        <library pathref="test.classpath" />
+      </classpath>
+    </eclipse>
+  </target>
+
+  <!-- Fault injection customization section -->
+  <target name="justjar" depends="ivy-resolve-test">
+    <echo message="Project: ${ant.project.name}" />
+    <jar jarfile="${build.dir}/${test.jar}" basedir="${build.test.classes}"/>
+  </target>
+
+  <target name="jar-fault-inject" depends="init, injectfaults"
+    description="Make sqoop-fi.jar">
+    <macro-jar-fault-inject
+      target.name="justjar"
+      build.dir="${build-fi.dir}"
+      jar.final.name="final.name"
+      jar.final.value="${final.name}-fi" />
+    <copy todir="${lib.dir}">
+      <fileset dir="${build-fi.dir}">
+        <include name="*.jar"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="jar-test-fault-inject" depends="init, injectfaults"
+    description="Make sqoop-test-fi.jar">
+    <macro-jar-test-fault-inject
+      target.name="test-jar"
+      jar.final.name="test.final.name"
+      jar.final.value="${test.final.name}-fi" />
+  </target>
+
+  <target name="run-fault-inject-with-testcaseonly" depends="init, injectfaults">
+    <fail unless="testcase">Can't run this target without -Dtestcase setting!
+    </fail>
+    <macro-run-tests-fault-inject target.name="test"
+      testcasesonly="true"/>
+  </target>
+
+  <target name="run-test-core-fault-inject" depends="init, injectfaults"
+    description="Run full set of the unit tests with fault injection">
+    <macro-run-tests-fault-inject target.name="test"
+      testcasesonly="false"/>
+  </target>
+
+</project>

@@ -1,0 +1,170 @@
+
+////
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+ 
+      http://www.apache.org/licenses/LICENSE-2.0
+ 
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+
+
+Connecting to a Database Server
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Sqoop is designed to import tables from a database into HDFS. To do
+so, you must specify a _connect string_ that describes how to connect to the
+database. The _connect string_ is similar to a URL, and is communicated to
+Sqoop with the +\--connect+ argument. This describes the server and
+database to connect to; it may also specify the port. For example:
+
+----
+$ sqoop import --connect jdbc:mysql://database.example.com/employees
+----
+
+This string will connect to a MySQL database named +employees+ on the
+host +database.example.com+. It's important that you *do not* use the URL
++localhost+ if you intend to use Sqoop with a distributed Hadoop
+cluster. The connect string you supply will be used on TaskTracker nodes
+throughout your MapReduce cluster; if you specify the
+literal name +localhost+, each node will connect to a different
+database (or more likely, no database at all). Instead, you should use
+the full hostname or IP address of the database host that can be seen
+by all your remote nodes.
+
+You might need to authenticate against the database before you can
+access it. You can use the +\--username+ to supply a username to the database.
+Sqoop provides couple of different ways to supply a password,
+secure and non-secure, to the database which is detailed below.
+
+.Secure way of supplying password to the database
+You should save the password in a file on the users home directory with 400
+permissions and specify the path to that file using the *+--password-file+*
+argument, and is the preferred method of entering credentials. Sqoop will
+then read the password from the file and pass it to the MapReduce cluster
+using secure means with out exposing the password in the job configuration.
+The file containing the password can either be on the Local FS or HDFS.
+For example:
+
+----
+$ sqoop import --connect jdbc:mysql://database.example.com/employees \
+    --username venkatesh --password-file ${user.home}/.password
+----
+
+WARNING: Sqoop will read entire content of the password file and use it as
+a password. This will include any trailing white space characters such as
+new line characters that are added by default by most of the text editors.
+You need to make sure that your password file contains only characters
+that belongs to your password. On the command line you can use command
++echo+ with switch +-n+ to store password without any trailing white space
+characters. For example to store password +secret+ you would call
++echo -n "secret" > password.file+.
+
+Another way of supplying passwords is using the +-P+ argument which will
+read a password from a console prompt.
+
+.Protecting password from preying eyes
+Hadoop 2.6.0 provides an API to separate password storage from applications.
+This API is called the credential provided API and there is a new
++credential+  command line tool to manage passwords and their aliases.
+The passwords are stored with their aliases in a keystore that is password
+protected.   The keystore password can be the provided to a password prompt
+on the command line, via an environment variable or defaulted to a software
+defined constant.   Please check the Hadoop documentation on the usage
+of this facility.
+
+Once the password is stored using the Credential Provider facility and
+the Hadoop configuration has been suitably updated, all applications can
+optionally use the alias in place of the actual password and at runtime
+resolve the alias for the password to use.
+
+Since the keystore or similar technology used for storing the credential
+provider is shared across components, passwords for various applications,
+various database and other passwords can be securely stored in them and only
+the alias needs to be exposed in configuration files, protecting the password
+from being visible.
+
+Sqoop has been enhanced to allow usage of this funcionality if it is
+available in the underlying Hadoop version being used.   One new option
+has been introduced to provide the alias on the command line instead of the
+actual password (--password-alias).  The argument value this option is
+the alias on the storage associated with the actual password.
+Example usage is as follows:
+
+----
+$ sqoop import --connect jdbc:mysql://database.example.com/employees \
+    --username dbuser --password-alias mydb.password.alias
+----
+
+Similarly, if the command line option is not preferred, the alias can be saved
+in the file provided with --password-file option.  Along with this, the
+Sqoop configuration parameter org.apache.sqoop.credentials.loader.class
+should be set to the classname that provides the alias resolution:
++org.apache.sqoop.util.password.CredentialProviderPasswordLoader+
+
+Example usage is as follows (assuming .password.alias has the alias for
+the real password) :
+
+----
+$ sqoop import --connect jdbc:mysql://database.example.com/employees \
+    --username dbuser --password-file ${user.home}/.password-alias
+----
+
+.Non-secure way of passing password
+
+WARNING: The +\--password+ parameter is insecure, as other users may
+be able to read your password from the command-line arguments via
+the output of programs such as `ps`. The *+-P+* argument is the preferred
+method over using the +\--password+ argument. Credentials may still be
+transferred between nodes of the MapReduce cluster using insecure means.
+For example:
+
+----
+$ sqoop import --connect jdbc:mysql://database.example.com/employees \
+    --username aaron --password 12345
+----
+
+Sqoop automatically supports several databases, including MySQL.  Connect
+strings beginning with +jdbc:mysql://+ are handled automatically in Sqoop.  (A
+full list of databases with built-in support is provided in the "Supported
+Databases" section. For some, you may need to install the JDBC driver
+yourself.)
+
+You can use Sqoop with any other
+JDBC-compliant database. First, download the appropriate JDBC
+driver for the type of database you want to import, and install the .jar
+file in the +$SQOOP_HOME/lib+ directory on your client machine. (This will
+be +/usr/lib/sqoop/lib+ if you installed from an RPM or Debian package.)
+Each driver +.jar+ file also has a specific driver class which defines
+the entry-point to the driver. For example, MySQL's Connector/J library has
+a driver class of +com.mysql.jdbc.Driver+. Refer to your database
+vendor-specific documentation to determine the main driver class.
+This class must be provided as an argument to Sqoop with +\--driver+.
+
+For example, to connect to a SQLServer database, first download the driver from
+microsoft.com and install it in your Sqoop lib path.
+
+Then run Sqoop. For example:
+
+----
+$ sqoop import --driver com.microsoft.jdbc.sqlserver.SQLServerDriver \
+    --connect <connect-string> ...
+----
+
+When connecting to a database using JDBC, you can optionally specify extra
+JDBC parameters via a property file using the option
++\--connection-param-file+. The contents of this file are parsed as standard
+Java properties and passed into the driver while creating a connection.
+
+NOTE: The parameters specified via the optional property file are only
+applicable to JDBC connections. Any fastpath connectors that use connections
+other than JDBC will ignore these parameters.

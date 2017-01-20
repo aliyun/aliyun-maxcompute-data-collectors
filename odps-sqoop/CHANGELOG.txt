@@ -1,0 +1,543 @@
+
+Release Notes - Sqoop - Version 1.4.6
+
+** Sub-task
+    * [SQOOP-1390] - Import data to HDFS as a set of Parquet files
+    * [SQOOP-1393] - Import data from database to Hive as Parquet files
+    * [SQOOP-1394] - Export data from HDFS back to an RDMS
+    * [SQOOP-1395] - Potential naming conflict in Avro schema
+    * [SQOOP-1401] - Fix checkstyle violations for ClassWriter.java
+    * [SQOOP-1491] - Remove SqoopAvroRecord
+    * [SQOOP-1492] - Move Avro and GenericRecord related common code to AvroUtil
+    * [SQOOP-1508] - Add warning when using unsupported compression codec
+    * [SQOOP-2284] - Update license file
+
+** Bug
+    * [SQOOP-1125] - Out of memory errors when number of records to import < 0.5 * splitSize
+    * [SQOOP-1368] - the configuration properties are reset in HBaseImportJob
+    * [SQOOP-1387] - Incorrect permissions on manager.d directory can lead to NPE
+    * [SQOOP-1400] - Failed to import data using mysql-connector-java-5.1.17.jar
+    * [SQOOP-1411] - The number of tasks is not set properly in PGBulkloadExportManager
+    * [SQOOP-1412] - Text splitter should also consider NCHAR and NVARCHAR fields
+    * [SQOOP-1422] - Integration tests for Oracle connector fail as not using direct option
+    * [SQOOP-1423] - hcatalog export with --map-column-java fails
+    * [SQOOP-1429] - Fix native characters usage for SqlServer object names
+    * [SQOOP-1433] - Oracle direct connector fails with Oracle 12c JDBC driver
+    * [SQOOP-1437] - 'Text' reserved word in compliation
+    * [SQOOP-1472] - Use Properties.load() method to load property files under conf/manager.d
+    * [SQOOP-1474] - Fix usage of StringUtils.repeat method
+    * [SQOOP-1490] - Connectors documentation doesn't build on CentOS 5
+    * [SQOOP-1494] - Fix generateArvoSchema in DataDrivenImportJob
+    * [SQOOP-1519] - Enable HCat/HBase/Accumulo operations with OraOop connection manager
+    * [SQOOP-1520] - The table is null when using import into hive as parquet file and query option
+    * [SQOOP-1524] - Error to import into hive as textfile on hive 0.13.0
+    * [SQOOP-1539] - Empty partition keys and values in multiple partition key hcatalog usage should be validated
+    * [SQOOP-1540] - Accumulo unit tests fail with Accumulo 1.6.1 because of conflicts in libthrift libraries
+    * [SQOOP-1617] - MySQL fetch-size behavior changed with SQOOP-1400
+    * [SQOOP-1627] - Fix Hadoop100 and Hadoop20 profile
+    * [SQOOP-1631] - Drop confusing use of --clean-staging-table parameter from PGBulkloadManager
+    * [SQOOP-1663] - OraOop test cases are not logging any output
+    * [SQOOP-1682] - Test cases *LobAvroImportTest are failing
+    * [SQOOP-1684] - Use pre-existing HBase delegation token
+    * [SQOOP-1685] - HCatalog integration is not working on JDK8
+    * [SQOOP-1759] - TestIncrementalImport fails with NPE on Windows
+    * [SQOOP-1764] - Numeric Overflow when getting extent map
+    * [SQOOP-1779] - Add support for --hive-database when importing Parquet files into Hive
+    * [SQOOP-1826] - NPE in ImportTool.lastModifiedMerge during postgres import
+    * [SQOOP-1890] - Properly escape table name in generated queries
+    * [SQOOP-1970] - Add warning about trailing whitespace characters when using password file to User guide
+    * [SQOOP-2017] - Print out loaded columns and their type in verbose mode
+    * [SQOOP-2024] - Hive import doesn't remove target directory in hive
+    * [SQOOP-2055] - Run only one map task attempt during export
+    * [SQOOP-2057] - Skip delegation token generation flag during hbase import
+    * [SQOOP-2128] - HBaseImportJob should close connection from HBaseAdmin to HBase
+    * [SQOOP-2130] - BaseSqoopTestCase should use manager.escapeTable instead of directly hardcoding double quotes
+    * [SQOOP-2132] - Remove test TestMainframeImportTool.testPrintHelp
+    * [SQOOP-2136] - Test case SqlServerUpsertOutputFormatTest is failing
+    * [SQOOP-2137] - Sqoop tests and documentation refer to as-avrofile (instead of as-avrodatafile)
+    * [SQOOP-2145] - Default Hive home is not being set properly under certain circumstances
+    * [SQOOP-2164] - Enhance the Netezza Connector for Sqoop
+    * [SQOOP-2170] - MySQL specific tests are not properly cleaning up created tables
+    * [SQOOP-2191] - Provide an option automatically choose one mapper when neither primary key is defined nor split by column is provided
+    * [SQOOP-2254] - Failed to build release notes
+    * [SQOOP-2257] - Parquet target for imports with Hive overwrite option does not work
+    * [SQOOP-2263] - Sqoop1 has some files without a copyright header
+    * [SQOOP-2264] - Exclude and remove SqoopUserGuide.xml from git repository
+    * [SQOOP-2281] - Set overwrite on kite dataset
+    * [SQOOP-2282] - Add validation check for --hive-import and --append
+    * [SQOOP-2283] - Support usage of --exec and --password-alias
+    * [SQOOP-2286] - Ensure Sqoop generates valid avro column names
+    * [SQOOP-2290] - java.lang.ArrayIndexOutOfBoundsException thrown when malformed column mapping is provided
+    * [SQOOP-2294] - Change to Avro schema name breaks some use cases
+    * [SQOOP-2324] - Remove extra license handling for consistency
+
+** Improvement
+    * [SQOOP-1330] - Ignore blank newlines in managers.d property files
+    * [SQOOP-1391] - Compression codec handling
+    * [SQOOP-1392] - Create the temporary directory inside task working dir rather then in tmp
+    * [SQOOP-1421] - Automated patch script
+    * [SQOOP-1471] - Use Hadoop CredentialProvider API to encyrpt passwords at rest
+    * [SQOOP-1489] - Propagate cubrid properties to the test VM
+    * [SQOOP-1567] - Auto-Configure JTDS Driver From JDBCUrl
+    * [SQOOP-1622] - Copying from staging table should be in single transaction for pg_bulkload connector
+    * [SQOOP-1632] - Add support for index organized tables to direct connector
+    * [SQOOP-2149] - Update Kite dependency to 1.0.0
+    * [SQOOP-2252] - Add default to Avro Schema
+
+** New Feature
+    * [SQOOP-1272] - Support importing mainframe sequential datasets
+    * [SQOOP-1309] - Expand the Sqoop to support CUBRID database.
+    * [SQOOP-1366] - Propose to add Parquet support
+    * [SQOOP-1403] - Upsert export for SQL Server
+    * [SQOOP-1405] - Add arg to enable SQL Server identity insert on export
+    * [SQOOP-1450] - Copy the avro schema file to hdfs for AVRO based import
+
+** Task
+    * [SQOOP-1408] - Document SQL Server's --non-resilient arg
+    * [SQOOP-1693] - Upgrade Kite SDK to 0.17
+
+
+Release Notes - Sqoop - Version 1.4.5
+
+** Sub-task
+    * [SQOOP-1194] - Make changes to Sqoop build file to enable Netezza third party tests
+    * [SQOOP-1323] - Update HCatalog version to 0.13 in Sqoop builds
+    * [SQOOP-1324] - Support new hive datatypes in Sqoop hcatalog integration
+    * [SQOOP-1325] - Make hcatalog object names escaped during creation so that reserved words are properly processed
+    * [SQOOP-1326] - Support multiple static partition keys for better integration support
+    * [SQOOP-1363] - Document Hcatalog integration enhancements introduced in SQOOP-1322
+
+** Bug
+    * [SQOOP-585] - Bug when sqoop a join of two tables with the same column name with mysql backend
+    * [SQOOP-832] - Document --columns argument usage in export tool
+    * [SQOOP-1032] - Add the --bulk-load-dir option to support the HBase doBulkLoad function
+    * [SQOOP-1107] - Further improve error reporting when exporting malformed data
+    * [SQOOP-1117] - when failed to import a non-existing table, the failure information includes NullPointerException
+    * [SQOOP-1138] - incremental lastmodified should re-use output directory
+    * [SQOOP-1167] - Enhance HCatalog support to allow direct mode connection manager implementations
+    * [SQOOP-1170] - Can't import columns with name "public"
+    * [SQOOP-1179] - Incorrect warning saying --hive-import was not specified when it was specified
+    * [SQOOP-1185] - LobAvroImportTestCase is sensitive to test method order execution
+    * [SQOOP-1190] - Class HCatHadoopShims will be removed in HCatalog 0.12
+    * [SQOOP-1192] - Add option "--skip-dist-cache" to allow Sqoop not copying jars in %SQOOP_HOME%\lib folder when launched by Oozie and use Oozie share lib
+    * [SQOOP-1209] - DirectNetezzaManager fails to find tables from older Netezza system catalogs
+    * [SQOOP-1216] - Improve error message on corrupted input while doing export
+    * [SQOOP-1224] - Enable use of Oracle Wallets with Oracle Manager
+    * [SQOOP-1226] - --password-file option triggers FileSystemClosed exception at end of Oozie action
+    * [SQOOP-1227] - Sqoop fails to compile against commons-io higher then 1.4
+    * [SQOOP-1228] - Method Configuration#unset is not available on Hadoop < 1.2.0
+    * [SQOOP-1239] - Sqoop import code too large error
+    * [SQOOP-1246] - HBaseImportJob should add job authtoken only if HBase is secured
+    * [SQOOP-1249] - Sqoop HCatalog Import fails with -queries because of validation issues
+    * [SQOOP-1250] - Oracle connector is not disabling autoCommit on created connections
+    * [SQOOP-1259] - Sqoop on Windows can't run HCatalog/HBase multinode jobs
+    * [SQOOP-1260] - HADOOP_MAPRED_HOME should be defaulted correctly
+    * [SQOOP-1261] - CompilationManager should add Hadoop 2.x libraries to the classpath under Hadoop 2.x
+    * [SQOOP-1268] - Sqoop tarballs do not contain .gitignore and .gitattribute files
+    * [SQOOP-1271] - Sqoop hcatalog location should support older bigtop default location also
+    * [SQOOP-1273] - Multiple append jobs can easily end up sharing directories
+    * [SQOOP-1278] - Allow use of uncommitted isolation for databases that support it as an import option
+    * [SQOOP-1279] - Sqoop connection resiliency option breaks older Mysql versions that don't have JDBC 4 methods
+    * [SQOOP-1297] - Parameterize the Accumulo version in the build files
+    * [SQOOP-1298] - Cannot export to VARBINARY with null value
+    * [SQOOP-1302] - Doesn't run the mapper for remaining splits, when split-by ROWNUM
+    * [SQOOP-1303] - Can only write to default file system on incremental import
+    * [SQOOP-1316] - Example for use of password file in docs is incorrect
+    * [SQOOP-1322] - Enhance Sqoop HCatalog Integration to cover features introduced in newer Hive versions
+    * [SQOOP-1329] - JDBC connection to Oracle timeout after data import but before hive metadata import
+    * [SQOOP-1339] - Synchronize .gitignore files
+    * [SQOOP-1353] - Sqoop 1.4.5 release preparation
+    * [SQOOP-1358] - Add wallet support for Oracle High performance connector
+    * [SQOOP-1359] - Fix avro versions in Sqoop to stop shipping hadoop1  jars with hadoop2
+    * [SQOOP-1362] - TestImportJob getContent method doesn't work
+    * [SQOOP-1365] - Do not print stack trace when we can't move generated .java file to CWD
+    * [SQOOP-1370] - AccumuloUtils can throw NPE when zookeeper or accumulo home is null
+    * [SQOOP-1372] - configure-sqoop does not export ZOOKEEPER_HOME
+    * [SQOOP-1398] - Upgrade ivy version used to the latest release version
+    * [SQOOP-1399] - Fix TestOraOopJdbcUrl test case
+    * [SQOOP-1406] - Add license headers
+    * [SQOOP-1410] - Update change log for 1.4.5
+
+** Improvement
+    * [SQOOP-435] - Avro import should write the Schema to a file
+    * [SQOOP-1056] - Implement connection resiliency in Sqoop using pluggable failure handlers
+    * [SQOOP-1132] - Print out Sqoop version into log during execution
+    * [SQOOP-1137] - Put a stress in the user guide that eval tool is meant for evaluation purpose only
+    * [SQOOP-1161] - Generated Delimiter Set Field Should be Static
+    * [SQOOP-1172] - Make Sqoop compatible with HBase 0.95+
+    * [SQOOP-1203] - Add another default case for finding *_HOME when not explicitly defined
+    * [SQOOP-1212] - Do not print usage on wrong command line
+    * [SQOOP-1213] - Support reading password files from Amazon S3
+    * [SQOOP-1223] - Enhance the password file capability to enable plugging-in custom loaders
+    * [SQOOP-1282] - Consider avro files even if they carry no extension
+    * [SQOOP-1321] - Add ability to serialize SqoopOption into JobConf
+    * [SQOOP-1337] - Doc refactoring - Consolidate documentation of --direct
+    * [SQOOP-1341] - Sqoop Export Upsert for MySQL lacks batch support
+    * [SQOOP-1373] - Sqoop import schema is locked shows NullPointerException
+
+** New Feature
+    * [SQOOP-767] - Add support for Accumulo
+    * [SQOOP-1051] - Support direct mode connection managers in a generalized fashion
+    * [SQOOP-1197] - Enable Sqoop to build against Hadoop-2.1.0-beta jar files
+    * [SQOOP-1287] - Add high performance Oracle connector into Sqoop
+
+** Task
+    * [SQOOP-1207] - Allow user to override java source version
+    * [SQOOP-1344] - Add documentation for Oracle connector
+    * [SQOOP-1408] - Document SQL Server's --non-resilient arg
+
+** Test
+    * [SQOOP-1057] - Introduce fault injection framework to test connection resiliency
+
+
+Changelog - Sqoop - Version 1.4.4 - 07-18-2013
+
+** New Feature
+    * [SQOOP-931] - Integrate HCatalog with Sqoop
+    * [SQOOP-999] - Support bulk load from HDFS to PostgreSQL using COPY ... FROM
+    * [SQOOP-1038] - Add support for composite keys in HBase import
+
+** Improvement
+    * [SQOOP-885] - Allow excluding some tables from import-all-tables tools
+    * [SQOOP-912] - Add ability to specify --hive-database parameter
+    * [SQOOP-914] - Securing passwords in sqoop 1.x
+    * [SQOOP-916] - Add an abort validation handler
+    * [SQOOP-933] - Properly log SQLExceptions using getNextException() method for chaining exceptions
+    * [SQOOP-934] - JDBC Connection can timeout after import but before hive import
+    * [SQOOP-937] - Dont generate ORM files for  Direct mode connectors
+    * [SQOOP-1140] - Enable overriding username, password and database in DB2 test
+
+** Task
+    * [SQOOP-1010] - Change default Hadoop profile to 2.x
+    * [SQOOP-1118] - Move PostgreSQL specific MR codes to org.apache.sqoop.mapreduce.posgresql
+
+** Sub-task
+    * [SQOOP-838] - Stored procedures: MySQL
+    * [SQOOP-839] - Stored procedures: Oracle
+    * [SQOOP-847] - Provide direct support
+    * [SQOOP-848] - Unit tests for Netezza connector
+    * [SQOOP-849] - documentation for netezza connector
+    * [SQOOP-949] - Allow Sqoop to build on Windows OS
+    * [SQOOP-954] - Create Sqoop runtime scripts to run Sqoop on Windows
+    * [SQOOP-955] - Fix Sqoop unit test failures on Windows
+    * [SQOOP-962] - Document null string behavior
+    * [SQOOP-970] - Explicit delimiter configuration information should be available for exports also
+    * [SQOOP-1011] - Allow automatic creation of HCatalog tables
+    * [SQOOP-1020] - Fix Hive Unit tests to work in the presence of Hive classes
+    * [SQOOP-1050] - Add documentation for HCatalog Integration
+    * [SQOOP-1127] - Some database specific types are not properly handled during exports
+
+** Bug
+    * [SQOOP-846] - Provide a connector for Netezza appliances
+    * [SQOOP-856] - PGBulkLoadExportMapper has an infinite waitFor without any logging in the event of Interrupted exceptions
+    * [SQOOP-859] - PostgreSQL: Test cases have hard coded username and password
+    * [SQOOP-883] - Remove input directory prior Sqoop import
+    * [SQOOP-891] - Sqoop export from S3 to MySQL fails when S3 is not default filesystem.
+    * [SQOOP-906] - Sqoop is always calling ConnectionManager.datetimeToQueryString with TIMESTAMP column type
+    * [SQOOP-907] - Print out queries executed by Sqoop on mapreduce job side
+    * [SQOOP-928] - PostgresqlManager should rollback any pending changes instead of commit when closing connections
+    * [SQOOP-929] - Add more Netezza direct mode tests
+    * [SQOOP-932] - Netezza direct manager is ignoring --null-*-string arguments
+    * [SQOOP-936] - Classwriter should check if columnNames generated are null before accessing them
+    * [SQOOP-950] - Can't build package from provided binary artifacts
+    * [SQOOP-959] - Use CredentialsUtil.fetchPasswordFromFile in BaseSqoopTool
+    * [SQOOP-968] - Cannot build when in a directory with spaces
+    * [SQOOP-976] - Incorrect SQL when incremental criteria is text column
+    * [SQOOP-979] - MySQL direct connector is not working correct after moving password to credential cache
+    * [SQOOP-981] - The --hadoop-home command line parameter is no longer accepted
+    * [SQOOP-988] - Validation option should provide some output that validation is being done
+    * [SQOOP-992] - Allow to set target java version during compilation
+    * [SQOOP-1006] - Update year in the notice file to 2013
+    * [SQOOP-1008] - Test TestClassWriter.testNoClassGeneration is failing on JDK7
+    * [SQOOP-1027] - Incremental import is not properly escaping table name when loading maximal value
+    * [SQOOP-1029] - Oracle export using procedures does not work
+    * [SQOOP-1030] - Enable column types Binary and Varbinary parsing in Sqoop for export
+    * [SQOOP-1031] - Provide default Java type mapping for MS Sql Datetimeoffset type
+    * [SQOOP-1033] - CombineFileInputFormat does not work with paths not on default FS like ASV
+    * [SQOOP-1034] - Fix SQL Azure database may return table columns in inconsistent order
+    * [SQOOP-1052] - Hive import is not compatible with Avro and SequenceFile but no errors are thrown
+    * [SQOOP-1053] - Fix sqoop to work with Hadoop 2.0.4 alpha
+    * [SQOOP-1071] - Avro import is failing when columns are starting with underscore
+    * [SQOOP-1078] - incremental import from database in direct mode
+    * [SQOOP-1083] - Split HBaseImportTest into multiple independent tests
+    * [SQOOP-1097] - Export using procedures feature needs fixes for working with mysql
+    * [SQOOP-1124] - Direct export to PostgreSQL with PGBulkloadManager fails without explicit port number settings
+    * [SQOOP-1129] - PostgreSQL direct test are failing on trunk
+
+** Test
+    * [SQOOP-1035] - Add MS Sqoop Connecter tests
+
+
+Changelog - Sqoop - Version 1.4.3 - 02/20/2012
+
+** New Feature
+    * [SQOOP-390] - PostgreSQL connector for direct export with pg_bulkload
+    * [SQOOP-540] - Microsoft SQL Connector doesn't support custom schemas
+    * [SQOOP-601] - Support custom schemas in PostgreSQL Connector
+    * [SQOOP-621] - Requesting support for upsert export with MySQL
+    * [SQOOP-724] - Support Table hints in Microsoft SQL Server
+    * [SQOOP-749] - Exports Using Stored Procedures (Functions)
+    * [SQOOP-767] - Add support for Accumulo
+
+** Improvement
+    * [SQOOP-350] - Add support for requiring that a connector be used, otherwise the job should fail
+    * [SQOOP-467] - Add support for Oracle BINARY_FLOAT and BINARY_DOUBLE data types
+    * [SQOOP-579] - Simple refactoring of org.apache.sqoop.manager.DefaultManagerFactory - extract methods for reuse
+    * [SQOOP-580] - Add Open-ended "teardown" routine that is called after the job execution for cleanup
+    * [SQOOP-598] - Document NULL substitution string changes for HIVE import
+    * [SQOOP-603] - Support small intervals in IntegerSplitter implementation
+    * [SQOOP-604] - Easy throttling feature for MySQL exports
+    * [SQOOP-635] - Explaining why it's important to specify weird urandom path in Troubleshooting guide
+    * [SQOOP-638] - Add an optional, simple and extensible validation framework for sqoop
+    * [SQOOP-650] - Add ability to name mapreduce job generated by Sqoop
+    * [SQOOP-653] - Add splitter support for N(LONG)(VAR)CHAR Sql type
+    * [SQOOP-720] - Improve error handling when exporting malformed text data
+    * [SQOOP-726] - Put debugging information into generated SqoopRecord class
+    * [SQOOP-804] - Warn if hive special arguments will be used without --hive-import
+    * [SQOOP-820] - Escape table name in export job only if it's required by connector
+    * [SQOOP-833] - add *.eml "ant eclipse" (IntelliJ import) generated file, to .gitignore
+
+** Task
+    * [SQOOP-535] - Support splitting metadata to connector and framework specific
+    * [SQOOP-731] - Move HBase tests to manual tests as they depend on unreleased artifacts
+
+** Sub-task
+    * [SQOOP-592] - Change repository location on Sqoop website
+    * [SQOOP-595] - Change repository location in source code
+    * [SQOOP-683] - Documenting sqoop.mysql.export.sleep.ms - easy throttling feature for direct MySQL exports
+
+** Bug
+    * [SQOOP-382] - Connection parameters should be used on the mapper
+    * [SQOOP-437] - Preparing release requires manual changes to LICENSE.txt file
+    * [SQOOP-462] - Sqoop hbase Test Compilation failure.
+    * [SQOOP-526] - Unable to resolve maven-scm-providers-standard
+    * [SQOOP-578] - sqoop script calls com.cloudera.sqoop.Sqoop instead of org.apache.sqoop.Sqoop
+    * [SQOOP-582] - Create a template method for job submission in Export/Import JobBase
+    * [SQOOP-585] - Bug when sqoop a join of two tables with the same column name with mysql backend
+    * [SQOOP-586] - ant checkstyle has 2 errors
+    * [SQOOP-597] - PostgreSQL Manager is incorrectly escaping table names
+    * [SQOOP-599] - Import to HBase is not working on secure cluster
+    * [SQOOP-600] - HBase table family presence is not working correctly on new HBase versions
+    * [SQOOP-607] - In-process Hive CLI driver does not work
+    * [SQOOP-609] - 3rd party LobAvroImportTest failures in trunk
+    * [SQOOP-615] - Error in Avro generation
+    * [SQOOP-616] - HBase import/export is not working on non secure cluster where security is available
+    * [SQOOP-617] - User guide is missing argument --fetch-size
+    * [SQOOP-628] - Postgres direct import fails on non-lowercase column names
+    * [SQOOP-636] - ExportJobTestCase.runExport method does not reuse the existing Configuration and SqoopOptions 
+    * [SQOOP-652] - Improve error message generated in  DataDrivenDBInputFormat when no splitter is available
+    * [SQOOP-654] - PostgreSQL direct connector is ignoring --null(-input)string and --null(-input)-non-string arguments
+    * [SQOOP-657] - ant checkstyle results in errors
+    * [SQOOP-687] - org.apache.sqoop.tool.ExportTool.applyOptions invokes applyOutputFormatOptions(..) twice in succession
+    * [SQOOP-706] - Sqoop won't compile on Java 7 due to new methods in ResultSet interface
+    * [SQOOP-721] - Duplicating rows on export when exporting from compressed files.
+    * [SQOOP-725] - Enable HBase tests in sqoop 1
+    * [SQOOP-730] - User Guide Update: Section 3 - Sqoop Releases
+    * [SQOOP-741] - The OracleConnect getTables() implementation needs to restrict tables to current user
+    * [SQOOP-796] - Unable to use new Hadoop environment variables
+    * [SQOOP-808] - SQLExceptions From Batched Exports Aren't Very Helpful
+    * [SQOOP-818] - Missing method setConnManager(Lcom/cloudera/sqoop/manager/ConnManager;)V in ExportJobContContext breaks MS SQL Connector
+    * [SQOOP-821] - Hadoop has changed logic for job id in LocalJobRunner that breaks Lob* tests
+    * [SQOOP-824] - Sqoop code generation in 'update' export mode incompatible with '--columns' option
+    * [SQOOP-825] - Warning for incorrect usage of hive parameters is not checking HIVE_HOME correctly
+    * [SQOOP-829] - Error Messages For --map-column-java Should Be More Useful
+    * [SQOOP-830] - HBase import formatting BigDecimal inconsistently
+    * [SQOOP-840] - Inconsistent java generics declaration for exportwriter classes
+    * [SQOOP-846] - Provide a connector for Netezza appliances
+    * [SQOOP-853] - sqoop list-tables isn't returning the tables that have custom schemas
+    * [SQOOP-854] - pg_bulkload: Return value of pg_bulkload utility is being ignored
+    * [SQOOP-855] - pg_bulkload: NullPointerException will be thrown if user specified invalid path the binary
+    * [SQOOP-860] - NullPointerException when running procedure export against old database
+    * [SQOOP-862] - Hbase import fails if there is a row where all columns are null
+    * [SQOOP-870] - Allow Sqoop to import row key column into HBase
+    * [SQOOP-901] - Allow user to override hardcoded boolean strings in direct PostgreSQL connector
+
+** Test
+    * [SQOOP-606] - Increase unit test timeout
+
+
+Changelog - Sqoop - Version 1.4.2 - 08/07/2012
+
+** New Feature
+    * [SQOOP-439] - Released artifacts should embrace unwritten naming policy
+    * [SQOOP-444] - Support incremental import for free form queries
+
+** Improvement
+    * [SQOOP-391] - Dependencies should use released versions of Apache Hadoop, HBase, and ZooKeeper
+    * [SQOOP-416] - Allow code-generation arguments with Avro imports
+    * [SQOOP-436] - The --verbose option should enable verbose logging for MapReduce jobs as well
+    * [SQOOP-438] - allow sourcing of sqoop-env.sh to set various environment variables
+    * [SQOOP-440] - Rename CHANGES.txt to CHANGELOG.txt
+    * [SQOOP-442] - Ant target mvn-install is generating pom with dependencies on cloudera version of Hadoop
+    * [SQOOP-443] - Calling sqoop with hive import is not working multiple times due to  kept output directory
+    * [SQOOP-447] - Use release version of Apache Hadoop 0.23.1 in build
+    * [SQOOP-459] - Remove redundant steps in compatibility tests: verifyReadback() method
+    * [SQOOP-461] - Sqoop User Guide's troubleshooting section should include Oracle Connection Errors
+    * [SQOOP-463] - Sqoop User Guide's troubleshooting section should explain how to override the column mapping when importing a table from MySQL into Hive
+    * [SQOOP-464] - Warn when user is importing data into /user/hive/warehouse with flag --hive-import
+    * [SQOOP-465] - BLOB support for Avro import
+    * [SQOOP-483] - Allow target dir to be set to a different name than table name for hive import
+    * [SQOOP-484] - Update troubleshooting guide section about MySQL and TINYINT(1) columns
+    * [SQOOP-487] - InformationSchemaManager.getPrimaryKeyQuery can take a very long time for large mysql table with partitions
+    * [SQOOP-510] - Improve the error message for bad connector files
+    * [SQOOP-522] - Move  printing error "ERROR orm.CompilationManager: Could not rename" to DEBUG
+    * [SQOOP-529] - Enforce usage of --driver and --connection-manager parameters
+    * [SQOOP-538] - Hudson configuration for all hadoop versions
+
+** Task
+    * [SQOOP-516] - Sqoop 1.4.2 release preparation
+    * [SQOOP-519] - Update the version of hsqldb decadency to 2.X
+    * [SQOOP-574] - Create a Hadoop-2.0.0 build profile
+
+** Sub-task
+    * [SQOOP-470] - Create tests for blob support for Avro import
+
+** Bug
+    * [SQOOP-352] - Export of avro data imported from database table (using sqoop import) fails on year
+    * [SQOOP-410] - Direct modes can't import views
+    * [SQOOP-425] - Sqoop invokes ResultSet.isLast() which causes Sybase JDBC driver to hang
+    * [SQOOP-445] - Wrong query for getListColumnsQuery in PostgresqlManager
+    * [SQOOP-448] - boolean fields get nullified during postgres direct import into hive.
+    * [SQOOP-450] - Direct MySQL import can fail when using mysqldump version 5.1.14 or above.
+    * [SQOOP-452] - Mysql free form queries fail if alias is not used.
+    * [SQOOP-453] - Oozie does not work with Sqoop metastore
+    * [SQOOP-454] - Upgrade dependency on HBase version 0.92.0-SNAPSHOT as it was already released
+    * [SQOOP-460] - Verbose logging does not turn the level for correct logger
+    * [SQOOP-468] - Oracle free form queries fail.
+    * [SQOOP-473] - Sqoop import-all-tables fails with MySQL connector
+    * [SQOOP-474] - Split-by specification incorrectly triggers bounding value query
+    * [SQOOP-476] - If table name is a qualified name, Sqoop import fails in DB2
+    * [SQOOP-480] - MS SQL server connector and OraOop connector are incompatible with Sqoop-1.4
+    * [SQOOP-481] - Sqoop import with --hive-import using wrong column names in --columns throws a NPE
+    * [SQOOP-482] - import tool for mysql direct mode reports wrong record number
+    * [SQOOP-488] - Parameter for extended verbose is not working due to migrated code to different module
+    * [SQOOP-489] - Cannot define partition keys for Hive tables created through Sqoop
+    * [SQOOP-490] - Style error in the trunk
+    * [SQOOP-503] - --columns argument support for export
+    * [SQOOP-505] - Trailing space after jar in managers.d/connectors causes file not found
+    * [SQOOP-508] - Sqoop metastore cannot be started due to missing hsqldb jar file
+    * [SQOOP-521] - Import fails on tables with names containing hyphens ( - )
+    * [SQOOP-524] - hsqldb jar update regression
+    * [SQOOP-528] - Remove references to incubator from sources
+    * [SQOOP-536] - Blob import doesn't work with avro 1.7.1
+    * [SQOOP-539] - getPrimaryKeyQuery is very slow in mysql 5.0.77
+    * [SQOOP-571] - Revert SQOOP-519 and SQOOP-524
+
+
+Changelog - Sqoop - Version 1.4.1-incubating - 02/16/2012
+
+** New Feature
+    * [SQOOP-337] - Create Sqoop Logo / Icon
+    * [SQOOP-362] - Allow user to override mapping when doing import to AVRO format
+
+** Improvement
+    * [SQOOP-397] - Make Sqoop work with Hadoop 0.23
+    * [SQOOP-411] - Precompile Pattern for replacement of Hive delimiters
+    * [SQOOP-420] - sqoop - compatible with hadoop 1.0.0 
+    * [SQOOP-432] - Enforce writing space after if statement
+
+** Task
+    * [SQOOP-396] - publish sqoop artifacts to Apache Maven repo
+    * [SQOOP-400] - Merge 1.4.0 release changes back to trunk
+    * [SQOOP-405] - Enable TestDataDrivenDBInputFormat for Hadoop 0.23 when appropriate
+    * [SQOOP-427] - Sqoop 1.4.1 release preparation
+
+** Sub-task
+    * [SQOOP-356] - move documentation generation to the maven build
+    * [SQOOP-372] - License Audit
+    * [SQOOP-412] - Create our own implementation of org.apache.hadoop.conf.Configuration.getInstances
+    * [SQOOP-413] - Port files org.apache.hadoop.mapreduce.lib.{db,input}.* from CDH3/Hadoop-0.21 to sqoop
+
+** Bug
+    * [SQOOP-384] - Sqoop is incompatible with Hadoop prior to 0.21
+    * [SQOOP-392] - Build using maven is broklend due to missing class generated by script write-version-info.sh
+    * [SQOOP-393] - Class SqoopOptions was not properly moved
+    * [SQOOP-395] - Incorrect or missing SVN property settings
+    * [SQOOP-409] - hive-drop-import-delims doesn't work with MySQL direct import
+    * [SQOOP-414] - Column names are not guaranteed in order for getColumnNames of OracleManager
+    * [SQOOP-418] - MySQLAuthTest hangs when run against MySQL 5.5.3 or higher version
+    * [SQOOP-421] - User guide should state that when using --direct, hbase params get ignored
+    * [SQOOP-422] - Throw an exception when --direct and hbase* options are used together
+    * [SQOOP-424] - Codegen compilation fails with Hadoop 0.23 
+    * [SQOOP-426] - Build command ant mvn-install generates Sqoop pom with incorrect group Id.
+    * [SQOOP-428] - AvroOutputFormat doesn't support compression even though documentation claims it does
+    * [SQOOP-430] - Duplicate Column problem with reserved words
+    * [SQOOP-433] - Tests are failing on current 0.23 version
+    * [SQOOP-446] - sqoop column terminator "fields-terminated-by" needs to work with any of the following '\007', '0x7', '^G'
+    * [SQOOP-478] - Sqoop export tool unexpectedly re-order Oracle table columns 
+    * [SQOOP-622] - possible import bug with embedded LF (0x0A) in VARCHAR field
+
+
+Changelog - Sqoop - Version 1.4.0-incubating - 11/29/2011
+
+** New Feature
+    * [SQOOP-305] - Support export from Avro Data Files
+    * [SQOOP-313] - Multiple column names to be included in --update-key argument with SQOOP export (update)
+    * [SQOOP-327] - Mixed update/insert export support for OracleManager
+    * [SQOOP-331] - Support boundary query on the command line
+    * [SQOOP-342] - Allow user to override sqoop type mapping
+    * [SQOOP-367] - codegen support free-form query
+
+** Improvement
+    * [SQOOP-303] - Use Catalog Tables for PostgresqlManager
+    * [SQOOP-315] - Update Avro version to 1.5.2
+    * [SQOOP-316] - Sqoop user guide should have a troubleshooting section.
+    * [SQOOP-318] - Add support for splittable lzo files with Hive
+    * [SQOOP-320] - Use Information Schema for SQLServerManager
+    * [SQOOP-321] - Support date/time columns for "--incremental append" option
+    * [SQOOP-326] - Updgrade Avro dependency to version 1.5.3
+    * [SQOOP-351] - Sqoop User Guide's troubleshooting section should include Case-Sensitive Catalog Query Errors
+    * [SQOOP-353] - Cleanup the if/else statement in HiveTypes
+    * [SQOOP-354] - SQOOP needs to be made compatible with Hadoop  .23 release
+    * [SQOOP-355] - improve SQOOP documentation of Avro data file support
+    * [SQOOP-357] - To make debugging easier, Sqoop should print out all the exceptions 
+    * [SQOOP-361] - [Docs] $CONDITIONS must be escaped to not allow shells to replace it.
+    * [SQOOP-366] - Sqoop User Guide's troubleshooting section should include MySQL setup instructions
+
+** Task
+    * [SQOOP-302] - Use Information Schema for MySQLManager
+    * [SQOOP-309] - Update Sqoop dependency versions
+    * [SQOOP-310] - Review license headers
+    * [SQOOP-369] - Sqoop 1.4.0 release preparation
+
+** Sub-task
+    * [SQOOP-370] - Version number for upcoming release.
+    * [SQOOP-371] - Migrate util package to new name space
+    * [SQOOP-374] - Migrate tool and orm packages to new name space
+    * [SQOOP-375] - Migrate metastore and metastore.hsqldb packages to new name space
+    * [SQOOP-376] - Migrate mapreduce package to new name space
+    * [SQOOP-377] - Migrate mapreduce.db package to new name space
+    * [SQOOP-378] - Migrate manager package to new name space
+    * [SQOOP-379] - Migrate lib and io packages to new name space
+    * [SQOOP-380] - Migrate hive and hbase packages to new name space
+    * [SQOOP-381] - Migrate cli and config packages to new name space
+    * [SQOOP-383] - Version tool is not working.
+    * [SQOOP-386] - Namespace migration cleanup
+    * [SQOOP-388] - Add license header to Hive testdata
+    * [SQOOP-389] - Include change log
+
+** Bug
+    * [SQOOP-308] - Generated Avro Schema cannot handle nullable fields
+    * [SQOOP-314] - Basic export hangs when target database does not support INSERT syntax with multiple rows of values
+    * [SQOOP-317] - OracleManager should allow working with tables owned by other users.
+    * [SQOOP-319] - The --hive-drop-import-delims option should accept a replacement string
+    * [SQOOP-323] - Support for the NVARCHAR datatype
+    * [SQOOP-325] - Sqoop doesn't build on intellij
+    * [SQOOP-329] - SQOOP doesn't work with the DB2 JCC driver
+    * [SQOOP-330] - Free form query import with column transformation failed without obvious error message
+    * [SQOOP-332] - Cannot use --as-avrodatafile with --query
+    * [SQOOP-336] - Avro import does not support varbinary types
+    * [SQOOP-338] - NPE after specifying incorrect JDBC credentials
+    * [SQOOP-339] - Use of non-portable mknod utility causes build problems on Mac OS X
+    * [SQOOP-340] - Rise exception when both --direct and --as--sequencefile or --as-avrodatafile are given
+    * [SQOOP-341] - Sqoop doesn't handle unsigned ints at least with MySQL
+    * [SQOOP-346] - Sqoop needs to be using java version 1.6 for its source
+    * [SQOOP-349] - A bunch of the fields are wrong in pom.xml 
+    * [SQOOP-358] - Sqoop import fails on netezza nvarchar datatype with --as-avrodatafile
+    * [SQOOP-359] - Import fails with Unknown SQL datatype exception
+    * [SQOOP-364] - Default getCurTimestampQuery() in SqlManager is not working for PostgreSQL
+    * [SQOOP-368] - Resolve ERROR tool.ImportTool: Imported Failed: Duplicate Column identifier specified: 'COLUMN-NAME'
+    * [SQOOP-373] - Can only write to default file system on direct import
+    * [SQOOP-385] - Typo in PostgresqlTest.java regarding configuring postgresql.conf.
+    * [SQOOP-398] - Sqoop to avro saves NUMERIC as strings
+

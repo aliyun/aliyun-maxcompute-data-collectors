@@ -1,0 +1,181 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>com.aliyun</groupId>
+        <artifactId>aliyun-maxcompute-data-collectors</artifactId>
+        <version>2.0.0</version>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.aliyun.datahub</groupId>
+    <artifactId>aliyun-datahub-ogg-plugin</artifactId>
+    <name>aliyun-datahub-ogg-plugin</name>
+
+    <properties>
+        <goldengate.version>12.1.2.1.1.001</goldengate.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.7</maven.compiler.source>
+        <maven.compiler.target>1.7</maven.compiler.target>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.aliyun.datahub</groupId>
+            <artifactId>aliyun-sdk-datahub</artifactId>
+            <version>2.1.1-public</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggaddons</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggaddons-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggcache</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggcache-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggcmdui</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggcmdui-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggcoh</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggcoh-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggdbutil</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggdbutil-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggjms</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggjms-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggtrail</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggtrail-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>gguserexitapi</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/gguserexitapi-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.goldengate.atg</groupId>
+            <artifactId>ggutil</artifactId>
+            <version>${goldengate.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/ggutil-${goldengate.version}.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>11.0.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+            <version>2.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.16</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.6.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.6.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dom4j</groupId>
+            <artifactId>dom4j</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.9.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>6.7</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>2.5.5</version>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <appendAssemblyId>true</appendAssemblyId>
+                            <finalName>aliyun-datahub-ogg-plugin</finalName>
+                            <descriptors>
+                                <descriptor>package.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

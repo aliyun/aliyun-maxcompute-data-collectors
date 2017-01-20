@@ -1,0 +1,109 @@
+////
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+
+
++sqoop-import-all-tables+
+-------------------------
+
+Purpose
+~~~~~~~
+
+include::import-all-tables-purpose.txt[]
+
+Syntax
+~~~~~~
+
+----
+$ sqoop import-all-tables (generic-args) (import-args)
+$ sqoop-import-all-tables (generic-args) (import-args)
+----
+
+Although the Hadoop generic arguments must preceed any import arguments,
+the import arguments can be entered in any order with respect to one
+another.
+
+include::common-args.txt[]
+
+.Import control arguments:
+[grid="all"]
+`----------------------------`---------------------------------------
+Argument                     Description
+---------------------------------------------------------------------
++\--as-avrodatafile+         Imports data to Avro Data Files
++\--as-sequencefile+         Imports data to SequenceFiles
++\--as-textfile+             Imports data as plain text (default)
++\--as-parquetfile+          Imports data to Parquet Files
++\--direct+                  Use direct import fast path
++\--inline-lob-limit <n>+    Set the maximum size for an inline LOB
++-m,\--num-mappers <n>+      Use 'n' map tasks to import in parallel
++\--warehouse-dir <dir>+     HDFS parent for table destination
++-z,\--compress+             Enable compression
++\--compression-codec <c>+   Use Hadoop codec (default gzip)
++\--exclude-tables <tables>+ Comma separated list of tables to exclude\
+                             from import process
++\--autoreset-to-one-mapper+ Import should use one mapper if a table\
+                             with no primary key is encountered
+---------------------------------------------------------------------
+
+These arguments behave in the same manner as they do when used for the
++sqoop-import+ tool, but the +\--table+, +\--split-by+, +\--columns+,
+and +\--where+ arguments are invalid for +sqoop-import-all-tables+.
+The +\--exclude-tables argument is for +sqoop-import-all-tables+ only.
+
+include::output-args.txt[]
+
+include::input-args.txt[]
+
+include::hive-args.txt[]
+
+.Code generation arguments:
+[grid="all"]
+`------------------------`-----------------------------------------------
+Argument                 Description
+-------------------------------------------------------------------------
++\--bindir <dir>+        Output directory for compiled objects
++\--jar-file <file>+     Disable code generation; use specified jar
++\--outdir <dir>+        Output directory for generated code
++\--package-name <name>+ Put auto-generated classes in this package
+-------------------------------------------------------------------------
+
+The +import-all-tables+ tool does not support the +\--class-name+ argument.
+You may, however, specify a package with +\--package-name+ in which all
+generated classes will be placed.
+
+Example Invocations
+~~~~~~~~~~~~~~~~~~~
+
+Import all tables from the +corp+ database:
+
+----
+$ sqoop import-all-tables --connect jdbc:mysql://db.foo.com/corp
+----
+
+Verifying that it worked:
+
+----
+$ hadoop fs -ls
+Found 4 items
+drwxr-xr-x   - someuser somegrp       0 2010-04-27 17:15 /user/someuser/EMPLOYEES
+drwxr-xr-x   - someuser somegrp       0 2010-04-27 17:15 /user/someuser/PAYCHECKS
+drwxr-xr-x   - someuser somegrp       0 2010-04-27 17:15 /user/someuser/DEPARTMENTS
+drwxr-xr-x   - someuser somegrp       0 2010-04-27 17:15 /user/someuser/OFFICE_SUPPLIES
+----
+
+

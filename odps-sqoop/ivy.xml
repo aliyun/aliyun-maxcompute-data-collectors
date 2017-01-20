@@ -1,0 +1,338 @@
+<?xml version="1.0" ?>
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+<ivy-module version="2.0" xmlns:m="http://ant.apache.org/ivy/maven"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
+  <info organisation="com.cloudera.sqoop" module="${name}">
+    <license name="Apache 2.0"/>
+    <ivyauthor name="Sqoop Team" url="http://github.com/cloudera/sqoop" />
+    <description>
+        Sqoop
+    </description>
+  </info>
+  <configurations defaultconfmapping="default">
+    <!--these match the Maven configurations-->
+    <conf name="default" extends="master,runtime"/>
+    <conf name="master" description="contains the artifact but no dependencies"/>
+    <conf name="runtime" description="runtime but not the artifact" />
+
+    <conf name="common" visibility="private"
+      extends="runtime"
+      description="artifacts needed to compile/test the application"/>
+    <conf name="odps" visibility="private" />
+    <conf name="accumulo" visibility="private" />
+    <conf name="hbase94" visibility="private" />
+    <conf name="hbase95" visibility="private" extends="hbasecompat${hbasecompatprofile}" />
+    <conf name="hbasecompat1" visibility="private" />
+    <conf name="hbasecompat2" visibility="private" />
+    <conf name="avro" visibility="private" extends="avrohadoop${avrohadoopprofile}" />
+    <conf name="avrohadoop1" visibility="private" />
+    <conf name="avrohadoop2" visibility="private" />
+    <conf name="hcatalog13" visibility="private" />
+    <conf name="hadoop23" visibility="private"
+      extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+    <conf name="hadoop20" visibility="private"
+      extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+    <conf name="hadoop100" visibility="private"
+      extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+    <conf name="hadoop200" visibility="private"
+      extends="common,runtime,odps,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+    <conf name="hadoop210" visibility="private"
+      extends="common,runtime,odps,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+
+    <conf name="test" visibility="private" extends="common,runtime"/>
+    <conf name="hadoop23test" visibility="private" extends="test,hadoop23" />
+    <conf name="hadoop20test" visibility="private" extends="test,hadoop20" />
+    <conf name="hadoop100test" visibility="private" extends="test,hadoop100" />
+    <conf name="hadoop200test" visibility="private" extends="test,hadoop200" />
+    <conf name="hadoop210test" visibility="private" extends="test,hadoop210" />
+
+    <!-- We don't redistribute everything we depend on (e.g., Hadoop itself);
+         anything which Hadoop itself also depends on, we do not ship.
+         Things we actually need to ship are marked with a 'redist'
+         configuration. -->
+    <conf name="redist" visibility="private" extends="master" />
+
+    <!-- This configuration is used to identify dependencies on our own
+         shim targets required by clients of Sqoop who use maven. -->
+    <conf name="mvndeploy" visibility="private" extends="master" />
+
+    <!-- configuration for running checkstyle -->
+    <conf name="checkstyle" visibility="private" />
+
+    <!-- configuration for running rat -->
+    <conf name="releaseaudit" visibility="private" />
+  </configurations>
+
+  <publications>
+    <!--get the artifact from our module name-->
+    <artifact conf="master"/>
+  </publications>
+  <dependencies>
+    <!-- Dependencies for Hadoop 2.1.0 -->
+    <dependency org="org.apache.hadoop" name="hadoop-common"
+      rev="${hadoop.version}" conf="hadoop210->default">
+      <artifact name="hadoop-common" type="jar" />
+      <artifact name="hadoop-common" type="jar" m:classifier="tests"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-hdfs"
+      rev="${hadoop.version}" conf="hadoop210->default">
+      <artifact name="hadoop-hdfs" type="jar" />
+      <artifact name="hadoop-hdfs" type="jar" m:classifier="tests"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-common"
+      rev="${hadoop.version}" conf="hadoop210->default"/>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-core"
+      rev="${hadoop.version}" conf="hadoop210->default"/>
+    <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}"
+      conf="hadoop210->default"/>
+    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
+      conf="hadoop210->default"/>
+
+    <!-- Dependencies for Hadoop 2.0.0 -->
+    <dependency org="org.apache.hadoop" name="hadoop-common"
+      rev="${hadoop.version}" conf="hadoop200->default">
+      <artifact name="hadoop-common" type="jar" />
+      <artifact name="hadoop-common" type="jar" m:classifier="tests"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-hdfs"
+      rev="${hadoop.version}" conf="hadoop200->default">
+      <artifact name="hadoop-hdfs" type="jar" />
+      <artifact name="hadoop-hdfs" type="jar" m:classifier="tests"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-common"
+      rev="${hadoop.version}" conf="hadoop200->default"/>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-core"
+      rev="${hadoop.version}" conf="hadoop200->default"/>
+    <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}"
+      conf="hadoop200->default"/>
+    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
+      conf="hadoop200->default"/>
+
+    <!-- Dependencies for Hadoop 0.23 -->
+    <dependency org="org.apache.hadoop" name="hadoop-common"
+      rev="${hadoop.version}" conf="hadoop23->default">
+      <artifact name="hadoop-common" type="jar" />
+      <artifact name="hadoop-common" type="jar" m:classifier="tests"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-hdfs"
+      rev="${hadoop.version}" conf="hadoop23->default">
+      <artifact name="hadoop-hdfs" type="jar" />
+      <artifact name="hadoop-hdfs" type="jar" m:classifier="tests"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-common"
+      rev="${hadoop.version}" conf="hadoop23->default"/>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-core"
+      rev="${hadoop.version}" conf="hadoop23->default"/>
+    <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}"
+      conf="hadoop23->default"/>
+    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
+      conf="hadoop23->default"/>
+
+    <!-- Dependencies for Hadoop 1.0.0 -->
+    <dependency org="org.apache.hadoop" name="hadoop-core"
+      rev="${hadoop.version}" conf="hadoop100->default"/>
+    <dependency org="org.apache.hadoop" name="hadoop-test"
+      rev="${hadoop.version}" conf="hadoop100test->default"/>
+    <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}"
+      conf="hadoop100->default"/>
+    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
+      conf="hadoop100->default"/>
+
+    <!-- Dependencies for Hadoop 0.20 -->
+    <dependency org="org.apache.hadoop" name="hadoop-core"
+      rev="${hadoop.version}" conf="hadoop20->default"/>
+    <dependency org="org.apache.hadoop" name="hadoop-test"
+      rev="${hadoop.version}" conf="hadoop20test->default"/>
+    <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}"
+      conf="hadoop20->default"/>
+    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
+      conf="hadoop20->default"/>
+
+    <!-- Common dependencies for Sqoop -->
+    <dependency org="commons-cli" name="commons-cli"
+      rev="${commons-cli.version}" conf="common->default"/>
+    <dependency org="commons-logging" name="commons-logging"
+      rev="${commons-logging.version}" conf="common->default"/>
+    <dependency org="commons-net" name="commons-net"
+      rev="${commons-net.version}" conf="common->default"/>
+    <dependency org="log4j" name="log4j" rev="${log4j.version}"
+      conf="common->master" />
+    <dependency org="junit" name="junit" rev="${junit.version}"
+      conf="test->default"/>
+    <dependency org="org.mockito" name="mockito-all"
+      rev="${mockito-all.version}" conf="test->default"/>
+    <!-- We're only using H2 for tests as it supports stored
+         procedures; once we move to HSQLDB 2.x we can drop
+         this -->
+    <dependency org="com.h2database" name="h2" rev="${h2.version}"
+      conf="test->default"/>
+    <dependency org="hsqldb" name="hsqldb" rev="${hsqldb.version}"
+      conf="common->default;redist->default"/>
+    <dependency org="commons-io" name="commons-io" rev="${commons-io.version}"
+      conf="common->default;redist->default"/>
+    <dependency org="org.kitesdk" name="kite-data-mapreduce" rev="${kite-data.version}"
+      conf="avro->default;redist->default"/>
+    <dependency org="org.kitesdk" name="kite-data-hive" rev="${kite-data.version}"
+      conf="avro->default;redist->default">
+      <exclude org="com.twitter" module="parquet-hive-bundle"/>
+    </dependency>
+
+    <!-- dependencies for static analysis -->
+    <dependency org="checkstyle" name="checkstyle" rev="${checkstyle.version}"
+      conf="checkstyle->default" />
+
+    <dependency org="com.google.code.p.arat" name="rat-lib"
+          rev="${rats-lib.version}" conf="releaseaudit->default" />
+    <dependency org="commons-lang" name="commons-lang"
+      rev="${commons-lang.version}" conf="releaseaudit->default"/>
+    <dependency org="commons-collections" name="commons-collections"
+      rev="${commons-collections.version}" conf="releaseaudit->default"/>
+
+    <!-- Accumulo 1.5.0 -->
+    <dependency org="org.apache.accumulo" name="accumulo-core" rev="${accumulo.version}"
+                conf="accumulo->default">
+    </dependency>
+    <dependency org="org.apache.accumulo" name="accumulo-minicluster" rev="${accumulo.version}"
+                conf="accumulo->default">
+    </dependency>
+
+    <!-- HBase 0.94 -->
+    <dependency org="org.apache.hbase" name="hbase" rev="${hbase94.version}" conf="hbase94->default">
+      <artifact name="hbase" type="jar"/>
+      <artifact name="hbase" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+      <exclude org="org.apache.hadoop" module="hadoop-core" />
+      <exclude org="com.cloudera.cdh" module="zookeeper-ant" />
+    </dependency>
+
+    <!-- HBase 0.95 -->
+    <dependency org="org.apache.hbase" name="hbase-client" rev="${hbase95.version}" conf="hbase95->default">
+      <artifact name="hbase-client" type="jar"/>
+      <artifact name="hbase-client" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+    <dependency org="org.apache.hbase" name="hbase-common" rev="${hbase95.version}" conf="hbase95->default">
+      <artifact name="hbase-common" type="jar"/>
+      <artifact name="hbase-common" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+    <dependency org="org.apache.hbase" name="hbase-server" rev="${hbase95.version}" conf="hbase95->default">
+      <artifact name="hbase-server" type="jar"/>
+      <artifact name="hbase-server" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+    <dependency org="org.apache.hbase" name="hbase-hadoop-compat" rev="${hbase95.version}" conf="hbase95->default">
+      <artifact name="hbase-hadoop-compat" type="jar"/>
+      <artifact name="hbase-hadoop-compat" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+    <dependency org="org.apache.hbase" name="hbase-hadoop-compat" rev="${hbase95.version}" conf="hbase95->default">
+      <artifact name="hbase-hadoop-compat" type="jar"/>
+      <artifact name="hbase-hadoop-compat" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+    <dependency org="org.apache.hbase" name="hbase-hadoop1-compat" rev="${hbase95.version}" conf="hbasecompat1->default">
+      <artifact name="hbase-hadoop1-compat" type="jar"/>
+      <artifact name="hbase-hadoop1-compat" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+    <dependency org="org.apache.hbase" name="hbase-hadoop2-compat" rev="${hbase95.version}" conf="hbasecompat2->default">
+      <artifact name="hbase-hadoop2-compat" type="jar"/>
+      <artifact name="hbase-hadoop2-compat" type="test-jar" ext="jar" m:classifier="tests"/>
+      <exclude org="com.sun.jersey" module="jersey-core"/>
+      <exclude org="com.sun.jersey" module="jersey-json"/>
+      <exclude org="com.sun.jersey" module="jersey-server"/>
+      <exclude org="org.apache.thrift" module="thrift"/>
+      <exclude org="log4j" module="log4j"/>
+    </dependency>
+
+
+    <dependency org="org.apache.hive.hcatalog" name="hive-hcatalog-core"
+      rev="${hcatalog.version}" conf="hcatalog13->default">
+      <artifact name="hive-hcatalog-core" type="jar"/>
+    </dependency>
+
+    <dependency org="org.postgresql" name="postgresql"
+      rev="${postgresql.version}" conf="common->default" />
+
+    <dependency org="org.apache.zookeeper" name="zookeeper"
+      rev="${zookeeper.version}" conf="test->default">
+      <artifact name="zookeeper" type="jar" />
+    </dependency>
+
+    <dependency org="org.apache.avro" name="avro" rev="${avro.version}"
+      conf="avro->default;redist->default">
+      <exclude org="org.slf4j" module="slf4j-api"/>
+      <exclude org="org.mortbay.jetty" module="jetty"/>
+      <exclude org="org.jboss.netty" module="netty"/>
+      <exclude org="org.apache.velocity" module="velocity"/>
+    </dependency>
+    <dependency org="org.apache.avro" name="avro-mapred" rev="${avro.version}"
+      m:classifier="hadoop1" conf="avrohadoop1->default;redist->default">
+      <exclude org="org.slf4j" module="slf4j-api"/>
+      <exclude org="org.mortbay.jetty" module="jetty"/>
+      <exclude org="org.jboss.netty" module="netty"/>
+      <exclude org="org.apache.velocity" module="velocity"/>
+    </dependency>
+    <dependency org="org.apache.avro" name="avro-mapred" rev="${avro.version}"
+      m:classifier="hadoop2" conf="avrohadoop2->default;redist->default">
+      <exclude org="org.slf4j" module="slf4j-api"/>
+      <exclude org="org.mortbay.jetty" module="jetty"/>
+      <exclude org="org.jboss.netty" module="netty"/>
+      <exclude org="org.apache.velocity" module="velocity"/>
+    </dependency>
+
+    <dependency org="com.aliyun.odps" name="odps-sdk-core" rev="0.17.3" conf="odps->default"/>
+
+    <exclude org="org.apache.hadoop" module="avro"/>
+    <exclude org="commons-daemon" module="commons-daemon" />
+    <exclude type="pom" />
+
+  </dependencies>
+</ivy-module>

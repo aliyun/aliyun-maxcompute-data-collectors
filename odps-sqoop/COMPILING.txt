@@ -1,0 +1,307 @@
+
+= Compiling
+
+This document explains how to compile Sqoop.
+
+////
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+////
+
+
+== Build Dependencies
+
+Compiling Sqoop requires the following tools:
+
+* Apache ant (1.7.1)
+* Java JDK 1.6
+
+Additionally, building the documentation requires these tools:
+
+* asciidoc
+* make
+* python 2.5+
+* xmlto
+* tar
+* gzip
+
+Furthermore, Sqoop's build can be instrumented with the following:
+
+* findbugs (1.3.9) for code quality checks
+* cobertura (1.9.4.1) for code coverage
+* checkstyle (5.x) for code style checks
+
+== The Basics
+
+Sqoop is compiled with ant. Type +ant -p+ to see the list of available targets.
+
+Type +ant+ to compile all java sources. You can then run Sqoop with +bin/sqoop+.
+
+If you want to build everything (including the documentation), type
++ant package+. This will appear in the
++build/sqoop-(version)/+ directory.
+
+This version of Sqoop is built against Hadoop 0.23 available from Apache
+maven repository by default. These dependencies are obtained via IVY which
+downloads the necessary binaries.
+
+== Testing Sqoop
+
+Sqoop has several unit tests which can be run with +ant test+. This command
+will run all the "basic" checks against an in-memory database, HSQLDB.
+
+Sqoop also has compatibility tests that check its ability to work with
+several third-party databases. To enable these tests, you will need to install
+and configure the databases, and download the JDBC drivers for each one.
+
+=== MySQL
+
+Install MySQL server and client 5.0. Download MySQL Connector/J 5.0.8 for
+JDBC. Instructions for configuring the MySQL database are in MySQLAuthTest
+and DirectMySQLTest.
+
+Use the system property sqoop.test.mysql.connectstring.host_url to specify the
+URL for the MySQL host used for testing. Specify this property on the command
+line or via the build.properties file. For example:
+
+sqoop.test.mysql.connectstring.host_url=jdbc:mysql://host.example.com/
+
+If not specified, the default value used for this property is:
+jdbc:mysql://localhost/
+
+=== Oracle
+
+Install Oracle Enterprise Edition 10.2.0+. Instructions for configuring the
+database are in OracleManagerTest. Download the ojdbc6_g jar.
+
+If running the tests against Oracle XE (Express Edition) - a lot of them will
+fail as it does not include the partitioning feature.
+
+Use the system property sqoop.test.oracle.connectstring to specify the
+connection string for Oracle host used for testing. Specify this property on the
+command line or via the build.properties file. For example:
+
+sqoop.test.oracle.connectstring=jdbc:oracle:thin:@//host.example.com/xe
+
+If not specified, the default value used for this property is:
+jdbc:oracle:thin:@//localhost/xe
+
+Users sqooptest and sqooptest2 should be created prior to running the tests.
+SQL script is available in src/test/oraoop/create_users.sql
+
+=== PostgreSQL
+
+Install PostgreSQL 8.3.9. Download the postgresql 8.4 jdbc driver. Instructions
+for configuring the database are in PostgresqlTest.
+
+Use the system property sqoop.test.postgresql.connectstring.host_url to specify
+the URL for the PostgreSQL host used for testing. Specify this property on the
+command line or via the build.properties file. For example:
+
+sqoop.test.postgresql.connectstring.host_url=jdbc:postgresql://sqoop-dbs.sf.cloudera.com/
+
+If not specified, the default value used for this property is:
+jdbc:postgresql://localhost/
+
+=== SQL Server
+
+Install SQL Server Express 2012 and create a database instance and
+download the appropriate JDBC driver. Instructions for configuring the
+database can be found in SQLServerManagerImportManualTest.
+
+Use the system property sqoop.test.sqlserver.connectstring.host_url to specify
+the URL for the SQL Server host used for testing. Specify this property on the
+command line or via the build.properties file. For example:
+
+sqoop.test.sqlserver.connectstring.host_url=jdbc:sqlserver://sqlserverhost:1433
+
+If not specified, the default value used for this property is:
+jdbc:sqlserver://sqlserverhost:1433
+
+This can be useful if you have the hostname sqlserverhost mapped to the IP
+address of the SQL Server instance.
+
+=== Cubrid
+
+Install Cubrid 9.2.2.0003 and create a database instance and download the
+appropriate JDBC driver. Instructions for configuring the database are in
+CubridAuthTest, CubridCompatTest, CubridManagerImportTest
+and CubridManagerExportTest.
+
+Use the system property sqoop.test.cubrid.connectstring.host_url to specify the
+URL for the Cubrid host used for testing. Specify this property on the command
+line or via the build.properties file. For example:
+
+sqoop.test.cubrid.connectstring.host_url=jdbc:cubrid:localhost
+
+If not specified, the default value used for this property is:
+jdbc:cubrid:localhost
+
+=== DB2
+
+Install DB2 9.74 Express C and download the appropriate JDBC driver.
+Instructions for configuring the server can be found in
+DB2ManagerImportManualTest.
+
+Use the system property sqoop.test.db2.connectstring.host_url to specify
+the URL for the DB Server host used for testing. Specify this property on
+the command line or via build.properties file. For example:
+
+sqoop.test.db2.connectstring.host_url=jdbc:db2://db2host:50000
+
+If not specified, the default value used for this property is:
+jdbc:db2://db2host:50000
+
+This can be useful if you have the hostname db2host mapped to the IP
+address of the DB2 Server instance.
+
+=== Running the Third-party Tests
+
+After the third-party databases are installed and configured, run:
+
+++++
+ant test -Dthirdparty=true -Dsqoop.thirdparty.lib.dir=/path/to/jdbc/drivers/
+++++
+
+This command will run all thirdparty tests except for the SQL Server test.
+To run the SQL Server test, specify the property "manual" instead of "thirdparty"
+as follows:
+
+++++
+ant test -Dmanual=true -Dsqoop.thirdparty.lib.dir=/path/to/jdbc/drivers/
+++++
+
+Note that +sqoop.thirdparty.lib.dir+ can also be specified in
++build.properties+.
+
+== Code Quality Analysis
+
+We have three tools which can be used to analyze Sqoop's code quality.
+
+=== Findbugs
+
+Findbugs detects common errors in programming. New patches should not
+trigger additional warnings in Findbugs.
+
+Install findbugs (1.3.9) according to its instructions. To use it,
+run:
+
+++++
+ant findbugs -Dfindbugs.home=/path/to/findbugs/
+++++
+
+A report will be generated in +build/findbugs/+
+
+=== Cobertura
+
+Cobertura runs code coverage checks. It instruments the build and
+checks that each line and conditional expression is evaluated along
+all possible paths.
+
+Install Cobertura according to its instructions. Then run a test with:
+
+++++
+ant clean
+ant cobertura -Dcobertura.home=/path/to/cobertura
+ant cobertura -Dcobertura.home=/path/to/cobertura \
+    -Dthirdparty=true -Dsqoop.thirdparty.lib.dir=/path/to/thirdparty
+++++
+
+(You'll need to run the cobertura target twice; once against the regular
+test targets, and once against the thirdparty targets.)
+
+When complete, the report will be placed in +build/cobertura/+
+
+New patches should come with sufficient tests for their functionality
+as well as their error recovery code paths. Cobertura can help assess
+whether your tests are thorough enough, or where gaps lie.
+
+=== Checkstyle
+
+Checkstyle enforces our style guide. There are currently a very small
+number of violations of this style in the source code, but hopefully this
+will remain the case. New code should not trigger additional checkstyle
+warnings.
+
+Checkstyle does not need to be installed manually; it will be retrieved via
+Ivy when necessary.
+
+To run checkstyle, execute:
+
+++++
+ant checkstyle
+++++
+
+A report will be generated as +build/checkstyle-errors.html+
+
+
+== Deploying to Maven
+
+To use Sqoop as a dependency in other projects, you can pull Sqoop into your
+dependency management system through Maven.
+
+To install Sqoop in your local +.m2+ cache, run:
+
+++++
+ant mvn-install
+++++
+
+This will install a pom and the Sqoop jar.
+
+To deploy Sqoop to a public repository, use:
+
+++++
+ant mvn-deploy
+++++
+
+By default, this deploys to repository.cloudera.com. You can choose
+the complete URL to deploy to with the +mvn.deploy.url+ property.
+By default, this deploys to the "snapshots" repository. To deploy to
+"staging" or "releases" on repository.cloudera.com, set the
++mvn.repo+ property accordingly.
+
+== Releasing Sqoop
+
+To build a full release of Sqoop, run +ant release -Dversion=(somever)+.
+This will build a binary release tarball and the web-based documentation
+as well as run a release audit which flags any source files which may
+be missing license headers.
+
+(The release audit can be run standalone with the +ant releaseaudit+
+target.)
+
+You must set the +version+ property explicitly; you cannot release a
+snapshot. To simultaneously deploy this to a maven repository, include
+the +mvn-install+ or +mvn-deploy+ targets as well.
+
+
+== Using Eclipse
+
+Running +ant eclipse+ will generate +.project+ and +.classpath+ files that
+will allow you to edit Sqoop sources in Eclipse with all the library
+dependencies correctly resolved. To compile the jars, you should still
+use ant.
+
+
+== Using a specific version of Hadoop
+
+Now Sqoop defaults to use Hadoop 0.23 available from Apache maven repository.
+To switch back to the previous version of Hadoop 0.20, for example, run:
+
+++++
+ant test -Dhadoopversion=20
+++++

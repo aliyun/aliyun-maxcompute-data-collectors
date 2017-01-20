@@ -1,0 +1,51 @@
+////
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+
+
+Import control options
+~~~~~~~~~~~~~~~~~~~~~~
+
+--as-textfile::
+  Imports data as plain text (default)
+
+--as-avrodatafile::
+  Imports data to Avro Data Files
+
+--as-sequencefile::
+  Imports data to SequenceFiles
+
+--as-parquetfile::
+  Imports data to Parquet Files
+
+--num-mappers (n)::
+-m::
+  Use 'n' map tasks to import in parallel
+
+--target-dir (dir)::
+  Explicit HDFS target directory for the import.
+
+--warehouse-dir (dir)::
+  Tables are uploaded to the HDFS path +/warehouse/dir/(tablename)/+
+
+--compress::
+-z::
+  Uses gzip (or, alternatively, the codec specified by +\--compression-codec+,
+  if set) to compress data as it is written to HDFS
+
+--compression-codec (codec)::
+  Uses the Hadoop +codec+ class to compress data as it is written to HDFS.

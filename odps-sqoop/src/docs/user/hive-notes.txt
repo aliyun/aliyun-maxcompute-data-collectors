@@ -1,0 +1,38 @@
+
+////
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+ 
+      http://www.apache.org/licenses/LICENSE-2.0
+ 
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+
+
+
+Schema Definition in Hive
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hive users will note that there is not a one-to-one mapping between
+SQL types and Hive types. In general, SQL types that do not have a
+direct mapping (for example, +DATE+, +TIME+, and +TIMESTAMP+) will be coerced to
++STRING+ in Hive. The +NUMERIC+ and +DECIMAL+ SQL types will be coerced to
++DOUBLE+. In these cases, Sqoop will emit a warning in its log messages
+informing you of the loss of precision.
+
+Parquet Support in Hive
+~~~~~~~~~~~~~~~~~~~~~~~
+
+In order to contact the Hive MetaStore from a MapReduce job, a delegation token will
+be fetched and passed. HIVE_CONF_DIR and HIVE_HOME must be set appropriately to add
+Hive to the runtime classpath. Otherwise, importing/exporting into Hive in Parquet
+format may not work.

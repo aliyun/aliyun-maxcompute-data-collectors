@@ -1,0 +1,256 @@
+////
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+
+Sqoop Tools
+-----------
+
+Sqoop is a collection of related tools. To use Sqoop, you specify the
+tool you want to use and the arguments that control the tool.
+
+If Sqoop is compiled from its own source, you can run Sqoop without a formal
+installation process by running the +bin/sqoop+ program. Users
+of a packaged deployment of Sqoop (such as an RPM shipped with Apache Bigtop)
+will see this program installed as +/usr/bin/sqoop+. The remainder of this
+documentation will refer to this program as +sqoop+. For example:
+
+----
+$ sqoop tool-name [tool-arguments]
+----
+
+NOTE: The following examples that begin with a +$+ character indicate
+that the commands must be entered at a terminal prompt (such as
++bash+). The +$+ character represents the prompt itself; you should
+not start these commands by typing a +$+. You can also enter commands
+inline in the text of a paragraph; for example, +sqoop help+. These
+examples do not show a +$+ prefix, but you should enter them the same
+way.  Don't confuse the +$+ shell prompt in the examples with the +$+
+that precedes an environment variable name. For example, the string
+literal +$HADOOP_HOME+ includes a "+$+".
+
+Sqoop ships with a help tool. To display a list of all available
+tools, type the following command:
+
+----
+$ sqoop help
+usage: sqoop COMMAND [ARGS]
+
+Available commands:
+  codegen            Generate code to interact with database records
+  create-hive-table  Import a table definition into Hive
+  eval               Evaluate a SQL statement and display the results
+  export             Export an HDFS directory to a database table
+  help               List available commands
+  import             Import a table from a database to HDFS
+  import-all-tables  Import tables from a database to HDFS
+  import-mainframe   Import mainframe datasets to HDFS
+  list-databases     List available databases on a server
+  list-tables        List available tables in a database
+  version            Display version information
+
+See 'sqoop help COMMAND' for information on a specific command.
+----
+
+You can display help for a specific tool by entering: +sqoop help
+(tool-name)+; for example, +sqoop help import+.
+
+You can also add the +\--help+ argument to any command: +sqoop import
+\--help+.
+
+Using Command Aliases
+~~~~~~~~~~~~~~~~~~~~~
+
+In addition to typing the +sqoop (toolname)+ syntax, you can use alias
+scripts that specify the +sqoop-(toolname)+ syntax. For example, the
+scripts +sqoop-import+, +sqoop-export+, etc. each select a specific
+tool.
+
+Controlling the Hadoop Installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You invoke Sqoop through the program launch capability provided by
+Hadoop. The +sqoop+ command-line program is a wrapper which runs the
++bin/hadoop+ script shipped with Hadoop. If you have multiple
+installations of Hadoop present on your machine, you can select the
+Hadoop installation by setting the +$HADOOP_COMMON_HOME+ and
++$HADOOP_MAPRED_HOME+ environment variables.
+
+For example:
+
+----
+$ HADOOP_COMMON_HOME=/path/to/some/hadoop \
+  HADOOP_MAPRED_HOME=/path/to/some/hadoop-mapreduce \
+  sqoop import --arguments...
+----
+
+or:
+
+----
+$ export HADOOP_COMMON_HOME=/some/path/to/hadoop
+$ export HADOOP_MAPRED_HOME=/some/path/to/hadoop-mapreduce
+$ sqoop import --arguments...
+-----
+
+If either of these variables are not set, Sqoop will fall back to
++$HADOOP_HOME+. If it is not set either, Sqoop will use the default
+installation locations for Apache Bigtop, +/usr/lib/hadoop+ and
++/usr/lib/hadoop-mapreduce+, respectively.
+
+The active Hadoop configuration is loaded from +$HADOOP_HOME/conf/+,
+unless the +$HADOOP_CONF_DIR+ environment variable is set.
+
+
+Using Generic and Specific Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To control the operation of each Sqoop tool, you use generic and
+specific arguments.
+
+For example:
+
+----
+$ sqoop help import
+usage: sqoop import [GENERIC-ARGS] [TOOL-ARGS]
+
+Common arguments:
+   --connect <jdbc-uri>     Specify JDBC connect string
+   --connect-manager <class-name>     Specify connection manager class to use
+   --driver <class-name>    Manually specify JDBC driver class to use
+   --hadoop-mapred-home <dir>      Override $HADOOP_MAPRED_HOME
+   --help                   Print usage instructions
+   --password-file          Set path for file containing authentication password
+   -P                       Read password from console
+   --password <password>    Set authentication password
+   --username <username>    Set authentication username
+   --verbose                Print more information while working
+   --hadoop-home <dir>     Deprecated. Override $HADOOP_HOME
+
+[...]
+
+Generic Hadoop command-line arguments:
+(must preceed any tool-specific arguments)
+Generic options supported are
+-conf <configuration file>     specify an application configuration file
+-D <property=value>            use value for given property
+-fs <local|namenode:port>      specify a namenode
+-jt <local|jobtracker:port>    specify a job tracker
+-files <comma separated list of files>    specify comma separated files to be copied to the map reduce cluster
+-libjars <comma separated list of jars>    specify comma separated jar files to include in the classpath.
+-archives <comma separated list of archives>    specify comma separated archives to be unarchived on the compute machines.
+
+The general command line syntax is
+bin/hadoop command [genericOptions] [commandOptions]
+----
+
+You must supply the generic arguments +-conf+, +-D+, and so on after the
+tool name but *before* any tool-specific arguments (such as
++\--connect+). Note that generic Hadoop arguments are preceeded by a
+single dash character (+-+), whereas tool-specific arguments start
+with two dashes (+\--+), unless they are single character arguments such as +-P+.
+
+The +-conf+, +-D+, +-fs+ and +-jt+ arguments control the configuration
+and Hadoop server settings. For example, the +-D mapred.job.name=<job_name>+ can
+be used to set the name of the MR job that Sqoop launches, if not specified,
+the name defaults to the jar name for the job - which is derived from the used
+table name.
+
+The +-files+, +-libjars+, and +-archives+ arguments are not typically used with
+Sqoop, but they are included as part of Hadoop's internal argument-parsing
+system.
+
+
+Using Options Files to Pass Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When using Sqoop, the command line options that do not change from
+invocation to invocation can be put in an options file for convenience.
+An options file is a text file where each line identifies an option in
+the order that it appears otherwise on the command line. Option files
+allow specifying a single option on multiple lines by using the
+back-slash character at the end of intermediate lines. Also supported
+are comments within option files that begin with the hash character.
+Comments must be specified on a new line and may not be mixed with
+option text. All comments and empty lines are ignored when option
+files are expanded. Unless options appear as quoted strings, any
+leading or trailing spaces are ignored. Quoted strings if used must
+not extend beyond the line on which they are specified.
+
+Option files can be specified anywhere in the command line as long as
+the options within them follow the otherwise prescribed rules of
+options ordering. For instance, regardless of where the options are
+loaded from, they must follow the ordering such that generic options
+appear first, tool specific options next, finally followed by options
+that are intended to be passed to child programs.
+
+To specify an options file, simply create an options file in a
+convenient location and pass it to the command line via
++\--options-file+ argument.
+
+Whenever an options file is specified, it is expanded on the
+command line before the tool is invoked. You can specify more than
+one option files within the same invocation if needed.
+
+For example, the following Sqoop invocation for import can
+be specified alternatively as shown below:
+
+----
+$ sqoop import --connect jdbc:mysql://localhost/db --username foo --table TEST
+
+$ sqoop --options-file /users/homer/work/import.txt --table TEST
+----
+
+where the options file +/users/homer/work/import.txt+ contains the following:
+
+----
+import
+--connect
+jdbc:mysql://localhost/db
+--username
+foo
+----
+
+The options file can have empty lines and comments for readability purposes.
+So the above example would work exactly the same if the options file
++/users/homer/work/import.txt+ contained the following:
+
+----
+#
+# Options file for Sqoop import
+#
+
+# Specifies the tool being invoked
+import
+
+# Connect parameter and value
+--connect
+jdbc:mysql://localhost/db
+
+# Username parameter and value
+--username
+foo
+
+#
+# Remaining options should be specified in the command line.
+#
+----
+
+Using Tools
+~~~~~~~~~~~
+
+The following sections will describe each tool's operation. The
+tools are listed in the most likely order you will find them useful.
+

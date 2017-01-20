@@ -1,0 +1,299 @@
+////
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+////
+
+
++sqoop-export+
+--------------
+
+
+Purpose
+~~~~~~~
+
+include::export-purpose.txt[]
+
+Syntax
+~~~~~~
+
+----
+$ sqoop export (generic-args) (export-args)
+$ sqoop-export (generic-args) (export-args)
+----
+
+Although the Hadoop generic arguments must preceed any export arguments,
+the export arguments can be entered in any order with respect to one
+another.
+
+
+include::common-args.txt[]
+
+include::validation-args.txt[]
+
+.Export control arguments:
+[grid="all"]
+`----------------------------------------`------------------------------
+Argument                                 Description
+------------------------------------------------------------------------
++\--columns <col,col,col...>+            Columns to export to table
++\--direct+                              Use direct export fast path
++\--export-dir <dir>+                    HDFS source path for the export
++-m,\--num-mappers <n>+                  Use 'n' map tasks to export in\
+                                         parallel
++\--table <table-name>+                  Table to populate
++\--call <stored-proc-name>+             Stored Procedure to call
++\--update-key <col-name>+               Anchor column to use for updates.\
+                                         Use a comma separated list of columns\
+                                         if there are more than one column.
++\--update-mode <mode>+                  Specify how updates are performed\
+                                         when new rows are found with\
+                                         non-matching keys in database.
+                                         Legal values for +mode+ include\
+                                         +updateonly+ (default) and\
+                                         +allowinsert+.
++\--input-null-string <null-string>+     The string to be interpreted as\
+                                         null for string columns
++\--input-null-non-string <null-string>+ The string to be interpreted as\
+                                         null for non-string columns
++\--staging-table <staging-table-name>+  The table in which data will be\
+                                         staged before being inserted into\
+                                         the destination table.
++\--clear-staging-table+                 Indicates that any data present in\
+                                         the staging table can be deleted.
++\--batch+                               Use batch mode for underlying\
+                                         statement execution.
+------------------------------------------------------------------------
+
+The +\--export-dir+ argument and one of +\--table+ or +\--call+ are
+required. These specify the table to populate in the database (or the
+stored procedure to call), and the directory in HDFS that contains
+the source data.
+
+By default, all columns within a table are selected for export. You
+can select a subset of columns and control their ordering by using the
++\--columns+ argument. This should include a comma-delimited list
+of columns to export. For example: +\--columns "col1,col2,col3"+. Note
+that columns that are not included in the +--columns+ parameter need
+to have either defined default value or allow +NULL+ values. Otherwise
+your database will reject the imported data which in turn will make 
+Sqoop job fail.
+
+You can control the number of mappers independently from the number of
+files present in the directory. Export performance depends on the
+degree of parallelism. By default, Sqoop will use four tasks in
+parallel for the export process. This may not be optimal; you will
+need to experiment with your own particular setup. Additional tasks
+may offer better concurrency, but if the database is already
+bottlenecked on updating indices, invoking triggers, and so on, then
+additional load may decrease performance. The +\--num-mappers+ or +-m+
+arguments control the number of map tasks, which is the degree of
+parallelism used.
+
+Some databases provides a direct mode for exports as well. Use the +\--direct+ argument
+to specify this codepath. This may be higher-performance than the standard JDBC codepath.
+Details about use of direct mode with each specific RDBMS, installation requirements, available
+options and limitations can be found in <<connectors>>.
+
+The +\--input-null-string+ and +\--input-null-non-string+ arguments are
+optional. If +\--input-null-string+ is not specified, then the string
+"null" will be interpreted as null for string-type columns.
+If +\--input-null-non-string+ is not specified, then both the string
+"null" and the empty string will be interpreted as null for non-string
+columns. Note that, the empty string will be always interpreted as null
+for non-string columns, in addition to other string if specified by
++\--input-null-non-string+.
+
+Since Sqoop breaks down export process into multiple transactions, it
+is possible that a failed export job may result in partial data being
+committed to the database. This can further lead to subsequent jobs
+failing due to insert collisions in some cases, or lead to duplicated data
+in others. You can overcome this problem by specifying a staging table via
+the +\--staging-table+ option which acts as an auxiliary table that is used
+to stage exported data. The staged data is finally moved to the destination
+table in a single transaction.
+
+In order to use the staging facility, you must create the staging table
+prior to running the export job. This table must be structurally
+identical to the target table. This table should either be empty before
+the export job runs, or the +\--clear-staging-table+ option must be specified.
+If the staging table contains data and the +\--clear-staging-table+ option is
+specified, Sqoop will delete all of the data before starting the export job.
+
+NOTE: Support for staging data prior to pushing it into the destination
+table is not always available for +--direct+ exports. It is also not available when
+export is invoked using the +--update-key+ option for updating existing data,
+and when stored procedures are used to insert the data. It is best to check the <<connectors>> section to validate.
+
+
+Inserts vs. Updates
+~~~~~~~~~~~~~~~~~~~
+
+By default, +sqoop-export+ appends new rows to a table; each input
+record is transformed into an +INSERT+ statement that adds a row to the
+target database table. If your table has constraints (e.g., a primary
+key column whose values must be unique) and already contains data, you
+must take care to avoid inserting records that violate these
+constraints. The export process will fail if an +INSERT+ statement
+fails. This mode is primarily intended for exporting records to a new,
+empty table intended to receive these results.
+
+If you specify the +\--update-key+ argument, Sqoop will instead modify
+an existing dataset in the database. Each input record is treated as
+an +UPDATE+ statement that modifies an existing row. The row a
+statement modifies is determined by the column name(s) specified with
++\--update-key+. For example, consider the following table
+definition:
+
+----
+CREATE TABLE foo(
+    id INT NOT NULL PRIMARY KEY,
+    msg VARCHAR(32),
+    bar INT);
+----
+
+Consider also a dataset in HDFS containing records like these:
+
+----
+0,this is a test,42
+1,some more data,100
+...
+----
+
+Running +sqoop-export \--table foo \--update-key id \--export-dir
+/path/to/data \--connect ...+ will run an export job that executes SQL
+statements based on the data like so:
+
+----
+UPDATE foo SET msg='this is a test', bar=42 WHERE id=0;
+UPDATE foo SET msg='some more data', bar=100 WHERE id=1;
+...
+----
+
+If an +UPDATE+ statement modifies no rows, this is not considered an
+error; the export will silently continue. (In effect, this means that
+an update-based export will not insert new rows into the database.)
+Likewise, if the column specified with +\--update-key+ does not
+uniquely identify rows and multiple rows are updated by a single
+statement, this condition is also undetected.
+
+The argument +\--update-key+ can also be given a comma separated list of
+column names. In which case, Sqoop will match all keys from this list before
+updating any existing record.
+
+Depending on the target database, you may also specify the +\--update-mode+
+argument with +allowinsert+ mode if you want to update rows if they exist
+in the database already or insert rows if they do not exist yet.
+
+include::input-args.txt[]
+
+include::output-args.txt[]
+
+Sqoop automatically generates code to parse and interpret records of the
+files containing the data to be exported back to the database. If
+these files were created with non-default delimiters (comma-separated
+fields with newline-separated records), you should specify
+the same delimiters again so that Sqoop can parse your files.
+
+If you specify incorrect delimiters, Sqoop will fail to find enough
+columns per line. This will cause export map tasks to fail by throwing
++ParseExceptions+.
+
+include::codegen-args.txt[]
+
+If the records to be exported were generated as the result of a
+previous import, then the original generated class can be used to read
+the data back. Specifying +\--jar-file+ and +\--class-name+ obviate
+the need to specify delimiters in this case.
+
+The use of existing generated code is incompatible with
++\--update-key+; an update-mode export requires new code generation to
+perform the update. You cannot use +\--jar-file+, and must fully specify
+any non-default delimiters.
+
+Exports and Transactions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Exports are performed by multiple writers in parallel. Each writer
+uses a separate connection to the database; these have separate
+transactions from one another. Sqoop uses the multi-row +INSERT+
+syntax to insert up to 100 records per statement. Every 100
+statements, the current transaction within a writer task is committed,
+causing a commit every 10,000 rows. This ensures that transaction
+buffers do not grow without bound, and cause out-of-memory conditions.
+Therefore, an export is not an atomic process. Partial results from
+the export will become visible before the export is complete.
+
+Failed Exports
+~~~~~~~~~~~~~~
+
+Exports may fail for a number of reasons:
+
+- Loss of connectivity from the Hadoop cluster to the database (either
+  due to hardware fault, or server software crashes)
+- Attempting to +INSERT+ a row which violates a consistency constraint
+  (for example, inserting a duplicate primary key value)
+- Attempting to parse an incomplete or malformed record from the HDFS
+  source data
+- Attempting to parse records using incorrect delimiters
+- Capacity issues (such as insufficient RAM or disk space)
+
+If an export map task fails due to these or other reasons, it will
+cause the export job to fail. The results of a failed export are
+undefined. Each export map task operates in a separate transaction.
+Furthermore, individual map tasks +commit+ their current transaction
+periodically. If a task fails, the current transaction will be rolled
+back. Any previously-committed transactions will remain durable in the
+database, leading to a partially-complete export.
+
+Example Invocations
+~~~~~~~~~~~~~~~~~~~
+
+A basic export to populate a table named +bar+:
+
+----
+$ sqoop export --connect jdbc:mysql://db.example.com/foo --table bar  \
+    --export-dir /results/bar_data
+----
+
+This example takes the files in +/results/bar_data+ and injects their
+contents in to the +bar+ table in the +foo+ database on +db.example.com+.
+The target table must already exist in the database. Sqoop performs
+a set of +INSERT INTO+ operations, without regard for existing content. If
+Sqoop attempts to insert rows which violate constraints in the database
+(for example, a particular primary key value already exists), then the export
+fails.
+
+Alternatively, you can specify the columns to be exported by providing
++--columns "col1,col2,col3"+. Please note that columns that are not included
+in the +--columns+ parameter need to have either defined default value or 
+allow +NULL+ values. Otherwise your database will reject the imported data 
+which in turn will make Sqoop job fail.
+
+Another basic export to populate a table named +bar+ with validation enabled:
+<<validation,More Details>>
+
+----
+$ sqoop export --connect jdbc:mysql://db.example.com/foo --table bar  \
+    --export-dir /results/bar_data --validate
+----
+
+An export that calls a stored procedure named +barproc+ for every record in
++/results/bar_data+ would look like:
+
+----
+$ sqoop export --connect jdbc:mysql://db.example.com/foo --call barproc \
+    --export-dir /results/bar_data
+----

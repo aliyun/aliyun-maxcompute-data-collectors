@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+    <appender class="org.apache.log4j.RollingFileAppender" name="rolling">
+        <param value="dirrpt/${GROUPNAME}.log" name="File"/>
+        <param value="5" name="MaxBackupIndex"/>
+        <param value="50MB" name="MaxFileSize"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param value="%p %d [%t] %m%n" name="ConversionPattern"/>
+        </layout>
+    </appender>
+    <appender class="org.apache.log4j.ConsoleAppender" name="stdout">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param value="%p %t %c - %m%n" name="ConversionPattern"/>
+        </layout>
+    </appender>
+    <logger additivity="false" name="com.goldengate">
+        <level value="${gg.log.level}"/>
+        <appender-ref ref="rolling"/>
+    </logger>
+    <logger additivity="false" name="org">
+        <level value="warn"/>
+        <appender-ref ref="rolling"/>
+    </logger>
+    <logger additivity="false" name="sample">
+        <level value="${gg.log.level}"/>
+        <appender-ref ref="rolling"/>
+    </logger>
+    <root>
+        <level value="error"/>
+        <appender-ref ref="rolling"/>
+    </root>
+</log4j:configuration>
+

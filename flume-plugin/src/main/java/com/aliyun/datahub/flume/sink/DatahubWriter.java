@@ -21,7 +21,8 @@ package com.aliyun.datahub.flume.sink;
 
 import com.aliyun.datahub.DatahubConfiguration;
 import com.aliyun.datahub.auth.AliyunAccount;
-import com.aliyun.datahub.model.*;
+import com.aliyun.datahub.model.PutRecordsResult;
+import com.aliyun.datahub.model.RecordEntry;
 import com.aliyun.datahub.wrapper.Project;
 import com.aliyun.datahub.wrapper.Topic;
 import org.apache.flume.instrumentation.SinkCounter;
@@ -48,15 +49,17 @@ public class DatahubWriter {
         this.sinkCounter = sinkCounter;
 
         DatahubConfiguration datahubConfiguration = new DatahubConfiguration(
-            new AliyunAccount(configure.getAccessId(), configure.getAccessKey()),
-            configure.getEndPoint());
-        datahubConfiguration.setUserAgent("datahub-flume-plugin-1.1.0");
+            new AliyunAccount(configure.getDatahubAccessId(), configure.getDatahubAccessKey()),
+            configure.getDatahubEndPoint());
+        datahubConfiguration.setUserAgent("datahub-flume-plugin-2.0.0");
 
-        Project project = Project.Builder.build(configure.getProject(), datahubConfiguration);
-        topic = project.getTopic(configure.getTopic());
-
+        Project project = Project.Builder.build(configure.getDatahubProject(), datahubConfiguration);
+        if (!project.listTopic().contains(configure.getDatahubTopic().toLowerCase())) {
+            throw new RuntimeException("Can not find datahub topic[" + configure.getDatahubTopic() + "]");
+        }
+        topic = project.getTopic(configure.getDatahubTopic());
         if (topic == null) {
-            throw new RuntimeException("Can not find datahub topic[" + configure.getTopic() + "]");
+            throw new RuntimeException("Can not find datahub topic[" + configure.getDatahubTopic() + "]");
         }
 
         if (topic.getShardCount() == 0) {

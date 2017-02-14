@@ -20,9 +20,13 @@
 package com.aliyun.datahub.flume.sink;
 
 
+import java.util.List;
+import java.util.TimeZone;
+
 public class Configure {
 
     public static final String DEFAULT_DATAHUB_END_POINT = "http://dh.odps.aliyun.com";
+
     public static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
 
     public static final int DEFAULT_DATAHUB_BATCHSIZE = 100;
@@ -33,13 +37,23 @@ public class Configure {
      */
     public static final int DEFAULT_RETRY_INTERVAL = 5;
 
+    public static final boolean DEFAULT_NEED_ROUNDING = false;
+
+    public static final String DEFAULT_MAXCOMPUTE_PARTITION_COLUMNS = "";
+    public static final String DEFAULT_MAXCOMPUTE_PARTITION_VALUES = "";
+
     private int retryTimes;
     private int retryInterval;
-    private String accessId;
-    private String accessKey;
-    private String endPoint;
-    private String project;
-    private String topic;
+    // datahub related config
+    private String datahubAccessId;
+    private String datahubAccessKey;
+    private String datahubEndPoint;
+    private String datahubProject;
+    private String datahubTopic;
+    private int datahubShardCount;
+    private int datahubLifeCycle;
+    private String datahubSchema;
+
     private String dateFormat;
     private String serializerType;
     private int batchSize;
@@ -48,6 +62,17 @@ public class Configure {
 
     private String[] shardColumnNames;
     private String[] dateformatColumnNames;
+
+    private boolean useLocalTime;
+    private TimeZone timeZone;
+    private boolean needRounding;
+    private int roundUnit;
+    private int roundValue;
+
+    private boolean isBlankValueAsNull;
+
+    private List<String> maxcomputePartitionCols;
+    private List<String> maxcomputePartitionVals;
 
     public String[] getShardColumnNames() {
         return shardColumnNames;
@@ -73,44 +98,44 @@ public class Configure {
         this.inputColumnNames = inputColumnNames;
     }
 
-    public String getAccessId() {
-        return accessId;
+    public String getDatahubAccessId() {
+        return datahubAccessId;
     }
 
-    public void setAccessId(String accessId) {
-        this.accessId = accessId;
+    public void setDatahubAccessId(String datahubAccessId) {
+        this.datahubAccessId = datahubAccessId;
     }
 
-    public String getAccessKey() {
-        return accessKey;
+    public String getDatahubAccessKey() {
+        return datahubAccessKey;
     }
 
-    public void setAccessKey(String accessKey) {
-        this.accessKey = accessKey;
+    public void setDatahubAccessKey(String datahubAccessKey) {
+        this.datahubAccessKey = datahubAccessKey;
     }
 
-    public String getEndPoint() {
-        return endPoint;
+    public String getDatahubEndPoint() {
+        return datahubEndPoint;
     }
 
-    public void setEndPoint(String endPoint) {
-        this.endPoint = endPoint;
+    public void setDatahubEndPoint(String datahubEndPoint) {
+        this.datahubEndPoint = datahubEndPoint;
     }
 
-    public String getProject() {
-        return project;
+    public String getDatahubProject() {
+        return datahubProject;
     }
 
-    public void setProject(String project) {
-        this.project = project;
+    public void setDatahubProject(String datahubProject) {
+        this.datahubProject = datahubProject;
     }
 
-    public String getTopic() {
-        return topic;
+    public String getDatahubTopic() {
+        return datahubTopic;
     }
 
-    public void setTopic(String topic) {
-        this.topic = topic;
+    public void setDatahubTopic(String datahubTopic) {
+        this.datahubTopic = datahubTopic;
     }
 
     public String getDateFormat() {
@@ -160,4 +185,71 @@ public class Configure {
     public int getRetryTimes() {
         return retryTimes;
     }
+
+
+    public boolean isUseLocalTime() {
+        return useLocalTime;
+    }
+
+    public void setUseLocalTime(boolean useLocalTime) {
+        this.useLocalTime = useLocalTime;
+    }
+
+    public TimeZone getTimeZone() {
+        return timeZone;
+    }
+
+    public void setTimeZone(TimeZone timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public boolean isNeedRounding() {
+        return needRounding;
+    }
+
+    public void setNeedRounding(boolean needRounding) {
+        this.needRounding = needRounding;
+    }
+
+    public int getRoundUnit() {
+        return roundUnit;
+    }
+
+    public void setRoundUnit(int roundUnit) {
+        this.roundUnit = roundUnit;
+    }
+
+    public int getRoundValue() {
+        return roundValue;
+    }
+
+    public void setRoundValue(int roundValue) {
+        this.roundValue = roundValue;
+    }
+
+
+    public List<String> getMaxcomputePartitionCols() {
+        return maxcomputePartitionCols;
+    }
+
+    public void setMaxcomputePartitionCols(List<String> maxcomputePartitionCols) {
+        this.maxcomputePartitionCols = maxcomputePartitionCols;
+    }
+
+    public List<String> getMaxcomputePartitionVals() {
+        return maxcomputePartitionVals;
+    }
+
+    public void setMaxcomputePartitionVals(List<String> maxcomputePartitionVals) {
+        this.maxcomputePartitionVals = maxcomputePartitionVals;
+    }
+
+    public boolean isBlankValueAsNull() {
+        return isBlankValueAsNull;
+    }
+
+    public void setBlankValueAsNull(boolean blankValueAsNull) {
+        isBlankValueAsNull = blankValueAsNull;
+    }
+
 }

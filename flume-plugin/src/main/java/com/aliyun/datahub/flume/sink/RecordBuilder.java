@@ -129,7 +129,10 @@ public class RecordBuilder {
         if (!columnTypeMappings.containsKey(fieldName)) {
             throw new RuntimeException("field name: " + fieldName + " not existed in datahub!");
         }
-        if (StringUtils.isNotBlank(fieldName) && StringUtils.isNotBlank(fieldValue)) {
+        if (StringUtils.isNotBlank(fieldName)) {
+            if (configure.isBlankValueAsNull() && StringUtils.isBlank(fieldValue)) {
+                return;
+            }
             FieldType fieldType = columnTypeMappings.get(fieldName);
             switch (fieldType) {
                 case STRING:
@@ -207,7 +210,7 @@ public class RecordBuilder {
             for (String col : configure.getShardColumnNames()) {
                 hashKey.append(rowData.get(col));
             }
-            int hashCode = hashKey.hashCode();
+            int hashCode = hashKey.hashCode() & Integer.MAX_VALUE;
             recordEntry.setShardId(shardIds.get(hashCode % shardIds.size()));
         }
 

@@ -21,17 +21,21 @@ package com.aliyun.datahub.flume.sink;
 import com.aliyun.datahub.flume.sink.serializer.OdpsDelimitedTextSerializer;
 import com.aliyun.datahub.flume.sink.serializer.OdpsRegexEventSerializer;
 import com.aliyun.datahub.flume.sink.serializer.OdpsEventSerializer;
+import com.aliyun.odps.OdpsException;
+import com.aliyun.odps.PartitionSpec;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
+import org.apache.flume.formatter.output.BucketPath;
 import org.apache.flume.instrumentation.SinkCounter;
 import org.apache.flume.sink.AbstractSink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 /**
  * A simple sink which reads events from a channel and writes them to Datahub.
@@ -48,29 +52,44 @@ public class DatahubSink extends AbstractSink implements Configurable {
 
     @Override public void configure(Context context) {
         configure = new Configure();
+        String partitionColsStr = context.getString(DatahubConfigConstants.MAXCOMPUTE_PARTITION_COLUMNS, Configure.DEFAULT_MAXCOMPUTE_PARTITION_COLUMNS);
+        String partitionValsStr = context.getString(DatahubConfigConstants.MAXCOMPUTE_PARTITION_VALUES, Configure.DEFAULT_MAXCOMPUTE_PARTITION_VALUES);
+        List<String> partitionCols = getPropCols(partitionColsStr, true);
+        List<String> partitionVals = getPropCols(partitionValsStr, false);
+        if (partitionCols != null) {
+            if (partitionVals != null & partitionCols.size() == partitionVals.size()) {
+                configure.setMaxcomputePartitionCols(partitionCols);
+                configure.setMaxcomputePartitionVals(partitionVals);
+            } else {
+                logger.error("Number of partition cols and vals are not consistent.");
+                throw new RuntimeException("Number of partition cols and vals are not consistent.");
+            }
+        }
+
         String accessId = Preconditions
             .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_ID),
                 "%s config setting is not" + " specified for sink %s",
                 DatahubConfigConstants.DATAHUB_ACCESS_ID, getName());
-        configure.setAccessId(accessId);
+        configure.setDatahubAccessId(accessId);
         String accessKey = Preconditions
             .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_KEY),
                 "%s config setting is " + "not specified for sink %s",
                 DatahubConfigConstants.DATAHUB_ACCESS_KEY, getName());
-        configure.setAccessKey(accessKey);
+        configure.setDatahubAccessKey(accessKey);
         String endPoint = context.getString(DatahubConfigConstants.DATAHUB_END_POINT,
             Configure.DEFAULT_DATAHUB_END_POINT);
-        configure.setEndPoint(endPoint);
+        configure.setDatahubEndPoint(endPoint);
         String projectName = Preconditions
             .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_PROJECT),
                 "%s config setting is not " + "specified for sink %s",
                 DatahubConfigConstants.DATAHUB_PROJECT, getName());
-        configure.setProject(projectName);
+        configure.setDatahubProject(projectName);
         String topic = Preconditions
             .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_TOPIC),
                 "%s config setting is not " + "specified for sink %s",
                 DatahubConfigConstants.DATAHUB_TOPIC, getName());
-        configure.setTopic(topic);
+        configure.setDatahubTopic(topic);
+
         String dateFormat =
             context.getString(DatahubConfigConstants.DATE_FORMAT, Configure.DEFAULT_DATE_FORMAT);
         configure.setDateFormat(dateFormat);
@@ -112,9 +131,58 @@ public class DatahubSink extends AbstractSink implements Configurable {
             .getInteger(DatahubConfigConstants.RETRY_INTERVAL, Configure.DEFAULT_RETRY_INTERVAL);
         configure.setRetryInterval(retryInterval);
 
+        boolean useLocalTime = context.getBoolean(DatahubConfigConstants.USE_LOCAL_TIME_STAMP, true);
+        String tzName = context.getString(DatahubConfigConstants.TIME_ZONE);
+        TimeZone timeZone = (StringUtils.isEmpty(tzName)) ? null : TimeZone.getTimeZone(tzName);
+        boolean needRounding = context.getBoolean(DatahubConfigConstants.NEED_ROUNDING, Configure.DEFAULT_NEED_ROUNDING);
+        String unit = context.getString(DatahubConfigConstants.ROUND_UNIT, DatahubConfigConstants.HOUR);
+        int roundUnit = Calendar.HOUR_OF_DAY;
+        if (unit.equalsIgnoreCase(DatahubConfigConstants.HOUR)) {
+            roundUnit = Calendar.HOUR_OF_DAY;
+        } else if (unit.equalsIgnoreCase(DatahubConfigConstants.MINUTE)) {
+            roundUnit = Calendar.MINUTE;
+        } else if (unit.equalsIgnoreCase(DatahubConfigConstants.SECOND)) {
+            roundUnit = Calendar.SECOND;
+        } else {
+            logger.warn(getName() + ". Rounding unit is not valid, please set one of " +
+                "minute, hour or second. Rounding will be disabled");
+            needRounding = false;
+        }
+        int roundValue = context.getInteger(DatahubConfigConstants.ROUND_VALUE, 1);
+        if (roundUnit == Calendar.SECOND || roundUnit == Calendar.MINUTE) {
+            Preconditions.checkArgument(roundValue > 0 && roundValue <= 60, "Round value must be > 0 and <= 60");
+        } else if (roundUnit == Calendar.HOUR_OF_DAY) {
+            Preconditions.checkArgument(roundValue > 0 && roundValue <= 24, "Round value must be > 0 and <= 24");
+        }
+        configure.setUseLocalTime(useLocalTime);
+        configure.setTimeZone(timeZone);
+        configure.setNeedRounding(needRounding);
+        configure.setRoundUnit(roundUnit);
+        configure.setRoundValue(roundValue);
+
+        boolean isBlankValueAsNull = context.getBoolean(DatahubConfigConstants.IS_BLANK_VALUE_AS_NULL, true);
+        configure.setBlankValueAsNull(isBlankValueAsNull);
+
         if (sinkCounter == null) {
             sinkCounter = new SinkCounter(getName());
         }
+    }
+
+    private List<String> getPropCols(String propertyString, boolean lowercase) {
+        if (StringUtils.isEmpty(propertyString)) {
+            logger.warn("Property is empty. property name:" + propertyString);
+            return null;
+        }
+        List<String> propList = Lists.newArrayList();
+        String[] propCols = propertyString.split(",");
+        for (int i = 0; i < propCols.length; i++) {
+            String prop = propCols[i].split("/")[0].trim();
+            if (lowercase) {
+                prop = prop.toLowerCase();
+            }
+            propList.add(prop);
+        }
+        return propList;
     }
 
     private OdpsEventSerializer createSerializer(String serializerType) {
@@ -136,7 +204,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
     }
 
     @Override public void start() {
-        logger.info("Odps Sink {}: starting...", getName());
+        logger.info("Datahub Sink {}: starting...", getName());
         super.start();
         // Sleep a random time (<= 5s)
         try {
@@ -150,13 +218,13 @@ public class DatahubSink extends AbstractSink implements Configurable {
         logger.info("Init DatahubWriter success");
 
         sinkCounter.start();
-        logger.info("Odps Sink {}: started", getName());
+        logger.info("Datahub Sink {}: started", getName());
     }
 
     @Override public void stop() {
         sinkCounter.stop();
         super.stop();
-        logger.info("Odps Sink {}: stopped", getName());
+        logger.info("Datahub Sink {}: stopped", getName());
     }
 
     @Override public Status process() throws EventDeliveryException {
@@ -175,10 +243,21 @@ public class DatahubSink extends AbstractSink implements Configurable {
                 }
                 serializer.initialize(event);
                 Map<String,String> rowMap = serializer.getRow();
+
+                // add maxcompute partition columns
+                if (configure.getMaxcomputePartitionVals() != null) {
+                    Map<String, String> partitionMap =
+                        buildPartitionSpec(configure.getMaxcomputePartitionVals(), event.getHeaders(),
+                            configure.getTimeZone(), configure.isNeedRounding(), configure.getRoundUnit(),
+                            configure.getRoundValue(), configure.isUseLocalTime());
+                    rowMap.putAll(partitionMap);
+                }
+
                 if (!rowMap.isEmpty()) {
                     datahubWriter.addRecord(rowMap);
                 }
             }
+
             int recordSize = datahubWriter.getRecordSize();
             sinkCounter.addToEventDrainAttemptCount(recordSize);
             if (recordSize == 0) {
@@ -203,7 +282,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
             if (t instanceof Error) {
                 throw (Error) t;
             } else if (t instanceof ChannelException) {
-                logger.error("Odps Sink " + getName() + ": Unable to get event from channel " +
+                logger.error("Datahub Sink " + getName() + ": Unable to get event from channel " +
                     channel.getName() + "" + ". Exception follows.", t);
                 status = Status.BACKOFF;
             } else {
@@ -213,6 +292,25 @@ public class DatahubSink extends AbstractSink implements Configurable {
             transaction.close();
         }
         return status;
+    }
+
+    private Map<String, String> buildPartitionSpec(List<String> partitionValues, Map<String, String> headers, TimeZone timeZone,
+        boolean needRounding, int roundUnit, Integer roundValue, boolean useLocalTime)
+        throws OdpsException {
+        Map<String, String> partitionMap = Maps.newHashMap();
+        if (partitionValues == null || partitionValues.size() == 0) {
+            return partitionMap;
+        }
+        if (configure.getMaxcomputePartitionCols().size() != configure.getMaxcomputePartitionVals().size()) {
+            throw new RuntimeException("MaxCompute partition fields number not equals input partition values number");
+        }
+        for (int i = 0; i < partitionValues.size(); i++) {
+            String realPartVal = BucketPath
+                .escapeString(partitionValues.get(i), headers, timeZone, needRounding,
+                    roundUnit, roundValue, useLocalTime);
+            partitionMap.put(configure.getMaxcomputePartitionCols().get(i), realPartVal);
+        }
+        return partitionMap;
     }
 
 }

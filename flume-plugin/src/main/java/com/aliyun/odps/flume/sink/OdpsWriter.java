@@ -114,15 +114,16 @@ public class OdpsWriter {
         Map<String, OdpsStreamRecordPackDO> partitionPackMap = Maps.newHashMap();
         for (OdpsRowDO rowDO : rowDOList) {
             OdpsStreamRecordPackDO packDO = partitionPackMap.get(rowDO.getPartitionSpec());
-            if (packDO == null) {
-                packDO = new OdpsStreamRecordPackDO();
-                StreamRecordPack streamRecordPack = new StreamRecordPack(tableSchema);
-                packDO.setPartitionSpec(rowDO.getPartitionSpec());
-                packDO.setRecordPack(streamRecordPack);
-                partitionPackMap.put(rowDO.getPartitionSpec(), packDO);
-            }
-            Record record = buildRecord(rowDO.getRowMap());
+
             try {
+                if (packDO == null) {
+                    packDO = new OdpsStreamRecordPackDO();
+                    StreamRecordPack streamRecordPack = new StreamRecordPack(tableSchema);
+                    packDO.setPartitionSpec(rowDO.getPartitionSpec());
+                    packDO.setRecordPack(streamRecordPack);
+                    partitionPackMap.put(rowDO.getPartitionSpec(), packDO);
+                }
+                Record record = buildRecord(rowDO.getRowMap());
                 packDO.getRecordPack().append(record);
             } catch (IOException e) {
                 logger.error("OdpsWriter buildRecordList() error, discard record.", e);

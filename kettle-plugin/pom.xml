@@ -42,7 +42,6 @@
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-core</artifactId>
-            <version>0.24.0-public</version>
         </dependency>
 
         <dependency>

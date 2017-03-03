@@ -1,5 +1,9 @@
 # Aliyun MaxCompute Data Collectors
 
+[![Build Status](https://travis-ci.org/aliyun/aliyun-maxcompute-data-collectors.svg?branch=master)](https://travis-ci.org/aliyun/aliyun-maxcompute-data-collectors)
+
+---
+
 This project is a group of bigdata plugins for exchanging data with aliyun maxcompute.
 The plugins contain flume-plugin, kettle-plugin, ogg-plugin and odps-sqoop.
 

@@ -41,6 +41,10 @@ public class OdpsConstants {
   public static final String SHARD_TIMEOUT = "sqoop.odps.shard.timeout";
   public static final String RETRY_COUNT = "sqoop.odps.retrycount";
   public static final String BATCH_SIZE = "sqoop.odps.batchsize";
+  
+  public static final String ODPS_DISABLE_DYNAMIC_PARTITIONS = "odps.disable.dynamic.partitions";
+  public static final String ODPS_TUNNEL_UPLOAD_SESSION_ID =
+      "odps.tunnel.upload.session.id";
 
   public static final String PARTITION_SPEC = "sqoop.odps.partition.spec";
 

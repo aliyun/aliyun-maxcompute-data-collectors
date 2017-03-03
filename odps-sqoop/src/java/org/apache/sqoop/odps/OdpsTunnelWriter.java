@@ -21,7 +21,10 @@ import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.data.Record;
 import com.aliyun.odps.data.RecordWriter;
 import com.aliyun.odps.tunnel.TableTunnel;
+import com.aliyun.odps.tunnel.TableTunnel.UploadSession;
 import com.aliyun.odps.tunnel.TunnelException;
+import com.aliyun.odps.tunnel.io.TunnelBufferedWriter;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -37,13 +40,28 @@ public class OdpsTunnelWriter extends OdpsWriter {
   private String project;
   private String tableName;
   private int retryCount;
+  private String sharedSessionId;
+  private TableTunnel.UploadSession sharedUploadSession;
+  private RecordWriter sharedWriter;
 
   public OdpsTunnelWriter(TableTunnel tunnel, String project,
-                          String tableName, int retryCount) {
+                          String tableName, int retryCount, String sessionId) {
     this.tunnel = tunnel;
     this.project = project;
     this.tableName = tableName;
     this.retryCount = retryCount;
+    this.sharedSessionId = sessionId;
+  }
+
+  public OdpsTunnelWriter(TableTunnel tunnel, String project, String tableName, int retryCount,
+      UploadSession uploadSession) throws TunnelException {
+    this.tunnel = tunnel;
+    this.project = project;
+    this.tableName = tableName;
+    this.retryCount = retryCount;
+    this.sharedUploadSession = uploadSession;
+    sharedWriter = uploadSession.openBufferedWriter(true);
+    ((TunnelBufferedWriter)sharedWriter).setBufferSize(64*1024*1024);
   }
 
   @Override
@@ -68,6 +86,13 @@ public class OdpsTunnelWriter extends OdpsWriter {
     for (Map.Entry<String, List<Record>> mapEntry
             : partitionRecordMap.entrySet()) {
       int retry = 0;
+      if (sharedUploadSession != null) {
+        for (Record r : mapEntry.getValue()) {
+          sharedWriter.write(r);
+        }
+        continue;
+      }
+      
       while (true) {
         RecordWriter writer = null;
         try {
@@ -104,6 +129,31 @@ public class OdpsTunnelWriter extends OdpsWriter {
             // Do Nothing
           }
         }
+      }
+    }
+  }
+
+  @Override
+  public void close() throws InterruptedException, TunnelException, IOException {
+    if (sharedWriter != null) {
+      sharedWriter.close();
+    }
+    if (sharedUploadSession != null) {
+      int count = 0;
+      int retryTimeLimit = 6;
+      while (count < retryTimeLimit) {
+        try {
+          sharedUploadSession.commit();
+          break;
+        } catch (TunnelException te) {
+          LOG.warn("Commit exception in retry " + count, te);
+          Thread.sleep(5*1000);
+        }
+        count++;
+      }
+      
+      if (count >= retryTimeLimit) {
+        throw new IOException("Upload Session commit failed, after retry " + retryTimeLimit + " times.");
       }
     }
   }

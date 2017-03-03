@@ -212,6 +212,8 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
   public static final String ODPS_BATCH_SIZE_ARG = "odps-batch-size";
   public static final String ODPS_HUBLIFECYCLE = "odps-hublifecycle";
   public static final String HDFS_TO_ODPS = "hdfs-to-odps";
+  public static final String ODPS_DISABLE_DYNAMIC_PARTITIONS = "disable-dynamic-partitions";
+  public static final String ODPS_OVERWRITE_ARG = "odps-overwrite";
 
   //Accumulo arguments.
   public static final String ACCUMULO_TABLE_ARG = "accumulo-table";
@@ -855,6 +857,10 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
       .withLongOpt(ODPS_CREATE_TABLE_ARG)
       .create());
     odpsOpts.addOption(OptionBuilder
+        .withDescription("Disable odps dynamic partitions")
+        .withLongOpt(ODPS_DISABLE_DYNAMIC_PARTITIONS)
+        .create());
+    odpsOpts.addOption(OptionBuilder
       .withDescription("Import from HDFS to ODPS")
       .withLongOpt(HDFS_TO_ODPS)
       .create());
@@ -894,6 +900,10 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
          + " types.")
       .withLongOpt(MAP_COLUMN_ODPS)
       .create());
+    odpsOpts.addOption(OptionBuilder
+        .withDescription("Overwrite existing data in the ODPS table")
+        .withLongOpt(ODPS_OVERWRITE_ARG)
+        .create());
     return odpsOpts;
   }
 
@@ -1443,6 +1453,9 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
     if (in.hasOption(ODPS_CREATE_TABLE_ARG)) {
       out.setOdpsCreateTable(true);
     }
+    if (in.hasOption(ODPS_DISABLE_DYNAMIC_PARTITIONS)) {
+      out.setOdpsDisableDynamicPartitions(true);
+    }
     if (in.hasOption(HDFS_TO_ODPS)) {
       out.setHdfsToOdps(true);
     }
@@ -1469,6 +1482,9 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
     }
     if (in.hasOption(ODPS_PARTITION_SPEC_ARG)) {
       out.setOdpsPartitionSpec(in.getOptionValue(ODPS_PARTITION_SPEC_ARG));
+    }
+    if (in.hasOption(ODPS_OVERWRITE_ARG)) {
+      out.setOverwriteOdpsTable(true);
     }
   }
 

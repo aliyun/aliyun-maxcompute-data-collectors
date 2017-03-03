@@ -26,4 +26,7 @@ public abstract class OdpsWriter {
 
   public abstract void write(List<OdpsRowDO> rowList)
           throws InterruptedException, TunnelException, IOException;
+  
+  public abstract void close()
+      throws InterruptedException, TunnelException, IOException;
 }

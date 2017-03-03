@@ -25,6 +25,7 @@ import com.aliyun.odps.tunnel.io.StreamRecordPack;
 import com.aliyun.odps.tunnel.io.StreamWriter;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -117,5 +118,11 @@ public class OdpsHubWriter extends OdpsWriter {
     }
     return recordPackDOList;
 
+  }
+
+  @Override
+  public void close() throws InterruptedException, TunnelException, IOException {
+    // TODO Auto-generated method stub
+    
   }
 }

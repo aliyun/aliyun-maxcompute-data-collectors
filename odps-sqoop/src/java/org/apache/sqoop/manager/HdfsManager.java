@@ -19,12 +19,21 @@
 
 package org.apache.sqoop.manager;
 
+import com.aliyun.odps.Odps;
+import com.aliyun.odps.OdpsException;
+import com.aliyun.odps.Table;
+import com.aliyun.odps.Tables;
+import com.aliyun.odps.account.AliyunAccount;
 import com.cloudera.sqoop.SqoopOptions;
 import com.cloudera.sqoop.manager.ConnManager;
 import com.cloudera.sqoop.manager.ImportJobContext;
 import com.cloudera.sqoop.util.ImportException;
+import com.google.common.base.Preconditions;
+
 import org.apache.sqoop.mapreduce.odps.HdfsOdpsImportJob;
+import org.apache.sqoop.odps.OdpsUtil;
 import org.apache.sqoop.util.SqlTypeMap;
+import org.mortbay.log.Log;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -36,10 +45,55 @@ import java.util.Map;
 public class HdfsManager extends ConnManager {
 
   private SqoopOptions options;
+  private Odps odps;
+  private boolean isCreateTable;
 
   public HdfsManager(SqoopOptions options) {
     this.options = options;
     this.options.setTableName("sqoop_orm");
+
+    isCreateTable = options.isOdpsCreateTable();
+
+    String tableName = Preconditions.checkNotNull(options.getOdpsTable(),
+        "Import to ODPS error: Table name not specified");
+    String accessID = Preconditions.checkNotNull(options.getOdpsAccessID(),
+        "Error: ODPS access ID not specified");
+    String accessKey = Preconditions.checkNotNull(options.getOdpsAccessKey(),
+        "Error: ODPS access key not specified");
+    String project = Preconditions.checkNotNull(options.getOdpsProject(),
+        "Error: ODPS project not specified");
+    String endpoint = Preconditions.checkNotNull(options.getOdpsEndPoint(),
+        "Error: ODPS endpoint not specified");
+
+    odps = new Odps(new AliyunAccount(accessID, accessKey));
+    odps.setUserAgent(OdpsUtil.getUserAgent());
+    odps.setDefaultProject(project);
+    odps.setEndpoint(endpoint);
+    
+    String[] colNames = options.getColumns();
+    Tables tables = odps.tables();
+    boolean existsTable = false;
+    try {
+      existsTable = tables.exists(options.getOdpsTable());
+    } catch (OdpsException e) {
+      throw new RuntimeException("ODPS exception", e);
+    }
+    if (colNames == null) {
+      if (!existsTable) {
+        throw new RuntimeException("missing --columns");
+      } else {
+        Table t = tables.get(options.getOdpsTable());
+        colNames = new String[t.getSchema().getColumns().size()];
+        Log.info("colNames size: " + colNames.length);
+        for (int i = 0; i < colNames.length; ++i) {
+          colNames[i] = new String(t.getSchema().getColumns().get(i).getName());
+          Log.info("colNames colNames[i]: " + colNames[i]);
+        }
+      }
+
+      options.setColumns(colNames);
+    }
+
   }
 
   @Override

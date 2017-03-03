@@ -188,6 +188,8 @@ public class SqoopOptions implements Cloneable {
   @StoredAsProperty("odps.hubLifeCycle") private int odpsHubLifeCycle;
   @StoredAsProperty("odps.partition.spec") private String odpsPartitionSpec;
   @StoredAsProperty("hdfs.to.odps") private boolean hdfsToOdps;
+  @StoredAsProperty("odps.disable.dynamic.partitions") private boolean odpsDisableDynamicPartitions;
+  @StoredAsProperty("odps.overwrite.table") private boolean overwriteOdpsTable;
 
   public boolean isSkipFailed() {
     return skipFailed;
@@ -205,6 +207,17 @@ public class SqoopOptions implements Cloneable {
 
   public void setHdfsToOdps(boolean hdfsToOdps) {
     this.hdfsToOdps = hdfsToOdps;
+  }
+
+  /**
+   * @return the user-specified option to overwrite existing table in odps.
+   */
+  public boolean isOverwriteOdpsTable() {
+    return overwriteOdpsTable;
+  }
+
+  public void setOverwriteOdpsTable(boolean overwrite) {
+    this.overwriteOdpsTable = overwrite;
   }
 
 
@@ -2738,6 +2751,14 @@ public class SqoopOptions implements Cloneable {
 
   public void setOdpsCreateTable(boolean odpsCreateTable) {
     this.odpsCreateTable = odpsCreateTable;
+  }
+  
+  public boolean isOdpsDisableDynamicPartitions() {
+    return this.odpsDisableDynamicPartitions;
+  }
+  
+  public void setOdpsDisableDynamicPartitions(boolean disable) {
+    this.odpsDisableDynamicPartitions = disable;
   }
 
   public String getOdpsInputDateFormat() {

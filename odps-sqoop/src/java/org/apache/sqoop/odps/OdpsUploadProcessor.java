@@ -27,6 +27,7 @@ import com.cloudera.sqoop.lib.FieldMapProcessor;
 import com.cloudera.sqoop.lib.FieldMappable;
 import com.cloudera.sqoop.lib.ProcessingException;
 import com.google.common.collect.Maps;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configurable;
@@ -69,6 +70,12 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
   public void close() throws IOException {
     try {
       sendBatch(rowDOList);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    
+    try {
+      odpsWriter.close();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -115,7 +122,20 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
         odpsWriter = buildHubWriter(project, tableName,
                 datahubEndPoint, retryCount);
       } else {
-        odpsWriter = buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount);
+        if (conf.getBoolean(OdpsConstants.ODPS_DISABLE_DYNAMIC_PARTITIONS, false)) {
+          String partition = getPartitionSpec(partitionKeys, partitionValues, Maps.newHashMap());
+          TableTunnel.UploadSession uploadSession = null;
+          TableTunnel tunnel = new TableTunnel(odps);
+              if (partition == null) {
+                uploadSession = tunnel.createUploadSession(project, tableName);
+              } else {
+                uploadSession = tunnel.createUploadSession(project, tableName,
+                    new PartitionSpec(partition));
+              }
+              odpsWriter = buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount, uploadSession);
+        } else {
+          odpsWriter = buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount, new String(""));
+        }
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -242,11 +262,18 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
   }
 
   private OdpsWriter buildTunnelWriter(String project, String tableName,
-                                       String tunnelEndPoint, int retryCount) {
+                                       String tunnelEndPoint, int retryCount, String sessionId) {
     TableTunnel tunnel = new TableTunnel(odps);
 //    tunnel.setEndpoint(tunnelEndPoint);
-    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount);
+    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId);
   }
+  
+  private OdpsWriter buildTunnelWriter(String project, String tableName,
+      String tunnelEndPoint, int retryCount, TableTunnel.UploadSession uploadSession) throws TunnelException {
+TableTunnel tunnel = new TableTunnel(odps);
+//tunnel.setEndpoint(tunnelEndPoint);
+return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession);
+}
 
   private StreamWriter[] buildStreamWriters(StreamClient streamClient)
           throws IOException, TunnelException,

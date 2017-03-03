@@ -97,9 +97,9 @@ public class OdpsRecordBuilder {
             colNameTypeMap.get(key.toLowerCase()));
       } catch (Exception e) {
         // If build record field failed, warn and skip it
-        LOG.warn("Input key (or value) is null, skip this field.", e);
-        LOG.warn("Input entry: " + mapEntry.toString());
-        LOG.warn("Input rowMap: " + Arrays.toString(rowMap.entrySet().toArray()));
+//        LOG.warn("Input key (or value) is null, skip this field.", e);
+//        LOG.warn("Input entry: " + mapEntry.toString());
+//        LOG.warn("Input rowMap: " + Arrays.toString(rowMap.entrySet().toArray()));
       }
     }
     return record;

@@ -31,7 +31,7 @@ Plugin packages are under each plugin subproject's `target` directroy.
 
 ## Usages
 
-Please refer to **README** of each plugin subproject.
+Please refer to **[Wiki](https://github.com/aliyun/aliyun-maxcompute-data-collectors/wiki)** of basic usages.
 
 ## License
 

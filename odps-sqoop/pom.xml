@@ -61,6 +61,22 @@
                <version>1.7</version>
                <executions>
                        <execution>
+                               <id>copy</id>
+                               <phase>compile</phase>
+                               <configuration>
+                                      <target name="copy common jar to lib">
+                                              <copy todir="lib">
+                                                      <fileset dir="../common/target">
+                                                          <include name="*.jar"/>
+                                                       </fileset>
+                                              </copy>
+                                      </target>
+                               </configuration>
+                               <goals>
+                                   <goal>run</goal> <!-- means antrun:run -->
+                               </goals>
+                       </execution>
+                       <execution>
                                <id>package</id>
                                <phase>package</phase>
                                <configuration>

@@ -17,6 +17,7 @@
  */
 package org.apache.sqoop.odps;
 
+import maxcompute.data.collectors.common.maxcompute.*;
 import com.aliyun.odps.Column;
 import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.Table;
@@ -41,18 +42,6 @@ public class OdpsRecordBuilder {
   private Column[] odpsColumns;
   private SimpleDateFormat dateFormat;
   private Map<String, OdpsType> colNameTypeMap;
-
-  final static Set trueString = new HashSet() {{
-    add("true");
-    add("1");
-    add("y");
-  }};
-
-  final static Set falseString = new HashSet() {{
-    add("false");
-    add("0");
-    add("n");
-  }};
 
   public OdpsRecordBuilder(Table odpsTable, String dateFormatString,
                            List<String> inputColNames) {
@@ -93,8 +82,8 @@ public class OdpsRecordBuilder {
       try {
         String key = mapEntry.getKey();
         Object value = mapEntry.getValue();
-        setField(record, key.toLowerCase(), value.toString(),
-            colNameTypeMap.get(key.toLowerCase()));
+        RecordUtil.setFieldValue(record, key.toLowerCase(), value.toString(),
+            colNameTypeMap.get(key.toLowerCase()), dateFormat);
       } catch (Exception e) {
         // If build record field failed, warn and skip it
 //        LOG.warn("Input key (or value) is null, skip this field.", e);
@@ -105,64 +94,4 @@ public class OdpsRecordBuilder {
     return record;
   }
 
-  private void setField(ArrayRecord record, String field, String fieldValue,
-                        OdpsType odpsType) throws ParseException {
-    if (StringUtils.isNotEmpty(field)
-            && StringUtils.isNotEmpty(fieldValue)) {
-      switch (odpsType) {
-        case STRING:
-          record.setString(field, fieldValue);
-          break;
-        case BIGINT:
-          record.setBigint(field, Long.parseLong(fieldValue));
-          break;
-        case DATETIME:
-            record.setDatetime(field, dateFormat.parse(fieldValue));
-          break;
-        case DOUBLE:
-          record.setDouble(field, Double.parseDouble(fieldValue));
-          break;
-        case BOOLEAN:
-          if (trueString.contains(fieldValue.toLowerCase())) {
-            record.setBoolean(field, true);
-          } else if (falseString.contains(fieldValue.toLowerCase())) {
-            record.setBoolean(field, false);
-          }
-          break;
-        case DECIMAL:
-          record.setDecimal(field, new BigDecimal(fieldValue));
-          break;
-        case CHAR:
-          record.setChar(field, new Char(fieldValue));
-          break;
-        case VARCHAR:
-          record.setVarchar(field, new Varchar(fieldValue));
-          break;
-        case TINYINT:
-          record.setTinyint(field, Byte.parseByte(fieldValue));
-          break;
-        case SMALLINT:
-          record.setSmallint(field, Short.parseShort(fieldValue));
-          break;
-        case INT:
-          record.setInt(field, Integer.parseInt(fieldValue));
-          break;
-        case FLOAT:
-          record.setFloat(field, Float.parseFloat(fieldValue));
-          break;
-        case DATE:
-          record.setDate(field, new java.sql.Date(dateFormat.parse(fieldValue).getTime()));
-          break;
-        case TIMESTAMP:
-          record.setTimestamp(field, new Timestamp(dateFormat.parse(fieldValue).getTime()));
-          break;
-        case BINARY:
-          record.setBinary(field, new Binary(fieldValue.getBytes()));
-          break;
-        default:
-          throw new RuntimeException("Unknown column type: " + odpsType);
-      }
-    }
-
-  }
 }

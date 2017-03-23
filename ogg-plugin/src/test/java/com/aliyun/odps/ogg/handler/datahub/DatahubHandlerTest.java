@@ -32,6 +32,7 @@ import com.goldengate.atg.datasource.meta.ColumnMetaData;
 import com.goldengate.atg.datasource.meta.DsMetaData;
 import com.goldengate.atg.datasource.meta.TableMetaData;
 import com.goldengate.atg.datasource.meta.TableName;
+import maxcompute.data.collectors.common.datahub.RecordUtil;
 import org.dom4j.DocumentException;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -151,9 +152,9 @@ public class DatahubHandlerTest {
             Assert.assertEquals(record.getTimeStamp("c4"), Long.valueOf(columns[3].getAfterValue()));
         }
 
-        if(RecordBuilder.trueString.contains(columns[4].getAfterValue().toLowerCase())){
+        if(RecordUtil.trueString.contains(columns[4].getAfterValue().toLowerCase())){
             Assert.assertEquals(record.getBoolean("c5"), Boolean.TRUE);
-        } else if(RecordBuilder.falseString.contains(columns[4].getAfterValue().toLowerCase())){
+        } else if(RecordUtil.falseString.contains(columns[4].getAfterValue().toLowerCase())){
             Assert.assertEquals(record.getBoolean("c5"), Boolean.FALSE);
         } else {
             Assert.assertEquals(record.getBoolean("c5"), null);

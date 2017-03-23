@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
+import maxcompute.data.collectors.common.datahub.*;
 import com.aliyun.datahub.common.data.Field;
 import com.aliyun.datahub.model.RecordEntry;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
@@ -44,18 +45,6 @@ public class RecordBuilder {
     private final static SimpleDateFormat DEFAULT_DATE_FORMATTER =
         new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
 
-    final static Set trueString = new HashSet() {{
-        add("true");
-        add("1");
-        add("y");
-    }};
-
-    final static Set falseString = new HashSet() {{
-        add("false");
-        add("0");
-        add("n");
-    }};
-
     private static RecordBuilder recordBuilder;
 
     public static RecordBuilder instance() {
@@ -73,45 +62,6 @@ public class RecordBuilder {
 
         for (String oracleTableFullName : configure.getTableMappings().keySet()) {
             latestSyncId.put(oracleTableFullName, 0);
-        }
-    }
-
-    public void setFieldValue(RecordEntry recordEntry,
-                              Field field,
-                              boolean isValueNull,
-                              String fieldValue,
-                              boolean isDateFormat,
-                              SimpleDateFormat simpleDateFormat) throws ParseException {
-        if (field != null && !isValueNull) {
-            switch (field.getType()) {
-                case STRING:
-                    recordEntry.setString(field.getName(), fieldValue);
-                    break;
-                case BIGINT:
-                    recordEntry.setBigint(field.getName(), Long.parseLong(fieldValue));
-                    break;
-                case DOUBLE:
-                    recordEntry.setDouble(field.getName(), Double.parseDouble(fieldValue));
-                    break;
-                case BOOLEAN:
-                    if (trueString.contains(fieldValue.toLowerCase())) {
-                        recordEntry.setBoolean(field.getName(), true);
-                    } else if (falseString.contains(fieldValue.toLowerCase())) {
-                        recordEntry.setBoolean(field.getName(), false);
-                    }
-                    break;
-                case TIMESTAMP:
-                    if (isDateFormat) {
-                        Date date = simpleDateFormat.parse(fieldValue);
-                        recordEntry.setTimeStamp(field.getName(), date.getTime());
-                    } else {
-                        recordEntry.setTimeStamp(field.getName(), Long.parseLong(fieldValue));
-                    }
-
-                    break;
-                default:
-                    throw new RuntimeException("Unknown column type: " + field.getType() + " ,value is: " + fieldValue);
-            }
         }
     }
 
@@ -137,22 +87,22 @@ public class RecordBuilder {
             Field field = columnMapping.getField();
 
             if (field != null) {
-                this.setFieldValue(recordEntry,
+                RecordUtil.setFieldValue(recordEntry,
                         field,
                         columns.get(i).getAfter() == null || columns.get(i).getAfter().isValueNull(),
                         columns.get(i).getAfterValue(),
                         columnMapping.isDateFormat(),
-                        columnMapping.getSimpleDateFormat());
+                        columnMapping.getSimpleDateFormat(), true);
             }
 
             Field oldField = columnMapping.getOldFiled();
             if (oldField != null && columns.get(i).hasBeforeValue()) {
-                this.setFieldValue(recordEntry,
+                RecordUtil.setFieldValue(recordEntry,
                         oldField,
                         columns.get(i).getBefore() == null || columns.get(i).getBefore().isValueNull(),
                         columns.get(i).getBeforeValue(),
                         columnMapping.isDateFormat(),
-                        columnMapping.getSimpleDateFormat());
+                        columnMapping.getSimpleDateFormat(), true);
             }
             if (columnMapping.isShardColumn()) {
                 hashString += columns.get(i).getAfterValue();
@@ -161,22 +111,22 @@ public class RecordBuilder {
 
         // setFieldValue中有对field为null的判断
         // string写入变更类型
-        this.setFieldValue(recordEntry, tableMapping.getCtypeField(),
-            false, opType, false, null);
+        RecordUtil.setFieldValue(recordEntry, tableMapping.getCtypeField(),
+            false, opType, false, null, true);
 
         // 毫秒的string写入变更时间
-        this.setFieldValue(recordEntry, tableMapping.getCtimeField(),
-            false, op.getTimestamp(), false, null);
+        RecordUtil.setFieldValue(recordEntry, tableMapping.getCtimeField(),
+            false, op.getTimestamp(), false, null, true);
 
         // 写入变更序号
-        this.setFieldValue(recordEntry, tableMapping.getCidField(), false,
-            Long.toString(HandlerInfoManager.instance().getRecordId()), false, null);
+        RecordUtil.setFieldValue(recordEntry, tableMapping.getCidField(), false,
+            Long.toString(HandlerInfoManager.instance().getRecordId()), false, null, true);
 
         // 写入const columns
         Date readTime = DEFAULT_DATE_FORMATTER.parse(op.getTimestamp());
         for (Map.Entry<String, String> e : tableMapping.getConstColumnMappings().entrySet()) {
-            this.setFieldValue(recordEntry, tableMapping.getConstFieldMappings().get(e.getKey()), false,
-                BucketPath.escapeString(e.getValue(), readTime.getTime(), tableMapping.getConstColumnMappings()), false, null);
+            RecordUtil.setFieldValue(recordEntry, tableMapping.getConstFieldMappings().get(e.getKey()), false,
+                BucketPath.escapeString(e.getValue(), readTime.getTime(), tableMapping.getConstColumnMappings()), false, null, true);
         }
 
         Integer syncId = this.latestSyncId.get(tableMapping.getOracleFullTableName());

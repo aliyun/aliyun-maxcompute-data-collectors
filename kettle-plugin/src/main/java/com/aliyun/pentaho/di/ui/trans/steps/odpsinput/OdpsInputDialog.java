@@ -21,10 +21,10 @@ package com.aliyun.pentaho.di.ui.trans.steps.odpsinput;
 
 import com.aliyun.odps.Column;
 import com.aliyun.odps.OdpsField;
-import com.aliyun.odps.OdpsUtil;
 import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.pentaho.di.trans.steps.odpsinput.OdpsInputMeta;
+import maxcompute.data.collectors.common.maxcompute.MaxcomputeUtil;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.*;
 import org.eclipse.swt.layout.FormAttachment;
@@ -466,7 +466,7 @@ public class OdpsInputDialog extends BaseStepDialog implements StepDialogInterfa
                         .isEmpty(accessKey) && !Const.isEmpty(projectName) && !Const
                         .isEmpty(tableName)) {
 
-                        TableSchema schema = OdpsUtil
+                        TableSchema schema = MaxcomputeUtil
                             .getTableSchema(new AliyunAccount(accessId, accessKey), endpoint,
                                 projectName, tableName);
 

@@ -17,13 +17,19 @@
  * under the License.
  */
 
-package com.aliyun.odps;
-
-import org.pentaho.di.core.Const;
-
+package maxcompute.data.collectors.common.maxcompute;
+import com.aliyun.odps.Odps;
+import com.aliyun.odps.Table;
+import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.account.Account;
+import com.aliyun.odps.utils.StringUtils;
+import com.aliyun.odps.TableSchema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class OdpsUtil {
+
+public class MaxcomputeUtil {
+    private static final Logger logger = LoggerFactory.getLogger(MaxcomputeUtil.class);
 
     public static TableSchema getTableSchema(Account account, String endpoint, String project,
         String table) {
@@ -34,46 +40,46 @@ public class OdpsUtil {
     }
 
     public static void dealTruncate(Odps odps, Table table, String partition, boolean truncate) {
-        boolean isPartitionedTable = OdpsUtil.isPartitionedTable(table);
+        boolean isPartitionedTable = isPartitionedTable(table);
 
         if (truncate) {
             //需要 truncate
             if (isPartitionedTable) {
                 //分区表
-                if (Const.isEmpty(partition)) {
+                if (StringUtils.isEmpty(partition)) {
                     throw new RuntimeException(String.format(
                         "没有配置分区信息，而配置的表是分区表:%s 如果需要进行 truncate 操作，必须指定需要清空的具体分区，格式形如 pt=xxxx.",
                         table.getName()));
                 } else {
-                    OdpsUtil.truncatePartition(table, partition);
+                    truncatePartition(table, partition);
                 }
             } else {
                 //非分区表
-                if (!Const.isEmpty(partition)) {
+                if (!StringUtils.isEmpty(partition)) {
                     throw new RuntimeException(String
                         .format("分区信息配置错误，MaxCompute表是非分区表:%s 进行 truncate 操作时不需要指定具体分区值.",
                             table.getName()));
                 } else {
-                    OdpsUtil.truncateNonPartitionedTable(table);
+                    truncateNonPartitionedTable(table);
                 }
             }
         } else {
             //不需要 truncate
             if (isPartitionedTable) {
                 //分区表
-                if (Const.isEmpty(partition)) {
+                if (StringUtils.isEmpty(partition)) {
                     throw new RuntimeException(String
                         .format("目的表是分区表，写入分区表:%s 时必须指定具体分区值. 格式形如 格式形如 pt=${bizdate}.",
                             table.getName()));
                 } else {
-                    boolean isPartitionExists = OdpsUtil.isPartitionExist(table, partition);
+                    boolean isPartitionExists = isPartitionExist(table, partition);
                     if (!isPartitionExists) {
-                        OdpsUtil.addPart(table, partition);
+                        addPart(table, partition);
                     }
                 }
             } else {
                 //非分区表
-                if (!Const.isEmpty(partition)) {
+                if (!StringUtils.isEmpty(partition)) {
                     throw new RuntimeException(
                         String.format("目的表是非分区表，写入非分区表:%s 时不需要指定具体分区值.", table.getName()));
                 }

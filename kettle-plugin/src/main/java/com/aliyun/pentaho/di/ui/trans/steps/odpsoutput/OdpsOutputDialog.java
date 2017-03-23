@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import maxcompute.data.collectors.common.maxcompute.MaxcomputeUtil;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
@@ -57,7 +58,6 @@ import org.pentaho.di.ui.trans.step.BaseStepDialog;
 
 import com.aliyun.odps.Column;
 import com.aliyun.odps.OdpsField;
-import com.aliyun.odps.OdpsUtil;
 import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.pentaho.di.trans.steps.odpsoutput.OdpsOutputMeta;
@@ -479,7 +479,7 @@ public class OdpsOutputDialog extends BaseStepDialog implements StepDialogInterf
             .isEmpty(m_wAccessKey.getText()) && !Const.isEmpty(m_wProjectName.getText()) && !Const
             .isEmpty(m_wTableName.getText())) {
 
-            TableSchema schema = OdpsUtil
+            TableSchema schema = MaxcomputeUtil
                 .getTableSchema(new AliyunAccount(m_wAccessId.getText(), m_wAccessKey.getText()),
                     m_wEndpoint.getText(), m_wProjectName.getText(), m_wTableName.getText());
 

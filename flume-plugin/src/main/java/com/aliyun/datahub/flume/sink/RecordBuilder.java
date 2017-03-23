@@ -19,8 +19,8 @@
 
 package com.aliyun.datahub.flume.sink;
 
+import maxcompute.data.collectors.common.datahub.*;
 import com.aliyun.datahub.common.data.Field;
-import com.aliyun.datahub.common.data.FieldType;
 import com.aliyun.datahub.common.data.RecordSchema;
 import com.aliyun.datahub.model.RecordEntry;
 import com.aliyun.datahub.model.ShardEntry;
@@ -42,25 +42,13 @@ public class RecordBuilder {
     private Topic topic;
     private List<String> shardIds = Lists.newArrayList();
 
-    private Map<String, FieldType> columnTypeMappings = new HashMap<String, FieldType>();
+    private Map<String, Field> columnMappings = new HashMap<String, Field>();
     private Map<String, Boolean> columnShardMappings = new HashMap<String, Boolean>();
     private Map<String, Boolean> columnDateformatMappings = new HashMap<String, Boolean>();
 
     private SimpleDateFormat dateFormat;
 
     private int lastShardIndex = 0;
-
-    final static Set trueString = new HashSet() {{
-        add("true");
-        add("1");
-        add("y");
-    }};
-
-    final static Set falseString = new HashSet() {{
-        add("false");
-        add("0");
-        add("n");
-    }};
 
     public RecordBuilder(Configure configure, Topic topic) {
         this.configure = configure;
@@ -70,19 +58,19 @@ public class RecordBuilder {
         dateFormat = new SimpleDateFormat(configure.getDateFormat());
 
         for (Field field : recordSchema.getFields()) {
-            columnTypeMappings.put(field.getName(), field.getType());
+            columnMappings.put(field.getName(), field);
         }
         // check validity of input columns
         Set<String> inputColumns = new HashSet<String>();
         for (String col : configure.getInputColumnNames()) {
-            if (!StringUtils.isBlank(col) && !columnTypeMappings.containsKey(col)) {
+            if (!StringUtils.isBlank(col) && !columnMappings.containsKey(col)) {
                 throw new RuntimeException("Input column: " + col + " not exists in datahub!");
             }
             inputColumns.add(col);
         }
 
         for (String col : configure.getShardColumnNames()) {
-            if (!columnTypeMappings.containsKey(col)) {
+            if (!columnMappings.containsKey(col)) {
                 throw new RuntimeException("Shard column: " + col + " not exists in datahub!");
             }
             if (!inputColumns.contains(col)) {
@@ -92,7 +80,7 @@ public class RecordBuilder {
             columnShardMappings.put(col, Boolean.TRUE);
         }
         for (String col : configure.getDateformatColumnNames()) {
-            if (!columnTypeMappings.containsKey(col)) {
+            if (!columnMappings.containsKey(col)) {
                 throw new RuntimeException("Dateformat column: " + col + " not exists in datahub!");
             }
             if (!inputColumns.contains(col)) {
@@ -121,48 +109,6 @@ public class RecordBuilder {
         updateShardIds();
         if (shardIds.size() == 0) {
             throw new RuntimeException("Topic[" + topic.getTopicName() + "] has not active shard");
-        }
-    }
-
-    public void setField(RecordEntry recordEntry, String fieldName, String fieldValue,
-        boolean isDateFormat) throws ParseException {
-        if (!columnTypeMappings.containsKey(fieldName)) {
-            throw new RuntimeException("field name: " + fieldName + " not existed in datahub!");
-        }
-        if (StringUtils.isNotBlank(fieldName)) {
-            if (configure.isBlankValueAsNull() && StringUtils.isBlank(fieldValue)) {
-                return;
-            }
-            FieldType fieldType = columnTypeMappings.get(fieldName);
-            switch (fieldType) {
-                case STRING:
-                    recordEntry.setString(fieldName, fieldValue);
-                    break;
-                case BIGINT:
-                    recordEntry.setBigint(fieldName, Long.parseLong(fieldValue));
-                    break;
-                case DOUBLE:
-                    recordEntry.setDouble(fieldName, Double.parseDouble(fieldValue));
-                    break;
-                case BOOLEAN:
-                    if (trueString.contains(fieldValue.toLowerCase())) {
-                        recordEntry.setBoolean(fieldName, true);
-                    } else if (falseString.contains(fieldValue.toLowerCase())) {
-                        recordEntry.setBoolean(fieldName, false);
-                    }
-                    break;
-                case TIMESTAMP:
-                    if (isDateFormat) {
-                        Date date = dateFormat.parse(fieldValue);
-                        recordEntry.setTimeStamp(fieldName, date.getTime());
-                    } else {
-                        recordEntry.setTimeStamp(fieldName, Long.parseLong(fieldValue));
-                    }
-                    break;
-                default:
-                    throw new RuntimeException(
-                        "Unknown column type: " + fieldType + " ,value is: " + fieldValue);
-            }
         }
     }
 
@@ -202,9 +148,15 @@ public class RecordBuilder {
     public RecordEntry buildRecord(Map<String, String> rowData) throws ParseException {
         RecordEntry recordEntry = new RecordEntry(topic.getRecordSchema());
         for (Map.Entry<String, String> mapEntry : rowData.entrySet()) {
-            setField(recordEntry, mapEntry.getKey(), mapEntry.getValue(),
-                columnDateformatMappings.containsKey(mapEntry.getKey()));
+            String fieldName = mapEntry.getKey();
+            if (!columnMappings.containsKey(fieldName)) {
+                throw new RuntimeException("field name: " + fieldName + " not existed in datahub!");
+            }
+            Field field = columnMappings.get(fieldName);
+            RecordUtil.setFieldValue(recordEntry, field, false, mapEntry.getValue(),
+                columnDateformatMappings.containsKey(fieldName), dateFormat, configure.isBlankValueAsNull());
         }
+
         if (columnShardMappings.size() > 0) {
             StringBuilder hashKey = new StringBuilder();
             for (String col : configure.getShardColumnNames()) {

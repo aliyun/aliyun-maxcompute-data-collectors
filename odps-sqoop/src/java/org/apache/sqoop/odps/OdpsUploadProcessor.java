@@ -32,6 +32,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.commons.lang.StringUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -264,15 +265,19 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
   private OdpsWriter buildTunnelWriter(String project, String tableName,
                                        String tunnelEndPoint, int retryCount, String sessionId) {
     TableTunnel tunnel = new TableTunnel(odps);
-//    tunnel.setEndpoint(tunnelEndPoint);
+    if (StringUtils.isNotEmpty(tunnelEndPoint)) {
+      tunnel.setEndpoint(tunnelEndPoint);
+    }
     return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId);
   }
   
   private OdpsWriter buildTunnelWriter(String project, String tableName,
       String tunnelEndPoint, int retryCount, TableTunnel.UploadSession uploadSession) throws TunnelException {
-TableTunnel tunnel = new TableTunnel(odps);
-//tunnel.setEndpoint(tunnelEndPoint);
-return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession);
+    TableTunnel tunnel = new TableTunnel(odps);
+    if (StringUtils.isNotEmpty(tunnelEndPoint)) {
+      tunnel.setEndpoint(tunnelEndPoint);
+    }
+    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession);
 }
 
   private StreamWriter[] buildStreamWriters(StreamClient streamClient)

@@ -20,16 +20,11 @@
 package com.aliyun.pentaho.di.trans.steps.odpsoutput;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-//import com.aliyun.odps.data.Binary;
-//import com.aliyun.odps.data.Char;
-//import com.aliyun.odps.data.Varchar;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowMetaInterface;
@@ -42,8 +37,8 @@ import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
 
+import maxcompute.data.collectors.common.maxcompute.*;
 import com.aliyun.odps.Column;
-import com.aliyun.odps.OdpsUtil;
 import com.aliyun.odps.Odps;
 import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.TableSchema;
@@ -68,6 +63,9 @@ public class OdpsOutput extends BaseStep implements StepInterface {
     public OdpsOutput(StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr,
         TransMeta transMeta, Trans trans) {
         super(stepMeta, stepDataInterface, copyNr, transMeta, trans);
+        if (dateFormat == null) {
+            dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        }
     }
 
     private void initStreamFieldPosMap(RowMetaInterface rowMeta) {
@@ -128,64 +126,9 @@ public class OdpsOutput extends BaseStep implements StepInterface {
                     String streamField = odpsColumn2StreamFieldMap.get(odpsColumn);
                     if (!Const.isEmpty(streamField)) {
                         int pos = streamFieldPosMap.get(streamField);
-                        String fieldValue = String.valueOf(row[pos]);
-
                         Column column = schema.getColumn(i);
-                        switch (column.getType()) {
-                            case BIGINT:
-                                record.setBigint(i, Long.parseLong(fieldValue));
-                                break;
-                            case BOOLEAN:
-                                record
-                                    .setBoolean(i, Boolean.parseBoolean(fieldValue));
-                                break;
-                            case DATETIME:
-                                if (dateFormat == null) {
-                                    dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                                }
-                                record.setDatetime(i,
-                                    dateFormat.parse(fieldValue));
-                                break;
-                            case DOUBLE:
-                                record.setDouble(i, Double.parseDouble(fieldValue));
-                                break;
-                            case STRING:
-                                record.setString(i, fieldValue);
-                                break;
-                            case DECIMAL:
-                                record.setDecimal(i, new BigDecimal(fieldValue));
-                                break;
-//                            case CHAR:
-//                                record.setChar(i, new Char(fieldValue));
-//                                break;
-//                            case VARCHAR:
-//                                record.setVarchar(i, new Varchar(fieldValue));
-//                                break;
-//                            case TINYINT:
-//                                record.setTinyint(i, Byte.parseByte(fieldValue));
-//                                break;
-//                            case SMALLINT:
-//                                record.setSmallint(i, Short.parseShort(fieldValue));
-//                                break;
-//                            case INT:
-//                                record.setInt(i, Integer.parseInt(fieldValue));
-//                                break;
-//                            case FLOAT:
-//                                record.setFloat(i, Float.parseFloat(fieldValue));
-//                                break;
-//                            case DATE:
-//                                record.setDate(i, new java.sql.Date(dateFormat.parse(fieldValue).getTime()));
-//                                break;
-//                            case TIMESTAMP:
-//                                record.setTimestamp(i, new Timestamp(dateFormat.parse(fieldValue).getTime()));
-//                                break;
-//                            case BINARY:
-//                                record.setBinary(i, new Binary(fieldValue.getBytes()));
-//                                break;
-                            default:
-                                throw new RuntimeException(
-                                    "Unknown column type: " + column.getType());
-                        }
+                        String fieldValue = String.valueOf(row[pos]);
+                        RecordUtil.setFieldValue(record, odpsColumn, fieldValue, column.getType(), dateFormat);
                     }
                 }
                 data.recordWriter.write(record);
@@ -220,7 +163,7 @@ public class OdpsOutput extends BaseStep implements StepInterface {
 
             TableTunnel tableTunnel = new TableTunnel(odps);
             try {
-                OdpsUtil.dealTruncate(odps,
+                MaxcomputeUtil.dealTruncate(odps,
                     odps.tables().get(environmentSubstitute(meta.getTableName())),
                     environmentSubstitute(meta.getPartition()), meta.isTruncate());
 

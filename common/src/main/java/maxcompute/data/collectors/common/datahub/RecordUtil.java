@@ -53,9 +53,10 @@ public class RecordUtil {
                     }
                     break;
                 case TIMESTAMP:
+                    // datahub中存储的时间是微秒
                     if (isDateFormat) {
                         Date date = simpleDateFormat.parse(fieldValue);
-                        recordEntry.setTimeStamp(field.getName(), date.getTime());
+                        recordEntry.setTimeStamp(field.getName(), date.getTime() * 1000);
                     } else {
                         recordEntry.setTimeStamp(field.getName(), Long.parseLong(fieldValue));
                     }

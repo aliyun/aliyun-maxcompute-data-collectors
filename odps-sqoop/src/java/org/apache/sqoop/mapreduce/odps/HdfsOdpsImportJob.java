@@ -393,7 +393,7 @@ public class HdfsOdpsImportJob extends JobBase {
   @Override
   protected Class<? extends Mapper> getMapperClass() {
     if (isHCatJob) {
-      return SqoopHCatUtilities.getExportMapperClass();
+      return SqoopHCatUtilities.getExportOdpsMapperClass();
     }
     switch (fileType) {
       case SEQUENCE_FILE:
@@ -687,9 +687,12 @@ public class HdfsOdpsImportJob extends JobBase {
     // final table and hence re-running one mapper will lead to a misleading errors
     // of inserting duplicate rows.
     int sqoopMaxAttempts = conf.getInt(SQOOP_EXPORT_MAP_TASK_MAX_ATTEMTPS, 1);
-    conf.setInt(HADOOP_MAP_TASK_MAX_ATTEMTPS, 1);
-    conf.setInt("mapreduce.map.maxattempts", 1);
-    
+    System.out.println("sqoopMaxAttempts:" + sqoopMaxAttempts);
+    if (sqoopMaxAttempts > 1) {
+      conf.setInt(HADOOP_MAP_TASK_MAX_ATTEMTPS, sqoopMaxAttempts);
+      conf.setInt("mapreduce.map.maxattempts", sqoopMaxAttempts);
+    }
+
     conf.setBoolean(OdpsConstants.ODPS_DISABLE_DYNAMIC_PARTITIONS, this.disableDynamicPartitions);
 //    conf.set(OdpsConstants.ODPS_TUNNEL_UPLOAD_SESSION_ID, uploadSession.getId());
   }

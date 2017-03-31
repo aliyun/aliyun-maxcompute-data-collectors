@@ -71,14 +71,24 @@ public class SqoopHCatExportHelper {
   private static boolean debugHCatExportMapper = false;
   private MapWritable colTypesJava;
   private MapWritable colTypesSql;
+  private boolean isOdps = false;
 
-  public SqoopHCatExportHelper(Configuration conf)
+  public SqoopHCatExportHelper(Configuration conf) throws IOException, InterruptedException {
+    this(conf, false);
+  }
+  
+  public SqoopHCatExportHelper(Configuration conf, boolean isOdps)
     throws IOException, InterruptedException {
+    this.isOdps = isOdps;
 
-    colTypesJava = DefaultStringifier.load(conf,
-      SqoopHCatUtilities.HCAT_DB_OUTPUT_COLTYPES_JAVA, MapWritable.class);
-    colTypesSql = DefaultStringifier.load(conf,
-      SqoopHCatUtilities.HCAT_DB_OUTPUT_COLTYPES_SQL, MapWritable.class);
+    if (!isOdps) {
+      colTypesJava =
+          DefaultStringifier.load(conf, SqoopHCatUtilities.HCAT_DB_OUTPUT_COLTYPES_JAVA,
+              MapWritable.class);
+      colTypesSql =
+          DefaultStringifier.load(conf, SqoopHCatUtilities.HCAT_DB_OUTPUT_COLTYPES_SQL,
+              MapWritable.class);
+    }
     // Instantiate a copy of the user's class to hold and parse the record.
 
     String recordClassName = conf.get(
@@ -127,25 +137,24 @@ public class SqoopHCatExportHelper {
       String colName = e.getKey();
       String hfn = colName.toLowerCase();
       key.set(hfn);
-      String javaColType = colTypesJava.get(key).toString();
-      int sqlType = ((IntWritable) colTypesSql.get(key)).get();
-      HCatFieldSchema field =
-        hCatFullTableSchema.get(hfn);
-      HCatFieldSchema.Type fieldType = field.getType();
-      Object hCatVal =
-        hcr.get(hfn, hCatFullTableSchema);
-      String hCatTypeString = field.getTypeString();
-      Object sqlVal = convertToSqoop(hCatVal, fieldType,
-        javaColType, hCatTypeString);
-      if (debugHCatExportMapper) {
-        LOG.debug("hCatVal " + hCatVal + " of type "
-          + (hCatVal == null ? null : hCatVal.getClass().getName())
-          + ",sqlVal " + sqlVal + " of type "
-          + (sqlVal == null ? null : sqlVal.getClass().getName())
-          + ",java type " + javaColType + ", sql type = "
-          + SqoopHCatUtilities.sqlTypeString(sqlType));
+      Object hCatVal = hcr.get(hfn, hCatFullTableSchema);
+      if (!isOdps) {
+        String javaColType = colTypesJava.get(key).toString();
+        int sqlType = ((IntWritable) colTypesSql.get(key)).get();
+        HCatFieldSchema field = hCatFullTableSchema.get(hfn);
+        HCatFieldSchema.Type fieldType = field.getType();
+        String hCatTypeString = field.getTypeString();
+        Object sqlVal = convertToSqoop(hCatVal, fieldType, javaColType, hCatTypeString);
+        if (debugHCatExportMapper) {
+          LOG.debug("hCatVal " + hCatVal + " of type "
+              + (hCatVal == null ? null : hCatVal.getClass().getName()) + ",sqlVal " + sqlVal
+              + " of type " + (sqlVal == null ? null : sqlVal.getClass().getName()) + ",java type "
+              + javaColType + ", sql type = " + SqoopHCatUtilities.sqlTypeString(sqlType));
+        }
+        sqoopRecord.setField(colName, sqlVal);
+      } else {
+        sqoopRecord.setField(colName, hCatVal == null ? null : hCatVal.toString());
       }
-      sqoopRecord.setField(colName, sqlVal);
     }
     return sqoopRecord;
   }

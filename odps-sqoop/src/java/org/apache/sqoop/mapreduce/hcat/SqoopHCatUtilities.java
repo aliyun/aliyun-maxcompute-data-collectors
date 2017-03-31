@@ -66,6 +66,7 @@ import org.apache.sqoop.config.ConfigurationConstants;
 import org.apache.sqoop.config.ConfigurationHelper;
 import org.apache.sqoop.hive.HiveTypes;
 import org.apache.sqoop.manager.ConnManager;
+import org.apache.sqoop.manager.HdfsManager;
 import org.apache.sqoop.util.Executor;
 import org.apache.sqoop.util.LoggingAsyncSink;
 import org.apache.sqoop.util.SubprocessSecurityManager;
@@ -148,6 +149,9 @@ public final class SqoopHCatUtilities {
 
   private static Class<? extends Mapper> exportMapperClass =
     SqoopHCatExportMapper.class;
+  
+  private static Class<? extends Mapper> exportOdpsMapperClass =
+      SqoopHCatOdpsExportMapper.class;
 
   private static Class<? extends Mapper> importMapperClass =
     SqoopHCatImportMapper.class;
@@ -333,7 +337,16 @@ public final class SqoopHCatUtilities {
     // Get the partition key filter if needed
     Map<String, String> filterMap = getHCatSPFilterMap();
     String filterStr = getHCatSPFilterStr();
-    initDBColumnInfo();
+    if (connManager instanceof HdfsManager) {
+      String[] colNames = options.getColumns();
+      dbColumnNames = new String[colNames.length];
+
+      for (int i = 0; i < colNames.length; ++i) {
+        dbColumnNames[i] = colNames[i].toLowerCase();
+      }
+    } else {
+      initDBColumnInfo();
+    }
     if (options.doCreateHCatalogTable()) {
       LOG.info("Creating HCatalog table " + hCatQualifiedTableName
         + " for import");
@@ -845,6 +858,9 @@ public final class SqoopHCatUtilities {
     hCatUtils
       .configureHCat(opts, job, connMgr, dbTable, job.getConfiguration());
     job.setInputFormatClass(getInputFormatClass());
+    if (connMgr instanceof HdfsManager) {
+      return;
+    }
     Map<String, List<Integer>> dbColInfo = hCatUtils.getDbColumnInfo();
     MapWritable columnTypesJava = new MapWritable();
     Properties mapColumnJava = opts.getMapColumnJava();
@@ -1240,6 +1256,10 @@ public final class SqoopHCatUtilities {
 
   public static Class<? extends Mapper> getExportMapperClass() {
     return exportMapperClass;
+  }
+
+  public static Class<? extends Mapper> getExportOdpsMapperClass() {
+    return exportOdpsMapperClass;
   }
 
   public static void setExportMapperClass(Class<? extends Mapper> clz) {

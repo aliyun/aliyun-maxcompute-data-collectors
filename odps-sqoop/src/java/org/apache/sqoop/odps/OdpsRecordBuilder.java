@@ -82,7 +82,7 @@ public class OdpsRecordBuilder {
       try {
         String key = mapEntry.getKey();
         Object value = mapEntry.getValue();
-        RecordUtil.setFieldValue(record, key.toLowerCase(), value.toString(),
+        RecordUtil.setFieldValue(record, key.toLowerCase(), value == null ? null : value.toString(),
             colNameTypeMap.get(key.toLowerCase()), dateFormat);
       } catch (Exception e) {
         // If build record field failed, warn and skip it

@@ -148,6 +148,7 @@ public class HdfsManager extends ConnManager {
 
   @Override
   public void importTable(ImportJobContext context) throws IOException, ImportException {
+    context.setConnManager(this);
     HdfsOdpsImportJob importJob = new HdfsOdpsImportJob(context.getOptions(), context);
     importJob.runImport(context.getTableName(), context.getJarFile());
   }

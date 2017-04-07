@@ -61,7 +61,7 @@ public class OdpsTunnelWriter extends OdpsWriter {
     this.retryCount = retryCount;
     this.sharedUploadSession = uploadSession;
     sharedWriter = uploadSession.openBufferedWriter(true);
-    ((TunnelBufferedWriter)sharedWriter).setBufferSize(64*1024*1024);
+    ((TunnelBufferedWriter)sharedWriter).setBufferSize(256*1024*1024);
   }
 
   @Override

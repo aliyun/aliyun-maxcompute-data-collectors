@@ -435,12 +435,6 @@ public class HdfsOdpsImportJob extends JobBase {
     conf.set(OdpsConstants.ACCESS_KEY, options.getOdpsAccessKey());
     conf.set(OdpsConstants.ENDPOINT, options.getOdpsEndPoint());
 
-
-    String hubEndPoint = options.getOdpsDatahubEndPoint();
-    if (hubEndPoint != null) {
-      conf.set(OdpsConstants.DATAHUB_ENDPOINT, hubEndPoint);
-    }
-
     String tunnelEndPoint = options.getOdpsTunnelEndPoint();
     if (tunnelEndPoint != null) {
       conf.set(OdpsConstants.TUNNEL_ENDPOINT,
@@ -461,8 +455,6 @@ public class HdfsOdpsImportJob extends JobBase {
     if (dateFormat != null) {
       conf.set(OdpsConstants.DATE_FORMAT, dateFormat);
     }
-    conf.setInt(OdpsConstants.SHARD_NUM, options.getOdpsShardNum());
-    conf.setInt(OdpsConstants.SHARD_TIMEOUT, options.getOdpsShardTimeout());
     conf.setInt(OdpsConstants.RETRY_COUNT, options.getOdpsRetryCount());
     conf.setInt(OdpsConstants.BATCH_SIZE, options.getOdpsBatchSize());
 
@@ -519,12 +511,6 @@ public class HdfsOdpsImportJob extends JobBase {
         }
         try {
           tables.create(tableName, schema);
-          if (options.getOdpsDatahubEndPoint() != null) {
-            int shardNum = options.getOdpsShardNum();
-            int hubLifeCycle = options.getOdpsHubLifeCycle();
-            // tables.get(tableName).createShards(shardNum, true, hubLifeCycle);
-            tables.get(tableName).createShards(shardNum);
-          }
         } catch (OdpsException e) {
           throw new ImportException("Create table failed", e);
         }

@@ -96,12 +96,6 @@ public class OdpsImportJob extends DataDrivenImportJob {
     conf.set(OdpsConstants.ACCESS_KEY, options.getOdpsAccessKey());
     conf.set(OdpsConstants.ENDPOINT, options.getOdpsEndPoint());
 
-
-    String hubEndPoint = options.getOdpsDatahubEndPoint();
-    if (hubEndPoint != null) {
-      conf.set(OdpsConstants.DATAHUB_ENDPOINT, hubEndPoint);
-    }
-
     String tunnelEndPoint = options.getOdpsTunnelEndPoint();
     if (tunnelEndPoint != null) {
       conf.set(OdpsConstants.TUNNEL_ENDPOINT,
@@ -122,8 +116,6 @@ public class OdpsImportJob extends DataDrivenImportJob {
     if (dateFormat != null) {
       conf.set(OdpsConstants.DATE_FORMAT, dateFormat);
     }
-    conf.setInt(OdpsConstants.SHARD_NUM, options.getOdpsShardNum());
-    conf.setInt(OdpsConstants.SHARD_TIMEOUT, options.getOdpsShardTimeout());
     conf.setInt(OdpsConstants.RETRY_COUNT, options.getOdpsRetryCount());
     conf.setInt(OdpsConstants.BATCH_SIZE, options.getOdpsBatchSize());
   }

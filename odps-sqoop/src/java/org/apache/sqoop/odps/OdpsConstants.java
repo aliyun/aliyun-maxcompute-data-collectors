@@ -28,7 +28,6 @@ public class OdpsConstants {
   public static final String ACCESS_KEY = "sqoop.odps.access.key";
   public static final String PROJECT = "sqoop.odps.project";
   public static final String ENDPOINT = "sqoop.odps.endpoint";
-  public static final String DATAHUB_ENDPOINT = "sqoop.odps.datahub.endpoint";
   public static final String TUNNEL_ENDPOINT = "sqoop.odps.tunnel.endpoint";
   public static final String TABLE_NAME = "sqoop.odps.tablename";
   public static final String INPUT_COL_NAMES = "sqoop.odps.inputcolnames";
@@ -37,8 +36,6 @@ public class OdpsConstants {
   public static final String PARTITION_VALUE = "sqoop.odps.partition.value";
   public static final String CREATE_TABLE = "sqoop.odps.create";
   public static final String DATE_FORMAT = "sqoop.odps.dateformat";
-  public static final String SHARD_NUM = "sqoop.odps.shard.num";
-  public static final String SHARD_TIMEOUT = "sqoop.odps.shard.timeout";
   public static final String RETRY_COUNT = "sqoop.odps.retrycount";
   public static final String BATCH_SIZE = "sqoop.odps.batchsize";
   

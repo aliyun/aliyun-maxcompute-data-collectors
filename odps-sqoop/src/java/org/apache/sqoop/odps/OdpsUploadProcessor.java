@@ -88,10 +88,6 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     rowDOList = new LinkedList<OdpsRowDO>();
 
     inputDateFormat = conf.get(OdpsConstants.DATE_FORMAT);
-    shardNumber = conf.getInt(OdpsConstants.SHARD_NUM,
-            OdpsConstants.DEFAULT_SHARD_NUM);
-    shardTimeout = conf.getInt(OdpsConstants.SHARD_TIMEOUT,
-            OdpsConstants.DEFAULT_SHARD_TIMEOUT);
     retryCount = conf.getInt(OdpsConstants.RETRY_COUNT,
             OdpsConstants.DEFAULT_RETRY_COUNT);
     batchSize = conf.getInt(OdpsConstants.BATCH_SIZE,
@@ -100,7 +96,6 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     String project = conf.get(OdpsConstants.PROJECT);
     String endpoint = conf.get(OdpsConstants.ENDPOINT);
     String tableName = conf.get(OdpsConstants.TABLE_NAME);
-    String datahubEndPoint = conf.get(OdpsConstants.DATAHUB_ENDPOINT);
     String tunnelEndPoint = conf.get(OdpsConstants.TUNNEL_ENDPOINT);
 
     odps = new Odps(new AliyunAccount(conf.get(OdpsConstants.ACCESS_ID),
@@ -119,24 +114,24 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     odpsRecordBuilder = new OdpsRecordBuilder(odpsTable,
             inputDateFormat, inputColumnNames);
     try {
-      if (datahubEndPoint != null) {
-        odpsWriter = buildHubWriter(project, tableName,
-                datahubEndPoint, retryCount);
-      } else {
-        if (conf.getBoolean(OdpsConstants.ODPS_DISABLE_DYNAMIC_PARTITIONS, false)) {
-          String partition = getPartitionSpec(partitionKeys, partitionValues, Maps.newHashMap());
-          TableTunnel.UploadSession uploadSession = null;
-          TableTunnel tunnel = new TableTunnel(odps);
-              if (partition == null) {
-                uploadSession = tunnel.createUploadSession(project, tableName);
-              } else {
-                uploadSession = tunnel.createUploadSession(project, tableName,
-                    new PartitionSpec(partition));
-              }
-              odpsWriter = buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount, uploadSession);
-        } else {
-          odpsWriter = buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount, new String(""));
+      if (conf.getBoolean(OdpsConstants.ODPS_DISABLE_DYNAMIC_PARTITIONS, false)) {
+        String partition = getPartitionSpec(partitionKeys, partitionValues, Maps.newHashMap());
+        TableTunnel.UploadSession uploadSession = null;
+        TableTunnel tunnel = new TableTunnel(odps);
+        if (StringUtils.isNotEmpty(tunnelEndPoint)) {
+          tunnel.setEndpoint(tunnelEndPoint);
         }
+        if (partition == null) {
+          uploadSession = tunnel.createUploadSession(project, tableName);
+        } else {
+          uploadSession =
+              tunnel.createUploadSession(project, tableName, new PartitionSpec(partition));
+        }
+        odpsWriter =
+            buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount, uploadSession);
+      } else {
+        odpsWriter =
+            buildTunnelWriter(project, tableName, tunnelEndPoint, retryCount, new String(""));
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -250,18 +245,6 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     return odps.tables().get(tableName);
   }
 
-
-  private OdpsWriter buildHubWriter(String project, String tableName,
-                                    String datahubEndPoint, int retryCount)
-          throws TunnelException, IOException, TimeoutException {
-    TableTunnel tunnel = new TableTunnel(odps);
-    tunnel.setEndpoint(datahubEndPoint);
-    StreamClient streamClient = tunnel.createStreamClient(project, tableName);
-    streamClient.loadShard(shardNumber);
-    StreamWriter[] streamWriters = buildStreamWriters(streamClient);
-    return new OdpsHubWriter(odpsTable, streamWriters, retryCount);
-  }
-
   private OdpsWriter buildTunnelWriter(String project, String tableName,
                                        String tunnelEndPoint, int retryCount, String sessionId) {
     TableTunnel tunnel = new TableTunnel(odps);
@@ -278,48 +261,6 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
       tunnel.setEndpoint(tunnelEndPoint);
     }
     return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession);
-}
-
-  private StreamWriter[] buildStreamWriters(StreamClient streamClient)
-          throws IOException, TunnelException,
-          TimeoutException {
-    StreamWriter[] streamWriters;
-    final StreamClient.ShardState finish = StreamClient.ShardState.LOADED;
-    long now = System.currentTimeMillis();
-    long endTime = now + shardTimeout * 1000;
-    List<Long> shardIDList = null;
-    while (now < endTime) {
-      HashMap<Long, StreamClient.ShardState> shardStatus = streamClient
-              .getShardStatus();
-      shardIDList = new ArrayList<Long>();
-      Set<Long> keys = shardStatus.keySet();
-      Iterator<Long> iter = keys.iterator();
-      while (iter.hasNext()) {
-        Long key = iter.next();
-        StreamClient.ShardState value = shardStatus.get(key);
-        if (value.equals(finish)) {
-          shardIDList.add(key);
-        }
-      }
-      now = System.currentTimeMillis();
-      if (shardIDList.size() == shardNumber) {
-        break;
-      }
-      try {
-        Thread.sleep(1000);
-      } catch (InterruptedException e) {
-        // DO NOTHING...
-      }
-    }
-    if (shardIDList != null && shardIDList.size() > 0) {
-      streamWriters = new StreamWriter[shardIDList.size()];
-      for (int i = 0; i < shardIDList.size(); i++) {
-        streamWriters[i] = streamClient.openStreamWriter(shardIDList.get(i));
-      }
-    } else {
-      throw new TimeoutException("buildStreamWriters() error, " +
-              "have no loaded shards.");
-    }
-    return streamWriters;
   }
+
 }

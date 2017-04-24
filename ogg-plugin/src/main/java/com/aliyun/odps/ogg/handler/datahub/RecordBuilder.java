@@ -82,7 +82,8 @@ public class RecordBuilder {
             ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
             if (columnMapping == null) {
                 logger.debug("column name : " + columnName + " is not configured.  the table name is :"  + op.getTableMeta().getTableName());
-                throw new RuntimeException("column name : " + columnName + " is not configured.  the table name is :"  + op.getTableMeta().getTableName());
+//                throw new RuntimeException("column name : " + columnName + " is not configured.  the table name is :"  + op.getTableMeta().getTableName());
+                continue;
             }
             Field field = columnMapping.getField();
 

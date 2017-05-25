@@ -679,6 +679,8 @@ public class HdfsOdpsImportJob extends JobBase {
       conf.setInt("mapreduce.map.maxattempts", sqoopMaxAttempts);
     }
 
+    conf.setBoolean("mapred.map.tasks.speculative.execution", false);
+    conf.setBoolean("mapred.reduce.tasks.speculative.execution", false);
     conf.setBoolean(OdpsConstants.ODPS_DISABLE_DYNAMIC_PARTITIONS, this.disableDynamicPartitions);
 //    conf.set(OdpsConstants.ODPS_TUNNEL_UPLOAD_SESSION_ID, uploadSession.getId());
   }

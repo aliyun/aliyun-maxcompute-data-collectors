@@ -17,6 +17,8 @@
  */
 package org.apache.sqoop.odps;
 
+import java.util.Random;
+
 /**
  * Created by Tian Li on 15/9/29.
  */
@@ -48,5 +50,13 @@ public class OdpsUtil {
 
   public static String getUserAgent() {
     return "odps-sqoop-1.4.6";
+  }
+
+  //tunnel endpoint is split by ";", like http://100.100.100.100|http://100.100.100.101
+  public static String getTunnelEndPoint(String tunnelEndpoints) {
+    String[] endpoints = tunnelEndpoints.split("|");
+    Random rand = new Random();
+    int index = rand.nextInt(endpoints.length);
+    return endpoints[index];
   }
 }

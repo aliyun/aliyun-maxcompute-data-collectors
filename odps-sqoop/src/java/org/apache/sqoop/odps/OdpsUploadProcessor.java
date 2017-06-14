@@ -96,7 +96,7 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     String project = conf.get(OdpsConstants.PROJECT);
     String endpoint = conf.get(OdpsConstants.ENDPOINT);
     String tableName = conf.get(OdpsConstants.TABLE_NAME);
-    String tunnelEndPoint = conf.get(OdpsConstants.TUNNEL_ENDPOINT);
+    String tunnelEndPoint = OdpsUtil.getTunnelEndPoint(conf.get(OdpsConstants.TUNNEL_ENDPOINT));
 
     odps = new Odps(new AliyunAccount(conf.get(OdpsConstants.ACCESS_ID),
             conf.get(OdpsConstants.ACCESS_KEY)));

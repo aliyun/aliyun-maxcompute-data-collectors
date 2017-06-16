@@ -32,6 +32,7 @@ import java.util.Map;
 //import com.aliyun.odps.data.Binary;
 //import com.aliyun.odps.data.Char;
 //import com.aliyun.odps.data.Varchar;
+import com.aliyun.odps.utils.StringUtils;
 import maxcompute.data.collectors.common.maxcompute.RecordUtil;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowDataUtil;
@@ -136,6 +137,10 @@ public class OdpsInput extends BaseStep implements StepInterface {
             odps.setUserAgent("Maxcompute-Kettle-Plugin-2.0.0");
 
             TableTunnel tableTunnel = new TableTunnel(odps);
+            String tunnelEndpoint = environmentSubstitute(meta.getTunnelEndpoint());
+            if (!StringUtils.isEmpty(tunnelEndpoint)) {
+                tableTunnel.setEndpoint(tunnelEndpoint);
+            }
             DownloadSession downloadSession = null;
             try {
                 if (meta.getPartition() != null && !meta.getPartition().trim().equals("")) {

@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.aliyun.odps.utils.StringUtils;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowMetaInterface;
@@ -162,6 +163,10 @@ public class OdpsOutput extends BaseStep implements StepInterface {
             odps.setUserAgent("Maxcompute-Kettle-Plugin-2.0.0");
 
             TableTunnel tableTunnel = new TableTunnel(odps);
+            String tunnelEndpoint = environmentSubstitute(meta.getTunnelEndpoint());
+            if (!StringUtils.isEmpty(tunnelEndpoint)) {
+                tableTunnel.setEndpoint(tunnelEndpoint);
+            }
             try {
                 MaxcomputeUtil.dealTruncate(odps,
                     odps.tables().get(environmentSubstitute(meta.getTableName())),

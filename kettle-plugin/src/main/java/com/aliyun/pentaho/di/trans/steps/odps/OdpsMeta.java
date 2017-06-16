@@ -39,6 +39,7 @@ import com.aliyun.odps.OdpsField;
 public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface {
 
     private String endpoint = "";
+    private String tunnelEndpoint = "";
     private String accessId = "";
     private String accessKey = "";
     private String projectName = "";
@@ -48,6 +49,14 @@ public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface
     protected List<OdpsField> odpsFields = new ArrayList<OdpsField>();
 
     private int errorLine = 0;
+
+    public String getTunnelEndpoint() {
+        return tunnelEndpoint;
+    }
+
+    public void setTunnelEndpoint(String tunnelEndpoint) {
+        this.tunnelEndpoint = tunnelEndpoint;
+    }
 
     public int getErrorLine() {
         return errorLine;
@@ -130,6 +139,7 @@ public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface
     @Override public void loadXML(Node stepnode, List<DatabaseMeta> databases, IMetaStore metaStore)
         throws KettleXMLException {
         setEndpoint(XMLHandler.getTagValue(stepnode, "endpoint"));
+        setTunnelEndpoint(XMLHandler.getTagValue(stepnode, "tunnelEndpoint"));
         setAccessId(XMLHandler.getTagValue(stepnode, "accessId"));
         setAccessKey(XMLHandler.getTagValue(stepnode, "accessKey"));
         setProjectName(XMLHandler.getTagValue(stepnode, "projectName"));
@@ -151,6 +161,7 @@ public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface
     @Override public String getXML() throws KettleException {
         StringBuilder retVal = new StringBuilder();
         retVal.append("  ").append(XMLHandler.addTagValue("endpoint", getEndpoint())).append("  ")
+                .append("  ").append(XMLHandler.addTagValue("tunnelEndpoint", getTunnelEndpoint()))
             .append(XMLHandler.addTagValue("accessId", getAccessId())).append("  ")
             .append(XMLHandler.addTagValue("accessKey", getAccessKey())).append("  ")
             .append(XMLHandler.addTagValue("projectName", getProjectName())).append("  ")
@@ -173,6 +184,7 @@ public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface
     @Override public void readRep(Repository rep, IMetaStore metaStore, ObjectId id_step,
         List<DatabaseMeta> databases) throws KettleException {
         setEndpoint(rep.getStepAttributeString(id_step, "endpoint"));
+        setTunnelEndpoint(rep.getStepAttributeString(id_step, "tunnelEndpoint"));
         setAccessId(rep.getStepAttributeString(id_step, "accessId"));
         setAccessKey(rep.getStepAttributeString(id_step, "accessKey"));
         setProjectName(rep.getStepAttributeString(id_step, "projectName"));
@@ -193,6 +205,7 @@ public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface
     @Override public void saveRep(Repository rep, IMetaStore metaStore, ObjectId id_transformation,
         ObjectId id_step) throws KettleException {
         rep.saveStepAttribute(id_transformation, id_step, "endpoint", getEndpoint());
+        rep.saveStepAttribute(id_transformation, id_step, "tunnelEndpoint", getTunnelEndpoint());
         rep.saveStepAttribute(id_transformation, id_step, "accessId", getAccessId());
         rep.saveStepAttribute(id_transformation, id_step, "accessKey", getAccessKey());
         rep.saveStepAttribute(id_transformation, id_step, "projectName", getProjectName());
@@ -211,6 +224,7 @@ public abstract class OdpsMeta extends BaseStepMeta implements StepMetaInterface
 
     @Override public void setDefault() {
         setEndpoint("http://service.odps.aliyun.com/api");
+        setTunnelEndpoint("");
         setAccessId("");
         setAccessKey("");
         setProjectName("");

@@ -70,6 +70,7 @@ public class OdpsOutputDialog extends BaseStepDialog implements StepDialogInterf
 
     // text field holding the name of the field to add to the row stream
     protected Text m_wEndpoint;
+    protected Text m_wTunnelEndpoint;
     protected Text m_wAccessId;
     protected Text m_wAccessKey;
     protected Text m_wProjectName;
@@ -158,6 +159,26 @@ public class OdpsOutputDialog extends BaseStepDialog implements StepDialogInterf
         fdEndpoint.top = new FormAttachment(0, margin);
         m_wEndpoint.setLayoutData(fdEndpoint);
         Control lastControl = m_wEndpoint;
+
+        //tunnel endpoint
+        Label wlTunnelEndpoint = new Label(gConnect, SWT.RIGHT);
+        wlTunnelEndpoint.setText(BaseMessages.getString(PKG, "ODPS.TunnelEndpoint.Label"));
+        props.setLook(wlTunnelEndpoint);
+        FormData fdlTunnelEndpoint = new FormData();
+        fdlTunnelEndpoint.left = new FormAttachment(0, 0);
+        fdlTunnelEndpoint.right = new FormAttachment(middle, -margin);
+        fdlTunnelEndpoint.top = new FormAttachment(lastControl, margin);
+        wlTunnelEndpoint.setLayoutData(fdlTunnelEndpoint);
+
+        m_wTunnelEndpoint = new Text(gConnect, SWT.SINGLE | SWT.LEFT | SWT.BORDER);
+        props.setLook(m_wTunnelEndpoint);
+        m_wTunnelEndpoint.addModifyListener(lsMod);
+        FormData fdTunnelEndpoint = new FormData();
+        fdTunnelEndpoint.left = new FormAttachment(middle, 0);
+        fdTunnelEndpoint.right = new FormAttachment(100, 0);
+        fdTunnelEndpoint.top = new FormAttachment(lastControl, margin);
+        m_wTunnelEndpoint.setLayoutData(fdTunnelEndpoint);
+        lastControl = m_wTunnelEndpoint;
 
         //accessId
         Label wlAccessId = new Label(gConnect, SWT.RIGHT);
@@ -397,6 +418,9 @@ public class OdpsOutputDialog extends BaseStepDialog implements StepDialogInterf
         if (meta.getEndpoint() != null) {
             m_wEndpoint.setText(meta.getEndpoint());
         }
+        if(meta.getTunnelEndpoint() != null) {
+            m_wTunnelEndpoint.setText(meta.getTunnelEndpoint());
+        }
         if (meta.getAccessId() != null) {
             m_wAccessId.setText(meta.getAccessId());
         }
@@ -451,6 +475,7 @@ public class OdpsOutputDialog extends BaseStepDialog implements StepDialogInterf
         stepname = wStepname.getText();
         // Setting the  settings to the meta object
         meta.setEndpoint(m_wEndpoint.getText());
+        meta.setTunnelEndpoint(m_wTunnelEndpoint.getText());
         meta.setAccessId(m_wAccessId.getText());
         meta.setAccessKey(m_wAccessKey.getText());
         meta.setProjectName(m_wProjectName.getText());

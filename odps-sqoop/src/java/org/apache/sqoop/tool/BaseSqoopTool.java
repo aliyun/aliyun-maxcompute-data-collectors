@@ -214,6 +214,7 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
   public static final String HDFS_TO_ODPS = "hdfs-to-odps";
   public static final String ODPS_DISABLE_DYNAMIC_PARTITIONS = "disable-dynamic-partitions";
   public static final String ODPS_OVERWRITE_ARG = "odps-overwrite";
+  public static final String ODPS_USE_COMPRESS = "odps-compress";
 
   //Accumulo arguments.
   public static final String ACCUMULO_TABLE_ARG = "accumulo-table";
@@ -904,6 +905,10 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
         .withDescription("Overwrite existing data in the ODPS table")
         .withLongOpt(ODPS_OVERWRITE_ARG)
         .create());
+    odpsOpts.addOption(OptionBuilder
+      .withDescription("Use compress in upload")
+      .withLongOpt(ODPS_USE_COMPRESS)
+      .create());
     return odpsOpts;
   }
 
@@ -1485,6 +1490,10 @@ public abstract class BaseSqoopTool extends com.cloudera.sqoop.tool.SqoopTool {
     }
     if (in.hasOption(ODPS_OVERWRITE_ARG)) {
       out.setOverwriteOdpsTable(true);
+    }
+
+    if (in.hasOption(ODPS_USE_COMPRESS)) {
+      out.setOdpsUseCompressInUpload(true);
     }
   }
 

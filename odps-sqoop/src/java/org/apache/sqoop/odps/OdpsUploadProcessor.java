@@ -66,6 +66,7 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
   private String inputDateFormat;
   private boolean autoCreatePartition = true;
   private Map partitionMap;
+  private boolean useCompress;
 
   @Override
   public void close() throws IOException {
@@ -92,6 +93,7 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
             OdpsConstants.DEFAULT_RETRY_COUNT);
     batchSize = conf.getInt(OdpsConstants.BATCH_SIZE,
             OdpsConstants.DEFAULT_BATCH_SIZE);
+    useCompress = conf.getBoolean(OdpsConstants.USE_COMPRESS_IN_UPLOAD, false);
 
     String project = conf.get(OdpsConstants.PROJECT);
     String endpoint = conf.get(OdpsConstants.ENDPOINT);
@@ -251,7 +253,8 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     if (StringUtils.isNotEmpty(tunnelEndPoint)) {
       tunnel.setEndpoint(tunnelEndPoint);
     }
-    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId);
+    //return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId, useCompress);
+    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId, true);
   }
   
   private OdpsWriter buildTunnelWriter(String project, String tableName,
@@ -260,7 +263,8 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     if (StringUtils.isNotEmpty(tunnelEndPoint)) {
       tunnel.setEndpoint(tunnelEndPoint);
     }
-    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession);
+    //return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession, useCompress);
+    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession, true);
   }
 
 }

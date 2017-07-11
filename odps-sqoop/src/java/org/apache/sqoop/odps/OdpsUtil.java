@@ -52,9 +52,9 @@ public class OdpsUtil {
     return "odps-sqoop-1.4.6";
   }
 
-  //tunnel endpoint is split by ";", like http://100.100.100.100|http://100.100.100.101
+  //tunnel endpoint is split by "|", like http://100.100.100.100|http://100.100.100.101
   public static String getTunnelEndPoint(String tunnelEndpoints) {
-    String[] endpoints = tunnelEndpoints.split("|");
+    String[] endpoints = tunnelEndpoints.split("\\|");
     Random rand = new Random();
     int index = rand.nextInt(endpoints.length);
     return endpoints[index];

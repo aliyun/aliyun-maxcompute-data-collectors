@@ -43,18 +43,20 @@ public class OdpsTunnelWriter extends OdpsWriter {
   private String sharedSessionId;
   private TableTunnel.UploadSession sharedUploadSession;
   private RecordWriter sharedWriter;
+  private boolean useCompress;
 
   public OdpsTunnelWriter(TableTunnel tunnel, String project,
-                          String tableName, int retryCount, String sessionId) {
+                          String tableName, int retryCount, String sessionId, boolean useCompress) {
     this.tunnel = tunnel;
     this.project = project;
     this.tableName = tableName;
     this.retryCount = retryCount;
     this.sharedSessionId = sessionId;
+    this.useCompress = useCompress;
   }
 
   public OdpsTunnelWriter(TableTunnel tunnel, String project, String tableName, int retryCount,
-      UploadSession uploadSession) throws TunnelException {
+      UploadSession uploadSession, boolean useCompress) throws TunnelException {
     this.tunnel = tunnel;
     this.project = project;
     this.tableName = tableName;
@@ -62,6 +64,7 @@ public class OdpsTunnelWriter extends OdpsWriter {
     this.sharedUploadSession = uploadSession;
     sharedWriter = uploadSession.openBufferedWriter(true);
     ((TunnelBufferedWriter)sharedWriter).setBufferSize(256*1024*1024);
+    this.useCompress = useCompress;
   }
 
   @Override
@@ -104,7 +107,7 @@ public class OdpsTunnelWriter extends OdpsWriter {
             uploadSession = tunnel.createUploadSession(project, tableName,
                 new PartitionSpec(partition));
           }
-          writer = uploadSession.openRecordWriter(0);
+          writer = uploadSession.openRecordWriter(0, useCompress);
           for (Record r : mapEntry.getValue()) {
             writer.write(r);
           }

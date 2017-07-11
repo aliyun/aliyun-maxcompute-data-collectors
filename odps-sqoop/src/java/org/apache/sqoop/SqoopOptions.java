@@ -190,6 +190,7 @@ public class SqoopOptions implements Cloneable {
   @StoredAsProperty("hdfs.to.odps") private boolean hdfsToOdps;
   @StoredAsProperty("odps.disable.dynamic.partitions") private boolean odpsDisableDynamicPartitions;
   @StoredAsProperty("odps.overwrite.table") private boolean overwriteOdpsTable;
+  @StoredAsProperty("odps.use.compress") private boolean useCompressInUpload;
 
   public boolean isSkipFailed() {
     return skipFailed;
@@ -218,6 +219,17 @@ public class SqoopOptions implements Cloneable {
 
   public void setOverwriteOdpsTable(boolean overwrite) {
     this.overwriteOdpsTable = overwrite;
+  }
+
+  /**
+   * @return the user-specified option to use upload in upload.
+   */
+  public boolean isOdpsUseCompressInUpload() {
+    return useCompressInUpload;
+  }
+
+  public void setOdpsUseCompressInUpload(boolean useCompress) {
+    this.useCompressInUpload = useCompress;
   }
 
 

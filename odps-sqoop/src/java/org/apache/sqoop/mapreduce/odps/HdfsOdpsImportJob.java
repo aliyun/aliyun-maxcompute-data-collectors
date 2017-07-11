@@ -457,6 +457,7 @@ public class HdfsOdpsImportJob extends JobBase {
     }
     conf.setInt(OdpsConstants.RETRY_COUNT, options.getOdpsRetryCount());
     conf.setInt(OdpsConstants.BATCH_SIZE, options.getOdpsBatchSize());
+    conf.setBoolean(OdpsConstants.USE_COMPRESS_IN_UPLOAD, options.isOdpsUseCompressInUpload());
 
     job.getConfiguration().set(ExportJobBase.SQOOP_EXPORT_TABLE_CLASS_KEY, tableClassName);
   }

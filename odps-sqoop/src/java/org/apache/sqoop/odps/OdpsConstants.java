@@ -44,6 +44,7 @@ public class OdpsConstants {
       "odps.tunnel.upload.session.id";
 
   public static final String PARTITION_SPEC = "sqoop.odps.partition.spec";
+  public static final String USE_COMPRESS_IN_UPLOAD = "sqoop.odps.use.compress";
 
   public static final int DEFAULT_BATCH_SIZE = 1000;
   public static final int DEFAULT_SHARD_NUM = 1;

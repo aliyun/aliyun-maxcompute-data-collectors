@@ -253,8 +253,7 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     if (StringUtils.isNotEmpty(tunnelEndPoint)) {
       tunnel.setEndpoint(tunnelEndPoint);
     }
-    //return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId, useCompress);
-    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId, true);
+    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, sessionId, useCompress);
   }
   
   private OdpsWriter buildTunnelWriter(String project, String tableName,
@@ -263,8 +262,7 @@ public class OdpsUploadProcessor implements Closeable, Configurable,
     if (StringUtils.isNotEmpty(tunnelEndPoint)) {
       tunnel.setEndpoint(tunnelEndPoint);
     }
-    //return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession, useCompress);
-    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession, true);
+    return new OdpsTunnelWriter(tunnel, project, tableName, retryCount, uploadSession, useCompress);
   }
 
 }

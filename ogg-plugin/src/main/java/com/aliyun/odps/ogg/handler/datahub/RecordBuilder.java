@@ -88,12 +88,30 @@ public class RecordBuilder {
             Field field = columnMapping.getField();
 
             if (field != null) {
-                RecordUtil.setFieldValue(recordEntry,
-                        field,
-                        columns.get(i).getAfter() == null || columns.get(i).getAfter().isValueNull(),
-                        columns.get(i).getAfterValue(),
-                        columnMapping.isDateFormat(),
-                        columnMapping.getSimpleDateFormat(), true);
+                if (columnMapping.isKeyColumn()) {
+                    if (columns.get(i).getAfter() == null) {
+                        RecordUtil.setFieldValue(recordEntry,
+                                field,
+                                columns.get(i).getBefore() == null || columns.get(i).getBefore().isValueNull(),
+                                columns.get(i).getBeforeValue(),
+                                columnMapping.isDateFormat(),
+                                columnMapping.getSimpleDateFormat(), true);
+                    } else {
+                        RecordUtil.setFieldValue(recordEntry,
+                                field,
+                                columns.get(i).getAfter() == null || columns.get(i).getAfter().isValueNull(),
+                                columns.get(i).getAfterValue(),
+                                columnMapping.isDateFormat(),
+                                columnMapping.getSimpleDateFormat(), true);
+                    }
+                } else {
+                    RecordUtil.setFieldValue(recordEntry,
+                            field,
+                            columns.get(i).getAfter() == null || columns.get(i).getAfter().isValueNull(),
+                            columns.get(i).getAfterValue(),
+                            columnMapping.isDateFormat(),
+                            columnMapping.getSimpleDateFormat(), true);
+                }
             }
 
             Field oldField = columnMapping.getOldFiled();

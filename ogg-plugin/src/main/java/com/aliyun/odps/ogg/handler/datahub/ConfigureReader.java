@@ -326,6 +326,14 @@ public class ConfigureReader {
                     columnMapping.setIsShardColumn(false);
                 }
 
+                String isKeyColumn = columnElement.attributeValue("isKeyColumn");
+                if (StringUtils.isNotBlank(isKeyColumn) && Boolean.TRUE
+                        .equals(Boolean.valueOf(isKeyColumn))) {
+                    columnMapping.setIsKeyColumn(true);
+                } else {
+                    columnMapping.setIsKeyColumn(false);
+                }
+
                 String dateFormat = columnElement.attributeValue("dateFormat");
 
                 if (StringUtils.isNotBlank(dateFormat)) {

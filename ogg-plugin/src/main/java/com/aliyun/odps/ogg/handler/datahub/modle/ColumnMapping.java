@@ -32,6 +32,7 @@ public class ColumnMapping {
     private Field field;
     private Field oldFiled;
     private boolean isShardColumn = false;
+    private boolean isKeyColumn = false;
     @JsonIgnore private SimpleDateFormat simpleDateFormat;
     private boolean isDateFormat = true;
 
@@ -81,5 +82,13 @@ public class ColumnMapping {
 
     public void setIsDateFormat(boolean isDateFormat) {
         this.isDateFormat = isDateFormat;
+    }
+
+    public boolean isKeyColumn() {
+        return isKeyColumn;
+    }
+
+    public void setIsKeyColumn(boolean keyColumn) {
+        isKeyColumn = keyColumn;
     }
 }

@@ -1403,7 +1403,11 @@ public class ClassWriter {
     // __loadFromFields() code.
     String lowerColName = colName.toLowerCase();
     if (isRecord) {
-      sb.append("    __cur_str = fieldMap.get(\"" + lowerColName + "\").toString();\n");
+      sb.append("    if (fieldMap.get(\"" + lowerColName + "\") != null) {\n");
+      sb.append("      __cur_str = fieldMap.get(\"" + lowerColName + "\").toString();\n");
+      sb.append("    } else {\n");
+      sb.append("      __cur_str = \"" + this.options.getInNullStringValue() + "\";\n");
+      sb.append("    }\n");
     } else {
       sb.append("    __cur_str = __it.next();\n");
     }

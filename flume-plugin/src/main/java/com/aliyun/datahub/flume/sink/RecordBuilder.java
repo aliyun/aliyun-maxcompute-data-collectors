@@ -138,6 +138,9 @@ public class RecordBuilder {
             } else if (columnShardMappings.size() > 0) {
                 // do nothing, already set
             } else {
+                if (shardIds.isEmpty()) {
+                    this.updateShardIds();
+                }
                 lastShardIndex = lastShardIndex % shardIds.size();
                 recordEntry.setShardId(shardIds.get(lastShardIndex));
                 lastShardIndex++;

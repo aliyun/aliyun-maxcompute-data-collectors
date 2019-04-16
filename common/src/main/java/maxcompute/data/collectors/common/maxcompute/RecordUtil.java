@@ -1,23 +1,18 @@
 package maxcompute.data.collectors.common.maxcompute;
 
-import com.aliyun.odps.data.ArrayRecord;
-import com.aliyun.odps.Column;
-import com.aliyun.odps.Odps;
-import com.aliyun.odps.PartitionSpec;
-import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.Column;
 import com.aliyun.odps.OdpsType;
-import com.aliyun.odps.Table;
-import com.aliyun.odps.TableSchema;
-import com.aliyun.odps.data.*;
+import com.aliyun.odps.data.ArrayRecord;
+import com.aliyun.odps.data.Binary;
+import com.aliyun.odps.data.Char;
+import com.aliyun.odps.data.Varchar;
 import com.aliyun.odps.utils.StringUtils;
-
-import java.sql.Date;
+import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
-import java.math.BigDecimal;
-import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 
 public class RecordUtil {

@@ -1,7 +1,9 @@
 package odps.data.dump;
 
 import com.aliyun.odps.Odps;
+import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.PartitionSpec;
+import com.aliyun.odps.Table;
 import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.account.Account;
 import com.aliyun.odps.account.AliyunAccount;
@@ -12,6 +14,12 @@ import com.aliyun.odps.tunnel.TableTunnel.UploadSession;
 import com.aliyun.odps.tunnel.TunnelException;
 import com.aliyun.odps.tunnel.io.TunnelBufferedWriter;
 import com.aliyun.odps.utils.StringUtils;
+import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import maxcompute.data.collectors.common.maxcompute.RecordUtil;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
@@ -22,26 +30,32 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 
-import maxcompute.data.collectors.common.maxcompute.RecordUtil;
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.List;
-
 public class MaxComputeDataTransferUDTF extends GenericUDTF{
+    private static final String[] TIMESTAMP_PATTERNS = new String[] {
+        "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
+        "yyyy-MM-dd HH:mm:ss.SSSSSSSS",
+        "yyyy-MM-dd HH:mm:ss.SSSSSSS",
+        "yyyy-MM-dd HH:mm:ss.SSSSSS",
+        "yyyy-MM-dd HH:mm:ss.SSSSS",
+        "yyyy-MM-dd HH:mm:ss.SSSS",
+        "yyyy-MM-dd HH:mm:ss.SSS",
+        "yyyy-MM-dd HH:mm:ss.SS",
+        "yyyy-MM-dd HH:mm:ss.S",
+        "yyyy-MM-dd HH:mm:ss"
+    };
+
     private transient ObjectInspector[] argumentOIs;
     private Odps odps;
-    TableTunnel tunnel;
-    UploadSession uploadSession;
-    TableSchema tableSchema;
+    private TableTunnel tunnel;
+    private UploadSession uploadSession;
+    private TableSchema tableSchema;
 
-    OdpsConfig odpsConfig = new OdpsConfig();
+    private OdpsConfig odpsConfig = new OdpsConfig();
 
-    RecordWriter writer = null;
+    private RecordWriter writer = null;
     private String tableName = "";
     private String partitionName = "";
     private String[] columns;
-
 
     public MaxComputeDataTransferUDTF() throws Exception {
         odpsConfig.init("odps.conf");
@@ -81,18 +95,21 @@ public class MaxComputeDataTransferUDTF extends GenericUDTF{
         if (columns == null) {
             columns = columnStr.split(",");
         }
+        for (int i = 0; i < columns.length; i++) {
+            columns[i] = columns[i].trim();
+        }
         if (!tableName.equals(tmpTableName) || !partitionName.equals(tmpPartitionName)) {
-            tableName = tmpTableName;
-            partitionName = tmpPartitionName;
+            tableName = tmpTableName.trim();
+            partitionName = tmpPartitionName.trim();
 
             if (uploadSession == null) {
                 try {
+                    Table t = odps.tables().get(tableName);
+                    tableSchema = t.getSchema();
                     if (StringUtils.isEmpty(partitionName)) {
                         uploadSession = tunnel.createUploadSession(odpsConfig.getProjectName(), tableName);
-                        tableSchema = uploadSession.getSchema();
                     } else {
                         uploadSession = tunnel.createUploadSession(odpsConfig.getProjectName(), tableName, new PartitionSpec(partitionName));
-                         tableSchema = uploadSession.getSchema();
                     }
                 } catch (TunnelException e) {
                     throw new HiveException("create upload session failed!", e);
@@ -111,14 +128,28 @@ public class MaxComputeDataTransferUDTF extends GenericUDTF{
         ArrayRecord product = (ArrayRecord) uploadSession.newRecord();
         for (int i = 3; i < args.length; ++i) {
             Object colValue = args[i];
-            if (colValue == null) continue;
+            if (colValue == null) {
+                continue;
+            }
             PrimitiveObjectInspector poi = (PrimitiveObjectInspector)argumentOIs[i];
             Object colValueJavaObj = poi.getPrimitiveJavaObject(colValue);
-            if (colValueJavaObj == null) continue;
+            if (colValueJavaObj == null) {
+                continue;
+            }
             String columnName = columns[i-3];
             try {
-                RecordUtil.setFieldValue(product, columnName, colValueJavaObj.toString(),
-                    tableSchema.getColumn(columnName).getType(), null);
+                OdpsType odpsType = tableSchema.getColumn(columnName).getType();
+                String value = colValueJavaObj.toString();
+                SimpleDateFormat format = null;
+                if (odpsType.equals(OdpsType.TIMESTAMP)) {
+                    for (String fmt : TIMESTAMP_PATTERNS) {
+                        if (fmt.length() == value.length()) {
+                            format = new SimpleDateFormat(fmt);
+                            break;
+                        }
+                    }
+                }
+                RecordUtil.setFieldValue(product, columnName, value, odpsType, format);
             } catch (ParseException e) {
                 throw new HiveException("set Field value failed", e);
             }

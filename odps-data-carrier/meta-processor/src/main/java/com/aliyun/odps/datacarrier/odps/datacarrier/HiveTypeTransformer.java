@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.odps.datacarrier;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,17 +67,8 @@ public class HiveTypeTransformer {
   private static final String MAP = "MAP<(.+)>";
   private static final String STRUCT = "STRUCT<(.+)>";
 
-//  private static final String
-//  private static final String
-//  private static final String
-//  private static final String
-//  private static final String
-//  private static final String
-//  private static final String
-//  private static final String
-
   public static String toOdpsType(String hiveType, String odpsVersion) {
-    hiveType = hiveType.toUpperCase();
+    hiveType = hiveType.toUpperCase().trim();
     if (hiveType.matches(TINYINT)) {
       return "TINYINT";
     } else if (hiveType.matches(SMALLINT)) {
@@ -115,60 +108,75 @@ public class HiveTypeTransformer {
       Pattern pattern = Pattern.compile(ARRAY);
       Matcher matcher = pattern.matcher(hiveType);
       matcher.matches();
-      return "ARRAY" + "<" + toOdpsType(matcher.group(1), odpsVersion) + ">";
-//    } else if (hiveType.matches(MAP)) {
-//      Pattern pattern = Pattern.compile(MAP);
-//      Matcher matcher = pattern.matcher(hiveType);
-//      matcher.matches();
-//      // TODO: cannot simply split with comma
-//      String[] types = matcher.group(1).split(",");
-//      return "MAP<" + toOdpsType(types[0].trim(), odpsVersion) + "," +
-//          toOdpsType(types[1].trim(), odpsVersion) + ">";
-//    } else if (hiveType.matches(STRUCT)) {
-//      Pattern pattern = Pattern.compile(STRUCT);
-//      Matcher matcher = pattern.matcher(hiveType);
-//      matcher.matches();
-//      List<String> fields = new ArrayList<>();
-//
-//
-//      List<String> odpsFields = new ArrayList<>();
-//      for (String field1 : fields) {
-//        String field = field1;
-//        // Remove comments, not supported
-//        int commentIdx = field.toUpperCase().indexOf("COMMENT");
-//        if (commentIdx != -1) {
-//          field = field.substring(0, commentIdx);
-//        }
-//
-//        // Convert to odps type
-//        String[] fieldSplit = field.split(":");
-//        String fieldName = fieldSplit[0].trim();
-//        String fieldType = fieldSplit[1].trim();
-//
-//        odpsFields.add(fieldName + ":" + toOdpsType(fieldType, odpsVersion));
-//      }
-//      return "STRUCT<" + String.join(", ", odpsFields) + ">";
+      return "ARRAY" + "<" + toOdpsType(matcher.group(1).trim(), odpsVersion) + ">";
+    } else if (hiveType.matches(MAP)) {
+
+      Pattern pattern = Pattern.compile(MAP);
+      Matcher matcher = pattern.matcher(hiveType);
+      matcher.matches();
+      // The type of key in a map must be a primitive type, so there is no comma in its type
+      // definition. So we can split the type tuple of key and value by the first comma.
+      String typeTuple = matcher.group(1);
+      int firstCommaIdx = typeTuple.indexOf(',');
+      String keyType = typeTuple.substring(0, firstCommaIdx).trim();
+      String valueType = typeTuple.substring(firstCommaIdx + 1).trim();
+      return "MAP<" + toOdpsType(keyType, odpsVersion) + "," +
+          toOdpsType(valueType, odpsVersion) + ">";
+    } else if (hiveType.matches(STRUCT)) {
+      Pattern pattern = Pattern.compile(STRUCT);
+      Matcher matcher = pattern.matcher(hiveType);
+      matcher.matches();
+      // Since the type definition of a struct can be very complex and may contain any possible
+      // character in a type definition, we have to split the type list properly so that we can
+      // handle them recursively later.
+      List<String> fieldDefinitions = splitIntoSubTypes(matcher.group(1));
+
+      List<String> odpsFieldDefinitions = new ArrayList<>();
+      for (String fieldDefinition : fieldDefinitions) {
+        // Remove comments, not supported
+        int commentIdx = fieldDefinition.toUpperCase().indexOf("COMMENT");
+        if (commentIdx != -1) {
+          fieldDefinition = fieldDefinition.substring(0, commentIdx);
+        }
+
+        // The type of a struct field can be another struct, which may contain colons. So we have
+        // to split the field definition by the first colon.
+        int firstColonIdx = fieldDefinition.indexOf(':');
+        String fieldName = fieldDefinition.substring(0, firstColonIdx).trim();
+        String fieldType = fieldDefinition.substring(firstColonIdx + 1).trim();
+        odpsFieldDefinitions.add(fieldName + ":" + toOdpsType(fieldType, odpsVersion));
+      }
+      return "STRUCT<" + String.join(",", odpsFieldDefinitions) + ">";
     } else {
       throw new IllegalArgumentException("Invalid HIVE type: " + hiveType);
     }
   }
 
-//  private static List<String> splitMapFields(String mapFields) {
-//    int angleBracketsCounter = 0;
-//    int startIdx = 0;
-//    List<String> fields;
-//
-//    for (int i = 0; i < mapFields.length(); i++) {
-//      if (mapFields.charAt(i) == '<') {
-//
-//      }
-//    }
-//
-//    return null;
-//  }
+  private static List<String> splitIntoSubTypes(String typeDefinition) {
+    int angleBracketsCounter = 0;
+    boolean split = true;
+    int startIdx = 0;
+    List<String> subTypes = new ArrayList<>();
 
-  public static void main(String[] args) {
-    String odpsType = HiveTypeTransformer.toOdpsType("array<array<struct<x:int comment \"fuck\", y:map<string, date> comment \"this world\">>>", "2.0");
-    System.out.println(odpsType);
+    for (int i = 0; i < typeDefinition.length(); i++) {
+      char c = typeDefinition.charAt(i);
+      if (c == '<') {
+        split = false;
+        angleBracketsCounter += 1;
+      } else if (c == '>') {
+        angleBracketsCounter -= 1;
+        if (angleBracketsCounter == 0) {
+          split = true;
+        }
+      } else if (c == ',') {
+        if (split) {
+          subTypes.add(typeDefinition.substring(startIdx, i).trim());
+          startIdx = i + 1;
+        }
+      }
+    }
+    subTypes.add(typeDefinition.substring(startIdx).trim());
+
+    return subTypes;
   }
 }

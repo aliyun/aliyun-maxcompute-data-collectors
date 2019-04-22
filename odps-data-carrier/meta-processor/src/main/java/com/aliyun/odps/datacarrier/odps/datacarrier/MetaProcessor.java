@@ -70,6 +70,7 @@ public class MetaProcessor {
 
   }
 
+  // TODO: includes more info, like original compatibility and risks
   private String getTableDescription(DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
     StringBuilder commentBuilder = new StringBuilder();
     String odpsProjectName = databaseMeta.odpsProjectName;
@@ -82,8 +83,7 @@ public class MetaProcessor {
     return commentBuilder.toString();
   }
 
-
-
+  // TODO: instead of return a string, return a TransformResult object
   public static String getCreateTableStatement(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
     DATASOURCE_TYPE datasourceType = DATASOURCE_TYPE.valueOf(globalMeta.datasourceType);
@@ -167,6 +167,7 @@ public class MetaProcessor {
     return ddlBuilder.toString();
   }
 
+  // TODO: instead of return a list of string, return a TransformResult object
   private List<String> getCreatePartitionStatements(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) throws IOException{
     List<String> createPartitionStatements = new ArrayList<>();

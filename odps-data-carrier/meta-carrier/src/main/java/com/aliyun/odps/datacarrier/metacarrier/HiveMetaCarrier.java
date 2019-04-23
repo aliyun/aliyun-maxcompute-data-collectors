@@ -163,6 +163,7 @@ public class HiveMetaCarrier {
               partitionSpecs.add(partitionColumns.get(i).getName() + "=" + partitionValues.get(i));
             }
             partitionMetaModel.partitionSpec = String.join(",", partitionSpecs);
+            tablePartitionMetaModel.partitions.add(partitionMetaModel);
           }
           metaManager.setTablePartitionMeta(databaseName, tablePartitionMetaModel);
         }

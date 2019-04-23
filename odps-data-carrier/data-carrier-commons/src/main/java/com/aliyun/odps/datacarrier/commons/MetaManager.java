@@ -33,16 +33,13 @@ import java.util.List;
  * MetaManager reads/writes metadata from/to a directory. The structure is as follows:
  *
  *  [output directory]
- *  |______hive-meta-carrier
- *         |______global.json
+ *  |______global.json
+ *  |______[database name]
+ *         |______[database name].json
  *         |______table_meta
- *         |      |______[database name].json
- *         |      |______[database name]
- *         |             |______[table name].json
- *         |
+ *         |      |______[table name].json
  *         |______partition_meta
- *                |______[database name]
- *                       |______[table name].json
+ *                |______[table name].json
  *
  * The format of global.json is as follows:
  * {
@@ -161,20 +158,20 @@ public class MetaManager {
   }
 
   public DatabaseMetaModel getDatabaseMeta(String databaseName) throws IOException {
-    Path filePath = Paths.get(this.root, TABLE_META_DIR, databaseName + JSON_SUFFIX);
+    Path filePath = Paths.get(this.root, databaseName, databaseName + JSON_SUFFIX);
     String jsonString = DirUtils.readFromFile(filePath);
     return Constants.GSON.fromJson(jsonString, DatabaseMetaModel.class);
   }
 
   public void setDatabaseMeta(DatabaseMetaModel databaseMeta) throws IOException {
-    Path filePath =
-        Paths.get(this.root, TABLE_META_DIR, databaseMeta.databaseName + JSON_SUFFIX);
+    Path filePath = Paths.get(this.root, databaseMeta.databaseName,
+        databaseMeta.databaseName + JSON_SUFFIX);
     String jsonString = Constants.GSON.toJson(databaseMeta, DatabaseMetaModel.class);
     DirUtils.writeToFile(filePath, jsonString);
   }
 
   public TableMetaModel getTableMeta(String databaseName, String tableName) throws IOException {
-    Path filePath = Paths.get(this.root, TABLE_META_DIR, databaseName,
+    Path filePath = Paths.get(this.root, databaseName, TABLE_META_DIR,
         tableName + JSON_SUFFIX);
     String jsonString = DirUtils.readFromFile(filePath);
     return Constants.GSON.fromJson(jsonString, TableMetaModel.class);
@@ -182,15 +179,15 @@ public class MetaManager {
 
   public void setTableMeta(String databaseName, TableMetaModel tableMetaModel)
       throws IOException {
-    String jsonString = Constants.GSON.toJson(tableMetaModel, TableMetaModel.class);
-    Path filePath = Paths.get(this.root, TABLE_META_DIR, databaseName,
+    Path filePath = Paths.get(this.root, databaseName, TABLE_META_DIR,
         tableMetaModel.tableName + JSON_SUFFIX);
+    String jsonString = Constants.GSON.toJson(tableMetaModel, TableMetaModel.class);
     DirUtils.writeToFile(filePath, jsonString);
   }
 
   public TablePartitionMetaModel getTablePartitionMeta(String databaseName, String tableName)
       throws IOException {
-    Path filePath = Paths.get(this.root, PARTITION_META_DIR, databaseName,
+    Path filePath = Paths.get(this.root, databaseName, PARTITION_META_DIR,
         tableName + JSON_SUFFIX);
     String jsonString = DirUtils.readFromFile(filePath);
     return Constants.GSON.fromJson(jsonString, TablePartitionMetaModel.class);
@@ -198,15 +195,18 @@ public class MetaManager {
 
   public void setTablePartitionMeta(String databaseName,
       TablePartitionMetaModel tablePartitionMeta) throws IOException {
-    Path filePath = Paths.get(this.root, PARTITION_META_DIR, databaseName,
+    Path filePath = Paths.get(this.root, databaseName, PARTITION_META_DIR,
         tablePartitionMeta.tableName + JSON_SUFFIX);
     String jsonString = Constants.GSON.toJson(tablePartitionMeta, TablePartitionMetaModel.class);
     DirUtils.writeToFile(filePath, jsonString);
   }
 
   public String[] listDatabases() {
-    Path tableMetaDir = Paths.get(this.root, TABLE_META_DIR);
-    return DirUtils.listDirs(tableMetaDir);
+    Path rootDir = Paths.get(this.root);
+    if (!Files.exists(rootDir)) {
+      return new String[0];
+    }
+    return DirUtils.listDirs(rootDir);
   }
 
   /**
@@ -214,8 +214,11 @@ public class MetaManager {
    * tables
    */
   public String[] listTables(String databaseName) {
-    Path databaseDir = Paths.get(this.root, TABLE_META_DIR, databaseName);
-    String[] tableMetaFiles = DirUtils.listFiles(databaseDir);
+    Path tableMetaDir = Paths.get(this.root, databaseName, TABLE_META_DIR);
+    if (!Files.exists(tableMetaDir)) {
+      return new String[0];
+    }
+    String[] tableMetaFiles = DirUtils.listFiles(tableMetaDir);
 
     // Remove .json
     for (int i = 0; i < tableMetaFiles.length; i++) {
@@ -235,18 +238,18 @@ public class MetaManager {
    * Return only partition table names in a given database
    */
   public String[] listPartitionTables(String databaseName) {
-    Path databaseDir = Paths.get(this.root, PARTITION_META_DIR, databaseName);
-    if (!Files.exists(databaseDir)) {
+    Path partitionMetaDir = Paths.get(this.root, databaseName, PARTITION_META_DIR);
+    if (!Files.exists(partitionMetaDir)) {
       return new String[0];
     }
-    String[] partitionMetaFiles = DirUtils.listFiles(databaseDir);
+    String[] partitionMetaFiles = DirUtils.listFiles(partitionMetaDir);
 
     // Remove .json
     for (int i = 0; i < partitionMetaFiles.length; i++) {
       String partitionMetaFile = partitionMetaFiles[i];
       if (partitionMetaFile.endsWith(JSON_SUFFIX)) {
         partitionMetaFiles[i] = partitionMetaFile.substring(
-            partitionMetaFile.length() - JSON_SUFFIX.length());
+            0, partitionMetaFile.length() - JSON_SUFFIX.length());
       } else {
         throw new IllegalArgumentException(
             "Partition meta directory contains invalid file: " + partitionMetaFile);

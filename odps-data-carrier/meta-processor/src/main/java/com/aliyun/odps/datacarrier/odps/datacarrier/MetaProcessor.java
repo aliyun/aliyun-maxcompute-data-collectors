@@ -37,7 +37,7 @@ import java.util.List;
  *
  * usage:
  * java -cp /path/to/jar com.aliyun.odps.datacarrier.odps.MetaProcessor [meta file path]
- * [config file path] [result directory path]
+ * [result directory path]
  *
  */
 public class MetaProcessor {
@@ -81,7 +81,6 @@ public class MetaProcessor {
         // Generate Hive UDTF SQL statements
         List<String> singlePartitionHiveUdtfSQL =
             getSinglePartitionHiveUdtfSQL(databaseMeta, tableMeta);
-        String multiPartitionHiveUdtfSQL = getMultiPartitionHiveUdtfSQL(databaseMeta, tableMeta);
         intermediateDataDirManager.setHiveUdtfSQLSinglePartition(databaseName, partitionTableName,
             String.join("\n", singlePartitionHiveUdtfSQL));
       }

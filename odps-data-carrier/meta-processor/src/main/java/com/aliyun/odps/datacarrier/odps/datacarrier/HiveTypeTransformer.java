@@ -99,7 +99,7 @@ public class HiveTypeTransformer {
       Pattern pattern = Pattern.compile(CHAR);
       Matcher matcher = pattern.matcher(hiveType);
       matcher.matches();
-      return "CHAR" + matcher.group(1);
+      return "STRING" + matcher.group(1);
     } else if (hiveType.matches(BOOLEAN)) {
       return "BOOLEAN";
     } else if (hiveType.matches(BINARY)) {

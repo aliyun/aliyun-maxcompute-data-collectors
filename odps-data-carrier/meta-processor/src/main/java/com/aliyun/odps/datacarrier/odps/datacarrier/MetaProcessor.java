@@ -64,6 +64,7 @@ public class MetaProcessor {
         intermediateDataDirManager.setOdpsCreateTableStatement(databaseName, tableName,
             tableDescription + createTableStatement);
 
+        // Generate Hive UDTF SQL statements
         String multiPartitionHiveUdtfSQL = getMultiPartitionHiveUdtfSQL(databaseMeta, tableMeta);
         intermediateDataDirManager.setHiveUdtfSQLMultiPartition(
             databaseName, tableName, multiPartitionHiveUdtfSQL);
@@ -144,7 +145,7 @@ public class MetaProcessor {
         ddlBuilder.append(",\n");
       }
     }
-    ddlBuilder.append(")");
+    ddlBuilder.append(") ");
 
     if (tableMeta.comment != null) {
       ddlBuilder.append("\nCOMMENT '").append(tableMeta.comment).append("'\n");
@@ -157,6 +158,8 @@ public class MetaProcessor {
         ColumnMetaModel partitionColumnMeta = partitionColumns.get(i);
 
         String odpsType = null;
+        // TODO: for odps 1.0 partition column type can only be STRING or BIGINT, and for odps 2.0
+        // partition column type can be TINYINT, SMALLINT, INT, BIGINT, VARCHAR and STRING
         if (datasourceType.equals(DATASOURCE_TYPE.MYSQL)) {
           odpsType = MySQLTypeTransformer.toOdpsType(partitionColumnMeta.type, odpsVersion);
         } else if (datasourceType.equals(DATASOURCE_TYPE.HIVE)) {
@@ -215,6 +218,7 @@ public class MetaProcessor {
       TableMetaModel tableMeta) throws IOException {
     TablePartitionMetaModel tablePartitionMeta =
         metaManager.getTablePartitionMeta(databaseMeta.databaseName, tableMeta.tableName);
+
     List<String> hiveSQLList = new ArrayList<>();
 
     for (PartitionMetaModel partitionMeta : tablePartitionMeta.partitions) {
@@ -240,7 +244,7 @@ public class MetaProcessor {
         }
       }
       hiveUdtfSQLBuilder.append("FROM\n")
-          .append(databaseMeta.databaseName).append("`").append(tableMeta.tableName).append("`")
+          .append(databaseMeta.databaseName).append(".`").append(tableMeta.tableName).append("`")
           .append("WHERE ").append(partitionMeta.partitionSpec).append(";\n");
       hiveSQLList.add(hiveUdtfSQLBuilder.toString());
     }
@@ -278,7 +282,7 @@ public class MetaProcessor {
     String databaseName = databaseMeta.databaseName;
     String tableName = tableMeta.tableName;
     hiveUdtfSQLBuilder.append("FROM\n")
-        .append(databaseName).append("`").append(tableName).append("`").append(";\n");
+        .append(databaseName).append(".`").append(tableName).append("`").append(";\n");
 
     return hiveUdtfSQLBuilder.toString();
   }

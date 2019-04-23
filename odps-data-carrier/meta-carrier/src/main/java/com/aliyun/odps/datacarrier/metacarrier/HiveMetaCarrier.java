@@ -139,6 +139,7 @@ public class HiveMetaCarrier {
         for (FieldSchema partitionColumn : partitionColumns) {
           ColumnMetaModel columnMetaModel = new ColumnMetaModel();
           columnMetaModel.columnName = partitionColumn.getName();
+          columnMetaModel.odpsColumnName = partitionColumn.getName();
           columnMetaModel.type = partitionColumn.getType();
           columnMetaModel.comment = partitionColumn.getComment();
           tableMetaModel.partitionColumns.add(columnMetaModel);
@@ -160,7 +161,8 @@ public class HiveMetaCarrier {
             List<String> partitionValues = partition.getValues();
             List<String> partitionSpecs = new ArrayList<>();
             for (int i = 0; i < partitionColumns.size(); i++) {
-              partitionSpecs.add(partitionColumns.get(i).getName() + "=" + partitionValues.get(i));
+              partitionSpecs.add(
+                  partitionColumns.get(i).getName() + "=\'" + partitionValues.get(i) + "\'");
             }
             partitionMetaModel.partitionSpec = String.join(",", partitionSpecs);
             tablePartitionMetaModel.partitions.add(partitionMetaModel);

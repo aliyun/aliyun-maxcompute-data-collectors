@@ -19,7 +19,6 @@
 
 package com.aliyun.odps.datacarrier.odps.datacarrier;
 
-import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
 import com.aliyun.odps.datacarrier.commons.IntermediateDataDirManager;
 import com.aliyun.odps.datacarrier.commons.MetaManager;
 import com.aliyun.odps.datacarrier.commons.MetaManager.ColumnMetaModel;
@@ -59,10 +58,12 @@ public class MetaProcessor {
         TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, tableName);
 
         // Generate ODPS create table statements
-        String tableDescription = getTableDescription(databaseMeta, tableMeta);
-        String createTableStatement = getCreateTableStatement(globalMeta, databaseMeta, tableMeta);
+        GeneratedStatement createTableStatement =
+            getCreateTableStatement(globalMeta, databaseMeta, tableMeta);
+        String formattedCreateTableStatement =
+            getFormattedCreateTableStatement(databaseMeta, tableMeta, createTableStatement);
         intermediateDataDirManager.setOdpsCreateTableStatement(databaseName, tableName,
-            tableDescription + createTableStatement);
+            formattedCreateTableStatement);
 
         // Generate Hive UDTF SQL statements
         String multiPartitionHiveUdtfSQL = getMultiPartitionHiveUdtfSQL(databaseMeta, tableMeta);
@@ -74,10 +75,14 @@ public class MetaProcessor {
         TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, partitionTableName);
 
         // Generate ODPS add partition statements
-        List<String> addPartitionStatements =
+        List<GeneratedStatement> createPartitionStatements =
             getCreatePartitionStatements(globalMeta, databaseMeta, tableMeta);
+        StringBuilder contentBuilder = new StringBuilder();
+        for (GeneratedStatement generatedStatement : createPartitionStatements) {
+          contentBuilder.append(generatedStatement.getStatement()).append("\n");
+        }
         intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName, partitionTableName,
-            String.join("\n", addPartitionStatements));
+            contentBuilder.toString());
 
         // Generate Hive UDTF SQL statements
         List<String> singlePartitionHiveUdtfSQL =
@@ -89,26 +94,31 @@ public class MetaProcessor {
 
   }
 
-  // TODO: includes more info, like original compatibility and risks
-  private String getTableDescription(DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
-    StringBuilder commentBuilder = new StringBuilder();
+  private String getFormattedCreateTableStatement(DatabaseMetaModel databaseMeta,
+      TableMetaModel tableMeta, GeneratedStatement generatedStatement) {
+    StringBuilder builder = new StringBuilder();
     String odpsProjectName = databaseMeta.odpsProjectName;
     String odpsTableName = tableMeta.odpsTableName;
-    commentBuilder
-        .append("--********************************************************************--\n")
+    builder.append("--********************************************************************--\n")
         .append("--project name: ").append(odpsProjectName).append("\n")
         .append("--table name: ").append(odpsTableName).append("\n")
-        .append("--********************************************************************--\n");
-    return commentBuilder.toString();
+        .append("--risk level: ").append(generatedStatement.getRiskLevel()).append("\n")
+        .append("--risks: \n");
+    for (Risk risk : generatedStatement.getRisks()) {
+      builder.append("----").append(risk.getDescription()).append("\n");
+    }
+    builder.append("--********************************************************************--\n");
+    builder.append(generatedStatement.getStatement());
+    return builder.toString();
   }
 
-  // TODO: instead of return a string, return a TransformResult object
-  public static String getCreateTableStatement(GlobalMetaModel globalMeta,
+  public static GeneratedStatement getCreateTableStatement(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
-    DATASOURCE_TYPE datasourceType = DATASOURCE_TYPE.valueOf(globalMeta.datasourceType);
-    String odpsVersion = globalMeta.odpsVersion;
-
+    // TODO: check table name conflicts
+    GeneratedStatement generatedStatement = new GeneratedStatement();
     StringBuilder ddlBuilder = new StringBuilder();
+
+    String odpsVersion = globalMeta.odpsVersion;
     if ("2.0".equals(odpsVersion)) {
       ddlBuilder.append("set odps.sql.type.system.odps2=true;\n");
     }
@@ -127,28 +137,24 @@ public class MetaProcessor {
     for (int i = 0; i < columns.size(); i++) {
       ColumnMetaModel columnMeta = columns.get(i);
 
-      String odpsType;
-      if (datasourceType.equals(DATASOURCE_TYPE.MYSQL)) {
-        odpsType = MySQLTypeTransformer.toOdpsType(columnMeta.type, odpsVersion);
-      } else if (datasourceType.equals(DATASOURCE_TYPE.HIVE)) {
-        odpsType = HiveTypeTransformer.toOdpsType(columnMeta.type, odpsVersion);
-      } else {
-        throw new IllegalArgumentException("Unsupported datasource type: " + datasourceType);
+      // Transform hive type to odps hive, and note down any incompatibility
+      TypeTransformResult typeTransformResult = TypeTransformer.toOdpsType(globalMeta, columnMeta);
+      generatedStatement.setRisk(typeTransformResult.getRisk());
+      String odpsType = typeTransformResult.getTransformedType();
+      ddlBuilder.append("    `").append(columnMeta.odpsColumnName).append("` ").append(odpsType);
+
+      if (columnMeta.comment != null) {
+        ddlBuilder.append(" COMMENT '").append(columnMeta.comment).append("'");
       }
 
-      String columnComment = columnMeta.comment;
-      ddlBuilder.append("    `").append(columnMeta.odpsColumnName).append("` ").append(odpsType);
-      if (columnComment != null) {
-        ddlBuilder.append(" COMMENT '").append(columnComment).append("'");
-      }
       if (i + 1 < columns.size()) {
         ddlBuilder.append(",\n");
       }
     }
-    ddlBuilder.append(") ");
+    ddlBuilder.append(")\n");
 
     if (tableMeta.comment != null) {
-      ddlBuilder.append("\nCOMMENT '").append(tableMeta.comment).append("'\n");
+      ddlBuilder.append("COMMENT '").append(tableMeta.comment).append("'\n");
     }
 
     List<ColumnMetaModel> partitionColumns = tableMeta.partitionColumns;
@@ -157,21 +163,19 @@ public class MetaProcessor {
       for (int i = 0; i < partitionColumns.size(); i++) {
         ColumnMetaModel partitionColumnMeta = partitionColumns.get(i);
 
-        String odpsType = null;
-        // TODO: for odps 1.0 partition column type can only be STRING or BIGINT, and for odps 2.0
-        // partition column type can be TINYINT, SMALLINT, INT, BIGINT, VARCHAR and STRING
-        if (datasourceType.equals(DATASOURCE_TYPE.MYSQL)) {
-          odpsType = MySQLTypeTransformer.toOdpsType(partitionColumnMeta.type, odpsVersion);
-        } else if (datasourceType.equals(DATASOURCE_TYPE.HIVE)) {
-          odpsType = HiveTypeTransformer.toOdpsType(partitionColumnMeta.type, odpsVersion);
-        }
-
-        String columnComment = partitionColumnMeta.comment;
+        // Transform hive type to odps hive, and note down any incompatibility
+        TypeTransformResult typeTransformResult =
+            TypeTransformer.toOdpsType(globalMeta, partitionColumnMeta);
+        generatedStatement.setRisk(typeTransformResult.getRisk());
+        String odpsType = typeTransformResult.getTransformedType();
         String odpsPartitionColumnName = partitionColumnMeta.odpsColumnName;
         ddlBuilder.append("    `").append(odpsPartitionColumnName).append("` ").append(odpsType);
+
+        String columnComment = partitionColumnMeta.comment;
         if (columnComment != null) {
           ddlBuilder.append(" COMMENT '").append(columnComment).append("'");
         }
+
         if (i + 1 < partitionColumns.size()) {
           ddlBuilder.append(",\n");
         }
@@ -184,23 +188,26 @@ public class MetaProcessor {
     }
 
     ddlBuilder.append(";\n");
+    generatedStatement.setStatement(ddlBuilder.toString());
 
-    return ddlBuilder.toString();
+    return generatedStatement;
   }
 
-  // TODO: instead of return a list of string, return a TransformResult object
-  private List<String> getCreatePartitionStatements(GlobalMetaModel globalMeta,
+  private List<GeneratedStatement> getCreatePartitionStatements(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) throws IOException{
-    List<String> createPartitionStatements = new ArrayList<>();
+    List<GeneratedStatement> createPartitionStatements = new ArrayList<>();
 
     String odpsVersion = globalMeta.odpsVersion;
     if ("2.0".equals(odpsVersion)) {
-      createPartitionStatements.add("set odps.sql.type.system.odps2=true;\n");
+      GeneratedStatement setStatement = new GeneratedStatement();
+      setStatement.setStatement("set odps.sql.type.system.odps2=true;\n");
+      createPartitionStatements.add(setStatement);
     }
 
     TablePartitionMetaModel tablePartitionMeta =
         metaManager.getTablePartitionMeta(databaseMeta.databaseName, tableMeta.tableName);
     for (PartitionMetaModel partitionMeta : tablePartitionMeta.partitions) {
+      GeneratedStatement createPartitionStatement = new GeneratedStatement();
       StringBuilder ddlBuilder = new StringBuilder();
       ddlBuilder.append("ALTER TABLE ");
 
@@ -209,7 +216,8 @@ public class MetaProcessor {
       ddlBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("` ");
       ddlBuilder.append("ADD PARTITION (").append(partitionMeta.partitionSpec).append(");\n");
 
-      createPartitionStatements.add(ddlBuilder.toString());
+      createPartitionStatement.setStatement(ddlBuilder.toString());
+      createPartitionStatements.add(createPartitionStatement);
     }
     return createPartitionStatements;
   }

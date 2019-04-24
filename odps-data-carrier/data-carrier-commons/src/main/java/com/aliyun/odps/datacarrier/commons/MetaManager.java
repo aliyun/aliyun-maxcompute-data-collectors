@@ -45,6 +45,7 @@ import java.util.List;
  * {
  *   "datasourceType" : xxx,
  *   "odpsVersion" : "xxx"
+ *   "hiveCompatible" : xxx
  * }
  *
  * The format of [table name].json is as follows:
@@ -92,6 +93,7 @@ public class MetaManager {
   public static class GlobalMetaModel{
     public String datasourceType;
     public String odpsVersion = "1.0";
+    public Boolean hiveCompatible = false;
   }
 
   public static class DatabaseMetaModel {

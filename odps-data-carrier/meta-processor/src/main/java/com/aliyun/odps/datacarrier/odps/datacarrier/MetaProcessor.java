@@ -231,7 +231,7 @@ public class MetaProcessor {
       }
 
       StringBuilder hiveUdtfSQLBuilder = new StringBuilder();
-      hiveUdtfSQLBuilder.append("SELECT odps_data_dump(\n")
+      hiveUdtfSQLBuilder.append("SELECT odps_data_dump_single(\n")
           .append("\'").append(odpsTableName).append("\',\n")
           .append("\'").append(partitionMeta.partitionSpec).append("\',\n")
           .append("\'").append(String.join(",", odpsColumnNames)).append("\',\n");
@@ -267,7 +267,7 @@ public class MetaProcessor {
       odpsPartitionColumnNames.add(columnMeta.odpsColumnName);
       hiveColumnNames.add(columnMeta.columnName);
     }
-    hiveUdtfSQLBuilder.append("SELECT odps_data_dump(\n")
+    hiveUdtfSQLBuilder.append("SELECT odps_data_dump_multi(\n")
         .append("\'").append(tableMeta.odpsTableName).append("\',\n")
         .append("\'").append(String.join(",", odpsColumnNames)).append("\',\n")
         .append("\'").append(String.join(",", odpsPartitionColumnNames)).append("\',\n");

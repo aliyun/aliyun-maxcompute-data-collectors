@@ -91,7 +91,6 @@ public class MetaProcessor {
             String.join("\n", singlePartitionHiveUdtfSQL));
       }
     }
-
   }
 
   private String getFormattedCreateTableStatement(DatabaseMetaModel databaseMeta,
@@ -251,8 +250,8 @@ public class MetaProcessor {
           hiveUdtfSQLBuilder.append(")\n");
         }
       }
-      hiveUdtfSQLBuilder.append("FROM\n")
-          .append(databaseMeta.databaseName).append(".`").append(tableMeta.tableName).append("`")
+      hiveUdtfSQLBuilder.append("FROM")
+          .append(databaseMeta.databaseName).append(".`").append(tableMeta.tableName).append("`\n")
           .append("WHERE ").append(partitionMeta.partitionSpec).append(";\n");
       hiveSQLList.add(hiveUdtfSQLBuilder.toString());
     }
@@ -289,7 +288,7 @@ public class MetaProcessor {
     }
     String databaseName = databaseMeta.databaseName;
     String tableName = tableMeta.tableName;
-    hiveUdtfSQLBuilder.append("FROM\n")
+    hiveUdtfSQLBuilder.append("FROM")
         .append(databaseName).append(".`").append(tableName).append("`").append(";\n");
 
     return hiveUdtfSQLBuilder.toString();

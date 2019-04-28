@@ -13,10 +13,11 @@
     <module>meta-carrier</module>
     <module>data-carrier-commons</module>
     <module>meta-processor</module>
+    <module>data-transfer-hive-udtf</module>
   </modules>
 
   <properties>
-    <odps.sdk.version>0.32.0-SNAPSHOT</odps.sdk.version>
+    <odps.sdk.version>0.30.9-public</odps.sdk.version>
   </properties>
 
   <dependencyManagement>
@@ -46,14 +47,34 @@
         <version>${odps.sdk.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.aliyun.odps</groupId>
+        <artifactId>odps-sdk-core</artifactId>
+        <version>${odps.sdk.version}</version>
+      </dependency>
+      <dependency>
         <groupId>commons-io</groupId>
         <artifactId>commons-io</artifactId>
         <version>2.6</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hive</groupId>
+        <artifactId>hive-exec</artifactId>
+        <version>0.13.0</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>2.10.4</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

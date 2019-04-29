@@ -19,7 +19,8 @@
 
 package com.aliyun.odps.datacarrier.odps.datacarrier;
 
-import com.aliyun.odps.datacarrier.commons.IntermediateDataDirManager;
+import com.aliyun.odps.datacarrier.commons.GeneratedStatement;
+import com.aliyun.odps.datacarrier.commons.IntermediateDataManager;
 import com.aliyun.odps.datacarrier.commons.MetaManager;
 import com.aliyun.odps.datacarrier.commons.MetaManager.ColumnMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.DatabaseMetaModel;
@@ -27,6 +28,7 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
+import com.aliyun.odps.datacarrier.commons.Risk;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,8 +49,8 @@ public class MetaProcessor {
   }
 
   private void run(String outputPath) throws IOException {
-    IntermediateDataDirManager intermediateDataDirManager =
-        new IntermediateDataDirManager(outputPath);
+    IntermediateDataManager intermediateDataDirManager =
+        new IntermediateDataManager(outputPath);
 
     GlobalMetaModel globalMeta = metaManager.getGlobalMeta();
     for (String databaseName : metaManager.listDatabases()) {
@@ -250,7 +252,7 @@ public class MetaProcessor {
           hiveUdtfSQLBuilder.append(")\n");
         }
       }
-      hiveUdtfSQLBuilder.append("FROM")
+      hiveUdtfSQLBuilder.append("FROM ")
           .append(databaseMeta.databaseName).append(".`").append(tableMeta.tableName).append("`\n")
           .append("WHERE ").append(partitionMeta.partitionSpec).append(";\n");
       hiveSQLList.add(hiveUdtfSQLBuilder.toString());
@@ -288,7 +290,7 @@ public class MetaProcessor {
     }
     String databaseName = databaseMeta.databaseName;
     String tableName = tableMeta.tableName;
-    hiveUdtfSQLBuilder.append("FROM")
+    hiveUdtfSQLBuilder.append("FROM ")
         .append(databaseName).append(".`").append(tableName).append("`").append(";\n");
 
     return hiveUdtfSQLBuilder.toString();

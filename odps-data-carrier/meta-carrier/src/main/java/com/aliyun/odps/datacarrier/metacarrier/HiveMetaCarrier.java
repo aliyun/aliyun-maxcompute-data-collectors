@@ -159,12 +159,18 @@ public class HiveMetaCarrier {
             partitionMetaModel.location = partition.getSd().getLocation();
             // Generate partition specifications
             List<String> partitionValues = partition.getValues();
-            List<String> partitionSpecs = new ArrayList<>();
+            StringBuilder partitionSpecBuilder = new StringBuilder();
             for (int i = 0; i < partitionColumns.size(); i++) {
-              partitionSpecs.add(
-                  partitionColumns.get(i).getName() + "=\'" + partitionValues.get(i) + "\'");
+              partitionSpecBuilder
+                  .append(partitionColumns.get(i).getName())
+                  .append("=\'")
+                  .append(partitionValues.get(i))
+                  .append("\'");
+              if (i != partitionColumns.size() - 1) {
+                partitionSpecBuilder.append(",");
+              }
             }
-            partitionMetaModel.partitionSpec = String.join(",", partitionSpecs);
+            partitionMetaModel.partitionSpec = partitionSpecBuilder.toString();
             tablePartitionMetaModel.partitions.add(partitionMetaModel);
           }
           metaManager.setTablePartitionMeta(databaseName, tablePartitionMetaModel);

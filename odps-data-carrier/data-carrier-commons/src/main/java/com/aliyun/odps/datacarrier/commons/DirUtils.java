@@ -55,7 +55,12 @@ public class DirUtils {
   }
 
   public static String[] listDirs(Path dir) {
-    String[] items = dir.toFile().list((dir1, name) -> new File(dir1, name).isDirectory());
+    String[] items = dir.toFile().list(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return new File(dir, name).isDirectory();
+      }
+    });
     if (items == null) {
       throw new IllegalArgumentException(dir.toString() + " is not a valid directory.");
     }
@@ -63,7 +68,12 @@ public class DirUtils {
   }
 
   public static String[] listFiles(Path dir) {
-    String[] items = dir.toFile().list((dir1, name) -> new File(dir1, name).isFile());
+    String[] items = dir.toFile().list(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return new File(dir, name).isFile();
+      }
+    });
     if (items == null) {
       throw new IllegalArgumentException(dir.toString() + " is not a valid directory.");
     }

@@ -2,9 +2,6 @@ import os
 import sys
 import subprocess
 import traceback
-import logging
-import logging.handlers
-import os.path as path
 
 '''
    [output directory]
@@ -44,7 +41,7 @@ def execute(cmd: str, verbose=False) -> int:
         print(traceback.format_exc())
         return 1
 
-def main(root: str, udtf_resource_path: str) -> None:
+def main(root: str, udtf_resource_path: str, odps_config_path: str) -> None:
     databases = os.listdir(root)
 
     for database in databases:
@@ -64,19 +61,19 @@ def main(root: str, udtf_resource_path: str) -> None:
             hive_multi_partition_sql = hive_multi_partition_sql.replace(
               "`", "")
             hive_multi_partition_sql = (
-              "add jar %s;" % udtf_resource_path + 
-              "create temporary function odps_data_dump_single as 'odps.data.dump.MaxComputeDataTransferUDTF';" + 
-              "create temporary function odps_data_dump_multi as 'odps.data.dump.MaxComputeDataTransferUDTFMultiPart';" + 
+              "add jar %s;" % udtf_resource_path +
+              "add file %s;" % odps_config_path +
+              "create temporary function odps_data_dump_multi as 'com.aliyun.odps.datacarrier.transfer.OdpsDataTransferUDTF';" +
               hive_multi_partition_sql)
           execute("hive -e \"%s\"" % hive_multi_partition_sql, verbose=True)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print('''
             usage: 
-            python3 hive_udtf_runner.py <path to generated dir> <udtf resource path>
+            python3 hive_udtf_runner.py <path to generated dir> <udtf resource path> <odps config path>
         ''')
         sys.exit(1)
 
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])

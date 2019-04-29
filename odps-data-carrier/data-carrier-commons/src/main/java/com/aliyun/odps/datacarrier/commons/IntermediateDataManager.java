@@ -24,7 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * IntermediateDataDirManager reads/writes report/odps ddl/hive sql from/to a directory. The
+ * IntermediateDataManager reads/writes report/odps ddl/hive sql from/to a directory. The
  * structure of generated directory is as follows:
  *
  *  [output directory]
@@ -41,7 +41,7 @@ import java.nio.file.Paths;
  *                |______multi_partition
  *                       |______[table name].sql
  */
-public class IntermediateDataDirManager {
+public class IntermediateDataManager {
 
   /**
    * Directory & file names
@@ -58,7 +58,7 @@ public class IntermediateDataDirManager {
 
   private String root;
 
-  public IntermediateDataDirManager(String root) {
+  public IntermediateDataManager(String root) {
     this.root = root;
   }
 

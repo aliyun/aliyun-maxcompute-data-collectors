@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.odps.datacarrier;
+package com.aliyun.odps.datacarrier.commons;
 
 public class Risk {
 

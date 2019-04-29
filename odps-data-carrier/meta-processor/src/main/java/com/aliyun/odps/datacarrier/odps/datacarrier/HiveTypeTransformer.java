@@ -20,6 +20,7 @@
 package com.aliyun.odps.datacarrier.odps.datacarrier;
 
 import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
+import com.aliyun.odps.datacarrier.commons.Risk;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;

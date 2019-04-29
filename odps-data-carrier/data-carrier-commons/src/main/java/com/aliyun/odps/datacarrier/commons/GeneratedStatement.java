@@ -1,6 +1,7 @@
-package com.aliyun.odps.datacarrier.odps.datacarrier;
+package com.aliyun.odps.datacarrier.commons;
 
-import com.aliyun.odps.datacarrier.odps.datacarrier.Risk.RISK_LEVEL;
+import com.aliyun.odps.datacarrier.commons.Risk;
+import com.aliyun.odps.datacarrier.commons.Risk.RISK_LEVEL;
 import java.util.ArrayList;
 import java.util.List;
 

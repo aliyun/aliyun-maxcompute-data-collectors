@@ -28,10 +28,13 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
-import com.aliyun.odps.datacarrier.commons.Risk;
+import com.aliyun.odps.datacarrier.commons.risk.Risk;
+import com.aliyun.odps.datacarrier.odps.datacarrier.report.ReportBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author: jon (wangzhong.zw@alibaba-inc.com)
@@ -43,6 +46,7 @@ import java.util.List;
  */
 public class MetaProcessor {
   private MetaManager metaManager;
+  public Map<String, Set<String>> odpsProjectNameToTableNameSet;
 
   public MetaProcessor(String metaPath) throws IOException {
     this.metaManager = new MetaManager(metaPath);
@@ -51,6 +55,7 @@ public class MetaProcessor {
   private void run(String outputPath) throws IOException {
     IntermediateDataManager intermediateDataDirManager =
         new IntermediateDataManager(outputPath);
+    ReportBuilder reportBuilder = new ReportBuilder();
 
     GlobalMetaModel globalMeta = metaManager.getGlobalMeta();
     for (String databaseName : metaManager.listDatabases()) {
@@ -66,6 +71,7 @@ public class MetaProcessor {
             getFormattedCreateTableStatement(databaseMeta, tableMeta, createTableStatement);
         intermediateDataDirManager.setOdpsCreateTableStatement(databaseName, tableName,
             formattedCreateTableStatement);
+        reportBuilder.add(databaseName, tableName, createTableStatement);
 
         // Generate Hive UDTF SQL statements
         String multiPartitionHiveUdtfSQL = getMultiPartitionHiveUdtfSQL(databaseMeta, tableMeta);
@@ -93,6 +99,9 @@ public class MetaProcessor {
             String.join("\n", singlePartitionHiveUdtfSQL));
       }
     }
+
+    // Generate the report
+    intermediateDataDirManager.setReport(reportBuilder.build());
   }
 
   private String getFormattedCreateTableStatement(DatabaseMetaModel databaseMeta,
@@ -113,7 +122,7 @@ public class MetaProcessor {
     return builder.toString();
   }
 
-  public static GeneratedStatement getCreateTableStatement(GlobalMetaModel globalMeta,
+  public GeneratedStatement getCreateTableStatement(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
     // TODO: check table name conflicts
     GeneratedStatement generatedStatement = new GeneratedStatement();

@@ -20,7 +20,7 @@
 package com.aliyun.odps.datacarrier.odps.datacarrier;
 
 import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
-import com.aliyun.odps.datacarrier.commons.Risk;
+import com.aliyun.odps.datacarrier.commons.risk.Risk;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -30,6 +30,13 @@ import java.util.regex.Pattern;
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
  */
 public class HiveTypeTransformer {
+  private static final String DECIMAL_INCOMPATIBILITY_REASON =
+      "The number of digits of 'DECIMAL' type in ODPS is different from HIVE";
+  private static final String TIMESTAMP_INCOMPATIBILITY_REASON =
+      "ODPS supports microseconds precision, while HIVE supports nanosecond precision";
+  private static final String STRING_INCOMPATIBILITY_REASON =
+      "String in ODPS cannot exceed 8MB";
+
   //TODO: support odps1.0
   // TODO: support hive.compatible
   /**
@@ -89,16 +96,18 @@ public class HiveTypeTransformer {
       transformedType = "DOUBLE";
     } else if (hiveType.matches(DECIMAL)) {
       transformedType = "DECIMAL";
-      risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType);
+      risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType,
+          DECIMAL_INCOMPATIBILITY_REASON);
     } else if (hiveType.matches(TIMESTAMP)) {
       transformedType = "TIMESTAMP";
-      risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType);
+      risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType,
+          TIMESTAMP_INCOMPATIBILITY_REASON);
     } else if (hiveType.matches(DATE)) {
       // If odps version is 2.0 and hive.compatible is true, transformedType = DATE
       transformedType = "DATETIME";
     } else if (hiveType.matches(STRING)) {
       transformedType = "STRING";
-      risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType);
+      risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType, STRING_INCOMPATIBILITY_REASON);
     } else if (hiveType.matches(VARCHAR)) {
       Pattern pattern = Pattern.compile(VARCHAR);
       Matcher matcher = pattern.matcher(hiveType);

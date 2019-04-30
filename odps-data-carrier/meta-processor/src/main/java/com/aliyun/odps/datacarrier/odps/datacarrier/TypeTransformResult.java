@@ -1,7 +1,7 @@
 package com.aliyun.odps.datacarrier.odps.datacarrier;
 
 import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
-import com.aliyun.odps.datacarrier.commons.Risk;
+import com.aliyun.odps.datacarrier.commons.risk.Risk;
 
 public class TypeTransformResult {
 

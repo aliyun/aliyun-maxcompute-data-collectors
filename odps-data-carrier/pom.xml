@@ -61,6 +61,11 @@
         <artifactId>hive-exec</artifactId>
         <version>0.13.0</version>
       </dependency>
+      <dependency>
+        <groupId>com.github.xmlet</groupId>
+        <artifactId>htmlflow</artifactId>
+        <version>3.2</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 

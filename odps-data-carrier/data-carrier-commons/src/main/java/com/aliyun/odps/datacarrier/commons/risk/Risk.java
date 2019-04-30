@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.commons;
+package com.aliyun.odps.datacarrier.commons.risk;
 
 public class Risk {
 
@@ -10,7 +10,7 @@ public class Risk {
     /**
      * There are risks, but can be solved automatically
      */
-    MEDIUM,
+    MODERATE,
     /**
      * No risk
      */
@@ -41,10 +41,11 @@ public class Risk {
     return new Risk(RISK_LEVEL.HIGH, description);
   }
 
-  public static Risk getInCompatibleTypeRisk(String originalType, String transformedType) {
-    String description = "Incompatible type: " + originalType + ", can be transform to " +
-        transformedType + " automatically, but may cause problem (e.g. precision loss)";
-    return new Risk(RISK_LEVEL.MEDIUM, description);
+  public static Risk getInCompatibleTypeRisk(String originalType, String transformedType,
+      String reason) {
+    String description = "Incompatible type \'" + originalType + "\', can be transform to \'" +
+        transformedType + "\' automatically, but may cause problem. Reason: " + reason;
+    return new Risk(RISK_LEVEL.MODERATE, description);
   }
 
   public static Risk getNoRisk() {

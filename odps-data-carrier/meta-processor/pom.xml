@@ -28,6 +28,10 @@
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.github.xmlet</groupId>
+      <artifactId>htmlflow</artifactId>
+    </dependency>
   </dependencies>
 
   <build>

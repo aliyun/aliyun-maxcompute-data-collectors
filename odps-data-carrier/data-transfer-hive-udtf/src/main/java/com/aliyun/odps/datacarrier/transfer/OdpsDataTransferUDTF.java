@@ -59,7 +59,7 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
   private String currentOdpsPartitionSpec;
 
   public OdpsDataTransferUDTF() throws IOException {
-    OdpsConfig odpsConfig = new OdpsConfig("odps_config.properties");
+    OdpsConfig odpsConfig = new OdpsConfig("res/odps_config.properties");
     AliyunAccount account = new AliyunAccount(odpsConfig.getAccessId(), odpsConfig.getAccessKey());
     this.odps = new Odps(account);
     this.odps.setDefaultProject(odpsConfig.getProjectName());

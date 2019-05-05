@@ -43,8 +43,12 @@ def execute(cmd: str, verbose=False) -> int:
 
 def main(root: str, udtf_resource_path: str, odps_config_path: str) -> None:
     databases = os.listdir(root)
+    temp_func_name = "odps_data_dump_multi"
+    class_name = "com.aliyun.odps.datacarrier.transfer.OdpsDataTransferUDTF"
 
     for database in databases:
+        if database == "report.html":
+            continue
         hive_multi_partition_sql_dir = os.path.join(
             root, database, "hive_udtf_sql", "multi_partition")
 
@@ -63,17 +67,52 @@ def main(root: str, udtf_resource_path: str, odps_config_path: str) -> None:
             hive_multi_partition_sql = (
               "add jar %s;" % udtf_resource_path +
               "add file %s;" % odps_config_path +
-              "create temporary function odps_data_dump_multi as 'com.aliyun.odps.datacarrier.transfer.OdpsDataTransferUDTF';" +
+              "create temporary function %s as '%s';" % (temp_func_name, class_name) +
               hive_multi_partition_sql)
-          execute("hive -e \"%s\"" % hive_multi_partition_sql, verbose=True)
+
+            retry = 5
+            while retry > 0:
+              returncode = execute(
+                  "hive -e \"%s\"" % hive_multi_partition_sql, verbose=True)
+              if returncode == 0:
+                break
+              else:
+                print("INFO: execute %s failed, retrying..." % file_path)
+              retry -= 1
+
+            if retry == 0:
+              print("ERROR: execute %s failed 5 times" % file_path)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 2:
         print('''
             usage: 
-            python3 hive_udtf_runner.py <path to generated dir> <udtf resource path> <odps config path>
+            python3 hive_udtf_sql_runner.py <hive sql path>
         ''')
         sys.exit(1)
 
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    # Get path to udtf jar & odps config
+    pwd = os.path.dirname(os.path.realpath(__file__))
+    root = os.path.dirname(pwd)
+    os.chdir(root)
+
+    udtf_path = os.path.join(
+        root,
+        "libs",
+        "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
+    )
+    if not os.path.exists(udtf_path):
+      print("ERROR: %s does not exist" % udtf_path)
+      sys.exit(1)
+
+    odps_config_path = os.path.join(
+        root,
+        "res",
+        "odps_config.properties"
+    )
+    if not os.path.exists(odps_config_path):
+      print("ERROR: %s does not exist" % udtf_path)
+      sys.exit(1)
+
+    main(sys.argv[1], udtf_path, odps_config_path)

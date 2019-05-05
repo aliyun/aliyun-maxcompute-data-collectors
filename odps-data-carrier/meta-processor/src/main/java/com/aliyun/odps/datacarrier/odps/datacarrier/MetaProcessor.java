@@ -40,7 +40,7 @@ import java.util.Set;
  * @author: jon (wangzhong.zw@alibaba-inc.com)
  *
  * usage:
- * java -cp /path/to/jar com.aliyun.odps.datacarrier.odps.MetaProcessor [meta file path]
+ * java -cp /path/to/jar com.aliyun.odps.datacarrier.odps.MetaProcessor [meta directory path]
  * [result directory path]
  *
  */
@@ -135,7 +135,7 @@ public class MetaProcessor {
 
     ddlBuilder.append("CREATE TABLE ");
 
-    if (tableMeta.ifNotExist) {
+    if (tableMeta.ifNotExists) {
       ddlBuilder.append(" IF NOT EXISTS ");
     }
 
@@ -308,7 +308,7 @@ public class MetaProcessor {
   public static void main(String[] args) throws Exception {
     if (args.length != 2) {
       throw new IllegalArgumentException("arguments: \n" +
-          "<meta file> <output dir>");
+          "<meta dir> <output dir>");
     }
 
     MetaProcessor metaProcessor = new MetaProcessor(args[0]);

@@ -93,12 +93,13 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # Get path to udtf jar & odps config
-    pwd = os.path.dirname(os.path.realpath(__file__))
-    root = os.path.dirname(pwd)
-    os.chdir(root)
+    hive_sql_path = os.path.abspath(sys.argv[1])
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    odps_data_carrier_path = os.path.dirname(script_path)
+    os.chdir(odps_data_carrier_path)
 
     udtf_path = os.path.join(
-        root,
+        odps_data_carrier_path,
         "libs",
         "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
     )
@@ -107,12 +108,14 @@ if __name__ == '__main__':
       sys.exit(1)
 
     odps_config_path = os.path.join(
-        root,
+        odps_data_carrier_path,
         "res",
-        "odps_config.properties"
+        "console",
+        "conf",
+        "odps_config.ini"
     )
     if not os.path.exists(odps_config_path):
       print("ERROR: %s does not exist" % udtf_path)
       sys.exit(1)
 
-    main(sys.argv[1], udtf_path, odps_config_path)
+    main(hive_sql_path, udtf_path, odps_config_path)

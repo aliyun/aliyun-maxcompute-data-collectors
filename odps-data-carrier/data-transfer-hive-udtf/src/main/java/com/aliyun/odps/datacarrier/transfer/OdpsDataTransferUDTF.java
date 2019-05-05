@@ -47,7 +47,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
  */
 public class OdpsDataTransferUDTF extends GenericUDTF {
 
-
   private ObjectInspector[] objectInspectors;
   private Odps odps;
   private TableTunnel tunnel;
@@ -59,7 +58,7 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
   private String currentOdpsPartitionSpec;
 
   public OdpsDataTransferUDTF() throws IOException {
-    OdpsConfig odpsConfig = new OdpsConfig("res/odps_config.properties");
+    OdpsConfig odpsConfig = new OdpsConfig("res/console/conf/odps_config.ini");
     AliyunAccount account = new AliyunAccount(odpsConfig.getAccessId(), odpsConfig.getAccessKey());
     this.odps = new Odps(account);
     this.odps.setDefaultProject(odpsConfig.getProjectName());

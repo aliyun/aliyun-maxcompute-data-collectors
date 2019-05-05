@@ -1,0 +1,69 @@
+#!/bin/bash
+
+osname=$(uname)
+jvm_args="-Xms64m -Xmx512m"
+
+if [ "$osname" = "Linux" ]
+then
+    bin_dir=$( dirname $(readlink -f $0) )
+elif [ "$osname" = "Darwin" ]
+then
+    exec_file=$(readlink $0||echo $0)
+    bin_dir=$( dirname $exec_file )
+    jvm_args="-Dapple.awt.UIElement=true ${jvm_args}"
+else
+    bin_dir=$( cd "$( dirname "$0" )" && pwd )
+fi
+
+clt_dir="${bin_dir}/.."
+
+java9opt="--add-modules=java.xml.bind"
+
+java -version 2>&1 | grep -q "build 1\." && java9opt=""
+
+if [ -n "$MAX_ODPSCMD_COUNT" ]
+then
+    process_count=`ps aux|grep -i ODPSConsole|grep -v grep|wc -l|tr -d '[[:space:]]'`
+    while [ $process_count -gt $MAX_ODPSCMD_COUNT ]
+    do
+        echo "Detect $process_count odpscmd process(es) running, exceeds limit $MAX_ODPSCMD_COUNT, wait for 5 seconds ..."
+        sleep 5
+        process_count=`ps aux|grep -i ODPSConsole|grep -v grep|wc -l|tr -d '[[:space:]]'`
+    done
+fi
+
+fd_dir="/proc/$$/fd"
+if [ ! -d "$fd_dir" ]; then
+    fd_dir="/dev/fd"
+fi
+
+function lowest_unused_fd() {
+    local FD=10
+    while [ -e "$fd_dir/$FD" ]; do
+        FD=$((FD+1))
+    done
+    echo $FD
+}
+
+if [ -d "$fd_dir" ]
+then
+    file=`mktemp -t "XXXXXXXX"`
+
+    wfd=$(lowest_unused_fd)
+    eval "exec $wfd>$file"
+
+    rfd=$(lowest_unused_fd)
+    eval "exec $rfd<$file"
+    rm -f $file
+
+    for var in "$@"
+    do
+        printf -- "%s\0" "$var" >&$wfd
+    done
+
+    eval "exec $wfd>&-"
+
+    exec java $jvm_args $java9opt -classpath "${clt_dir}/lib/mapreduce-api.jar:${clt_dir}/lib/*:${clt_dir}/conf/" com.aliyun.openservices.odps.console.ODPSConsole -I $rfd
+else
+    exec java $jvm_args $java9opt -classpath "${clt_dir}/lib/mapreduce-api.jar:${clt_dir}/lib/*:${clt_dir}/conf/" com.aliyun.openservices.odps.console.ODPSConsole "$@"
+fi

@@ -29,7 +29,7 @@ import java.util.Properties;
 public class OdpsConfig {
   private static final String ACCESS_ID = "access_id";
   private static final String ACCESS_KEY = "access_key";
-  private static final String ODPS_ENDPOINT = "odps_endpoint";
+  private static final String ODPS_ENDPOINT = "end_point";
   private static final String TUNNEL_ENDPOINT = "tunnel_endpoint";
   private static final String PROJECT_NAME = "project_name";
 

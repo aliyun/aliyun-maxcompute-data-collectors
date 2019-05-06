@@ -14,9 +14,9 @@
 
 
 import os
-import sys
 import subprocess
 import traceback
+import argparse
 
 '''
    [output directory]
@@ -34,91 +34,100 @@ import traceback
                         |______[table name].sql
 '''
 
+
 def execute(cmd: str, verbose=False) -> int:
-    try:
-        if (verbose):
-            print("INFO: executing \'%s\'" %(cmd))
+  try:
+    if (verbose):
+      print("INFO: executing \'%s\'" % (cmd))
 
-        sp = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, preexec_fn = os.setsid)
-        sp.wait()
+    sp = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, preexec_fn=os.setsid)
+    sp.wait()
 
-        if (verbose):
-            stdout = sp.stdout.read().strip()
-            stderr = sp.stderr.read().strip()
-            print("DEBUG: stdout: " + str(stdout))
-            print("DEBUG: stderr: " + str(stderr))
-            print("DEBUG: returncode: " + str(sp.returncode))
+    if (verbose):
+      stdout = sp.stdout.read().strip()
+      stderr = sp.stderr.read().strip()
+      print("DEBUG: stdout: " + str(stdout))
+      print("DEBUG: stderr: " + str(stderr))
+      print("DEBUG: returncode: " + str(sp.returncode))
 
-        return sp.returncode
-    except Exception as e:
-        print("ERROR: execute \'%s\'' Failed: %s" %(cmd, e))
-        print(traceback.format_exc())
-        return 1
+    return sp.returncode
+  except Exception as e:
+    print("ERROR: execute \'%s\'' Failed: %s" % (cmd, e))
+    print(traceback.format_exc())
+    return 1
+
 
 def main(root: str, odpscmd_path: str) -> None:
-    databases = os.listdir(root)
+  databases = os.listdir(root)
 
-    for database in databases:
-        if database == "report.html":
-            continue
-        create_table_stmt_dir = os.path.join(
-            root, database, "odps_ddl", "tables")
-        add_partition_stmt_dir = os.path.join(
-            root, database, "odps_ddl", "partitions")
+  for database in databases:
+    if database == "report.html":
+      continue
+    create_table_stmt_dir = os.path.join(
+        root, database, "odps_ddl", "tables")
+    add_partition_stmt_dir = os.path.join(
+        root, database, "odps_ddl", "partitions")
 
-        create_table_stmt_files = os.listdir(create_table_stmt_dir)
-        add_partition_stmt_files = os.listdir(add_partition_stmt_dir)
+    if os.path.exists(create_table_stmt_dir):
+      create_table_stmt_files = os.listdir(create_table_stmt_dir)
+      for create_table_stmt_file in create_table_stmt_files:
+        file_path = os.path.join(
+            create_table_stmt_dir, create_table_stmt_file)
+        retry = 5
+        while retry > 0:
+          returncode = execute(
+              "%s -f %s" % (odpscmd_path, file_path), verbose=True)
+          if returncode == 0:
+            break
+          else:
+            print("INFO: execute %s failed, retrying..." % file_path)
+          retry -= 1
 
-        for create_table_stmt_file in create_table_stmt_files:
-            file_path = os.path.join(
-                create_table_stmt_dir, create_table_stmt_file)
-            retry = 5
-            while retry > 0:
-                returncode = execute(
-                    "%s -f %s" % (odpscmd_path, file_path), verbose=True)
-                if returncode == 0:
-                    break
-                else:
-                    print("INFO: execute %s failed, retrying..." % file_path)
-                retry -= 1
+        if retry == 0:
+          print("ERROR: execute %s  failed 5 times" % file_path)
 
-            if retry == 0:
-                print("ERROR: execute %s  failed 5 times" % file_path)
+    if os.path.exists(add_partition_stmt_dir):
+      add_partition_stmt_files = os.listdir(add_partition_stmt_dir)
+      for add_partition_stmt_file in add_partition_stmt_files:
+        file_path = os.path.join(
+            add_partition_stmt_dir, add_partition_stmt_file)
+        retry = 5
+        while retry > 0:
+          returncode = execute(
+              "%s -f %s" % (odpscmd_path, file_path), verbose=True)
+          if returncode == 0:
+            break
+          else:
+            print("INFO: execute %s failed, retrying..." % file_path)
+          retry -= 1
 
-        for add_partition_stmt_file in add_partition_stmt_files:
-            file_path = os.path.join(
-                add_partition_stmt_dir, add_partition_stmt_file)
-            retry = 5
-            while retry > 0:
-                returncode = execute(
-                    "%s -f %s" % (odpscmd_path, file_path), verbose=True)
-                if returncode == 0:
-                    break
-                else:
-                    print("INFO: execute %s failed, retrying..." % file_path)
-                retry -= 1
-
-            if retry == 0:
-                print("ERROR: execute %s failed 5 times" % file_path)
+        if retry == 0:
+          print("ERROR: execute %s failed 5 times" % file_path)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2 and len(sys.argv) != 3:
-        print('''
-            usage: 
-            python3 odps_ddl_runner.py <path to odps ddl> [path to odpscmd]''')
-        sys.exit(1)
+  parser = argparse.ArgumentParser(
+      description='Run ODPS DDL automatically.')
+  parser.add_argument(
+      "--input",
+      required=True,
+      help="path to directory generated by meta processor")
+  parser.add_argument(
+      "--odpscmd",
+      required=False,
+      help="path to odpscmd executable")
+  args = parser.parse_args()
 
-    root = sys.argv[1]
-    if len(sys.argv) == 2:
-        # get path to odpscmd
-        pwd = os.path.dirname(os.path.realpath(__file__))
-        odpscmd_path = os.path.join(
-            os.path.dirname(pwd), "res", "console", "bin", "odpscmd")
-        if not os.path.exists(odpscmd_path):
-            print("ERROR: cannot find odpscmd, please specify the path to odpscmd")
-    else:
-        odpscmd_path = sys.argv[2]
+  root = args.meta
+  if args.odpscmd is None:
+    # get path to odpscmd
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    odpscmd_path = os.path.join(
+        os.path.dirname(script_path), "res", "console", "bin", "odpscmd")
+    if not os.path.exists(odpscmd_path):
+      print("ERROR: cannot find odpscmd, please specify the path to odpscmd")
+  else:
+    odpscmd_path = args.odpscmd
 
-    main(root, odpscmd_path)
+  main(root, odpscmd_path)

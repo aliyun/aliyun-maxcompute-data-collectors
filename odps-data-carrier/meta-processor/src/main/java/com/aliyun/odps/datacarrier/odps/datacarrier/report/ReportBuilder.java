@@ -64,7 +64,7 @@ public class ReportBuilder {
         .head()
           .link().attrRel(EnumRelType.STYLESHEET)
                  .attrType(EnumTypeContentType.TEXT_CSS)
-                 .attrHref("style.css")
+                 .attrHref("res/style.css")
           .__()
         .__();
 

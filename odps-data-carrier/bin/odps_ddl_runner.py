@@ -119,7 +119,7 @@ if __name__ == '__main__':
       help="path to odpscmd executable")
   args = parser.parse_args()
 
-  root = args.meta
+  root = args.input
   if args.odpscmd is None:
     # get path to odpscmd
     script_path = os.path.dirname(os.path.realpath(__file__))

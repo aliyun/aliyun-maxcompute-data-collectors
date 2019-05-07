@@ -113,7 +113,7 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   # Get path to udtf jar & odps config
-  hive_sql_path = os.path.abspath(args.meta)
+  hive_sql_path = os.path.abspath(args.input)
   script_path = os.path.dirname(os.path.realpath(__file__))
   odps_data_carrier_path = os.path.dirname(script_path)
   os.chdir(odps_data_carrier_path)

@@ -44,7 +44,7 @@ import java.util.List;
  * The format of global.json is as follows:
  * {
  *   "datasourceType" : xxx,
- *   "odpsVersion" : "xxx",
+ *   "odpsVersion" : "ODPS_V1 or ODPS_V2",
  *   "hiveCompatible" : xxx
  * }
  *
@@ -98,7 +98,7 @@ import java.util.List;
 public class MetaManager {
   public static class GlobalMetaModel{
     public String datasourceType;
-    public String odpsVersion = "1.0";
+    public String odpsVersion = "ODPS_V2";
     public Boolean hiveCompatible = false;
   }
 

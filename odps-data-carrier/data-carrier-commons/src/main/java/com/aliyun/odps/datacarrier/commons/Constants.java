@@ -38,4 +38,15 @@ public class Constants {
      */
     MYSQL
   }
+
+  public enum ODPS_VERSION {
+    /**
+     * ODPS 1.0
+     */
+    ODPS_V1,
+    /**
+     * ODPS 2.0
+     */
+    ODPS_V2
+  }
 }

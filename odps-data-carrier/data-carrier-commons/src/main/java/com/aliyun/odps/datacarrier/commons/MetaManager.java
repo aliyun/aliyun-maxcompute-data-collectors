@@ -44,8 +44,14 @@ import java.util.List;
  * The format of global.json is as follows:
  * {
  *   "datasourceType" : xxx,
- *   "odpsVersion" : "xxx"
+ *   "odpsVersion" : "ODPS_V1 or ODPS_V2",
  *   "hiveCompatible" : xxx
+ * }
+ *
+ * The format of [database name].json is as follows:
+ * {
+ *   "databaseName" : xxx,
+ *   "odpsProjectName" : xxx
  * }
  *
  * The format of [table name].json is as follows:
@@ -92,7 +98,7 @@ import java.util.List;
 public class MetaManager {
   public static class GlobalMetaModel{
     public String datasourceType;
-    public String odpsVersion = "1.0";
+    public String odpsVersion = "ODPS_V2";
     public Boolean hiveCompatible = false;
   }
 
@@ -106,7 +112,7 @@ public class MetaManager {
     public String odpsTableName;
     public Integer lifeCycle;
     public String comment;
-    public Boolean ifNotExist = true;
+    public Boolean ifNotExists = true;
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }

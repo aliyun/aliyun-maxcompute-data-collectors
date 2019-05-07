@@ -21,4 +21,16 @@
       <artifactId>commons-io</artifactId>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <author>false</author>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

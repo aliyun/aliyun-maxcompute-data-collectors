@@ -47,27 +47,15 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
  */
 public class OdpsDataTransferUDTF extends GenericUDTF {
 
-  private ObjectInspector[] objectInspectors;
-  private Odps odps;
-  private TableTunnel tunnel;
-  private UploadSession uploadSession;
-  private RecordWriter recordWriter;
-  private String currentOdpsTableName;
-  private List<String> odpsColumnNames;
-  private List<String> odpsPartitionColumnNames;
-  private String currentOdpsPartitionSpec;
-
-  public OdpsDataTransferUDTF() throws IOException {
-    OdpsConfig odpsConfig = new OdpsConfig("res/console/conf/odps_config.ini");
-    AliyunAccount account = new AliyunAccount(odpsConfig.getAccessId(), odpsConfig.getAccessKey());
-    this.odps = new Odps(account);
-    this.odps.setDefaultProject(odpsConfig.getProjectName());
-    this.odps.setEndpoint(odpsConfig.getOdpsEndpoint());
-    this.tunnel = new TableTunnel(odps);
-    if (odpsConfig.getTunnelEndpoint() != null) {
-      this.tunnel.setEndpoint(odpsConfig.getTunnelEndpoint());
-    }
-  }
+  ObjectInspector[] objectInspectors;
+  Odps odps;
+  TableTunnel tunnel;
+  UploadSession uploadSession;
+  RecordWriter recordWriter;
+  String currentOdpsTableName;
+  List<String> odpsColumnNames;
+  List<String> odpsPartitionColumnNames;
+  String currentOdpsPartitionSpec;
 
   @Override
   public StructObjectInspector initialize(ObjectInspector[] args) throws UDFArgumentException {
@@ -80,6 +68,18 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
   @Override
   public void process(Object[] args) throws HiveException {
     try {
+      if(this.odps == null) {
+        OdpsConfig odpsConfig = new OdpsConfig("res/console/conf/odps_config.ini");
+        AliyunAccount account = new AliyunAccount(odpsConfig.getAccessId(), odpsConfig.getAccessKey());
+        this.odps = new Odps(account);
+        this.odps.setDefaultProject(odpsConfig.getProjectName());
+        this.odps.setEndpoint(odpsConfig.getOdpsEndpoint());
+        this.tunnel = new TableTunnel(odps);
+        if (odpsConfig.getTunnelEndpoint() != null) {
+          this.tunnel.setEndpoint(odpsConfig.getTunnelEndpoint());
+        }
+      }
+
       if (currentOdpsTableName == null) {
         StringObjectInspector soi0 = (StringObjectInspector) objectInspectors[0];
         StringObjectInspector soi1 = (StringObjectInspector) objectInspectors[1];

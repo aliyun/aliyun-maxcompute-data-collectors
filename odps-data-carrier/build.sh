@@ -1,8 +1,11 @@
 #!/bin/bash
-echo "building"
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cd $DIR
+
 mvn clean package
 
-mkdir odps-data-carrier
+mkdir -p odps-data-carrier
 
 mkdir -p odps-data-carrier/bin
 cp bin/* odps-data-carrier/bin/

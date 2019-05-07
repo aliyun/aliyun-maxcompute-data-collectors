@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.odps.datacarrier;
+package com.aliyun.odps.datacarrier.metaprocessor;
 
 import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
 import com.aliyun.odps.datacarrier.commons.MetaManager.ColumnMetaModel;

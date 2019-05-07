@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package com.aliyun.odps.datacarrier.odps.datacarrier;
+package com.aliyun.odps.datacarrier.metaprocessor;
 
 import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
+import com.aliyun.odps.datacarrier.commons.Constants.ODPS_VERSION;
 import com.aliyun.odps.datacarrier.commons.risk.Risk;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,6 @@ public class HiveTypeTransformer {
       "String in ODPS cannot exceed 8MB";
 
   //TODO: support odps1.0
-  // TODO: support hive.compatible
   /**
    * Numeric types
    */
@@ -76,7 +76,7 @@ public class HiveTypeTransformer {
   private static final String MAP = "MAP<(.+)>";
   private static final String STRUCT = "STRUCT<(.+)>";
 
-  public static TypeTransformResult toOdpsType(String hiveType, String odpsVersion,
+  public static TypeTransformResult toOdpsType(String hiveType, ODPS_VERSION odpsVersion,
       boolean hiveCompatible) {
     hiveType = hiveType.toUpperCase().trim();
 
@@ -104,7 +104,11 @@ public class HiveTypeTransformer {
           TIMESTAMP_INCOMPATIBILITY_REASON);
     } else if (hiveType.matches(DATE)) {
       // If odps version is 2.0 and hive.compatible is true, transformedType = DATE
-      transformedType = "DATETIME";
+      if (ODPS_VERSION.ODPS_V2.equals(odpsVersion) && hiveCompatible) {
+        transformedType = hiveType;
+      } else {
+        transformedType = "DATETIME";
+      }
     } else if (hiveType.matches(STRING)) {
       transformedType = "STRING";
       risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType, STRING_INCOMPATIBILITY_REASON);
@@ -114,10 +118,14 @@ public class HiveTypeTransformer {
       matcher.matches();
       transformedType = "VARCHAR" + matcher.group(1);
     } else if (hiveType.matches(CHAR)) {
-      Pattern pattern = Pattern.compile(CHAR);
-      Matcher matcher = pattern.matcher(hiveType);
-      matcher.matches();
-      transformedType = "STRING";
+      if (ODPS_VERSION.ODPS_V2.equals(odpsVersion) && hiveCompatible) {
+        transformedType = hiveType;
+      } else {
+        Pattern pattern = Pattern.compile(CHAR);
+        Matcher matcher = pattern.matcher(hiveType);
+        matcher.matches();
+        transformedType = "STRING";
+      }
     } else if (hiveType.matches(BOOLEAN)) {
       transformedType = "BOOLEAN";
     } else if (hiveType.matches(BINARY)) {

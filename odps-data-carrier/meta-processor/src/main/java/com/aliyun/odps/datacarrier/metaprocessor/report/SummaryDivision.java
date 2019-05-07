@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.aliyun.odps.datacarrier.odps.datacarrier.report;
+package com.aliyun.odps.datacarrier.metaprocessor.report;
 
 import htmlflow.HtmlView;
 import java.util.HashMap;

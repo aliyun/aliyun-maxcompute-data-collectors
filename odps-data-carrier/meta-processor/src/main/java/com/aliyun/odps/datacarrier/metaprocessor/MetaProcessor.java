@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.aliyun.odps.datacarrier.odps.datacarrier;
+package com.aliyun.odps.datacarrier.metaprocessor;
 
 import com.aliyun.odps.datacarrier.commons.GeneratedStatement;
 import com.aliyun.odps.datacarrier.commons.IntermediateDataManager;
@@ -29,7 +29,7 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.risk.Risk;
-import com.aliyun.odps.datacarrier.odps.datacarrier.report.ReportBuilder;
+import com.aliyun.odps.datacarrier.metaprocessor.report.ReportBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

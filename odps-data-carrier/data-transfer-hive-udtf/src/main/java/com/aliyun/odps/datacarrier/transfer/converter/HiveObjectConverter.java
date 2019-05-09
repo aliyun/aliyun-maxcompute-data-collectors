@@ -29,7 +29,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 
 public class HiveObjectConverter {
 
-
   private static HiveListObjectConverter hiveListObjectConverter = new HiveListObjectConverter();
   private static HiveMapObjectConverter hiveMapObjectConverter = new HiveMapObjectConverter();
   private static HiveStructObjectConverter hiveStructObjectConverter =
@@ -79,9 +78,7 @@ public class HiveObjectConverter {
             "Unsupported hive data type:" + primitiveObjectInspector.getPrimitiveCategory());
       }
       return hiveObjectConverter.convert(objectInspector, o, odpsTypeInfo);
-
     } else if (objectInspector.getCategory().equals(Category.LIST)) {
-
       return hiveListObjectConverter.convert(objectInspector, o, odpsTypeInfo);
     } else if (objectInspector.getCategory().equals(Category.MAP)) {
       return hiveMapObjectConverter.convert(objectInspector, o, odpsTypeInfo);

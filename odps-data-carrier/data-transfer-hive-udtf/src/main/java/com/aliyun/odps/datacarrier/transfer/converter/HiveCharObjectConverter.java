@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.datacarrier.transfer.converter;
 
+import com.aliyun.odps.data.Char;
 import com.aliyun.odps.type.TypeInfo;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveCharObjectInspector;
@@ -30,6 +31,6 @@ public class HiveCharObjectConverter extends AbstractHiveObjectConverter {
     // TODO: support hive.compatible (return a Char object)
     HiveCharObjectInspector hiveCharObjectInspector =
         (HiveCharObjectInspector) objectInspector;
-    return hiveCharObjectInspector.getPrimitiveJavaObject(o).getValue();
+    return new Char(hiveCharObjectInspector.getPrimitiveJavaObject(o).getValue());
   }
 }

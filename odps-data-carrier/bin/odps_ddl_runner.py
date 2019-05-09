@@ -58,7 +58,7 @@ def execute(cmd: str, verbose=False) -> int:
     return 1
 
 
-def main(root: str, odpscmd_path: str) -> None:
+def main(root: str, odpscmd_path: str, odps_config_path: str) -> None:
   databases = os.listdir(root)
 
   for database in databases:
@@ -76,8 +76,8 @@ def main(root: str, odpscmd_path: str) -> None:
             create_table_stmt_dir, create_table_stmt_file)
         retry = 5
         while retry > 0:
-          returncode = execute(
-              "%s -f %s" % (odpscmd_path, file_path), verbose=True)
+          returncode = execute("%s -f %s --config=%s" % (
+            odpscmd_path, file_path, odps_config_path), verbose=True)
           if returncode == 0:
             break
           else:
@@ -94,8 +94,8 @@ def main(root: str, odpscmd_path: str) -> None:
             add_partition_stmt_dir, add_partition_stmt_file)
         retry = 5
         while retry > 0:
-          returncode = execute(
-              "%s -f %s" % (odpscmd_path, file_path), verbose=True)
+          returncode = execute("%s -f %s --config=%s" % (
+            odpscmd_path, file_path, odps_config_path), verbose=True)
           if returncode == 0:
             break
           else:
@@ -120,9 +120,12 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   root = args.input
+  script_path = os.path.dirname(os.path.realpath(__file__))
+  odps_config_path = os.path.join(
+      os.path.dirname(script_path), "odps_config.ini")
+
   if args.odpscmd is None:
     # get path to odpscmd
-    script_path = os.path.dirname(os.path.realpath(__file__))
     odpscmd_path = os.path.join(
         os.path.dirname(script_path), "res", "console", "bin", "odpscmd")
     if not os.path.exists(odpscmd_path):
@@ -130,4 +133,4 @@ if __name__ == '__main__':
   else:
     odpscmd_path = args.odpscmd
 
-  main(root, odpscmd_path)
+  main(root, odpscmd_path, odps_config_path)

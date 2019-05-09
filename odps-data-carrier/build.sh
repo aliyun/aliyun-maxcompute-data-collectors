@@ -18,6 +18,8 @@ cp data-transfer-hive-udtf/target/*-jar-with-dependencies.jar odps-data-carrier/
 cp meta-carrier/target/*-jar-with-dependencies.jar odps-data-carrier/libs/
 cp meta-processor/target/*-jar-with-dependencies.jar odps-data-carrier/libs/
 
+cp odps_config.ini odps-data-carrier
+
 zip -r odps-data-carrier.zip odps-data-carrier
 
 rm -r odps-data-carrier

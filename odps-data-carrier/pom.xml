@@ -14,7 +14,6 @@
     <module>data-carrier-commons</module>
     <module>meta-processor</module>
     <module>data-transfer-hive-udtf</module>
-    <module>network-measurement-tool</module>
   </modules>
 
   <properties>
@@ -76,6 +75,17 @@
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
         <version>3.9</version>
+      </dependency>
+      <!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>4.5.8</version>
+      </dependency>
+      <dependency>
+        <groupId>me.tongfei</groupId>
+        <artifactId>progressbar</artifactId>
+        <version>0.7.3</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

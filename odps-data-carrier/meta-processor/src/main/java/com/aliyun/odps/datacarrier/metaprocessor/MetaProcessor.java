@@ -135,6 +135,7 @@ public class MetaProcessor {
     GeneratedStatement generatedStatement = new GeneratedStatement();
     StringBuilder ddlBuilder = new StringBuilder();
 
+    // Enable odps 2.0 data types
     ODPS_VERSION odpsVersion = ODPS_VERSION.valueOf(globalMeta.odpsVersion);
     if (ODPS_VERSION.ODPS_V2.equals(odpsVersion)) {
       ddlBuilder.append("set odps.sql.type.system.odps2=true;\n");

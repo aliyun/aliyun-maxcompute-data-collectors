@@ -26,8 +26,10 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
-import java.util.ArrayList;
 import java.util.List;
+import me.tongfei.progressbar.ProgressBar;
+import me.tongfei.progressbar.ProgressBarBuilder;
+import me.tongfei.progressbar.ProgressBarStyle;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -109,8 +111,16 @@ public class HiveMetaCarrier {
     metaManager.setGlobalMeta(globalMetaModel);
 
     List<String> databaseNames = hiveClient.getAllDatabases();
+    ProgressBarBuilder progressBarBuilder = new ProgressBarBuilder();
+    progressBarBuilder.setInitialMax(databaseNames.size());
+    progressBarBuilder.setStyle(ProgressBarStyle.ASCII);
+    ProgressBar progressBar = progressBarBuilder.build();
+
     // Iterate over databases
     for (String databaseName : databaseNames) {
+      // Update progress bar
+      progressBar.step();
+
       List<String> tableNames = hiveClient.getAllTables(databaseName);
       DatabaseMetaModel databaseMeta = new DatabaseMetaModel();
       databaseMeta.databaseName = databaseName;
@@ -119,6 +129,9 @@ public class HiveMetaCarrier {
 
       // Iterate over tables
       for (String tableName : tableNames) {
+        // Update progress bar extra message
+        progressBar.setExtraMessage("Working on " + databaseName + "." + tableName);
+
         TableMetaModel tableMetaModel = new TableMetaModel();
         TablePartitionMetaModel tablePartitionMetaModel = new TablePartitionMetaModel();
 
@@ -177,5 +190,7 @@ public class HiveMetaCarrier {
         }
       }
     }
+    progressBar.close();
+    hiveClient.close();
   }
 }

@@ -67,6 +67,13 @@ public class Risk {
     return new Risk(RISK_LEVEL.MODERATE, description);
   }
 
+  public static Risk getTableNameConflictRisk(String firstDatabaseName, String firstTableName,
+      String secondDatabaseName, String secondTableName) {
+    String description = "Table name conflict: " + firstDatabaseName + "." + firstTableName +
+        " is mapped to the same odps table as " + secondDatabaseName + "." + secondTableName;
+    return new Risk(RISK_LEVEL.HIGH, description);
+  }
+
   public static Risk getNoRisk() {
     return new Risk(RISK_LEVEL.LOW, null);
   }

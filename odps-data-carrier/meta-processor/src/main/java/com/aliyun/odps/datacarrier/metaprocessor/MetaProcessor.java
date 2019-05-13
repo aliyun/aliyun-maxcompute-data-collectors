@@ -30,12 +30,12 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.risk.Risk;
+import com.aliyun.odps.datacarrier.commons.risk.Risk.RISK_LEVEL;
 import com.aliyun.odps.datacarrier.metaprocessor.report.ReportBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -53,10 +53,11 @@ import org.apache.commons.cli.Options;
  */
 public class MetaProcessor {
   private MetaManager metaManager;
-  public Map<String, Set<String>> odpsProjectNameToTableNameSet;
+  private OdpsNameManager nameManager;
 
   public MetaProcessor(String metaPath) throws IOException {
     this.metaManager = new MetaManager(metaPath);
+    this.nameManager = new OdpsNameManager();
   }
 
   private void run(String outputPath) throws IOException {
@@ -129,11 +130,37 @@ public class MetaProcessor {
     return builder.toString();
   }
 
+  /**
+   * Get a map from hive table name to odps table name. Hive table names are like db_name.tb_name,
+   * and odps table names are like prj_name.tb_name.
+   *
+   * The returned map only contains tables that have been passed to getCreateTableStatement.
+   * @return a map from hive table name to odps table name
+   */
+  public Map<String, String> getHiveTableToOdpsTableMap() {
+    return nameManager.getHiveTableToOdpsTableMap();
+  }
+
+  /**
+   * Given hive meta, generate odps create table statement and risks when running the statement.
+   * @param globalMeta see {@link MetaManager}
+   * @param databaseMeta see {@link MetaManager}
+   * @param tableMeta see {@link MetaManager}
+   * @return see {@link GeneratedStatement}
+   */
   public GeneratedStatement getCreateTableStatement(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
     // TODO: check table name conflicts
     GeneratedStatement generatedStatement = new GeneratedStatement();
     StringBuilder ddlBuilder = new StringBuilder();
+
+    // Register to name manager, check if there is any conflict
+    Risk risk = nameManager.add(databaseMeta.databaseName, databaseMeta.odpsProjectName,
+        tableMeta.tableName, tableMeta.odpsTableName);
+    if (risk.getRiskLevel().equals(RISK_LEVEL.HIGH)) {
+      System.out.println("Conflict detected");
+    }
+    generatedStatement.setRisk(risk);
 
     // Enable odps 2.0 data types
     ODPS_VERSION odpsVersion = ODPS_VERSION.valueOf(globalMeta.odpsVersion);

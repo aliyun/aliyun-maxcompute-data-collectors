@@ -24,6 +24,7 @@ import com.aliyun.odps.datacarrier.commons.risk.Risk;
 import com.aliyun.odps.datacarrier.commons.risk.Risk.RISK_LEVEL;
 import htmlflow.HtmlView;
 import htmlflow.StaticHtml;
+import java.util.List;
 import org.xmlet.htmlapifaster.Body;
 import org.xmlet.htmlapifaster.EnumRelType;
 import org.xmlet.htmlapifaster.EnumTypeContentType;
@@ -43,7 +44,11 @@ public class ReportBuilder {
   }
 
   public void add(String hiveDatabaseName, String hiveTableName, GeneratedStatement statement) {
-    for (Risk risk : statement.getRisks()) {
+    add(hiveDatabaseName, hiveTableName, statement.getRisks());
+  }
+
+  public void add(String hiveDatabaseName, String hiveTableName, List<Risk> risks) {
+    for (Risk risk : risks) {
       if (risk.getRiskLevel().equals(RISK_LEVEL.HIGH)) {
         summaryDivision.addHighRisk(hiveDatabaseName);
         databaseDivision.addHighRisk(hiveDatabaseName, hiveTableName);

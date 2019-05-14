@@ -157,9 +157,6 @@ public class MetaProcessor {
     // Register to name manager, check if there is any conflict
     Risk risk = nameManager.add(databaseMeta.databaseName, databaseMeta.odpsProjectName,
         tableMeta.tableName, tableMeta.odpsTableName);
-    if (risk.getRiskLevel().equals(RISK_LEVEL.HIGH)) {
-      System.out.println("Conflict detected");
-    }
     generatedStatement.setRisk(risk);
 
     // Enable odps 2.0 data types

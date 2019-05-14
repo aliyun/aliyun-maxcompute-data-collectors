@@ -20,6 +20,7 @@
 package com.aliyun.odps.datacarrier.commons;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -126,5 +127,34 @@ public class IntermediateDataManager {
   public String getReport() throws IOException {
     Path filePath = Paths.get(this.root, REPROT);
     return DirUtils.readFromFile(filePath);
+  }
+
+  public String[] listDatabases() {
+    Path rootDir = Paths.get(this.root);
+    if (!Files.exists(rootDir)) {
+      return new String[0];
+    }
+    return DirUtils.listDirs(rootDir);
+  }
+
+  public String[] listTables(String databaseName) {
+    Path tableMetaDir = Paths.get(this.root, databaseName, ODPS_DDL_DIR, TABLE_META_DIR);
+    if (!Files.exists(tableMetaDir)) {
+      return new String[0];
+    }
+    String[] tableMetaFiles = DirUtils.listFiles(tableMetaDir);
+
+    // Remove .sql
+    for (int i = 0; i < tableMetaFiles.length; i++) {
+      String tableMetaFile = tableMetaFiles[i];
+      if (tableMetaFile.endsWith(SQL_SUFFIX)) {
+        tableMetaFiles[i] =
+            tableMetaFile.substring(0, tableMetaFile.length() - SQL_SUFFIX.length());
+      } else {
+        throw new IllegalArgumentException(
+            "Table meta directory contains invalid file: " + tableMetaFile);
+      }
+    }
+    return tableMetaFiles;
   }
 }

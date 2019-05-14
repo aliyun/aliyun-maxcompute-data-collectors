@@ -30,7 +30,6 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.risk.Risk;
-import com.aliyun.odps.datacarrier.commons.risk.Risk.RISK_LEVEL;
 import com.aliyun.odps.datacarrier.metaprocessor.report.ReportBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,82 +51,11 @@ import org.apache.commons.cli.Options;
  *
  */
 public class MetaProcessor {
-  private MetaManager metaManager;
   private OdpsNameManager nameManager;
 
-  public MetaProcessor(String metaPath) throws IOException {
-    this.metaManager = new MetaManager(metaPath);
+
+  public MetaProcessor() {
     this.nameManager = new OdpsNameManager();
-  }
-
-  private void run(String outputPath) throws IOException {
-    IntermediateDataManager intermediateDataDirManager =
-        new IntermediateDataManager(outputPath);
-    ReportBuilder reportBuilder = new ReportBuilder();
-
-    GlobalMetaModel globalMeta = metaManager.getGlobalMeta();
-    for (String databaseName : metaManager.listDatabases()) {
-      DatabaseMetaModel databaseMeta = metaManager.getDatabaseMeta(databaseName);
-
-      for (String tableName : metaManager.listTables(databaseName)) {
-        TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, tableName);
-
-        // Generate ODPS create table statements
-        GeneratedStatement createTableStatement =
-            getCreateTableStatement(globalMeta, databaseMeta, tableMeta);
-        String formattedCreateTableStatement =
-            getFormattedCreateTableStatement(databaseMeta, tableMeta, createTableStatement);
-        intermediateDataDirManager.setOdpsCreateTableStatement(databaseName, tableName,
-            formattedCreateTableStatement);
-        reportBuilder.add(databaseName, tableName, createTableStatement);
-
-        // Generate Hive UDTF SQL statements
-        String multiPartitionHiveUdtfSQL = getMultiPartitionHiveUdtfSQL(databaseMeta, tableMeta);
-        intermediateDataDirManager.setHiveUdtfSQLMultiPartition(
-            databaseName, tableName, multiPartitionHiveUdtfSQL);
-      }
-
-      for (String partitionTableName : metaManager.listPartitionTables(databaseName)) {
-        TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, partitionTableName);
-
-        // Generate ODPS add partition statements
-        List<GeneratedStatement> createPartitionStatements =
-            getCreatePartitionStatements(globalMeta, databaseMeta, tableMeta);
-        StringBuilder contentBuilder = new StringBuilder();
-        for (GeneratedStatement generatedStatement : createPartitionStatements) {
-          contentBuilder.append(generatedStatement.getStatement()).append("\n");
-        }
-        intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName, partitionTableName,
-            contentBuilder.toString());
-
-        // Generate Hive UDTF SQL statements
-        List<String> singlePartitionHiveUdtfSQL =
-            getSinglePartitionHiveUdtfSQL(databaseMeta, tableMeta);
-        intermediateDataDirManager.setHiveUdtfSQLSinglePartition(databaseName, partitionTableName,
-            String.join("\n", singlePartitionHiveUdtfSQL));
-      }
-    }
-
-    // Generate the report
-    intermediateDataDirManager.setReport(reportBuilder.build());
-  }
-
-  private String getFormattedCreateTableStatement(DatabaseMetaModel databaseMeta,
-      TableMetaModel tableMeta, GeneratedStatement generatedStatement) {
-    StringBuilder builder = new StringBuilder();
-    String odpsProjectName = databaseMeta.odpsProjectName;
-    String odpsTableName = tableMeta.odpsTableName;
-    builder.append("--********************************************************************--\n")
-        .append("--project name: ").append(odpsProjectName).append("\n")
-        .append("--table name: ").append(odpsTableName).append("\n")
-        .append("--risk level: ").append(generatedStatement.getRiskLevel()).append("\n")
-        .append("--risks: \n");
-    for (Risk risk : generatedStatement.getRisks()) {
-      builder.append("----").append(risk.getDescription()).append("\n");
-    }
-    builder.append("--********************************************************************--\n");
-    builder.append(generatedStatement.getStatement());
-    return builder.toString();
   }
 
   /**
@@ -150,7 +78,6 @@ public class MetaProcessor {
    */
   public GeneratedStatement getCreateTableStatement(GlobalMetaModel globalMeta,
       DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) {
-    // TODO: check table name conflicts
     GeneratedStatement generatedStatement = new GeneratedStatement();
     StringBuilder ddlBuilder = new StringBuilder();
 
@@ -235,8 +162,83 @@ public class MetaProcessor {
     return generatedStatement;
   }
 
+  private void run(String inputPath, String outputPath) throws IOException {
+    MetaManager metaManager = new MetaManager(inputPath);
+
+    IntermediateDataManager intermediateDataDirManager =
+        new IntermediateDataManager(outputPath);
+    ReportBuilder reportBuilder = new ReportBuilder();
+
+    GlobalMetaModel globalMeta = metaManager.getGlobalMeta();
+    for (String databaseName : metaManager.listDatabases()) {
+      DatabaseMetaModel databaseMeta = metaManager.getDatabaseMeta(databaseName);
+
+      for (String tableName : metaManager.listTables(databaseName)) {
+        TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, tableName);
+
+        // Generate ODPS create table statements
+        GeneratedStatement createTableStatement =
+            getCreateTableStatement(globalMeta, databaseMeta, tableMeta);
+        String formattedCreateTableStatement =
+            getFormattedCreateTableStatement(databaseMeta, tableMeta, createTableStatement);
+        intermediateDataDirManager.setOdpsCreateTableStatement(databaseName, tableName,
+            formattedCreateTableStatement);
+        reportBuilder.add(databaseName, tableName, createTableStatement);
+
+        // Generate Hive UDTF SQL statements
+        String multiPartitionHiveUdtfSQL = getMultiPartitionHiveUdtfSQL(databaseMeta, tableMeta);
+        intermediateDataDirManager.setHiveUdtfSQLMultiPartition(
+            databaseName, tableName, multiPartitionHiveUdtfSQL);
+      }
+
+      for (String partitionTableName : metaManager.listPartitionTables(databaseName)) {
+        TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, partitionTableName);
+        TablePartitionMetaModel tablePartitionMeta =
+            metaManager.getTablePartitionMeta(databaseName, partitionTableName);
+
+        // Generate ODPS add partition statements
+        List<GeneratedStatement> createPartitionStatements =
+            getCreatePartitionStatements(globalMeta, databaseMeta, tableMeta, tablePartitionMeta);
+        StringBuilder contentBuilder = new StringBuilder();
+        for (GeneratedStatement generatedStatement : createPartitionStatements) {
+          contentBuilder.append(generatedStatement.getStatement()).append("\n");
+        }
+        intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName, partitionTableName,
+            contentBuilder.toString());
+
+        // Generate Hive UDTF SQL statements
+        List<String> singlePartitionHiveUdtfSQL =
+            getSinglePartitionHiveUdtfSQL(databaseMeta, tableMeta, tablePartitionMeta);
+        intermediateDataDirManager.setHiveUdtfSQLSinglePartition(databaseName, partitionTableName,
+            String.join("\n", singlePartitionHiveUdtfSQL));
+      }
+    }
+
+    // Generate the report
+    intermediateDataDirManager.setReport(reportBuilder.build());
+  }
+
+  private String getFormattedCreateTableStatement(DatabaseMetaModel databaseMeta,
+      TableMetaModel tableMeta, GeneratedStatement generatedStatement) {
+    StringBuilder builder = new StringBuilder();
+    String odpsProjectName = databaseMeta.odpsProjectName;
+    String odpsTableName = tableMeta.odpsTableName;
+    builder.append("--********************************************************************--\n")
+        .append("--project name: ").append(odpsProjectName).append("\n")
+        .append("--table name: ").append(odpsTableName).append("\n")
+        .append("--risk level: ").append(generatedStatement.getRiskLevel()).append("\n")
+        .append("--risks: \n");
+    for (Risk risk : generatedStatement.getRisks()) {
+      builder.append("----").append(risk.getDescription()).append("\n");
+    }
+    builder.append("--********************************************************************--\n");
+    builder.append(generatedStatement.getStatement());
+    return builder.toString();
+  }
+
   private List<GeneratedStatement> getCreatePartitionStatements(GlobalMetaModel globalMeta,
-      DatabaseMetaModel databaseMeta, TableMetaModel tableMeta) throws IOException{
+      DatabaseMetaModel databaseMeta, TableMetaModel tableMeta,
+      TablePartitionMetaModel tablePartitionMeta) {
     List<GeneratedStatement> createPartitionStatements = new ArrayList<>();
 
     ODPS_VERSION odpsVersion = ODPS_VERSION.valueOf(globalMeta.odpsVersion);
@@ -246,8 +248,6 @@ public class MetaProcessor {
       createPartitionStatements.add(setStatement);
     }
 
-    TablePartitionMetaModel tablePartitionMeta =
-        metaManager.getTablePartitionMeta(databaseMeta.databaseName, tableMeta.tableName);
     for (PartitionMetaModel partitionMeta : tablePartitionMeta.partitions) {
       GeneratedStatement createPartitionStatement = new GeneratedStatement();
       StringBuilder ddlBuilder = new StringBuilder();
@@ -265,10 +265,7 @@ public class MetaProcessor {
   }
 
   private List<String> getSinglePartitionHiveUdtfSQL(DatabaseMetaModel databaseMeta,
-      TableMetaModel tableMeta) throws IOException {
-    TablePartitionMetaModel tablePartitionMeta =
-        metaManager.getTablePartitionMeta(databaseMeta.databaseName, tableMeta.tableName);
-
+      TableMetaModel tableMeta, TablePartitionMetaModel tablePartitionMeta) {
     List<String> hiveSQLList = new ArrayList<>();
 
     for (PartitionMetaModel partitionMeta : tablePartitionMeta.partitions) {
@@ -368,8 +365,8 @@ public class MetaProcessor {
     CommandLine cmd = parser.parse(options, args);
 
     if (cmd.hasOption("input-dir") && cmd.hasOption("output-dir") && !cmd.hasOption("help")) {
-      MetaProcessor metaProcessor = new MetaProcessor(cmd.getOptionValue("input-dir"));
-      metaProcessor.run(cmd.getOptionValue("output-dir"));
+      MetaProcessor metaProcessor = new MetaProcessor();
+      metaProcessor.run(cmd.getOptionValue("input-dir"), cmd.getOptionValue("output-dir"));
     } else {
         HelpFormatter formatter = new HelpFormatter();
         String cmdLineSyntax =

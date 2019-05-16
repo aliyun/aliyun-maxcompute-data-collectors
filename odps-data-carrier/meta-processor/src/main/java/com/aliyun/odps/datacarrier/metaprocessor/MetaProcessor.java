@@ -44,15 +44,9 @@ import org.apache.commons.cli.Options;
 
 /**
  * @author: jon (wangzhong.zw@alibaba-inc.com)
- *
- * usage:
- * java -cp /path/to/jar com.aliyun.odps.datacarrier.odps.MetaProcessor [meta directory path]
- * [result directory path]
- *
  */
 public class MetaProcessor {
   private OdpsNameManager nameManager;
-
 
   public MetaProcessor() {
     this.nameManager = new OdpsNameManager();

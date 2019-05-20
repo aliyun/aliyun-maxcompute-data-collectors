@@ -17,6 +17,7 @@ mkdir -p odps-data-carrier/libs
 cp data-transfer-hive-udtf/target/*-jar-with-dependencies.jar odps-data-carrier/libs/
 cp meta-carrier/target/*-jar-with-dependencies.jar odps-data-carrier/libs/
 cp meta-processor/target/*-jar-with-dependencies.jar odps-data-carrier/libs/
+cp network-measurement-tool/target/*-jar-with-dependencies.jar odps-data-carrier/libs/
 cp odps-sql-migration-tool-wrapper/target/odps-sql-migration-tool-wrapper-1.0-SNAPSHOT.jar odps-data-carrier/libs/
 
 cp odps_config.ini odps-data-carrier

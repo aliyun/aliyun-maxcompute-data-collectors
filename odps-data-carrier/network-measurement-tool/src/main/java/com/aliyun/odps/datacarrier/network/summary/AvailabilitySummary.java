@@ -32,6 +32,6 @@ public class AvailabilitySummary extends AbstractSummary {
     System.out.println("------------------------------------------------------------------------");
     System.out.println("  ENDPOINT: " + this.endpoint.toString());
     System.out.println("  AVAILABILITY: " + this.available);
-    System.out.println("  ELAPSED TIME: " + this.elapsedTime);
+    System.out.println("  ELAPSED TIME (ms): " + this.elapsedTime);
   }
 }

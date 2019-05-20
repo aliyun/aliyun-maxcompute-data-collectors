@@ -19,6 +19,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class AvailabilityTester {
+  private static final int MAX_RETRY = 5;
+  private static final int NUM_THREAD = 16;
+  private static final int CONN_TIMEOUT = 5 * 1000;
+
   private static final Logger logger = LogManager.getLogger();
 
   public AvailabilitySummary test(Endpoint endpoint) {
@@ -32,13 +36,11 @@ public class AvailabilityTester {
       callList.add(call);
     }
 
-    ExecutorService pool = Executors.newFixedThreadPool(16);
+    ExecutorService pool = Executors.newFixedThreadPool(NUM_THREAD);
     List<AvailabilitySummary> summaries = new ArrayList<>();
     try {
       List<Future<AvailabilitySummary>> futures = pool.invokeAll(callList);
-      for (int i = 0; i < futures.size(); i++) {
-        Future<AvailabilitySummary> future = futures.get(i);
-        Endpoint endpoint = endpoints.get(i);
+      for (Future<AvailabilitySummary> future : futures) {
         AvailabilitySummary summary = future.get();
         summaries.add(summary);
       }
@@ -49,7 +51,6 @@ public class AvailabilityTester {
     }
 
     pool.shutdown();
-
     return summaries;
   }
 
@@ -58,9 +59,9 @@ public class AvailabilityTester {
 
     // Equals 'curl http://odps.endpoint', timeout is 10 seconds
     HttpGet httpGet = new HttpGet(endpoint.getOdpsEndpoint());
-    CloseableHttpClient client = getHttpClient(10 * 1000);
+    CloseableHttpClient client = getHttpClient(CONN_TIMEOUT);
 
-    int retry = 5;
+    int retry = MAX_RETRY;
     while (retry > 0) {
       try {
         StopWatch stopWatch = StopWatch.createStarted();
@@ -77,8 +78,12 @@ public class AvailabilityTester {
         retry -= 1;
       }
     }
-    logger.debug("Connect to " + endpoint.getNetwork() + "-" + endpoint.getLocation() +
-        " failed");
+    if (retry == 0) {
+      logger.debug("Connect to " + endpoint.getNetwork() + "-" + endpoint.getLocation() +
+          " failed");
+      summary.setAvailable(false);
+      summary.setElapsedTime(Long.MAX_VALUE);
+    }
     return summary;
   }
 

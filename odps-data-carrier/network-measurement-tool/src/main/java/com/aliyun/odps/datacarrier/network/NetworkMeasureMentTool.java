@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class NetworkMeasureMentTool {
-  private static final Logger logger = LogManager.getLogger();
 
   private static void findAvailableEndpoint() {
     AvailabilityTester tester = new AvailabilityTester();
@@ -56,24 +55,14 @@ public class NetworkMeasureMentTool {
     }
   }
 
-  private static void testSingleThreadPerformance(Endpoint endpoint, String project,
-      String accessId, String accessKey) throws OdpsException, IOException {
+  private static void testPerformance(Endpoint endpoint, String project,
+      String accessId, String accessKey, int numThread) {
     PerformanceTester tester = new PerformanceTester(project, accessId, accessKey);
-    PerformanceSummary summary = tester.test(endpoint);
+    PerformanceSummary summary = tester.test(endpoint, numThread);
     summary.print();
   }
 
-  private static void testMultiThreadPerformance(Endpoint endpoint, String project,
-      String accessId, String accessKey) throws OdpsException, IOException {
-    ;
-  }
-
   public static void main(String[] args) throws ParseException, OdpsException, IOException {
-    // 1. travers all the endpoint and find available ones
-    // 2. test single-threaded upload/download speed of a specific endpoint
-    // 3. test multi-threaded upload/download speed of a specific endpoint
-
-    // 1.
     Options options = buildOptions();
 
     CommandLineParser parser = new DefaultParser();
@@ -83,10 +72,10 @@ public class NetworkMeasureMentTool {
       HelpFormatter formatter = new HelpFormatter();
       String cmdLineSyntax = "network-measure-tool --mode FIND|TEST";
       formatter.printHelp(cmdLineSyntax, options);
+      return;
     }
 
     String modeValue = cmd.getOptionValue("mode");
-    System.out.println(modeValue);
     if ("FIND".equalsIgnoreCase(modeValue)) {
       findAvailableEndpoint();
     } else if ("TEST".equalsIgnoreCase(modeValue)) {
@@ -100,13 +89,16 @@ public class NetworkMeasureMentTool {
       Endpoint endpointObj =
           new Endpoint(endpointValue, tunnelEndpointValue, null, null);
 
-      if (numThreadValue == null || Integer.parseInt(numThreadValue) == 1) {
-        testSingleThreadPerformance(endpointObj, projectValue, accessIdValue, accessKeyValue);
-      } else if (Integer.parseInt(numThreadValue) > 1) {
-        testMultiThreadPerformance(endpointObj, projectValue, accessIdValue, accessKeyValue);
+      int numThread;
+      if (numThreadValue == null) {
+        numThread = 1;
       } else {
+        numThread = Integer.parseInt(numThreadValue);
+      }
+      if (numThread <= 0) {
         throw new IllegalArgumentException("Invalid number of thread: " + numThreadValue);
       }
+      testPerformance(endpointObj, projectValue, accessIdValue, accessKeyValue, numThread);
     } else {
       throw new IllegalArgumentException("Invalid mode: " + modeValue);
     }

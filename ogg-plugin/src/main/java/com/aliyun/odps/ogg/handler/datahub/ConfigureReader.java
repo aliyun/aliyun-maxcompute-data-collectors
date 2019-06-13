@@ -112,6 +112,11 @@ public class ConfigureReader {
         }
         configure.setSid(elementText);
 
+        elementText = root.elementTextTrim("storageCtimeColumnAsTimestamp");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setStorageCtimeColumnAsTimestamp(Boolean.parseBoolean(elementText));
+        }
+
         String defaultOracleSchema = element.elementTextTrim("schema");
 
         SimpleDateFormat defaultSimpleDateFormat;
@@ -145,7 +150,11 @@ public class ConfigureReader {
         Field defaultCTimeField = null;
         String defaultCTimeColumn = element.elementText("ctimeColumn");
         if (StringUtils.isNotBlank(defaultCTimeColumn)) {
-            defaultCTimeField = new Field(defaultCTimeColumn, FieldType.STRING);
+            if (configure.isStorageCtimeColumnAsTimestamp()) {
+                defaultCTimeField = new Field(defaultCTimeColumn, FieldType.TIMESTAMP);
+            } else {
+                defaultCTimeField = new Field(defaultCTimeColumn, FieldType.STRING);
+            }
         }
         Field defaultCidField = null;
         String defaultCidColumn = element.elementText("cidColumn");
@@ -246,9 +255,15 @@ public class ConfigureReader {
             tableMapping.setCtypeField(StringUtils.isNotBlank(ctypeColumn) ?
                 new Field(ctypeColumn, FieldType.STRING) :
                 defaultCTypeField);
-            tableMapping.setCtimeField(StringUtils.isNotBlank(ctimeColumn) ?
-                new Field(ctimeColumn, FieldType.STRING) :
-                defaultCTimeField);
+            if (configure.isStorageCtimeColumnAsTimestamp()) {
+                tableMapping.setCtimeField(StringUtils.isNotBlank(ctimeColumn) ?
+                        new Field(ctimeColumn, FieldType.TIMESTAMP) :
+                        defaultCTimeField);
+            } else {
+                tableMapping.setCtimeField(StringUtils.isNotBlank(ctimeColumn) ?
+                        new Field(ctimeColumn, FieldType.STRING) :
+                        defaultCTimeField);
+            }
             tableMapping.setCidField(StringUtils.isNotBlank(cidColumn) ?
                 new Field(cidColumn, FieldType.STRING) :
                 defaultCidField);

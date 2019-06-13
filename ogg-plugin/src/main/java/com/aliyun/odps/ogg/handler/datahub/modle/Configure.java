@@ -47,6 +47,8 @@ public class Configure {
 
     private boolean isCheckPointFileDisable = false;
 
+    private boolean isStorageCtimeAsTimestamp = false;
+
     public String getSid() {
         return sid;
     }
@@ -137,5 +139,13 @@ public class Configure {
 
     public boolean isCheckPointFileDisabled() {
         return isCheckPointFileDisable;
+    }
+
+    public void setStorageCtimeColumnAsTimestamp(boolean enable) {
+        isStorageCtimeAsTimestamp = enable;
+    }
+
+    public boolean isStorageCtimeColumnAsTimestamp() {
+        return isStorageCtimeAsTimestamp;
     }
 }

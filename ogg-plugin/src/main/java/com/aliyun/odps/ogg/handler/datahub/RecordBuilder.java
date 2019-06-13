@@ -133,9 +133,14 @@ public class RecordBuilder {
         RecordUtil.setFieldValue(recordEntry, tableMapping.getCtypeField(),
             false, opType, false, null, true);
 
-        // 毫秒的string写入变更时间
-        RecordUtil.setFieldValue(recordEntry, tableMapping.getCtimeField(),
-            false, op.getTimestamp(), false, null, true);
+        if (configure.isStorageCtimeColumnAsTimestamp()) {
+            RecordUtil.setFieldValue(recordEntry, tableMapping.getCtimeField(),
+                    false, op.getTimestamp(), true, DEFAULT_DATE_FORMATTER, true);
+        } else {
+            // 毫秒的string写入变更时间
+            RecordUtil.setFieldValue(recordEntry, tableMapping.getCtimeField(),
+                    false, op.getTimestamp(), false, null, true);
+        }
 
         // 写入变更序号
         RecordUtil.setFieldValue(recordEntry, tableMapping.getCidField(), false,

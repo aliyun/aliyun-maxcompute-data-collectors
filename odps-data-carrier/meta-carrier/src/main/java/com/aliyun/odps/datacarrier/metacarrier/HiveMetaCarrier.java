@@ -40,7 +40,6 @@ import org.apache.commons.cli.Options;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Partition;
@@ -120,18 +119,10 @@ public class HiveMetaCarrier {
       partitionMetaModel.location = partition.getSd().getLocation();
       // Generate partition specifications
       List<String> partitionValues = partition.getValues();
-      StringBuilder partitionSpecBuilder = new StringBuilder();
       for (int i = 0; i < partitionColumns.size(); i++) {
-        partitionSpecBuilder
-            .append(partitionColumns.get(i).getName())
-            .append("=\'")
-            .append(partitionValues.get(i))
-            .append("\'");
-        if (i != partitionColumns.size() - 1) {
-          partitionSpecBuilder.append(",");
-        }
+        partitionMetaModel.partitionSpec.put(
+            partitionColumns.get(i).getName(), partitionValues.get(i));
       }
-      partitionMetaModel.partitionSpec = partitionSpecBuilder.toString();
       tablePartitionMeta.partitions.add(partitionMetaModel);
     }
 

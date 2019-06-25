@@ -25,7 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
@@ -125,7 +127,7 @@ public class MetaManager {
   }
 
   public static class PartitionMetaModel {
-    public String partitionSpec;
+    public Map<String, String> partitionSpec = new HashMap<>();
     public String location;
     public String createTime;
   }

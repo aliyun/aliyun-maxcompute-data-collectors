@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 /**
  * IntermediateDataManager reads/writes report/odps ddl/hive sql from/to a directory. The
@@ -99,10 +100,12 @@ public class IntermediateDataManager {
   }
 
   public void setHiveUdtfSQLSinglePartition(String databaseName, String tableName,
-      String content) throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, HIVE_UDTF_DIR, SINGLE_PARTITION_DIR,
-        tableName + SQL_SUFFIX);
-    DirUtils.writeToFile(filePath, content);
+      List<String> content) throws IOException {
+    for (int i = 0; i < content.size(); i++) {
+      Path filePath = Paths.get(this.root, databaseName, HIVE_UDTF_DIR, SINGLE_PARTITION_DIR,
+          tableName + "_" + i + SQL_SUFFIX);
+      DirUtils.writeToFile(filePath, content.get(i));
+    }
   }
 
   public String getHiveUdtfSQLMultiPartition(String databaseName, String tableName)

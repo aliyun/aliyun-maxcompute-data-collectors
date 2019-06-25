@@ -204,7 +204,7 @@ public class MetaProcessor {
         List<String> singlePartitionHiveUdtfSQL =
             getSinglePartitionHiveUdtfSQL(databaseMeta, tableMeta, tablePartitionMeta);
         intermediateDataDirManager.setHiveUdtfSQLSinglePartition(databaseName, partitionTableName,
-            String.join("\n", singlePartitionHiveUdtfSQL));
+            singlePartitionHiveUdtfSQL);
       }
     }
 
@@ -249,8 +249,10 @@ public class MetaProcessor {
 
       String odpsProjectName = databaseMeta.odpsProjectName;
       String odpsTableName = tableMeta.odpsTableName;
+      String odpsPartitionSpec =
+          getOdpsPartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec);
       ddlBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("` ");
-      ddlBuilder.append("ADD PARTITION (").append(partitionMeta.partitionSpec).append(");\n");
+      ddlBuilder.append("ADD PARTITION (").append(odpsPartitionSpec).append(");\n");
 
       createPartitionStatement.setStatement(ddlBuilder.toString());
       createPartitionStatements.add(createPartitionStatement);
@@ -270,11 +272,15 @@ public class MetaProcessor {
         odpsColumnNames.add(columnMeta.odpsColumnName);
         hiveColumnNames.add(columnMeta.columnName);
       }
+      String hivePartitionSpec =
+          getHivePartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec);
+      String odpsPartitionSpec =
+          getOdpsPartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec);
 
       StringBuilder hiveUdtfSQLBuilder = new StringBuilder();
       hiveUdtfSQLBuilder.append("SELECT odps_data_dump_single(\n")
           .append("\'").append(odpsTableName).append("\',\n")
-          .append("\'").append(partitionMeta.partitionSpec).append("\',\n")
+          .append("\'").append(odpsPartitionSpec).append("\',\n")
           .append("\'").append(String.join(",", odpsColumnNames)).append("\',\n");
       for (int i = 0; i < hiveColumnNames.size(); i++) {
         hiveUdtfSQLBuilder.append("`").append(hiveColumnNames.get(i)).append("`");
@@ -286,11 +292,52 @@ public class MetaProcessor {
       }
       hiveUdtfSQLBuilder.append("FROM ")
           .append(databaseMeta.databaseName).append(".`").append(tableMeta.tableName).append("`\n")
-          .append("WHERE ").append(partitionMeta.partitionSpec).append(";\n");
+          .append("WHERE ").append(hivePartitionSpec).append(";\n");
       hiveSQLList.add(hiveUdtfSQLBuilder.toString());
     }
 
     return hiveSQLList;
+  }
+
+  private String getHivePartitionSpec(List<ColumnMetaModel> partitionColumns,
+      Map<String, String> hivePartitionSpec) {
+    StringBuilder hivePartitionSpecBuilder = new StringBuilder();
+
+    for (int i = 0; i < partitionColumns.size(); i++) {
+      ColumnMetaModel partitionColumn = partitionColumns.get(i);
+      String partitionValue = hivePartitionSpec.get(partitionColumn.columnName);
+
+      hivePartitionSpecBuilder
+          .append(partitionColumn.columnName)
+          .append("=")
+          .append("\'").append(partitionValue).append("\'");
+
+      if (i != partitionColumns.size() - 1) {
+        hivePartitionSpecBuilder.append(" AND ");
+      }
+    }
+
+    return hivePartitionSpecBuilder.toString();
+  }
+
+  private String getOdpsPartitionSpec(List<ColumnMetaModel> partitionColumns,
+      Map<String, String> hivePartitionSpec) {
+    StringBuilder odpsPartitionSpecBuilder = new StringBuilder();
+
+    for (int i = 0; i < partitionColumns.size(); i++) {
+      ColumnMetaModel partitionColumn = partitionColumns.get(i);
+      String partitionValue = hivePartitionSpec.get(partitionColumn.columnName);
+
+      odpsPartitionSpecBuilder
+          .append(partitionColumn.odpsColumnName)
+          .append("=")
+          .append(partitionValue);
+      if (i != partitionColumns.size() - 1) {
+        odpsPartitionSpecBuilder.append(",");
+      }
+    }
+
+    return odpsPartitionSpecBuilder.toString();
   }
 
   private String getMultiPartitionHiveUdtfSQL(DatabaseMetaModel databaseMeta,

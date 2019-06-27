@@ -55,27 +55,28 @@ def execute(cmd: str, verbose=False) -> int:
     return 1
 
 def get_runnable_hive_sql(file_path: str, udtf_resource_path: str,
-    odps_config_path: str) -> str:
+    odps_config_path: str, enforce_mr: bool) -> str:
   with open(file_path) as fd:
     hive_sql = fd.read()
 
-  hive_sql = hive_sql.replace(
-      "\n", " ")
-  hive_sql = hive_sql.replace(
-      "`", "")
-  hive_sql = (
-      "add jar %s;" % udtf_resource_path +
-      "add file %s;" % odps_config_path +
-      "create temporary function %s as '%s';" % (
-        temp_func_name_multi, class_name_multi) +
-      "create temporary function %s as '%s';" % (
-        temp_func_name_single, class_name_single) +
-      hive_sql)
+  hive_sql = hive_sql.replace("\n", " ")
+  hive_sql = hive_sql.replace("`", "")
 
-  return hive_sql
+  hive_sql_list = []
+  hive_sql_list.append("add jar %s;" % udtf_resource_path)
+  hive_sql_list.append("add file %s;" % odps_config_path)
+  hive_sql_list.append("create temporary function %s as '%s';" % (
+    temp_func_name_multi, class_name_multi))
+  hive_sql_list.append("create temporary function %s as '%s';" % (
+    temp_func_name_single, class_name_single))
+  if (enforce_mr):
+    hive_sql_list.append("set hive.fetch.task.conversion=none;")
+  hive_sql_list.append(hive_sql)
+
+  return " ".join(hive_sql_list)
 
 def run_all(root: str, udtf_resource_path: str,
-    odps_config_path: str) -> None:
+    odps_config_path: str, enforce_mr: bool) -> None:
   databases = os.listdir(root)
 
   for database in databases:
@@ -93,7 +94,7 @@ def run_all(root: str, udtf_resource_path: str,
           hive_multi_partition_sql_dir, hive_multi_partition_sql_file)
 
       hive_multi_partition_sql = get_runnable_hive_sql(
-          file_path, udtf_resource_path, odps_config_path)
+          file_path, udtf_resource_path, odps_config_path, enforce_mr)
 
       retry = 5
       while retry > 0:
@@ -109,9 +110,12 @@ def run_all(root: str, udtf_resource_path: str,
         print("ERROR: execute %s failed 5 times" % file_path)
 
 def run_single_file(hive_single_partition_sql_path: str,
-    udtf_resource_path: str, odps_config_path: str) -> None:
+    udtf_resource_path: str, odps_config_path: str, enforce_mr: bool) -> None:
   hive_single_partition_sql = get_runnable_hive_sql(
-      hive_single_partition_sql_path, udtf_resource_path, odps_config_path)
+      hive_single_partition_sql_path,
+      udtf_resource_path,
+      odps_config_path,
+      enforce_mr)
 
   retry = 5
   while retry > 0:
@@ -139,6 +143,12 @@ if __name__ == '__main__':
       "--input_single_file",
       required=False,
       help="path to a single sql file")
+  parser.add_argument(
+      "--enforce_mr",
+      required=False,
+      help="force the Hive SQL to execute as a map reduce job",
+      action='store_true')
+  parser.set_defaults(enforce_mr=False)
   args = parser.parse_args()
 
   # Get path to udtf jar & odps config
@@ -166,9 +176,9 @@ if __name__ == '__main__':
     sys.exit(1)
 
   if args.input_single_file is not None:
-    run_single_file(args.input_single_file, udtf_path, odps_config_path)
+    run_single_file(args.input_single_file, udtf_path, odps_config_path, args.enforce_mr)
   elif args.input_all is not None:
-    run_all(args.input_all, udtf_path, odps_config_path)
+    run_all(args.input_all, udtf_path, odps_config_path, args.enforce_mr)
   else:
     print("ERROR: please specify --input_all or --input_single_file")
     sys.exit(1)

@@ -20,6 +20,7 @@
 
   <properties>
     <odps.sdk.version>0.30.9-public</odps.sdk.version>
+    <hive.version>2.1.1</hive.version>
   </properties>
 
   <dependencyManagement>
@@ -27,7 +28,12 @@
       <dependency>
         <groupId>org.apache.hive</groupId>
         <artifactId>hive-metastore</artifactId>
-        <version>2.1.0</version>
+        <version>${hive.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hive</groupId>
+        <artifactId>hive-exec</artifactId>
+        <version>${hive.version}</version>
       </dependency>
       <!--  Gson: Java to Json conversion -->
       <dependency>
@@ -57,11 +63,6 @@
         <groupId>commons-io</groupId>
         <artifactId>commons-io</artifactId>
         <version>2.6</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.hive</groupId>
-        <artifactId>hive-exec</artifactId>
-        <version>0.13.0</version>
       </dependency>
       <dependency>
         <groupId>com.github.xmlet</groupId>

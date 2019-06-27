@@ -250,7 +250,7 @@ public class MetaProcessor {
       String odpsProjectName = databaseMeta.odpsProjectName;
       String odpsTableName = tableMeta.odpsTableName;
       String odpsPartitionSpec =
-          getOdpsPartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec);
+          getOdpsPartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec, false);
       ddlBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("` ");
       ddlBuilder.append("ADD PARTITION (").append(odpsPartitionSpec).append(");\n");
 
@@ -275,7 +275,7 @@ public class MetaProcessor {
       String hivePartitionSpec =
           getHivePartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec);
       String odpsPartitionSpec =
-          getOdpsPartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec);
+          getOdpsPartitionSpec(tableMeta.partitionColumns, partitionMeta.partitionSpec, true);
 
       StringBuilder hiveUdtfSQLBuilder = new StringBuilder();
       hiveUdtfSQLBuilder.append("SELECT odps_data_dump_single(\n")
@@ -321,7 +321,7 @@ public class MetaProcessor {
   }
 
   private String getOdpsPartitionSpec(List<ColumnMetaModel> partitionColumns,
-      Map<String, String> hivePartitionSpec) {
+      Map<String, String> hivePartitionSpec, boolean escape) {
     StringBuilder odpsPartitionSpecBuilder = new StringBuilder();
 
     for (int i = 0; i < partitionColumns.size(); i++) {
@@ -330,8 +330,12 @@ public class MetaProcessor {
 
       odpsPartitionSpecBuilder
           .append(partitionColumn.odpsColumnName)
-          .append("=")
-          .append(partitionValue);
+          .append("=");
+      if (escape) {
+        odpsPartitionSpecBuilder.append("\\\'").append(partitionValue).append("\\\'");
+      } else {
+        odpsPartitionSpecBuilder.append("\'").append(partitionValue).append("\'");
+      }
       if (i != partitionColumns.size() - 1) {
         odpsPartitionSpecBuilder.append(",");
       }

@@ -71,6 +71,7 @@ def get_runnable_hive_sql(file_path: str, udtf_resource_path: str,
     temp_func_name_single, class_name_single))
   if (enforce_mr):
     hive_sql_list.append("set hive.fetch.task.conversion=none;")
+  hive_sql_list.append("set hive.execution.engine=mr;")
   hive_sql_list.append(hive_sql)
 
   return " ".join(hive_sql_list)

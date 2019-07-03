@@ -64,6 +64,7 @@ if __name__ == '__main__':
   os.makedirs("odps-data-carrier/libs")
   os.makedirs("odps-data-carrier/res")
   shutil.copyfile("odps_config.ini", "odps-data-carrier/odps_config.ini")
+  shutil.copyfile("extra_settings.ini", "odps-data-carrier/extra_settings.ini")
 
   # add tools
   excluded = args.excluded_tools

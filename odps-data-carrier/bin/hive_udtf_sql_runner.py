@@ -54,10 +54,16 @@ def execute(cmd: str, verbose=False) -> int:
     print(traceback.format_exc())
     return 1
 
-def get_runnable_hive_sql(file_path: str, udtf_resource_path: str,
-    odps_config_path: str, enforce_mr: bool) -> str:
+def get_runnable_hive_sql(
+    file_path: str,
+    udtf_resource_path: str,
+    odps_config_path: str,
+    extra_settings: str) -> str:
+
   with open(file_path) as fd:
     hive_sql = fd.read()
+  with open(extra_settings) as fd:
+    settings = fd.readlines()
 
   hive_sql = hive_sql.replace("\n", " ")
   hive_sql = hive_sql.replace("`", "")
@@ -69,33 +75,32 @@ def get_runnable_hive_sql(file_path: str, udtf_resource_path: str,
     temp_func_name_multi, class_name_multi))
   hive_sql_list.append("create temporary function %s as '%s';" % (
     temp_func_name_single, class_name_single))
-  if (enforce_mr):
-    hive_sql_list.append("set hive.fetch.task.conversion=none;")
-  hive_sql_list.append("set hive.execution.engine=mr;")
+  for setting in settings:
+    if not setting.startswith("#") and len(setting.strip()) != 0:
+      hive_sql_list.append("set %s;" % setting)
   hive_sql_list.append(hive_sql)
 
   return " ".join(hive_sql_list)
 
-def run_all(root: str, udtf_resource_path: str,
-    odps_config_path: str, enforce_mr: bool) -> None:
-  databases = os.listdir(root)
+def run_all(
+    root: str,
+    udtf_resource_path: str,
+    odps_config_path: str,
+    extra_settings: str) -> None:
 
+  databases = os.listdir(root)
   for database in databases:
     if database == "report.html":
       continue
-
     hive_multi_partition_sql_dir = os.path.join(
         root, database, "hive_udtf_sql", "multi_partition")
-
     hive_multi_partition_sql_files = os.listdir(
         hive_multi_partition_sql_dir)
-
     for hive_multi_partition_sql_file in hive_multi_partition_sql_files:
       file_path = os.path.join(
           hive_multi_partition_sql_dir, hive_multi_partition_sql_file)
-
       hive_multi_partition_sql = get_runnable_hive_sql(
-          file_path, udtf_resource_path, odps_config_path, enforce_mr)
+          file_path, udtf_resource_path, odps_config_path, extra_settings)
 
       retry = 5
       while retry > 0:
@@ -110,13 +115,17 @@ def run_all(root: str, udtf_resource_path: str,
       if retry == 0:
         print("ERROR: execute %s failed 5 times" % file_path)
 
-def run_single_file(hive_single_partition_sql_path: str,
-    udtf_resource_path: str, odps_config_path: str, enforce_mr: bool) -> None:
+def run_single_file(
+    hive_single_partition_sql_path: str,
+    udtf_resource_path: str,
+    odps_config_path: str,
+    extra_settings: str) -> None:
+
   hive_single_partition_sql = get_runnable_hive_sql(
       hive_single_partition_sql_path,
       udtf_resource_path,
       odps_config_path,
-      enforce_mr)
+      extra_settings)
 
   retry = 5
   while retry > 0:
@@ -132,7 +141,6 @@ def run_single_file(hive_single_partition_sql_path: str,
     print("ERROR: execute %s failed 5 times" % hive_single_partition_sql_path)
 
 
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(
       description='Run hive UDTF SQL automatically.')
@@ -145,20 +153,29 @@ if __name__ == '__main__':
       required=False,
       help="path to a single sql file")
   parser.add_argument(
-      "--enforce_mr",
+      "--settings",
       required=False,
-      help="force the Hive SQL to execute as a map reduce job",
-      action='store_true')
-  parser.set_defaults(enforce_mr=False)
+      help="path to extra settings to set before running a hive sql")
   args = parser.parse_args()
 
   # Get path to udtf jar & odps config
   script_path = os.path.dirname(os.path.realpath(__file__))
   odps_data_carrier_path = os.path.dirname(script_path)
+  odps_config_path = os.path.join(
+      odps_data_carrier_path,"odps_config.ini")
+  extra_settings_path = os.path.join(
+    odps_data_carrier_path, "extra_settings.ini")
+  if not os.path.exists(odps_config_path):
+    print("ERROR: %s does not exist" % udtf_path)
+    sys.exit(1)
+
   if args.input_single_file is not None:
     args.input_single_file = os.path.abspath(args.input_single_file)
   if args.input_all is not None:
     args.input_all = os.path.abspath(args.input_all)
+  if args.settings is None:
+    args.settings = extra_settings_path
+
   os.chdir(odps_data_carrier_path)
 
   udtf_path = os.path.join(
@@ -170,16 +187,11 @@ if __name__ == '__main__':
     print("ERROR: %s does not exist" % udtf_path)
     sys.exit(1)
 
-  odps_config_path = os.path.join(
-      odps_data_carrier_path,"odps_config.ini")
-  if not os.path.exists(odps_config_path):
-    print("ERROR: %s does not exist" % udtf_path)
-    sys.exit(1)
-
   if args.input_single_file is not None:
-    run_single_file(args.input_single_file, udtf_path, odps_config_path, args.enforce_mr)
+    run_single_file(args.input_single_file, udtf_path, odps_config_path,
+                    args.settings)
   elif args.input_all is not None:
-    run_all(args.input_all, udtf_path, odps_config_path, args.enforce_mr)
+    run_all(args.input_all, udtf_path, odps_config_path, args.settings)
   else:
     print("ERROR: please specify --input_all or --input_single_file")
     sys.exit(1)

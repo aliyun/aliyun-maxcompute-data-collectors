@@ -139,7 +139,6 @@ public class HiveTypeTransformer {
           toOdpsType(matcher.group(1).trim(), odpsVersion, hiveCompatible);
       transformedType = "ARRAY" + "<" + elementTypeTransformResult.getTransformedType() + ">";
     } else if (hiveType.matches(MAP)) {
-
       Pattern pattern = Pattern.compile(MAP);
       Matcher matcher = pattern.matcher(hiveType);
       matcher.matches();
@@ -156,6 +155,9 @@ public class HiveTypeTransformer {
       transformedType = "MAP<" + keyTypeTransformResult.getTransformedType() + "," +
           valueTypeTransformResult.getTransformedType() + ">";
     } else if (hiveType.matches(STRUCT)) {
+      // TODO: remove latter, for debug
+      System.out.println("Matches STRUCT: " + hiveType);
+
       Pattern pattern = Pattern.compile(STRUCT);
       Matcher matcher = pattern.matcher(hiveType);
       matcher.matches();
@@ -163,6 +165,11 @@ public class HiveTypeTransformer {
       // character in a type definition, we have to split the type list properly so that we can
       // handle them recursively later.
       List<String> fieldDefinitions = splitStructFields(matcher.group(1));
+
+      // TODO: remove latter, for debug
+      for (String fieldDefinition : fieldDefinitions) {
+        System.out.println(fieldDefinition);
+      }
 
       List<String> odpsFieldDefinitions = new ArrayList<>();
       for (String fieldDefinition : fieldDefinitions) {
@@ -191,19 +198,19 @@ public class HiveTypeTransformer {
   }
 
   private static List<String> splitStructFields(String fieldDefinitionString) {
-    int angleBracketsCounter = 0;
+    int bracketsCounter = 0;
     boolean split = true;
     int startIdx = 0;
     List<String> fieldDefinitions = new ArrayList<>();
 
     for (int i = 0; i < fieldDefinitionString.length(); i++) {
       char c = fieldDefinitionString.charAt(i);
-      if (c == '<') {
+      if (c == '<' || c == '(') {
         split = false;
-        angleBracketsCounter += 1;
-      } else if (c == '>') {
-        angleBracketsCounter -= 1;
-        if (angleBracketsCounter == 0) {
+        bracketsCounter += 1;
+      } else if (c == '>' || c == ')') {
+        bracketsCounter -= 1;
+        if (bracketsCounter == 0) {
           split = true;
         }
       } else if (c == ',') {

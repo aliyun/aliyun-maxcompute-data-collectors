@@ -27,6 +27,7 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;
@@ -53,9 +54,27 @@ public class HiveMetaCarrier {
   private HiveMetaStoreClient metaStoreClient;
   private MetaManager metaManager;
 
-  public HiveMetaCarrier(String metastoreAddress, String outputPath) throws MetaException {
+  public HiveMetaCarrier(String metastoreAddress, String outputPath, String principal,
+      String keyTab, String[] systemProperties) throws MetaException {
     HiveConf hiveConf = new HiveConf();
     hiveConf.setVar(ConfVars.METASTOREURIS, metastoreAddress);
+    if (principal != null) {
+      hiveConf.setVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL, "true");
+      hiveConf.setVar(ConfVars.METASTORE_KERBEROS_PRINCIPAL, principal);
+    }
+    if (keyTab != null) {
+      hiveConf.setVar(ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, keyTab);
+    }
+    if (systemProperties != null) {
+      for (String property : systemProperties) {
+        int idx = property.indexOf('=');
+        if (idx != -1) {
+          System.setProperty(property.substring(0, idx), property.substring(idx + 1));
+        } else {
+          System.err.print("Invalid system property: " + property);
+        }
+      }
+    }
 
     this.metaStoreClient = new HiveMetaStoreClient(hiveConf);
     this.metaManager = new MetaManager(outputPath);
@@ -228,34 +247,56 @@ public class HiveMetaCarrier {
         .longOpt("uri")
         .argName("uri")
         .hasArg()
-        .desc("hive metastore thrift uri")
+        .desc("Required, hive metastore thrift uri")
         .build();
     Option outputDir = Option
         .builder("o")
         .longOpt("output-dir")
         .argName("output-dir")
         .hasArg()
-        .desc("Output directory")
+        .desc("Required, output directory")
         .build();
     Option database = Option
         .builder("d")
         .longOpt("database")
         .argName("database")
         .hasArg()
-        .desc("Specify a database")
+        .desc("Optional, specify a database")
         .build();
     Option table = Option
         .builder("t")
         .longOpt("table")
         .argName("table")
         .hasArg()
-        .desc("Specify a table")
+        .desc("Optional, specify a table")
         .build();
     Option help = Option
         .builder("h")
         .longOpt("help")
         .argName("help")
-        .desc("Print help information")
+        .desc("Optional, print help information")
+        .build();
+    Option principal = Option
+        .builder()
+        .longOpt("principal")
+        .argName("principal")
+        .hasArg()
+        .desc("Optional, hive metastore's Kerberos principal")
+        .build();
+    Option keyTab = Option
+        .builder()
+        .longOpt("keyTab")
+        .argName("keyTab")
+        .hasArg()
+        .desc("Optional, hive metastore's Kerberos keyTab")
+        .build();
+    Option systemProperties = Option
+        .builder()
+        .longOpt("system")
+        .argName("system")
+        .hasArg()
+        .numberOfArgs(Option.UNLIMITED_VALUES)
+        .desc("system properties")
         .build();
 
     Options options = new Options();
@@ -264,6 +305,9 @@ public class HiveMetaCarrier {
     options.addOption(help);
     options.addOption(database);
     options.addOption(table);
+    options.addOption(principal);
+    options.addOption(keyTab);
+    options.addOption(systemProperties);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
@@ -271,12 +315,17 @@ public class HiveMetaCarrier {
     if (!cmd.hasOption("uri") || !cmd.hasOption("output-dir") || cmd.hasOption("help")) {
       HelpFormatter formatter = new HelpFormatter();
       formatter.printHelp(
-          "meta-carrier -u <uri> -o <output dir> [-h] [-d <database>] [-t <table>]",
-          options);
+          "meta-carrier -u <uri> -o <output dir> [-h] [-d <database>] [-t <table>] "
+              + "[--keyTab <path to keytab>] [--principal <metastore principal>] "
+              + "[--system [key=value]+]", options);
     } else{
       String hiveMetastoreAddress = cmd.getOptionValue("uri");
       String outputPath = cmd.getOptionValue("output-dir");
-      HiveMetaCarrier hiveMetaCarrier = new HiveMetaCarrier(hiveMetastoreAddress, outputPath);
+      String principalVal = cmd.getOptionValue("principal");
+      String keyTabVal = cmd.getOptionValue("keyTab");
+      String[] systemPropertiesValue = cmd.getOptionValues("system");
+      HiveMetaCarrier hiveMetaCarrier =
+          new HiveMetaCarrier(hiveMetastoreAddress, outputPath, principalVal, keyTabVal, systemPropertiesValue);
       if (cmd.hasOption("database") && cmd.hasOption("table")) {
         String databaseName = cmd.getOptionValue("database");
         String tableName = cmd.getOptionValue("table");

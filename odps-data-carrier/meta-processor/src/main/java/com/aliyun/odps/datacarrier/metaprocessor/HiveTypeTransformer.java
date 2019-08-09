@@ -155,9 +155,6 @@ public class HiveTypeTransformer {
       transformedType = "MAP<" + keyTypeTransformResult.getTransformedType() + "," +
           valueTypeTransformResult.getTransformedType() + ">";
     } else if (hiveType.matches(STRUCT)) {
-      // TODO: remove latter, for debug
-      System.out.println("Matches STRUCT: " + hiveType);
-
       Pattern pattern = Pattern.compile(STRUCT);
       Matcher matcher = pattern.matcher(hiveType);
       matcher.matches();
@@ -165,11 +162,6 @@ public class HiveTypeTransformer {
       // character in a type definition, we have to split the type list properly so that we can
       // handle them recursively later.
       List<String> fieldDefinitions = splitStructFields(matcher.group(1));
-
-      // TODO: remove latter, for debug
-      for (String fieldDefinition : fieldDefinitions) {
-        System.out.println(fieldDefinition);
-      }
 
       List<String> odpsFieldDefinitions = new ArrayList<>();
       for (String fieldDefinition : fieldDefinitions) {

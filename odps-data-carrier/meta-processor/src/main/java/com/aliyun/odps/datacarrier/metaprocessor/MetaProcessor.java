@@ -86,14 +86,24 @@ public class MetaProcessor {
       ddlBuilder.append("set odps.sql.type.system.odps2=true;\n");
     }
 
+    String odpsProjectName = databaseMeta.odpsProjectName;
+    String odpsTableName = tableMeta.odpsTableName;
+
+    if (databaseMeta.dropTableIfExists || tableMeta.dropIfExists) {
+      ddlBuilder
+          .append("DROP TABLE IF EXISTS ")
+          .append(odpsProjectName)
+          .append(".`")
+          .append(odpsTableName)
+          .append("`;\n");
+    }
+
     ddlBuilder.append("CREATE TABLE ");
 
     if (tableMeta.ifNotExists) {
       ddlBuilder.append(" IF NOT EXISTS ");
     }
 
-    String odpsProjectName = databaseMeta.odpsProjectName;
-    String odpsTableName = tableMeta.odpsTableName;
     ddlBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("` (\n");
 
     List<ColumnMetaModel> columns = tableMeta.columns;

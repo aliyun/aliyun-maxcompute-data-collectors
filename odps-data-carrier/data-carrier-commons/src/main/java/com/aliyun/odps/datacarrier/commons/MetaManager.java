@@ -107,6 +107,7 @@ public class MetaManager {
   public static class DatabaseMetaModel {
     public String databaseName;
     public String odpsProjectName;
+    public Boolean dropTableIfExists = false;
   }
 
   public static class TableMetaModel {
@@ -115,6 +116,7 @@ public class MetaManager {
     public Integer lifeCycle;
     public String comment;
     public Boolean ifNotExists = true;
+    public Boolean dropIfExists = false;
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }

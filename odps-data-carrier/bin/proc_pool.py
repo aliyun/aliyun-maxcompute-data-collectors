@@ -37,13 +37,14 @@ class ProcessPool:
         self._consumer_thread = threading.Thread(target=self._consume)
         self._rolling_thread = threading.Thread(target=self._rolling)
         if verbose:
-                self._LOGGER.setLevel(logging.DEBUG)
+            self._LOGGER.setLevel(logging.DEBUG)
 
     def start(self):
         self._consumer_thread.start()
         self._rolling_thread.start()
 
     def submit(self, command: str, log_dir: str, retry=5) -> None:
+        os.makedirs(log_dir, exist_ok=True)
         t = threading.Thread(
             target=self._execute,
             args=(command, log_dir, retry))
@@ -110,6 +111,10 @@ class ProcessPool:
                     shell=True,
                     preexec_fn=os.setsid)
                 stdout, stderr = sp.communicate()
+                if isinstance(stdout, bytes):
+                    stdout = str(stdout, "utf-8")
+                if isinstance(stderr, bytes):
+                    stderr = str(stderr, "utf-8")
 
                 if sp.returncode == 0:
                     self._LOGGER.info(

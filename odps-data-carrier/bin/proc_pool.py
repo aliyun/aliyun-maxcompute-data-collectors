@@ -137,5 +137,5 @@ class ProcessPool:
                 retry -= 1
 
         if retry == 0:
-            self._LOGGER.error("execute \'%s\' failed %d times" % (cmd, retry))
+            self._LOGGER.error("execute \'%s\' failed %d times" % (cmd, num_retry_times))
 

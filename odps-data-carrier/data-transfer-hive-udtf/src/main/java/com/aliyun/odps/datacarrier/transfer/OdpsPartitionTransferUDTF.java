@@ -22,6 +22,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 
 public class OdpsPartitionTransferUDTF extends GenericUDTF {
@@ -36,12 +37,18 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
   String currentOdpsPartitionSpec;
   TableSchema schema;
 
+  Long numRecordTransferred = 0L;
+  Object[] forwardObj = new Object[1];
+
   @Override
   public StructObjectInspector initialize(ObjectInspector[] args) throws UDFArgumentException {
     objectInspectors = args;
-    // This UDTF doesn't output anything
-    return ObjectInspectorFactory.getStandardStructObjectInspector(new ArrayList<String>(),
-        new ArrayList<ObjectInspector>());
+    List<String> fieldNames = new ArrayList<>();
+    fieldNames.add("num_record_transferred");
+    List<ObjectInspector> outputObjectInspectors = new ArrayList<>();
+    outputObjectInspectors.add(PrimitiveObjectInspectorFactory.javaLongObjectInspector);
+    return ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames,
+                                                                   outputObjectInspectors);
   }
 
   @Override
@@ -101,6 +108,7 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
       }
 
       recordWriter.write(record);
+      numRecordTransferred += 1;
     } catch (Exception e) {
       e.printStackTrace();
       throw new HiveException(e);
@@ -125,5 +133,8 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
         throw new HiveException(e);
       }
     }
+
+    forwardObj[0] = numRecordTransferred;
+    forward(forwardObj);
   }
 }

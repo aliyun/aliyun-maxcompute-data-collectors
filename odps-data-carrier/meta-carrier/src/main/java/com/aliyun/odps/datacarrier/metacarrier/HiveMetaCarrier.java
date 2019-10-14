@@ -122,7 +122,7 @@ public class HiveMetaCarrier {
   private TablePartitionMetaModel getTablePartitionMeta(String databaseName, String tableName)
       throws TException {
     List<Partition> partitions =
-        metaStoreClient.listPartitions(databaseName, tableName, Short.MAX_VALUE);
+        metaStoreClient.listPartitions(databaseName, tableName, (short) -1);
     if (partitions.isEmpty()) {
       return null;
     }

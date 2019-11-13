@@ -60,4 +60,11 @@ public interface OdpsEventSerializer extends Configurable {
      * @return  column names
      */
     public String[] getInputColumnNames();
+
+    /**
+     *
+     * @return
+     * @throws UnsupportedEncodingException
+     */
+    public String getRawBody() throws UnsupportedEncodingException;
 }

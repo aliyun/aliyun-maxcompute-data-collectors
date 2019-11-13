@@ -108,4 +108,9 @@ public class OdpsDelimitedTextSerializer implements OdpsEventSerializer {
     public String[] getInputColumnNames() {
         return inputColNames;
     }
+
+    @Override
+    public String getRawBody() throws UnsupportedEncodingException {
+        return new String(payLoad, charset);
+    }
 }

@@ -19,120 +19,287 @@
 
 package com.aliyun.datahub.flume.sink;
 
-import com.aliyun.datahub.DatahubConfiguration;
-import com.aliyun.datahub.auth.AliyunAccount;
-import com.aliyun.datahub.model.PutRecordsResult;
-import com.aliyun.datahub.model.RecordEntry;
-import com.aliyun.datahub.wrapper.Project;
-import com.aliyun.datahub.wrapper.Topic;
-import org.apache.flume.instrumentation.SinkCounter;
+import com.aliyun.datahub.client.DatahubClient;
+import com.aliyun.datahub.client.DatahubClientBuilder;
+import com.aliyun.datahub.client.common.DatahubConfig;
+import com.aliyun.datahub.client.exception.DatahubClientException;
+import com.aliyun.datahub.client.exception.InvalidParameterException;
+import com.aliyun.datahub.client.http.HttpConfig;
+import com.aliyun.datahub.client.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.ParseException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 public class DatahubWriter {
     private static final Logger logger = LoggerFactory.getLogger(DatahubWriter.class);
-
-    private List<RecordEntry> recordCache = new ArrayList<RecordEntry>();
-
+    private DatahubClient datahubClient;
+    private GetTopicResult topic;
     private Configure configure;
-    private Topic topic;
-    SinkCounter sinkCounter;
-    RecordBuilder recordBuilder;
+    private FileWriter writer;
+    private List<String> activeShardIds;
+    private long threadId;
 
-    public DatahubWriter(Configure configure, SinkCounter sinkCounter) {
+
+    public DatahubWriter(Configure configure) throws IOException {
         this.configure = configure;
-        this.sinkCounter = sinkCounter;
-
-        DatahubConfiguration datahubConfiguration = new DatahubConfiguration(
-            new AliyunAccount(configure.getDatahubAccessId(), configure.getDatahubAccessKey()),
-            configure.getDatahubEndPoint());
-        datahubConfiguration.setUserAgent("datahub-flume-plugin-2.0.0");
-
-        Project project = Project.Builder.build(configure.getDatahubProject(), datahubConfiguration);
-        if (!project.listTopic().contains(configure.getDatahubTopic().toLowerCase())) {
-            throw new RuntimeException("Can not find datahub topic[" + configure.getDatahubTopic() + "]");
-        }
-        topic = project.getTopic(configure.getDatahubTopic());
-        if (topic == null) {
-            throw new RuntimeException("Can not find datahub topic[" + configure.getDatahubTopic() + "]");
-        }
-
-        if (topic.getShardCount() == 0) {
-            throw new RuntimeException("Topic[" + topic.getTopicName() + "] has not active shard");
-        }
-
-        // Initial record builder
-        recordBuilder = new RecordBuilder(configure, topic);
-        logger.info("Init RecordBuilder success");
+        init();
     }
 
-    public void addRecord(Map<String, String> rowData) throws ParseException {
-        recordCache.add(recordBuilder.buildRecord(rowData));
+    public void close() throws IOException {
+        if (configure.isDirtyDataContinue()) {
+            writer.close();
+        }
     }
 
-    public int getRecordSize() {
-        return recordCache.size();
+    private void init() throws IOException {
+        HttpConfig config = new HttpConfig();
+        if (configure.getCompressType() != null) {
+            config.setCompressType(HttpConfig.CompressType.valueOf(configure.getCompressType()));
+        }
+
+
+        datahubClient = DatahubClientBuilder.newBuilder()
+                .setHttpConfig(config)
+                .setUserAgent("datahub-flume-plugin-2.0.3")
+                .setDatahubConfig(
+                        new DatahubConfig(configure.getEndPoint(),
+                                new com.aliyun.datahub.client.auth.AliyunAccount(
+                                        configure.getAccessId(),
+                                        configure.getAccessKey()),
+                                configure.isEnablePb()))
+                .build();
+
+        topic = datahubClient.getTopic(configure.getProject(), configure.getTopic());
+        checkSchema();
+
+        freshActiveShardList();
+
+        if (configure.isDirtyDataContinue()) {
+            writer = new FileWriter(configure.getDirtyDataFile(), true);
+        }
     }
 
-    public void writeToHub() {
-        if (recordCache == null || recordCache.size() == 0) {
+    public void checkSchema() {
+        RecordSchema schema = topic.getRecordSchema();
+        String[] columns = configure.getInputColumnNames();
+        for (String columnName : columns) {
+            if (!schema.containsField(columnName)) {
+                throw new InvalidParameterException("The field " + columnName + " is not exist in datahub schema.");
+            }
+        }
+    }
+
+    public void writeRecords(List<RecordEntry> recordEntries) throws IOException {
+        threadId = Thread.currentThread().getId();
+        putRecordWithRetry(recordEntries);
+    }
+
+    public TupleRecordData buildRecord(Map<String, String> rowMap) throws IOException {
+        threadId = Thread.currentThread().getId();
+        TupleRecordData data = new TupleRecordData(topic.getRecordSchema());
+        try {
+            for (Map.Entry<String, String> mapEntry : rowMap.entrySet()) {
+                String fieldName = mapEntry.getKey();
+
+                Field field = topic.getRecordSchema().getField(fieldName);
+                String val = mapEntry.getValue().trim();
+
+                switch (field.getType()) {
+                    case STRING:
+                        data.setField(fieldName, val);
+                        break;
+                    case BIGINT:
+                    case TIMESTAMP:
+                        data.setField(fieldName, Long.parseLong(val));
+                        break;
+                    case DOUBLE:
+                        data.setField(fieldName, Double.parseDouble(val));
+                        break;
+                    case BOOLEAN:
+                        data.setField(fieldName, Boolean.parseBoolean(val));
+                        break;
+                    case DECIMAL:
+                        data.setField(fieldName, new BigDecimal(val));
+                        break;
+                    default:
+                        throw new DatahubClientException("Unsupported RecordType " + field.getType().name());
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("[Thread {}] Build record failed. ", threadId, e);
+            handleDirtyData(rowMap);
+            return null;
+        }
+        return data;
+    }
+
+    private void freshActiveShardList() {
+        List<String> shardIds = configure.getShardIds();
+        if (shardIds != null && !shardIds.isEmpty()) {
+            activeShardIds = shardIds;
             return;
         }
 
-        List<RecordEntry> recordEntries = recordCache;
-        recordBuilder.initRecordShardIds(recordEntries);
-        int retryCount = 0;
-        while (true) {
-            try {
-                PutRecordsResult putRecordsResult = topic.putRecords(recordEntries);
+        if (activeShardIds == null) {
+            activeShardIds = new ArrayList<String>();
+        }
 
-                //write had fail records
-                if (putRecordsResult.getFailedRecordCount() > 0) {
-                    recordEntries = putRecordsResult.getFailedRecords();
-                    // need retry
-                    if (configure.getRetryTimes() < 0 || (configure.getRetryTimes() >= 0
-                        && retryCount < configure.getRetryTimes())) {
-                        // should update shards before retry
-                        if (configure.getShardId() == null) {
-                            recordBuilder.updateShardIds();
-                            recordBuilder.initRecordShardIds(recordEntries);
-                        }
-                    }
-                } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Write " + String.valueOf(recordCache.size()) + " record to topic["
-                                + topic.getTopicName() + "] success");
-                    }
-
-                    this.recordCache.clear();
-                    break;
-                }
-            } catch (Exception e) {
-                logger.warn("Write record to topic[" + topic.getTopicName() + "] failed", e);
+        activeShardIds.clear();
+        ListShardResult result = datahubClient
+                .listShard(configure.getProject(), configure.getTopic());
+        for (ShardEntry shardEntry : result.getShards()) {
+            if (shardEntry.getState() == ShardState.ACTIVE) {
+                activeShardIds.add(shardEntry.getShardId());
             }
+        }
 
-            if (configure.getRetryTimes() >= 0 && retryCount >= configure.getRetryTimes()) {
-                throw new RuntimeException(
-                    "Write record to topic[" + topic.getTopicName() + "] failed");
-            }
-
-            logger.warn(
-                "Write record to topic[" + topic.getTopicName() + "] failed, will retry after "
-                    + configure.getRetryInterval() + "seconds");
-            try {
-                Thread.sleep(configure.getRetryInterval() * 1000);
-            } catch (InterruptedException e1) {
-                // Do nothing
-            }
-
-            retryCount++;
+        if (activeShardIds.isEmpty()) {
+            throw new DatahubClientException("The specific topic " + configure.getTopic() + " has no active shard.");
         }
     }
 
+    public String getActiveShardId() {
+        int index = new Random().nextInt(activeShardIds.size());
+        return activeShardIds.get(index);
+    }
+
+    private void putRecordWithRetry(List<RecordEntry> recordEntries) throws IOException {
+        int retryNum = configure.getRetryTimes();
+        int interval = configure.getRetryInterval();
+        while (true) {
+            PutRecordsResult result = null;
+            try {
+                result = datahubClient.putRecords(configure.getProject(),
+                        configure.getTopic(), recordEntries);
+            } catch (DatahubClientException e) {
+                logger.error("[Thread {}] Put {} records to DataHub failed. " + e.getErrorMessage(),
+                        threadId, recordEntries.size());
+                throw e;
+            }
+
+            if (result != null && result.getFailedRecordCount() == 0) {
+                logger.info("[Thread {}] Put {} records to DataHub successful.",
+                        threadId, recordEntries.size());
+                break;
+            }
+
+            if (retryNum > 0) {
+                try {
+                    Thread.sleep(interval * 1000);
+                } catch (InterruptedException e) {
+                }
+                logger.warn("[Thread {}] Now retry ({})...", threadId, retryNum);
+
+                if (result != null && result.getFailedRecordCount() > 0) {
+                    logger.warn("[Thread {}] Put {} records to DataHub. " + result.getFailedRecordCount()
+                                    + "records is failed. " + result.getPutErrorEntries().get(0).getMessage(),
+                            threadId, recordEntries.size());
+
+                    recordEntries.clear();
+                    List<RecordEntry> failedRecords = result.getFailedRecords();
+
+                    boolean needFresh = true;
+                    String shardId = "";
+                    for (int i = 0; i < failedRecords.size(); ++i) {
+                        RecordEntry entry = failedRecords.get(i);
+                        PutErrorEntry errorEntry = result.getPutErrorEntries().get(i);
+
+                        if (errorEntry.getErrorcode().equals("MalformedRecord")) {
+                            handleDirtyData(entry);
+                            continue;
+                        }
+
+                        // reset shardId if need
+                        if (errorEntry.getErrorcode().equals("InvalidShardOperation")) {
+                            if (needFresh) {
+                                freshActiveShardList();
+                                shardId = getActiveShardId();
+                                needFresh = false;
+                            }
+                            entry.setShardId(shardId);
+                        }
+                        recordEntries.add(entry);
+                    }
+                }
+                retryNum--;
+            } else {
+                if (result != null && result.getFailedRecordCount() > 0) {
+                    recordEntries = result.getFailedRecords();
+                    logger.error("[Thread {}] {} records put failed. "
+                                    + result.getPutErrorEntries().get(0).getMessage(),
+                            threadId, recordEntries.size());
+                    throw new RuntimeException("put record failed. "
+                            + result.getPutErrorEntries().get(0).getMessage());
+                }
+                break;
+            }
+        }
+    }
+
+    public void handleDirtyData(String rawBody) throws IOException {
+        threadId = Thread.currentThread().getId();
+        if (!configure.isDirtyDataContinue()) {
+            //logger.error("[Thread {}] Dirty data found, exit process now.", threadId);
+            throw new RuntimeException("Dirty data found, exit process now.");
+        }
+
+        logger.warn("[Thread {}] Dirty data found, will write to dirtyDataFile {}",
+                threadId, configure.getDirtyDataFile());
+
+        writer.write(rawBody);
+        writer.flush();
+    }
+
+    private void handleDirtyData(Map<String, String> rowMap) throws IOException {
+        if (!configure.isDirtyDataContinue()) {
+            //logger.error("[Thread {}] Dirty data found, exit process now.", threadId);
+            throw new RuntimeException("Dirty data found, exit process now.");
+        }
+
+        logger.warn("[Thread {}] Dirty data found, will write to dirtyDataFile {}",
+                threadId, configure.getDirtyDataFile());
+        StringBuilder builder = new StringBuilder();
+        String[] columnNames = configure.getInputColumnNames();
+
+        for (int i = 0; i < columnNames.length; ++i) {
+            builder.append(rowMap.get(columnNames[i]));
+            if (i != columnNames.length - 1) {
+                builder.append(",");
+            }
+        }
+        builder.append("\n");
+        writer.write(builder.toString());
+        writer.flush();
+    }
+
+    private void handleDirtyData(RecordEntry entry) throws IOException {
+        if (!configure.isDirtyDataContinue()) {
+            //logger.error("[Thread {}] Dirty data found, exit process now.", threadId);
+            throw new DatahubClientException("Dirty data found, exit process now.");
+        }
+
+        logger.warn("[Thread {}] Dirty data found, will write to dirtyDataFile {}",
+                threadId, configure.getDirtyDataFile());
+
+        TupleRecordData data = (TupleRecordData) entry.getRecordData();
+        StringBuilder builder = new StringBuilder();
+        String[] columnNames = configure.getInputColumnNames();
+
+        for (int i = 0; i < columnNames.length; ++i) {
+            builder.append(data.getField(columnNames[i]));
+            if (i != columnNames.length - 1) {
+                builder.append(",");
+            }
+        }
+        builder.append("\n");
+        writer.write(builder.toString());
+        writer.flush();
+    }
 }

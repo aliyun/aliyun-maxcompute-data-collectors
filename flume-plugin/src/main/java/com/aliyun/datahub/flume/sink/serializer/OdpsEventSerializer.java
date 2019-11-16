@@ -18,6 +18,7 @@
 
 package com.aliyun.datahub.flume.sink.serializer;
 
+import com.aliyun.datahub.client.model.RecordEntry;
 import com.aliyun.odps.Table;
 import com.aliyun.odps.flume.sink.OdpsWriter;
 import com.aliyun.odps.tunnel.io.StreamWriter;
@@ -28,7 +29,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Map;
 
 /**
- * Interface for an event serializer which serializes the event body to write to ODPS.
+ * Interface for an event serializer which serializes the event body to write to DataHub.
  */
 public interface OdpsEventSerializer extends Configurable {
 
@@ -45,6 +46,7 @@ public interface OdpsEventSerializer extends Configurable {
      */
     public Map<String, String> getRow() throws UnsupportedEncodingException;
 
+
     /**
      * Create the writer for writing events batch to ODPS table.
      * @param odpsTable Destination ODPS table.
@@ -53,7 +55,8 @@ public interface OdpsEventSerializer extends Configurable {
      * @return {@link com.aliyun.odps.flume.sink.OdpsWriter} for writing events.
      */
     public OdpsWriter createOdpsWriter(Table odpsTable, StreamWriter[] streamWriters, String dateFormat)
-        throws UnsupportedEncodingException;
+            throws UnsupportedEncodingException;
+
 
     /**
      * Get serializer's column names
@@ -67,4 +70,11 @@ public interface OdpsEventSerializer extends Configurable {
      * @throws UnsupportedEncodingException
      */
     public String getRawBody() throws UnsupportedEncodingException;
+
+    /**
+     * generate flume event by DataHub TupleRecordData
+     * @param data DataHub TupleRecordData
+     * @return
+     */
+    public Event getEvent(RecordEntry data);
 }

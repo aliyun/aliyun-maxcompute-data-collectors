@@ -20,11 +20,13 @@
 package com.aliyun.datahub.flume.sink;
 
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 
 public class Configure {
-
-    public static final String DEFAULT_DATAHUB_END_POINT = "http://dh.odps.aliyun.com";
+    private static final Logger logger = LoggerFactory.getLogger(Configure.class);
 
     public static final int DEFAULT_DATAHUB_BATCHSIZE = 1000;
 
@@ -42,6 +44,10 @@ public class Configure {
 
     public static final boolean DEFAULT_DIRTY_DATA_CONTINUE = true;
     public static final String DEFAULT_DIRTY_DATA_FILE = "DataHub-Flume-dirty-file";
+
+    public static final boolean DEFAULT_AUTO_COMMIT = true;
+    public static final int DEFAULT_OFFSET_COMMIT_INTERVAL = 30;
+    public static final int DEFAULT_SESSION_TIMEOUT = 60;
 
 
     private int retryTimes;
@@ -65,6 +71,11 @@ public class Configure {
     private boolean dirtyDataContinue;
     private String dirtyDataFile;
 
+    private String subId;
+    private boolean autoCommit;
+    private int offsetCommitInterval;
+    private int sessionTimeout;
+
     private String[] inputColumnNames;
 
 
@@ -72,25 +83,45 @@ public class Configure {
         return inputColumnNames;
     }
 
-
-    public String toString() {
+    public String sinktoString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("retryTimes\t" + retryTimes + "\n");
-        builder.append("retryInterval\t" + retryInterval + "\n");
-        //builder.append("accessId\t" + accessId + "\n");
-        //builder.append("accessKey\t" + accessKey + "\n");
         builder.append("endPoint\t" + endPoint + "\n");
+        builder.append("accessId\t" + accessId + "\n");
+        builder.append("accessKey\t" + accessKey + "\n");
         builder.append("project\t" + project + "\n");
         builder.append("topic\t" + topic + "\n");
+        builder.append("shardIds\t" + getShardIdsString() + "\n");
         builder.append("enablePb\t" + enablePb + "\n");
-        builder.append("serializerType\t" + serializerType + "\n");
+        builder.append("compressType\t" + compressType + "\n");
         builder.append("batchSize\t" + batchSize + "\n");
         builder.append("maxBufferSize\t" + maxBufferSize + "\n");
         builder.append("batchTimeout\t" + batchTimeout + "\n");
-        builder.append("shardIds\t" + getShardIdsString() + "\n");
-        builder.append("compressType\t" + compressType + "\n");
+        builder.append("retryTimes\t" + retryTimes + "\n");
+        builder.append("retryInterval\t" + retryInterval + "\n");
         builder.append("dirtyDataContinue\t" + dirtyDataContinue + "\n");
         builder.append("dirtyDataFile\t" + dirtyDataFile + "\n");
+        builder.append("serializer\t" + serializerType + "\n");
+        return builder.toString();
+    }
+
+    public String sourcetoString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("endPoint\t" + endPoint + "\n");
+        builder.append("accessId\t" + accessId + "\n");
+        builder.append("accessKey\t" + accessKey + "\n");
+        builder.append("project\t" + project + "\n");
+        builder.append("topic\t" + topic + "\n");
+        builder.append("subId\t" + subId + "\n");
+        builder.append("shardIds\t" + getShardIdsString() + "\n");
+        builder.append("enablePb\t" + enablePb + "\n");
+        builder.append("compressType\t" + compressType + "\n");
+        builder.append("batchSize\t" + batchSize + "\n");
+        builder.append("batchTimeout\t" + batchTimeout + "\n");
+        builder.append("retryTimes\t" + retryTimes + "\n");
+        builder.append("autoCommit\t" + autoCommit + "\n");
+        builder.append("offsetCommitInterval\t" + offsetCommitInterval + "\n");
+        builder.append("sessionTimeout\t" + sessionTimeout + "\n");
+        builder.append("serializer\t" + serializerType + "\n");
         return builder.toString();
     }
 
@@ -135,6 +166,14 @@ public class Configure {
         return topic;
     }
 
+    public String getSubId() {
+        return subId;
+    }
+
+    public void setSubId(String subId) {
+        this.subId = subId;
+    }
+
     public void setTopic(String topic) {
         this.topic = topic;
     }
@@ -161,6 +200,11 @@ public class Configure {
     }
 
     public void setBatchSize(int batchSize) {
+        if (batchSize <= 0) {
+            logger.warn("BatchSize must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_DATAHUB_BATCHSIZE);
+            batchSize = Configure.DEFAULT_DATAHUB_BATCHSIZE;
+        }
         this.batchSize = batchSize;
     }
 
@@ -169,6 +213,11 @@ public class Configure {
     }
 
     public void setMaxBufferSize(int maxBufferSize) {
+        if (maxBufferSize <= 0) {
+            logger.warn("MaxBufferSize must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_DATAHUB_MAX_BUFFERSIZE);
+            maxBufferSize = Configure.DEFAULT_DATAHUB_BATCHSIZE;
+        }
         this.maxBufferSize = maxBufferSize;
     }
 
@@ -177,6 +226,10 @@ public class Configure {
     }
 
     public void setBatchTimeout(int batchTimeout) {
+        if (batchTimeout <= 0) {
+            logger.warn("BatchTimeout must be postive number. Defaulting to {}",
+                    Configure.DEFAULT_DATAHUB_BATCHTIMEOUT);
+        }
         this.batchTimeout = batchTimeout;
     }
 
@@ -189,15 +242,15 @@ public class Configure {
     }
 
     public String getShardIdsString() {
-        if (shardIds == null) {
+        if (shardIds == null || shardIds.isEmpty()) {
             return null;
         }
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < shardIds.size(); ++i) {
-            builder.append(shardIds.get(i));
-            if (i != shardIds.size() - 1) {
+            if (i > 0) {
                 builder.append(",");
             }
+            builder.append(shardIds.get(i));
         }
         return builder.toString();
     }
@@ -211,6 +264,10 @@ public class Configure {
     }
 
     public void setRetryInterval(int retryInterval) {
+        if (retryInterval <= 0) {
+            logger.warn("RetryInterval must be postive number. Defaulting to {}",
+                    Configure.DEFAULT_RETRY_INTERVAL);
+        }
         this.retryInterval = retryInterval;
     }
 
@@ -219,6 +276,10 @@ public class Configure {
     }
 
     public void setRetryTimes(int retryTimes) {
+        if (retryTimes <= 0) {
+            logger.warn("RetryInterval must be postive number. Defaulting to {}",
+                    Configure.DEFAULT_RETRY_TIMES);
+        }
         this.retryTimes = retryTimes;
     }
 
@@ -240,5 +301,37 @@ public class Configure {
 
     public void setDirtyDataFile(String dirtyDataFile) {
         this.dirtyDataFile = dirtyDataFile;
+    }
+
+    public boolean isAutoCommit() {
+        return autoCommit;
+    }
+
+    public void setAutoCommit(boolean autoCommit) {
+        this.autoCommit = autoCommit;
+    }
+
+    public int getOffsetCommitInterval() {
+        return offsetCommitInterval;
+    }
+
+    public void setOffsetCommitInterval(int offsetCommitInterval) {
+        if (offsetCommitInterval <= 0) {
+            logger.warn("OffsetCommitInterval must be postive number. Defaulting to {}",
+                    Configure.DEFAULT_OFFSET_COMMIT_INTERVAL);
+        }
+        this.offsetCommitInterval = offsetCommitInterval;
+    }
+
+    public int getSessionTimeout() {
+        return sessionTimeout;
+    }
+
+    public void setSessionTimeout(int sessionTimeout) {
+        if (sessionTimeout <= 0) {
+            logger.warn("SessionTimeout must be postive number. Defaulting to {}",
+                    Configure.DEFAULT_SESSION_TIMEOUT);
+        }
+        this.sessionTimeout = sessionTimeout;
     }
 }

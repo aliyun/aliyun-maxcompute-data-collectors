@@ -63,11 +63,9 @@ public class DatahubWriter {
         if (configure.getCompressType() != null) {
             config.setCompressType(HttpConfig.CompressType.valueOf(configure.getCompressType()));
         }
-
-
         datahubClient = DatahubClientBuilder.newBuilder()
                 .setHttpConfig(config)
-                .setUserAgent("datahub-flume-plugin-2.0.3")
+                .setUserAgent("datahub-flume-plugin-2.0.0")
                 .setDatahubConfig(
                         new DatahubConfig(configure.getEndPoint(),
                                 new com.aliyun.datahub.client.auth.AliyunAccount(
@@ -96,9 +94,9 @@ public class DatahubWriter {
         }
     }
 
-    public void writeRecords(List<RecordEntry> recordEntries) throws IOException {
+    public int writeRecords(List<RecordEntry> recordEntries) throws IOException {
         threadId = Thread.currentThread().getId();
-        putRecordWithRetry(recordEntries);
+        return putRecordWithRetry(recordEntries);
     }
 
     public TupleRecordData buildRecord(Map<String, String> rowMap) throws IOException {
@@ -170,7 +168,8 @@ public class DatahubWriter {
         return activeShardIds.get(index);
     }
 
-    private void putRecordWithRetry(List<RecordEntry> recordEntries) throws IOException {
+    private int putRecordWithRetry(List<RecordEntry> recordEntries) throws IOException {
+        int putSucNum = 0;
         int retryNum = configure.getRetryTimes();
         int interval = configure.getRetryInterval();
         while (true) {
@@ -179,15 +178,18 @@ public class DatahubWriter {
                 result = datahubClient.putRecords(configure.getProject(),
                         configure.getTopic(), recordEntries);
             } catch (DatahubClientException e) {
-                logger.error("[Thread {}] Put {} records to DataHub failed. " + e.getErrorMessage(),
-                        threadId, recordEntries.size());
-                throw e;
+                logger.error("[Thread {}] Put {} records to DataHub failed. {}",
+                        threadId, recordEntries.size(), e.getErrorMessage());
+                //throw e;
             }
 
-            if (result != null && result.getFailedRecordCount() == 0) {
-                logger.info("[Thread {}] Put {} records to DataHub successful.",
-                        threadId, recordEntries.size());
-                break;
+            if (result != null) {
+                putSucNum += recordEntries.size() - result.getFailedRecordCount();
+                if (result.getFailedRecordCount() == 0) {
+                    logger.info("[Thread {}] Put {} records to DataHub successful.",
+                            threadId, recordEntries.size());
+                    break;
+                }
             }
 
             if (retryNum > 0) {
@@ -195,12 +197,12 @@ public class DatahubWriter {
                     Thread.sleep(interval * 1000);
                 } catch (InterruptedException e) {
                 }
-                logger.warn("[Thread {}] Now retry ({})...", threadId, retryNum);
+                logger.warn("[Thread {} ] Now retry ({})...", threadId, retryNum);
 
                 if (result != null && result.getFailedRecordCount() > 0) {
-                    logger.warn("[Thread {}] Put {} records to DataHub. " + result.getFailedRecordCount()
-                                    + "records is failed. " + result.getPutErrorEntries().get(0).getMessage(),
-                            threadId, recordEntries.size());
+                    logger.warn("[Thread {} ] Put {} records to DataHub. {} records is failed. {}",
+                            threadId, recordEntries.size(), result.getFailedRecordCount(),
+                            result.getPutErrorEntries().get(0).getMessage());
 
                     recordEntries.clear();
                     List<RecordEntry> failedRecords = result.getFailedRecords();
@@ -232,15 +234,15 @@ public class DatahubWriter {
             } else {
                 if (result != null && result.getFailedRecordCount() > 0) {
                     recordEntries = result.getFailedRecords();
-                    logger.error("[Thread {}] {} records put failed. "
-                                    + result.getPutErrorEntries().get(0).getMessage(),
-                            threadId, recordEntries.size());
+                    logger.error("[Thread {} ] {} records put failed. {}", threadId,
+                            recordEntries.size(), result.getPutErrorEntries().get(0).getMessage());
                     throw new RuntimeException("put record failed. "
                             + result.getPutErrorEntries().get(0).getMessage());
                 }
                 break;
             }
         }
+        return putSucNum;
     }
 
     public void handleDirtyData(String rawBody) throws IOException {
@@ -250,7 +252,7 @@ public class DatahubWriter {
             throw new RuntimeException("Dirty data found, exit process now.");
         }
 
-        logger.warn("[Thread {}] Dirty data found, will write to dirtyDataFile {}",
+        logger.warn("[Thread {} ] Dirty data found, will write to dirtyDataFile {}",
                 threadId, configure.getDirtyDataFile());
 
         writer.write(rawBody);
@@ -260,10 +262,10 @@ public class DatahubWriter {
     private void handleDirtyData(Map<String, String> rowMap) throws IOException {
         if (!configure.isDirtyDataContinue()) {
             //logger.error("[Thread {}] Dirty data found, exit process now.", threadId);
-            throw new RuntimeException("Dirty data found, exit process now.");
+            throw new IllegalArgumentException("Dirty data found, exit process now.");
         }
 
-        logger.warn("[Thread {}] Dirty data found, will write to dirtyDataFile {}",
+        logger.warn("[Thread {} ] Dirty data found, will write to dirtyDataFile {}",
                 threadId, configure.getDirtyDataFile());
         StringBuilder builder = new StringBuilder();
         String[] columnNames = configure.getInputColumnNames();
@@ -282,10 +284,10 @@ public class DatahubWriter {
     private void handleDirtyData(RecordEntry entry) throws IOException {
         if (!configure.isDirtyDataContinue()) {
             //logger.error("[Thread {}] Dirty data found, exit process now.", threadId);
-            throw new DatahubClientException("Dirty data found, exit process now.");
+            throw new IllegalArgumentException("Dirty data found, exit process now.");
         }
 
-        logger.warn("[Thread {}] Dirty data found, will write to dirtyDataFile {}",
+        logger.warn("[Thread {} ] Dirty data found, will write to dirtyDataFile {}",
                 threadId, configure.getDirtyDataFile());
 
         TupleRecordData data = (TupleRecordData) entry.getRecordData();

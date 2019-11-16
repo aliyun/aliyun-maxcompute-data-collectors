@@ -46,9 +46,12 @@ public class DatahubConfigConstants {
      */
     public static final String DATAHUB_TOPIC = "datahub.topic";
     /**
-     * Datahub shard id, optional
+     * Datahub shard ids, optional
      */
     public static final String DATAHUB_SHARD_IDS = "datahub.shard.ids";
+
+    public static final String DATAHUB_SUB_ID = "datahub.subId";
+    public static final String DATAHUB_START_TIME = "datahub.startTime";
 
     public static final String DATAHUB_ENABLE_PB = "datahub.enablePb";
     public static final String DATAHUB_COMPRESS_TYPE = "datahub.compressType";
@@ -65,5 +68,7 @@ public class DatahubConfigConstants {
     public static final String Dirty_DATA_CONTINUE = "datahub.dirtyDataContinue";
     public static final String Dirty_DATA_FILE = "datahub.dirtyDataFile";
 
-
+    public static final String AUTO_COMMIT = "datahub.autoCommit";
+    public static final String OFFSET_COMMIT_INTERVAL = "datahub.offsetCommitInterval";
+    public static final String SESSION_TIMEOUT = "datahub.sessionTimeout";
 }

@@ -30,11 +30,18 @@
     </licenses>
 
     <dependencies>
-		<dependency>
-			<groupId>com.aliyun.datahub</groupId>
-			<artifactId>aliyun-sdk-datahub</artifactId>
+
+        <dependency>
+            <groupId>com.aliyun.datahub</groupId>
+            <artifactId>aliyun-sdk-datahub</artifactId>
             <version>2.13.0-public</version>
         </dependency>
+        <dependency>
+            <groupId>com.aliyun.datahub</groupId>
+            <artifactId>datahub-client-library</artifactId>
+            <version>1.0.7-public</version>
+        </dependency>
+
 
         <dependency>
             <groupId>com.aliyun.odps</groupId>
@@ -76,7 +83,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.6.2</version>
+            <version>1.7.12</version>
         </dependency>
 
         <dependency>

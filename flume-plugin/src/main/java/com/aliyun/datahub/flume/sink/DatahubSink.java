@@ -58,16 +58,18 @@ public class DatahubSink extends AbstractSink implements Configurable {
                 .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_ID),
                         "%s config setting is not" + " specified for sink %s",
                         DatahubConfigConstants.DATAHUB_ACCESS_ID, getName());
-
         configure.setAccessId(accessId);
+
         String accessKey = Preconditions
                 .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_KEY),
                         "%s config setting is " + "not specified for sink %s",
                         DatahubConfigConstants.DATAHUB_ACCESS_KEY, getName());
-
         configure.setAccessKey(accessKey);
-        String endPoint = context.getString(DatahubConfigConstants.DATAHUB_END_POINT,
-                Configure.DEFAULT_DATAHUB_END_POINT);
+
+        String endPoint = Preconditions
+                .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_END_POINT),
+                        "%s config setting is " + "not specified for sink %s",
+                        DatahubConfigConstants.DATAHUB_END_POINT, getName());
         configure.setEndPoint(endPoint);
 
         String projectName = Preconditions
@@ -83,7 +85,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
         configure.setTopic(topic);
 
         String shardIds = context.getString(DatahubConfigConstants.DATAHUB_SHARD_IDS);
-        if (shardIds != null && !shardIds.isEmpty()) {
+        if (shardIds != null) {
             List<String> ids = Arrays.asList(shardIds.split(","));
             configure.setShardIds(ids);
         }
@@ -94,30 +96,11 @@ public class DatahubSink extends AbstractSink implements Configurable {
         boolean enablePb = context.getBoolean(DatahubConfigConstants.DATAHUB_ENABLE_PB, Configure.DEFAULT_ENABLE_PB);
         configure.setEnablePb(enablePb);
 
-        String serializerType = Preconditions
-                .checkNotNull(context.getString(DatahubConfigConstants.SERIALIZER),
-                        "%s config setting" + " is not specified for sink %s",
-                        DatahubConfigConstants.SERIALIZER, getName());
-        configure.setSerializerType(serializerType);
-        serializer = this.createSerializer(serializerType);
-
-        Context serializerContext = new Context();
-        serializerContext
-                .putAll(context.getSubProperties(DatahubConfigConstants.SERIALIZER_PREFIX));
-        serializer.configure(serializerContext);
-        configure.setInputColumnNames(serializer.getInputColumnNames());
-
         int batchSize = context.getInteger(DatahubConfigConstants.BATCH_SIZE, Configure.DEFAULT_DATAHUB_BATCHSIZE);
-        if (batchSize < 0) {
-            logger.warn("{}.batchSize must be positive number. Defaulting to {}", getName(),
-                    Configure.DEFAULT_DATAHUB_BATCHSIZE);
-            batchSize = Configure.DEFAULT_DATAHUB_BATCHSIZE;
-        }
         configure.setBatchSize(batchSize);
 
         int maxBufferSize = context.getInteger(DatahubConfigConstants.MAX_Buffer_SIZE, Configure.DEFAULT_DATAHUB_MAX_BUFFERSIZE);
         configure.setMaxBufferSize(maxBufferSize);
-
 
         int batchTimeout = context.getInteger(DatahubConfigConstants.BATCH_TIMEOUT, Configure.DEFAULT_DATAHUB_BATCHTIMEOUT);
         configure.setBatchTimeout(batchTimeout);
@@ -134,20 +117,24 @@ public class DatahubSink extends AbstractSink implements Configurable {
         String dirtyDataFile = context.getString(DatahubConfigConstants.Dirty_DATA_FILE, Configure.DEFAULT_DIRTY_DATA_FILE);
         configure.setDirtyDataFile(dirtyDataFile);
 
+        String serializerType = Preconditions
+                .checkNotNull(context.getString(DatahubConfigConstants.SERIALIZER),
+                        "%s config setting" + " is not specified for sink %s",
+                        DatahubConfigConstants.SERIALIZER, getName());
+        configure.setSerializerType(serializerType);
+        serializer = this.createSerializer(serializerType);
+
+        Context serializerContext = new Context();
+        serializerContext
+                .putAll(context.getSubProperties(DatahubConfigConstants.SERIALIZER_PREFIX));
+        serializer.configure(serializerContext);
+        configure.setInputColumnNames(serializer.getInputColumnNames());
+
         if (sinkCounter == null) {
             sinkCounter = new SinkCounter(getName());
         }
 
-        // Initial datahub writer
-        if (datahubWriter == null) {
-            try {
-                datahubWriter = new DatahubWriter(configure);
-            } catch (IOException e) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
-        logger.info("Init DatahubWriter success");
-        logger.debug(configure.toString());
+        logger.debug(configure.sinktoString());
     }
 
     private OdpsEventSerializer createSerializer(String serializerType) {
@@ -171,6 +158,17 @@ public class DatahubSink extends AbstractSink implements Configurable {
     @Override
     public void start() {
         super.start();
+
+        // Initial datahub writer
+        if (datahubWriter == null) {
+            try {
+                datahubWriter = new DatahubWriter(configure);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        logger.info("Init DatahubWriter success");
+
         // Sleep a random time (<= 5s)
         try {
             Thread.sleep((new Random()).nextInt(5000));
@@ -178,7 +176,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
             // DO NOTHING
         }
         sinkCounter.start();
-        logger.info("Datahub Sink {}: started", getName());
+        logger.info("DataHub Sink {}: started", getName());
     }
 
     @Override
@@ -191,7 +189,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
             e.printStackTrace();
             logger.warn("close dirtyFile failed. ", e);
         }
-        logger.info("Datahub Sink {}: stopped", getName());
+        logger.info("DataHub Sink {}: stopped", getName());
     }
 
     @Override
@@ -254,25 +252,26 @@ public class DatahubSink extends AbstractSink implements Configurable {
                 logger.debug("[Thread {}] No events in channel {}.", threadId, getChannel().getName());
                 status = Status.BACKOFF;
             } else {
-                logger.debug("[Thread " + threadId + "] Record batch size is {}, buffer size is {} bytes, start sink to DataHub...", recordEntries.size(), buffSize);
+                logger.debug("[Thread {}] Record batch size is {}, buffer size is {} bytes, start sink to DataHub...", threadId, recordEntries.size(), buffSize);
 
-                datahubWriter.writeRecords(recordEntries);
+                int putSucNum = datahubWriter.writeRecords(recordEntries);
 
                 if (configure.getBatchSize() == recordSize) {
                     sinkCounter.incrementBatchCompleteCount();
                 } else {
                     sinkCounter.incrementBatchUnderflowCount();
                 }
-                sinkCounter.addToEventDrainSuccessCount(recordSize);
+                sinkCounter.addToEventDrainSuccessCount(putSucNum);
             }
             transaction.commit();
         } catch (Throwable t) {
             transaction.rollback();
+            status = Status.BACKOFF;
             if (t instanceof Error) {
                 throw (Error) t;
             } else if (t instanceof ChannelException) {
-                logger.error("[Thread " + threadId + "] DataHub Sink {}: Unable to get event from channel {}. Exception follows.",  channel.getName(), t);
-                status = Status.BACKOFF;
+                logger.error("[Thread {}] DataHub Sink {}: Unable to get event from channel {}. Exception follows.", threadId, getName(), channel.getName(), t);
+
             } else {
                 logger.error("[Thread {}] ", threadId, t);
                 throw new EventDeliveryException("Failed to take events", t);

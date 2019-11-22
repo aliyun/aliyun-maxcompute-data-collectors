@@ -79,4 +79,17 @@ public class DirUtils {
     }
     return items;
   }
+
+  public static String[] listFiles(Path dir, String prefix) {
+    String[] items = dir.toFile().list(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return new File(dir, name).isFile() && name.startsWith(prefix);
+      }
+    });
+    if (items == null) {
+      throw new IllegalArgumentException(dir.toString() + " is not a valid directory.");
+    }
+    return items;
+  }
 }

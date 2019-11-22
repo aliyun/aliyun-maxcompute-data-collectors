@@ -32,6 +32,7 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
   TableTunnel tunnel;
   UploadSession uploadSession;
   RecordWriter recordWriter;
+  String odpsProjectName;
   String currentOdpsTableName;
   List<String> odpsColumnNames;
   String currentOdpsPartitionSpec;
@@ -70,17 +71,20 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
         StringObjectInspector soi0 = (StringObjectInspector) objectInspectors[0];
         StringObjectInspector soi1 = (StringObjectInspector) objectInspectors[1];
         StringObjectInspector soi2 = (StringObjectInspector) objectInspectors[2];
+        StringObjectInspector soi3 = (StringObjectInspector) objectInspectors[3];
 
-        currentOdpsTableName = soi0.getPrimitiveJavaObject(args[0]).trim();
+        odpsProjectName = soi0.getPrimitiveJavaObject(args[0]).trim();
+
+        currentOdpsTableName = soi1.getPrimitiveJavaObject(args[1]).trim();
         schema = odps.tables().get(currentOdpsTableName).getSchema();
 
-        currentOdpsPartitionSpec = soi1.getPrimitiveJavaObject(args[1]).trim();
+        currentOdpsPartitionSpec = soi2.getPrimitiveJavaObject(args[2]).trim();
         uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
             currentOdpsTableName, new PartitionSpec(currentOdpsPartitionSpec));
         recordWriter = uploadSession.openBufferedWriter(true);
         ((TunnelBufferedWriter) recordWriter).setBufferSize(64 * 1024 * 1024);
 
-        String odpsColumnNameString = soi2.getPrimitiveJavaObject(args[2]).trim();
+        String odpsColumnNameString = soi3.getPrimitiveJavaObject(args[3]).trim();
         odpsColumnNames = new ArrayList<>();
         if (!odpsColumnNameString.isEmpty()) {
           odpsColumnNames.addAll(Arrays.asList(trimAll(odpsColumnNameString.split(","))));
@@ -89,7 +93,7 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
 
       List<Object> hiveColumnValues = new ArrayList<>();
       for (int i = 0; i < odpsColumnNames.size(); i++) {
-        hiveColumnValues.add(args[i + 3]);
+        hiveColumnValues.add(args[i + 4]);
       }
 
       Record record = uploadSession.newRecord();
@@ -101,7 +105,7 @@ public class OdpsPartitionTransferUDTF extends GenericUDTF {
         }
 
         // Handle data types
-        ObjectInspector objectInspector = objectInspectors[i + 3];
+        ObjectInspector objectInspector = objectInspectors[i + 4];
         TypeInfo typeInfo = schema.getColumn(odpsColumnName).getTypeInfo();
 
         record.set(odpsColumnName, HiveObjectConverter.convert(objectInspector, value, typeInfo));

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,16 +33,17 @@ import java.util.List;
  *  [output directory]
  *  |______Report.html
  *  |______[database name]
- *         |______odps_ddl
- *         |      |______tables
- *         |      |      |______[table name].sql
- *         |      |______partitions
- *         |             |______[table name].sql
- *         |______hive_udtf_sql
- *                |______single_partition
- *                |      |______[table name].sql
- *                |______multi_partition
- *                       |______[table name].sql
+ *         |______[table name]
+ *                |______odps_ddl
+ *                |      |______create_table.sql
+ *                |      |______[partition spec].sql
+ *                |      |______...
+ *                |______hive_udtf_sql
+ *                       |______single_partition
+ *                       |      |______[partition spec].sql
+ *                       |      |______...
+ *                       |______multi_partition
+ *                              |______[table name].sql
  */
 public class IntermediateDataManager {
 
@@ -49,13 +51,14 @@ public class IntermediateDataManager {
    * Directory & file names
    */
   private static final String ODPS_DDL_DIR = "odps_ddl";
-  private static final String TABLE_META_DIR = "tables";
-  private static final String PARTITION_META_DIR = "partitions";
   private static final String HIVE_UDTF_DIR = "hive_udtf_sql";
+  private static final String HIVE_VERIFY_DIR = "hive_verify_sql";
+  private static final String ODPS_VERIFY_DIR = "odps_verify_sql";
+  private static final String CREATE_TABLE_FILENAME = "create_table";
+  private static final String CREATE_PARTITION_FILENAME = "create_partition_";
   private static final String SINGLE_PARTITION_DIR = "single_partition";
   private static final String MULTI_PARTITION_DIR = "multi_partition";
-  private static final String REPROT = "report.html";
-
+  private static final String REPROT = "Report.html";
   private static final String SQL_SUFFIX = ".sql";
 
   private String root;
@@ -66,59 +69,148 @@ public class IntermediateDataManager {
 
   public String getOdpsCreateTableStatement(String databaseName, String tableName)
       throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, ODPS_DDL_DIR, TABLE_META_DIR,
-        tableName + SQL_SUFFIX);
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_DDL_DIR,
+                              CREATE_TABLE_FILENAME + SQL_SUFFIX);
     return DirUtils.readFromFile(filePath);
   }
 
   public void setOdpsCreateTableStatement(String databaseName, String tableName, String content)
       throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, ODPS_DDL_DIR, TABLE_META_DIR,
-        tableName + SQL_SUFFIX);
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_DDL_DIR,
+                              CREATE_TABLE_FILENAME + SQL_SUFFIX);
     DirUtils.writeToFile(filePath, content);
   }
 
-  public String getOdpsAddPartitionStatement(String databaseName, String tableName)
-      throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, ODPS_DDL_DIR, PARTITION_META_DIR,
-        tableName + SQL_SUFFIX);
-    return DirUtils.readFromFile(filePath);
-  }
+  public List<String> getOdpsAddPartitionStatements(String databaseName,
+                                                   String tableName) throws IOException {
+    List<String> addPartitionStatements = new ArrayList<>();
 
-  public void setOdpsAddPartitionStatement(String databaseName, String tableName, String content)
-      throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, ODPS_DDL_DIR, PARTITION_META_DIR,
-        tableName + SQL_SUFFIX);
-    DirUtils.writeToFile(filePath, content);
-  }
-
-  public String getHiveUdtfSQLSinglePartition(String databaseName, String tableName)
-      throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, ODPS_DDL_DIR, SINGLE_PARTITION_DIR,
-        tableName + SQL_SUFFIX);
-    return DirUtils.readFromFile(filePath);
-  }
-
-  public void setHiveUdtfSQLSinglePartition(String databaseName, String tableName,
-      List<String> content) throws IOException {
-    for (int i = 0; i < content.size(); i++) {
-      Path filePath = Paths.get(this.root, databaseName, HIVE_UDTF_DIR, SINGLE_PARTITION_DIR,
-          tableName + "_" + i + SQL_SUFFIX);
-      DirUtils.writeToFile(filePath, content.get(i));
+    Path odpsDdlDir = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR);
+    String[] filenames = DirUtils.listFiles(odpsDdlDir, CREATE_PARTITION_FILENAME);
+    for (String filename : filenames) {
+      Path filePath = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR, filename);
+      addPartitionStatements.add(DirUtils.readFromFile(filePath));
     }
+    return addPartitionStatements;
   }
 
-  public String getHiveUdtfSQLMultiPartition(String databaseName, String tableName)
+  public void setOdpsAddPartitionStatement(String databaseName,
+                                           String tableName,
+                                           String partitionSpec,
+                                           String addPartitionStatement) throws IOException {
+    String filename = CREATE_PARTITION_FILENAME + partitionSpec + SQL_SUFFIX;
+    Path filePath = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR, filename);
+    DirUtils.writeToFile(filePath, addPartitionStatement);
+  }
+
+  public List<String> getHiveUdtfSqlSinglePartition(String databaseName,
+                                               String tableName) throws IOException {
+    List<String> hiveUdtfSqlSinglePartition = new ArrayList<>();
+    Path hiveSinglePartitionUdtfSqlDir = Paths.get(this.root,
+                                                   databaseName,
+                                                   tableName,
+                                                   HIVE_UDTF_DIR,
+                                                   SINGLE_PARTITION_DIR);
+    String[] filenames = DirUtils.listFiles(hiveSinglePartitionUdtfSqlDir);
+    for (String filename : filenames) {
+      Path filePath = Paths.get(this.root,
+                                databaseName,
+                                tableName,
+                                HIVE_UDTF_DIR,
+                                SINGLE_PARTITION_DIR,
+                                filename);
+      hiveUdtfSqlSinglePartition.add( DirUtils.readFromFile(filePath));
+    }
+    return hiveUdtfSqlSinglePartition;
+  }
+
+  public void setHiveUdtfSqlSinglePartition(String databaseName,
+                                            String tableName,
+                                            String partitionSpec,
+                                            String hiveSql) throws IOException {
+    String filename =  partitionSpec + SQL_SUFFIX;
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              HIVE_UDTF_DIR,
+                              SINGLE_PARTITION_DIR,
+                              filename);
+    DirUtils.writeToFile(filePath, hiveSql);
+  }
+
+  public void setHiveVerifySqlSinglePartition(String databaseName,
+                                              String tableName,
+                                              String partitionSpec,
+                                              String hiveSql) throws IOException {
+    String filename =  partitionSpec + SQL_SUFFIX;
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              HIVE_VERIFY_DIR,
+                              SINGLE_PARTITION_DIR,
+                              filename);
+    DirUtils.writeToFile(filePath, hiveSql);
+  }
+
+  public void setOdpsVerifySqlSinglePartition(String databaseName,
+                                              String tableName,
+                                              String partitionSpec,
+                                              String odpsSql) throws IOException {
+    String filename =  partitionSpec + SQL_SUFFIX;
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_VERIFY_DIR,
+                              SINGLE_PARTITION_DIR,
+                              filename);
+    DirUtils.writeToFile(filePath, odpsSql);
+  }
+
+  public String getHiveUdtfSqlMultiPartition(String databaseName, String tableName)
       throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, HIVE_UDTF_DIR, MULTI_PARTITION_DIR,
-        tableName + SQL_SUFFIX);
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              HIVE_UDTF_DIR,
+                              MULTI_PARTITION_DIR,
+                              tableName + SQL_SUFFIX);
     return DirUtils.readFromFile(filePath);
   }
 
-  public void setHiveUdtfSQLMultiPartition(String databaseName, String tableName, String content)
+  public void setHiveUdtfSqlMultiPartition(String databaseName, String tableName, String content)
       throws IOException {
-    Path filePath = Paths.get(this.root, databaseName, HIVE_UDTF_DIR, MULTI_PARTITION_DIR,
-        tableName + SQL_SUFFIX);
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              HIVE_UDTF_DIR,
+                              MULTI_PARTITION_DIR,
+                              tableName + SQL_SUFFIX);
+    DirUtils.writeToFile(filePath, content);
+  }
+
+  public void setHiveVerifySqlWholeTable(String databaseName, String tableName, String content)
+      throws IOException {
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              HIVE_VERIFY_DIR,
+                              tableName + SQL_SUFFIX);
+    DirUtils.writeToFile(filePath, content);
+  }
+
+  public void setOdpsVerifySqlWholeTable(String databaseName, String tableName, String content)
+      throws IOException {
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_VERIFY_DIR,
+                              tableName + SQL_SUFFIX);
     DirUtils.writeToFile(filePath, content);
   }
 
@@ -141,23 +233,8 @@ public class IntermediateDataManager {
   }
 
   public String[] listTables(String databaseName) {
-    Path tableMetaDir = Paths.get(this.root, databaseName, ODPS_DDL_DIR, TABLE_META_DIR);
-    if (!Files.exists(tableMetaDir)) {
-      return new String[0];
-    }
-    String[] tableMetaFiles = DirUtils.listFiles(tableMetaDir);
+    Path databaseDir = Paths.get(this.root, databaseName);
 
-    // Remove .sql
-    for (int i = 0; i < tableMetaFiles.length; i++) {
-      String tableMetaFile = tableMetaFiles[i];
-      if (tableMetaFile.endsWith(SQL_SUFFIX)) {
-        tableMetaFiles[i] =
-            tableMetaFile.substring(0, tableMetaFile.length() - SQL_SUFFIX.length());
-      } else {
-        throw new IllegalArgumentException(
-            "Table meta directory contains invalid file: " + tableMetaFile);
-      }
-    }
-    return tableMetaFiles;
+    return DirUtils.listDirs(databaseDir);
   }
 }

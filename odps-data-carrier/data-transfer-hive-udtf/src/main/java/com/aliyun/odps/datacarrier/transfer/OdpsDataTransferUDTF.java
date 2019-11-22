@@ -34,7 +34,10 @@ import com.aliyun.odps.type.TypeInfo;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
@@ -51,24 +54,42 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
  */
 public class OdpsDataTransferUDTF extends GenericUDTF {
 
-  ObjectInspector[] objectInspectors;
+  /**
+   * Won't change once initialized
+   */
   Odps odps;
   TableTunnel tunnel;
-  UploadSession uploadSession;
-  RecordWriter recordWriter;
-  String currentOdpsTableName;
-  List<String> odpsColumnNames;
-  List<String> odpsPartitionColumnNames;
-  String currentOdpsPartitionSpec;
-  TableSchema schema;
+  ObjectInspector[] objectInspectors;
+  private String odpsProjectName;
+  private String odpsTableName;
+  private List<String> odpsColumnNames;
+  private List<String> odpsPartitionColumnNames;
+  private TableSchema schema;
 
-  Long numRecordTransferred = 0L;
-  Object[] forwardObj = new Object[1];
+  /**
+   * Changes with different partition
+   */
+  private Map<String, UploadSession> partitionSpecToUploadSession = new HashMap<>();
+  private UploadSession currentUploadSession;
+  private RecordWriter recordWriter;
+  private String currentOdpsPartitionSpec;
+
+  /**
+   * Reused objects
+   */
+  private Object[] hiveColumnValues;
+  private Object[] hivePartitionColumnValues;
+  private Record reusedRecord;
+
+  /**
+   * Metrics
+   */
+  private Long numRecordTransferred = 0L;
+  private Object[] forwardObj = new Object[1];
 
   @Override
   public StructObjectInspector initialize(ObjectInspector[] args) throws UDFArgumentException {
     objectInspectors = args;
-    // This UDTF doesn't output anything
     List<String> fieldNames = new ArrayList<>();
     fieldNames.add("num_record_transferred");
     List<ObjectInspector> outputObjectInspectors = new ArrayList<>();
@@ -84,7 +105,6 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
         OdpsConfig odpsConfig = new OdpsConfig("odps_config.ini");
         AliyunAccount account = new AliyunAccount(odpsConfig.getAccessId(), odpsConfig.getAccessKey());
         odps = new Odps(account);
-        odps.setDefaultProject(odpsConfig.getProjectName());
         odps.setEndpoint(odpsConfig.getOdpsEndpoint());
         tunnel = new TableTunnel(odps);
         if (odpsConfig.getTunnelEndpoint() != null) {
@@ -92,61 +112,67 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
         }
       }
 
-      if (currentOdpsTableName == null) {
+      if (odpsTableName == null) {
         StringObjectInspector soi0 = (StringObjectInspector) objectInspectors[0];
         StringObjectInspector soi1 = (StringObjectInspector) objectInspectors[1];
         StringObjectInspector soi2 = (StringObjectInspector) objectInspectors[2];
+        StringObjectInspector soi3 = (StringObjectInspector) objectInspectors[3];
 
-        currentOdpsTableName = soi0.getPrimitiveJavaObject(args[0]).trim();
-        schema = odps.tables().get(currentOdpsTableName).getSchema();
+        odpsProjectName = soi0.getPrimitiveJavaObject(args[0]).trim();
+        odps.setDefaultProject(odpsProjectName);
 
-        String odpsColumnNameString = soi1.getPrimitiveJavaObject(args[1]).trim();
+        odpsTableName = soi1.getPrimitiveJavaObject(args[1]).trim();
+        schema = odps.tables().get(odpsTableName).getSchema();
+
+        String odpsColumnNameString = soi2.getPrimitiveJavaObject(args[2]).trim();
         odpsColumnNames = new ArrayList<>();
         if (!odpsColumnNameString.isEmpty()) {
           odpsColumnNames.addAll(Arrays.asList(trimAll(odpsColumnNameString.split(","))));
         }
+        hiveColumnValues = new Object[odpsColumnNames.size()];
 
-        String odpsPartitionColumnNameString = soi2.getPrimitiveJavaObject(args[2]).trim();
+        String odpsPartitionColumnNameString = soi3.getPrimitiveJavaObject(args[3]).trim();
         odpsPartitionColumnNames = new ArrayList<>();
         if (!odpsPartitionColumnNameString.isEmpty()) {
           odpsPartitionColumnNames.addAll(
               Arrays.asList(trimAll(odpsPartitionColumnNameString.split(","))));
         }
+        hivePartitionColumnValues = new Object[odpsPartitionColumnNames.size()];
       }
 
-      List<Object> hiveColumnValues = new ArrayList<>();
-      List<Object> hivePartitionColumnValues = new ArrayList<>();
       for (int i = 0; i < odpsColumnNames.size(); i++) {
-        hiveColumnValues.add(args[i + 3]);
+        hiveColumnValues[i] = args[i + 4];
       }
       for (int i = 0; i < odpsPartitionColumnNames.size(); i++) {
-        hivePartitionColumnValues.add(args[i + 3 + odpsColumnNames.size()]);
+        hivePartitionColumnValues[i] = args[i + 4 + odpsColumnNames.size()];
       }
 
       // Get partition spec
-      String partitionSpec = getPartitionSpec(hivePartitionColumnValues);
+      String partitionSpec = getPartitionSpec();
 
       // Create new tunnel upload session & record writer or reuse the current ones
       if (currentOdpsPartitionSpec == null || !currentOdpsPartitionSpec.equals(partitionSpec)) {
         resetUploadSession(partitionSpec);
       }
 
-      Record record = uploadSession.newRecord();
-      for (int i = 0; i < odpsColumnNames.size(); i++) {
-        String odpsColumnName = odpsColumnNames.get(i);
-        Object value = hiveColumnValues.get(i);
-        if (value == null) {
-          continue;
-        }
-
-        // Handle data types
-        ObjectInspector objectInspector = objectInspectors[i + 3];
-        TypeInfo typeInfo = schema.getColumn(odpsColumnName).getTypeInfo();
-
-        record.set(odpsColumnName, HiveObjectConverter.convert(objectInspector, value, typeInfo));
+      if (reusedRecord == null) {
+        reusedRecord = currentUploadSession.newRecord();
       }
 
-      recordWriter.write(record);
+      for (int i = 0; i < odpsColumnNames.size(); i++) {
+        String odpsColumnName = odpsColumnNames.get(i);
+        Object value = hiveColumnValues[i];
+        if (value == null) {
+          reusedRecord.set(odpsColumnName, null);
+        } else {
+          // Handle data types
+          ObjectInspector objectInspector = objectInspectors[i + 4];
+          TypeInfo typeInfo = schema.getColumn(odpsColumnName).getTypeInfo();
+          reusedRecord.set(odpsColumnName, HiveObjectConverter.convert(objectInspector, value, typeInfo));
+        }
+      }
+
+      recordWriter.write(reusedRecord);
       numRecordTransferred += 1;
     } catch (Exception e) {
       e.printStackTrace();
@@ -154,15 +180,15 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
     }
   }
 
-  private String getPartitionSpec(List<Object> hivePartitionColumnValues) {
+  private String getPartitionSpec() {
     StringBuilder partitionSpecBuilder = new StringBuilder();
     for (int i = 0; i < odpsPartitionColumnNames.size(); ++i) {
-      Object colValue = hivePartitionColumnValues.get(i);
+      Object colValue = hivePartitionColumnValues[i];
       if (colValue == null) {
         continue;
       }
 
-      ObjectInspector objectInspector = objectInspectors[i + 3 + odpsColumnNames.size()];
+      ObjectInspector objectInspector = objectInspectors[i + 4 + odpsColumnNames.size()];
       TypeInfo typeInfo = schema.getPartitionColumn(odpsPartitionColumnNames.get(i)).getTypeInfo();
 
       Object odpsValue = HiveObjectConverter.convert(objectInspector, colValue, typeInfo);
@@ -177,24 +203,33 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
   }
 
   private void resetUploadSession(String partitionSpec) throws TunnelException, IOException {
-    currentOdpsPartitionSpec = partitionSpec;
-
-    // End the previous session
-    if (uploadSession != null) {
+    // Close current record writer
+    if (currentUploadSession != null) {
       recordWriter.close();
-      uploadSession.commit();
     }
 
-    if (partitionSpec.isEmpty()) {
-      uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
-          currentOdpsTableName);
-    } else {
-      uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
-          currentOdpsTableName, new PartitionSpec(partitionSpec));
-    }
-
-    recordWriter = uploadSession.openBufferedWriter(true);
+    currentUploadSession = getOrCreateUploadSession(partitionSpec);
+    recordWriter = currentUploadSession.openBufferedWriter(true);
     ((TunnelBufferedWriter) recordWriter).setBufferSize(64 * 1024 * 1024);
+    currentOdpsPartitionSpec = partitionSpec;
+  }
+
+  private UploadSession getOrCreateUploadSession(String partitionSpec) throws TunnelException {
+    UploadSession uploadSession = partitionSpecToUploadSession.get(partitionSpec);
+
+    if (uploadSession == null) {
+      if (partitionSpec.isEmpty()) {
+        uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
+                                                   odpsTableName);
+      } else {
+        uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
+                                                   odpsTableName,
+                                                   new PartitionSpec(partitionSpec));
+      }
+      partitionSpecToUploadSession.put(partitionSpec, uploadSession);
+    }
+
+    return uploadSession;
   }
 
   private String[] trimAll(String[] array) {
@@ -206,10 +241,16 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
 
   @Override
   public void close() throws HiveException {
-    if (uploadSession != null) {
+    try {
+      recordWriter.close();
+    } catch (IOException e) {
+      e.printStackTrace();
+      throw new HiveException(e);
+    }
+
+    for (String partitionSpec : partitionSpecToUploadSession.keySet()) {
       try {
-        recordWriter.close();
-        uploadSession.commit();
+        partitionSpecToUploadSession.get(partitionSpec).commit();
       } catch (IOException | TunnelException e) {
         e.printStackTrace();
         throw new HiveException(e);

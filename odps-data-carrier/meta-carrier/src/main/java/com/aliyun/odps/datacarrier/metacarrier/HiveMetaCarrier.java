@@ -98,6 +98,7 @@ public class HiveMetaCarrier {
     TableMetaModel tableMeta = new TableMetaModel();
     tableMeta.tableName = tableName;
     tableMeta.odpsTableName = tableName;
+    tableMeta.location = table.getSd().getLocation();
     List<FieldSchema> columns = metaStoreClient.getFields(databaseName, tableName);
     for (FieldSchema column : columns) {
       ColumnMetaModel columnMetaModel = new ColumnMetaModel();

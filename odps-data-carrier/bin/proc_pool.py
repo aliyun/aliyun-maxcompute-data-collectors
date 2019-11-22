@@ -36,6 +36,7 @@ class ProcessPool:
         self._stopped_lock = threading.Lock()
         self._consumer_thread = threading.Thread(target=self._consume)
         self._rolling_thread = threading.Thread(target=self._rolling)
+        self._verbose = verbose
         if verbose:
             self._LOGGER.setLevel(logging.DEBUG)
 
@@ -43,11 +44,11 @@ class ProcessPool:
         self._consumer_thread.start()
         self._rolling_thread.start()
 
-    def submit(self, command: str, log_dir: str, retry=5) -> None:
+    def submit(self, command: str, log_dir: str, context: dict, retry=5) -> None:
         os.makedirs(log_dir, exist_ok=True)
         t = threading.Thread(
             target=self._execute,
-            args=(command, log_dir, retry))
+            args=(command, log_dir, retry, context))
         with self._waiting_queue_lock:
             self._waiting_queue.append(t)
 
@@ -99,39 +100,73 @@ class ProcessPool:
             cmd: str,
             log_dir: str,
             retry: int,
+            context: dict,
     ) -> None:
         self._LOGGER.info("execute \'%s\'" % cmd)
         num_retry_times = retry
         while retry > 0:
             try:
+                if "on_submit_callback" in context:
+                    context["on_submit_callback"](context)
+
                 sp = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     shell=True,
-                    preexec_fn=os.setsid)
+                    preexec_fn=os.setsid,
+                    encoding='utf-8')
                 stdout, stderr = sp.communicate()
-                if isinstance(stdout, bytes):
-                    stdout = str(stdout, "utf-8")
-                if isinstance(stderr, bytes):
-                    stderr = str(stderr, "utf-8")
+
+                if self._verbose:
+                    print("cmd: ")
+                    print(cmd)
+                    print("stdout: ")
+                    print(stdout)
+                    print("stderr: ")
+                    print(stderr)
 
                 if sp.returncode == 0:
-                    self._LOGGER.info(
-                        "execute \'%s\' finished, stdout: %s, stderr: %s" % (cmd, stdout, stderr))
+                    stdout_path = os.path.join(log_dir, "stdout.log")
+                    with open(stdout_path, 'a') as fd:
+                        fd.write("=============================================================\n")
+                        fd.write("cmd:\n")
+                        fd.write(cmd + "\n")
+                        fd.write("-------------------------------------------------------------\n")
+                        fd.write(stdout + "\n")
+                        fd.write("=============================================================\n")
+
+                    stderr_path = os.path.join(log_dir, "stderr.log")
+                    with open(stderr_path, 'a') as fd:
+                        fd.write("=============================================================\n")
+                        fd.write("cmd:\n")
+                        fd.write(cmd + "\n")
+                        fd.write("-------------------------------------------------------------\n")
+                        fd.write(stderr + "\n")
+                        fd.write("=============================================================\n")
+
+                    if "on_success_callback" in context:
+                        context["on_success_callback"](context)
+
                     break
                 else:
                     log_path = os.path.join(log_dir, "error.log." + str(num_retry_times - retry))
-                    with open(log_path, 'w') as fd:
+                    with open(log_path, 'a') as fd:
+                        fd.write("=============================================================\n")
+                        fd.write("cmd:\n")
+                        fd.write(cmd + "\n")
+                        fd.write("-------------------------------------------------------------\n")
                         fd.write("stdout:\n")
-                        fd.write(stdout)
+                        fd.write(stdout + "\n")
+                        fd.write("-------------------------------------------------------------\n")
                         fd.write("stderr:\n")
-                        fd.write(stderr)
+                        fd.write(stderr + "\n")
+                        fd.write("=============================================================\n")
 
                 retry -= 1
             except Exception as e:
                 log_path = os.path.join(log_dir, "error.log." + str(num_retry_times - retry))
-                with open(log_path, 'w') as fd:
+                with open(log_path, 'a') as fd:
                     fd.write("error:\n")
                     fd.write(traceback.format_exc())
                 retry -= 1

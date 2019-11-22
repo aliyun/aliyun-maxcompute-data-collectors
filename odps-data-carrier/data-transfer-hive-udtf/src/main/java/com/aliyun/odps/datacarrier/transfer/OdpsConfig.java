@@ -35,9 +35,9 @@ public class OdpsConfig {
 
   private Properties properties;
 
-  public OdpsConfig(String fileName) throws IOException {
+  public OdpsConfig(String filename) throws IOException {
     this.properties = new Properties();
-    this.properties.load(new FileInputStream(fileName));
+    this.properties.load(new FileInputStream(filename));
   }
 
   public String getAccessId() {

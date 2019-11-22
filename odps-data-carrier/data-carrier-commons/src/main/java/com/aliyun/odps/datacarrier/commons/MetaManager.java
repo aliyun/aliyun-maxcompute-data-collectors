@@ -117,6 +117,7 @@ public class MetaManager {
     public String comment;
     public Boolean ifNotExists = true;
     public Boolean dropIfExists = false;
+    public String location;
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }

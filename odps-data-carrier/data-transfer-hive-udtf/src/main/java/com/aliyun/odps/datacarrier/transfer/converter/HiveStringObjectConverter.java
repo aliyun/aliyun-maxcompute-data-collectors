@@ -19,6 +19,9 @@
 
 package com.aliyun.odps.datacarrier.transfer.converter;
 
+import java.math.BigDecimal;
+
+import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.type.TypeInfo;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
@@ -28,6 +31,14 @@ public class HiveStringObjectConverter extends AbstractHiveObjectConverter {
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
     StringObjectInspector stringObjectInspector = (StringObjectInspector) objectInspector;
-    return stringObjectInspector.getPrimitiveJavaObject(o);
+    String value = stringObjectInspector.getPrimitiveJavaObject(o);
+
+    if (OdpsType.DECIMAL.equals(odpsTypeInfo.getOdpsType())) {
+      Double doubleValue = Double.valueOf(value);
+      return BigDecimal.valueOf(doubleValue);
+    } else if (OdpsType.DOUBLE.equals(odpsTypeInfo.getOdpsType())) {
+      return Double.valueOf(value);
+    }
+    return value;
   }
 }

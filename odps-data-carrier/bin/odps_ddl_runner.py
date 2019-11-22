@@ -15,62 +15,97 @@
 
 import os
 import argparse
+import copy
 
 from proc_pool import ProcessPool
 
 '''
-   [output directory]
-   |______Report.html
-   |______[database name]
-          |______odps_ddl
-          |      |______tables
-          |      |      |______[table name].sql
-          |      |______partitions
-          |             |______[table name].sql
-          |______hive_udtf_sql
-                 |______single_partition
-                 |      |______[table name].sql
-                 |______multi_partition
-                        |______[table name].sql
+      [output directory]
+      |______Report.html
+      |______[database name]
+             |______[table name]
+                    |______odps_ddl
+                    |      |______create_table.sql
+                    |      |______create_partition_[partition spec].sql
+                    |      |______...
+                    |______hive_udtf_sql
+                           |______single_partition
+                           |      |______[partition spec].sql
+                           |      |______...
+                           |______multi_partition
+                                  |______[table name].sql
 '''
 
-pool = ProcessPool(20, False)
+
+def submit(cmd: str, log_dir: str, context: dict, retry=5) -> None:
+    pool.submit(command=cmd, log_dir=log_dir, context=context, retry=retry)
 
 
-def submit(cmd: str, log_dir: str, retry=5) -> None:
-    pool.submit(command=cmd, log_dir=log_dir, retry=retry)
+def print_red(s):
+    print('\033[31m' + s + '\033[0m')
+
+
+def print_yellow(s):
+    print('\033[33m' + s + '\033[0m')
+
+
+def print_green(s):
+    print('\033[32m' + s + '\033[0m')
+
+
+def on_submit(context: dict):
+    msg = "MaxCompute DDL submitted, database: %s, table: %s" % (context["database"],
+                                                                 context["table"])
+    if "partition" in context:
+        msg += ", partition: %s" % context["partition"]
+    print_yellow(msg)
+
+
+def on_success(context: dict):
+    msg = "MaxCompute DDL finished, database: %s, table: %s" % (context["database"],
+                                                                 context["table"])
+    if "partition" in context:
+        msg += ", partition: %s" % context["partition"]
+    print_green(msg)
 
 
 def main(root: str, odpscmd_path: str, odps_config_path: str, odps_ddl_log_root: str) -> None:
     databases = os.listdir(root)
 
+    context = {}
+    context["type"] = "odps"
+    context["on_submit_callback"] = on_submit
+    context["on_success_callback"] = on_success
+
     for database in databases:
-        if database == "report.html":
+        context["database"] = database
+        database_dir = os.path.join(root, database)
+        if not os.path.isdir(database_dir):
             continue
-        create_table_stmt_dir = os.path.join(
-            root, database, "odps_ddl", "tables")
-        add_partition_stmt_dir = os.path.join(
-            root, database, "odps_ddl", "partitions")
 
-        if os.path.exists(create_table_stmt_dir):
-            create_table_stmt_files = os.listdir(create_table_stmt_dir)
-            for create_table_stmt_file in create_table_stmt_files:
-                file_path = os.path.join(
-                    create_table_stmt_dir, create_table_stmt_file)
-                command = "%s -f %s --config=%s" % (
-                    odpscmd_path, file_path, odps_config_path)
-                log_dir = os.path.join(odps_ddl_log_root, database, create_table_stmt_file[:-4])
-                submit(command, log_dir=log_dir)
+        tables = os.listdir(database_dir)
+        for table in tables:
+            context["table"] = table
+            # create table
+            log_dir = os.path.join(odps_ddl_log_root, database, table)
+            odps_ddl_dir = os.path.join(database_dir, table, "odps_ddl")
+            create_table_sql_file_path = os.path.join(odps_ddl_dir,"create_table.sql")
+            command = "%s -f %s --config=%s" % (odpscmd_path,
+                                                create_table_sql_file_path,
+                                                odps_config_path)
+            submit(command, log_dir=log_dir, context=copy.deepcopy(context))
 
-        if os.path.exists(add_partition_stmt_dir):
-            add_partition_stmt_files = os.listdir(add_partition_stmt_dir)
-            for add_partition_stmt_file in add_partition_stmt_files:
-                file_path = os.path.join(
-                    add_partition_stmt_dir, add_partition_stmt_file)
-                command = "%s -f %s --config=%s" % (
-                    odpscmd_path, file_path, odps_config_path)
-                log_dir = os.path.join(odps_ddl_log_root, database, add_partition_stmt_file[: -4])
-                submit(command, log_dir=log_dir)
+            # create partitions
+            sql_files = os.listdir(odps_ddl_dir)
+            for sql_file in sql_files:
+                context["partition"] = sql_file[: -4]
+                if sql_file == "create_table.sql":
+                    continue
+                sql_file_path = os.path.join(odps_ddl_dir, sql_file)
+                command = "%s -f %s --config=%s" % (odpscmd_path,
+                                                    sql_file_path,
+                                                    odps_config_path)
+                submit(command, log_dir=log_dir, context=copy.deepcopy(context))
 
 
 if __name__ == '__main__':
@@ -84,6 +119,19 @@ if __name__ == '__main__':
         "--odpscmd",
         required=False,
         help="path to odpscmd executable")
+    parser.add_argument(
+        "--parallelism",
+        required=False,
+        default=5,
+        type=int,
+        help="max parallelism of running hive sql")
+    parser.add_argument(
+        "--verbose",
+        required=False,
+        default=False,
+        type=bool,
+        help="print detailed information")
+
     args = parser.parse_args()
 
     root = args.input
@@ -95,14 +143,16 @@ if __name__ == '__main__':
 
     if args.odpscmd is None:
         # get path to odpscmd
-        odpscmd_path = os.path.join(
-            os.path.dirname(script_path), "res", "console", "bin", "odpscmd")
+        odpscmd_path = os.path.join(odps_data_carrier_path, "res", "console", "bin", "odpscmd")
         if not os.path.exists(odpscmd_path):
             print("ERROR: cannot find odpscmd, please specify the path to odpscmd")
     else:
         odpscmd_path = args.odpscmd
 
+    pool = ProcessPool(args.parallelism, args.verbose)
     pool.start()
-    main(root, odpscmd_path, odps_config_path, odps_ddl_log_root)
-    pool.join_all()
-    pool.stop()
+    try:
+        main(root, odpscmd_path, odps_config_path, odps_ddl_log_root)
+    finally:
+        pool.join_all()
+        pool.stop()

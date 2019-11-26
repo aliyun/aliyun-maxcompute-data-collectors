@@ -20,131 +20,198 @@
 package com.aliyun.datahub.flume.sink;
 
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 
 public class Configure {
+    private static final Logger logger = LoggerFactory.getLogger(Configure.class);
 
-    public static final String DEFAULT_DATAHUB_END_POINT = "http://dh.odps.aliyun.com";
+    public static final int DEFAULT_DATAHUB_BATCHSIZE = 1000;
 
-    public static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    public static final int DEFAULT_DATAHUB_BATCHTIMEOUT = 5;
 
-    public static final int DEFAULT_DATAHUB_BATCHSIZE = 100;
+    public static final int DEFAULT_DATAHUB_MAX_BUFFERSIZE = 2 * 1024 * 1024;
 
-    public static final int DEFAULT_RETRY_TIMES = -1;
+    public static final boolean DEFAULT_ENABLE_PB = true;
+
+    public static final int DEFAULT_RETRY_TIMES = 3;
     /**
      * Default retry interval, unit is second.
      */
     public static final int DEFAULT_RETRY_INTERVAL = 5;
 
-    public static final boolean DEFAULT_NEED_ROUNDING = false;
+    public static final boolean DEFAULT_DIRTY_DATA_CONTINUE = true;
+    public static final String DEFAULT_DIRTY_DATA_FILE = "DataHub-Flume-dirty-file";
 
-    public static final String DEFAULT_MAXCOMPUTE_PARTITION_COLUMNS = "";
-    public static final String DEFAULT_MAXCOMPUTE_PARTITION_VALUES = "";
+    public static final boolean DEFAULT_AUTO_COMMIT = true;
+    public static final int DEFAULT_OFFSET_COMMIT_INTERVAL = 30;
+    public static final int DEFAULT_SESSION_TIMEOUT = 60;
+
 
     private int retryTimes;
     private int retryInterval;
-    // datahub related config
-    private String datahubAccessId;
-    private String datahubAccessKey;
-    private String datahubEndPoint;
-    private String datahubProject;
-    private String datahubTopic;
-    private int datahubShardCount;
-    private int datahubLifeCycle;
-    private String datahubSchema;
 
-    private String dateFormat;
+    private String accessId;
+    private String accessKey;
+    private String endPoint;
+    private String project;
+    private String topic;
+    private boolean enablePb;
+
     private String serializerType;
     private int batchSize;
-    private String shardId;
+    private int maxBufferSize;
+    private int batchTimeout;
+    private List<String> shardIds;
+
+    private String compressType;
+
+    private boolean dirtyDataContinue;
+    private String dirtyDataFile;
+
+    private String subId;
+    private long startTimestamp;
+    private boolean autoCommit;
+    private int offsetCommitInterval;
+    private int sessionTimeout;
+
     private String[] inputColumnNames;
 
-    private String[] shardColumnNames;
-    private String[] dateformatColumnNames;
-
-    private boolean useLocalTime;
-    private TimeZone timeZone;
-    private boolean needRounding;
-    private int roundUnit;
-    private int roundValue;
-
-    private boolean isBlankValueAsNull;
-
-    private List<String> maxcomputePartitionCols;
-    private List<String> maxcomputePartitionVals;
-
-    public String[] getShardColumnNames() {
-        return shardColumnNames;
-    }
-
-    public void setShardColumnNames(String[] shardColumnNames) {
-        this.shardColumnNames = shardColumnNames;
-    }
-
-    public String[] getDateformatColumnNames() {
-        return dateformatColumnNames;
-    }
-
-    public void setDateformatColumnNames(String[] dateformatColumnNames) {
-        this.dateformatColumnNames = dateformatColumnNames;
-    }
 
     public String[] getInputColumnNames() {
         return inputColumnNames;
     }
 
+    public String sinktoString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("endPoint\t" + endPoint + "\n");
+        builder.append("accessId\t" + accessId + "\n");
+        builder.append("accessKey\t" + accessKey + "\n");
+        builder.append("project\t" + project + "\n");
+        builder.append("topic\t" + topic + "\n");
+        builder.append("shardIds\t" + getShardIdsString() + "\n");
+        builder.append("enablePb\t" + enablePb + "\n");
+        builder.append("compressType\t" + compressType + "\n");
+        builder.append("batchSize\t" + batchSize + "\n");
+        builder.append("maxBufferSize\t" + maxBufferSize + "\n");
+        builder.append("batchTimeout\t" + batchTimeout + "\n");
+        builder.append("retryTimes\t" + retryTimes + "\n");
+        builder.append("retryInterval\t" + retryInterval + "\n");
+        builder.append("dirtyDataContinue\t" + dirtyDataContinue + "\n");
+        builder.append("dirtyDataFile\t" + dirtyDataFile + "\n");
+        builder.append("serializer\t" + serializerType + "\n");
+        return builder.toString();
+    }
+
+    public String sourcetoString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("endPoint\t" + endPoint + "\n");
+        builder.append("accessId\t" + accessId + "\n");
+        builder.append("accessKey\t" + accessKey + "\n");
+        builder.append("project\t" + project + "\n");
+        builder.append("topic\t" + topic + "\n");
+        builder.append("subId\t" + subId + "\n");
+        builder.append("startTimestamp\t" + startTimestamp + "\n");
+        builder.append("shardIds\t" + getShardIdsString() + "\n");
+        builder.append("enablePb\t" + enablePb + "\n");
+        builder.append("compressType\t" + compressType + "\n");
+        builder.append("batchSize\t" + batchSize + "\n");
+        builder.append("batchTimeout\t" + batchTimeout + "\n");
+        builder.append("retryTimes\t" + retryTimes + "\n");
+        builder.append("autoCommit\t" + autoCommit + "\n");
+        builder.append("offsetCommitInterval\t" + offsetCommitInterval + "\n");
+        builder.append("sessionTimeout\t" + sessionTimeout + "\n");
+        builder.append("serializer\t" + serializerType + "\n");
+        return builder.toString();
+    }
+
+
     public void setInputColumnNames(String[] inputColumnNames) {
         this.inputColumnNames = inputColumnNames;
     }
 
-    public String getDatahubAccessId() {
-        return datahubAccessId;
+    public String getAccessId() {
+        return accessId;
     }
 
-    public void setDatahubAccessId(String datahubAccessId) {
-        this.datahubAccessId = datahubAccessId;
+    public void setAccessId(String accessId) {
+        this.accessId = accessId;
     }
 
-    public String getDatahubAccessKey() {
-        return datahubAccessKey;
+    public String getAccessKey() {
+        return accessKey;
     }
 
-    public void setDatahubAccessKey(String datahubAccessKey) {
-        this.datahubAccessKey = datahubAccessKey;
+    public void setAccessKey(String accessKey) {
+        this.accessKey = accessKey;
     }
 
-    public String getDatahubEndPoint() {
-        return datahubEndPoint;
+    public String getEndPoint() {
+        return endPoint;
     }
 
-    public void setDatahubEndPoint(String datahubEndPoint) {
-        this.datahubEndPoint = datahubEndPoint;
+    public void setEndPoint(String endPoint) {
+        this.endPoint = endPoint;
     }
 
-    public String getDatahubProject() {
-        return datahubProject;
+    public String getProject() {
+        return project;
     }
 
-    public void setDatahubProject(String datahubProject) {
-        this.datahubProject = datahubProject;
+    public void setProject(String project) {
+        this.project = project;
     }
 
-    public String getDatahubTopic() {
-        return datahubTopic;
+    public String getTopic() {
+        return topic;
     }
 
-    public void setDatahubTopic(String datahubTopic) {
-        this.datahubTopic = datahubTopic;
+    public String getSubId() {
+        return subId;
     }
 
-    public String getDateFormat() {
-        return dateFormat;
+    public void setSubId(String subId) {
+        this.subId = subId;
     }
 
-    public void setDateFormat(String dateFormat) {
-        this.dateFormat = dateFormat;
+    public long getStartTimestamp() {
+        return startTimestamp;
     }
+
+    public void setStartTimestamp(String startTime) {
+        //startTime = "2019-07-01 09:00:00";
+        if (startTime == null) {
+            this.startTimestamp = -1;
+            return;
+        }
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Date date = null;
+        try {
+            date = simpleDateFormat.parse(startTime);
+        } catch (ParseException e) {
+            logger.error("startTime {} parse failed. ", startTime, e);
+            throw new IllegalArgumentException("startTime " + startTime + " parse failed. ", e);
+        }
+        this.startTimestamp = date.getTime();
+    }
+
+    public void setTopic(String topic) {
+        this.topic = topic;
+    }
+
+    public boolean isEnablePb() {
+        return enablePb;
+    }
+
+    public void setEnablePb(boolean enablePb) {
+        this.enablePb = enablePb;
+    }
+
 
     public String getSerializerType() {
         return serializerType;
@@ -159,18 +226,74 @@ public class Configure {
     }
 
     public void setBatchSize(int batchSize) {
+        if (batchSize <= 0) {
+            logger.warn("BatchSize must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_DATAHUB_BATCHSIZE);
+            batchSize = Configure.DEFAULT_DATAHUB_BATCHSIZE;
+        }
         this.batchSize = batchSize;
     }
 
-    public String getShardId() {
-        return shardId;
+    public int getMaxBufferSize() {
+        return maxBufferSize;
     }
 
-    public void setShardId(String shardId) {
-        this.shardId = shardId;
+    public void setMaxBufferSize(int maxBufferSize) {
+        if (maxBufferSize <= 0) {
+            logger.warn("MaxBufferSize must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_DATAHUB_MAX_BUFFERSIZE);
+            maxBufferSize = Configure.DEFAULT_DATAHUB_BATCHSIZE;
+        }
+        this.maxBufferSize = maxBufferSize;
+    }
+
+    public int getBatchTimeout() {
+        return batchTimeout;
+    }
+
+    public void setBatchTimeout(int batchTimeout) {
+        if (batchTimeout <= 0) {
+            logger.warn("BatchTimeout must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_DATAHUB_BATCHTIMEOUT);
+        }
+        this.batchTimeout = batchTimeout;
+    }
+
+    public List<String> getShardIds() {
+        return shardIds;
+    }
+
+    public void setShardIds(List<String> shardIds) {
+        this.shardIds = shardIds;
+    }
+
+    public String getShardIdsString() {
+        if (shardIds == null || shardIds.isEmpty()) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < shardIds.size(); ++i) {
+            if (i > 0) {
+                builder.append(",");
+            }
+            builder.append(shardIds.get(i));
+        }
+        return builder.toString();
+    }
+
+    public String getCompressType() {
+        return compressType;
+    }
+
+    public void setCompressType(String compressType) {
+        this.compressType = compressType;
     }
 
     public void setRetryInterval(int retryInterval) {
+        if (retryInterval <= 0) {
+            logger.warn("RetryInterval must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_RETRY_INTERVAL);
+        }
         this.retryInterval = retryInterval;
     }
 
@@ -179,6 +302,10 @@ public class Configure {
     }
 
     public void setRetryTimes(int retryTimes) {
+        if (retryTimes <= 0) {
+            logger.warn("RetryInterval must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_RETRY_TIMES);
+        }
         this.retryTimes = retryTimes;
     }
 
@@ -186,70 +313,51 @@ public class Configure {
         return retryTimes;
     }
 
-
-    public boolean isUseLocalTime() {
-        return useLocalTime;
+    public boolean isDirtyDataContinue() {
+        return dirtyDataContinue;
     }
 
-    public void setUseLocalTime(boolean useLocalTime) {
-        this.useLocalTime = useLocalTime;
+    public void setDirtyDataContinue(boolean dirtyDataContinue) {
+        this.dirtyDataContinue = dirtyDataContinue;
     }
 
-    public TimeZone getTimeZone() {
-        return timeZone;
+    public String getDirtyDataFile() {
+        return dirtyDataFile;
     }
 
-    public void setTimeZone(TimeZone timeZone) {
-        this.timeZone = timeZone;
+    public void setDirtyDataFile(String dirtyDataFile) {
+        this.dirtyDataFile = dirtyDataFile;
     }
 
-    public boolean isNeedRounding() {
-        return needRounding;
+    public boolean isAutoCommit() {
+        return autoCommit;
     }
 
-    public void setNeedRounding(boolean needRounding) {
-        this.needRounding = needRounding;
+    public void setAutoCommit(boolean autoCommit) {
+        this.autoCommit = autoCommit;
     }
 
-    public int getRoundUnit() {
-        return roundUnit;
+    public int getOffsetCommitInterval() {
+        return offsetCommitInterval;
     }
 
-    public void setRoundUnit(int roundUnit) {
-        this.roundUnit = roundUnit;
+    public void setOffsetCommitInterval(int offsetCommitInterval) {
+        if (offsetCommitInterval <= 0) {
+            logger.warn("OffsetCommitInterval must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_OFFSET_COMMIT_INTERVAL);
+        }
+        this.offsetCommitInterval = offsetCommitInterval;
     }
 
-    public int getRoundValue() {
-        return roundValue;
+    public int getSessionTimeout() {
+        return sessionTimeout;
     }
 
-    public void setRoundValue(int roundValue) {
-        this.roundValue = roundValue;
+    public void setSessionTimeout(int sessionTimeout) {
+        if (sessionTimeout <= 0) {
+            logger.warn("SessionTimeout must be positive number. Defaulting to {}",
+                    Configure.DEFAULT_SESSION_TIMEOUT);
+        }
+        this.sessionTimeout = sessionTimeout;
     }
-
-
-    public List<String> getMaxcomputePartitionCols() {
-        return maxcomputePartitionCols;
-    }
-
-    public void setMaxcomputePartitionCols(List<String> maxcomputePartitionCols) {
-        this.maxcomputePartitionCols = maxcomputePartitionCols;
-    }
-
-    public List<String> getMaxcomputePartitionVals() {
-        return maxcomputePartitionVals;
-    }
-
-    public void setMaxcomputePartitionVals(List<String> maxcomputePartitionVals) {
-        this.maxcomputePartitionVals = maxcomputePartitionVals;
-    }
-
-    public boolean isBlankValueAsNull() {
-        return isBlankValueAsNull;
-    }
-
-    public void setBlankValueAsNull(boolean blankValueAsNull) {
-        isBlankValueAsNull = blankValueAsNull;
-    }
-
 }

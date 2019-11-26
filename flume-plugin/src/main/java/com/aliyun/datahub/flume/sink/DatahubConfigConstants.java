@@ -25,31 +25,10 @@ public class DatahubConfigConstants {
 
     private DatahubConfigConstants() {
     }
-
-    /**
-     * Maxcompute account accessID
-     */
-    public static final String MAXCOMPUTE_ACCESS_ID = "maxcompute.accessID";
-    /**
-     * Maxcompute account accessKey
-     */
-    public static final String MAXCOMPUTE_ACCESS_KEY = "maxcompute.accessKey";
-    /**
-     * Maxcompute endpoint
-     */
-    public static final String MAXCOMPUTE_END_POINT = "maxcompute.endPoint";
-    /**
-     * Maxcompute project name
-     */
-    public static final String MAXCOMPUTE_PROJECT = "maxcompute.project";
-    /**
-     * Maxcompute table name
-     */
-    public static final String MAXCOMPUTE_TABLE = "maxcompute.table";
     /**
      * Datahub account accessID
      */
-    public static final String DATAHUB_ACCESS_ID = "datahub.accessID";
+    public static final String DATAHUB_ACCESS_ID = "datahub.accessId";
     /**
      * Datahub account accessKey
      */
@@ -67,37 +46,29 @@ public class DatahubConfigConstants {
      */
     public static final String DATAHUB_TOPIC = "datahub.topic";
     /**
-     * Datahub shard id, optional
+     * Datahub shard ids, optional
      */
-    public static final String DATAHUB_SHARD_ID = "datahub.shard.id";
-    /**
-     * Datahub shard count
-     */
-    public static final String DATAHUB_TOPIC_SHARDCOUNT = "datahub.topic.shardcount";
+    public static final String DATAHUB_SHARD_IDS = "datahub.shard.ids";
 
-    public static final String SHARD_COLUMNS = "datahub.shard.columns";
-    public static final String DATE_FORMAT_COLUMNS = "dateformat.columns";
+    public static final String DATAHUB_SUB_ID = "datahub.subId";
+    public static final String DATAHUB_START_TIME = "datahub.startTime";
 
-    public static final String MAXCOMPUTE_PARTITION_COLUMNS = "maxcompute.partition.columns";
-    public static final String MAXCOMPUTE_PARTITION_VALUES = "maxcompute.partition.values";
+    public static final String DATAHUB_ENABLE_PB = "datahub.enablePb";
+    public static final String DATAHUB_COMPRESS_TYPE = "datahub.compressType";
 
+    public static final String RETRY_TIMES = "datahub.retryTimes";
+    public static final String RETRY_INTERVAL = "datahub.retryInterval";
 
-    public static final String DATE_FORMAT = "dateFormat";
-    public static final String BATCH_SIZE = "batchSize";
+    public static final String BATCH_SIZE = "datahub.batchSize";
+    public static final String MAX_Buffer_SIZE = "datahub.maxBufferSize";
+    public static final String BATCH_TIMEOUT = "datahub.batchTimeout";
     public static final String SERIALIZER = "serializer";
     public static final String SERIALIZER_PREFIX = SERIALIZER + ".";
 
-    public static final String RETRY_TIMES = "retryTimes";
-    public static final String RETRY_INTERVAL = "retryInterval";
+    public static final String Dirty_DATA_CONTINUE = "datahub.dirtyDataContinue";
+    public static final String Dirty_DATA_FILE = "datahub.dirtyDataFile";
 
-    public static final String USE_LOCAL_TIME_STAMP = "useLocalTimeStamp";
-    public static final String TIME_ZONE = "timeZone";
-    public static final String NEED_ROUNDING = "round";
-    public static final String ROUND_UNIT = "roundUnit";
-    public static final String HOUR = "hour";
-    public static final String MINUTE = "minute";
-    public static final String SECOND = "second";
-    public static final String ROUND_VALUE = "roundValue";
-
-    public static final String IS_BLANK_VALUE_AS_NULL = "isBlankValueAsNull";
+    public static final String AUTO_COMMIT = "datahub.autoCommit";
+    public static final String OFFSET_COMMIT_INTERVAL = "datahub.offsetCommitInterval";
+    public static final String SESSION_TIMEOUT = "datahub.sessionTimeout";
 }

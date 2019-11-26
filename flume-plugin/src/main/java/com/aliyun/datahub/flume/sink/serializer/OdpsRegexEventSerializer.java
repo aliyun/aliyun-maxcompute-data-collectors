@@ -19,6 +19,7 @@
 
 package com.aliyun.datahub.flume.sink.serializer;
 
+import com.aliyun.datahub.client.model.RecordEntry;
 import com.aliyun.odps.Table;
 import com.aliyun.odps.flume.sink.OdpsWriter;
 import com.aliyun.odps.tunnel.io.StreamWriter;
@@ -41,19 +42,27 @@ public class OdpsRegexEventSerializer implements OdpsEventSerializer {
     public static final String ALIAS = "REGEX";
 
     // Config vars
-    /** Regular expression used to parse groups from event data. */
+    /**
+     * Regular expression used to parse groups from event data.
+     */
     public static final String REGEX_CONFIG = "regex";
     public static final String REGEX_DEFAULT = "(.*)";
 
-    /** Whether to ignore case when performing regex matches. */
+    /**
+     * Whether to ignore case when performing regex matches.
+     */
     public static final String IGNORE_CASE_CONFIG = "regexIgnoreCase";
     public static final boolean INGORE_CASE_DEFAULT = false;
 
-    /** Comma separated list of column names to place matching groups in. */
+    /**
+     * Comma separated list of column names to place matching groups in.
+     */
     public static final String FIELD_NAMES = "fieldnames";
     public static final String FIELD_NAME_DEFAULT = "payload";
 
-    /** What charset to use when serializing into HBase's byte arrays */
+    /**
+     * What charset to use when serializing into HBase's byte arrays
+     */
     public static final String CHARSET_CONFIG = "charset";
     public static final String CHARSET_DEFAULT = "UTF-8";
 
@@ -67,31 +76,33 @@ public class OdpsRegexEventSerializer implements OdpsEventSerializer {
     public void configure(Context context) {
         String regex = context.getString(REGEX_CONFIG, REGEX_DEFAULT);
         regexIgnoreCase = context.getBoolean(IGNORE_CASE_CONFIG,
-            INGORE_CASE_DEFAULT);
+                INGORE_CASE_DEFAULT);
         inputPattern = Pattern.compile(regex, Pattern.DOTALL
-            + (regexIgnoreCase ? Pattern.CASE_INSENSITIVE : 0));
+                + (regexIgnoreCase ? Pattern.CASE_INSENSITIVE : 0));
         charset = Charset.forName(context.getString(CHARSET_CONFIG,
-            CHARSET_DEFAULT));
+                CHARSET_DEFAULT));
 
         String colNameStr = context.getString(FIELD_NAMES, FIELD_NAME_DEFAULT);
         inputColNames = colNameStr.split(",");
     }
 
-    @Override public void initialize(Event event) {
+    @Override
+    public void initialize(Event event) {
         this.payload = event.getBody();
     }
 
-    @Override public Map<String, String> getRow() throws UnsupportedEncodingException {
+    @Override
+    public Map<String, String> getRow() throws UnsupportedEncodingException {
         Map<String, String> rowMap = Maps.newHashMap();
         Matcher m = inputPattern.matcher(new String(payload, charset));
         if (!m.matches()) {
-            logger.debug("line not match regex!");
-            return Maps.newHashMap();
+            logger.warn("line not match regex!");
+            return rowMap;
         }
 
         if (m.groupCount() != inputColNames.length) {
-            logger.debug("regex group num not match column num!");
-            return Maps.newHashMap();
+            logger.warn("regex group num not match column num!");
+            return rowMap;
         }
 
         for (int i = 0; i < inputColNames.length; i++) {
@@ -103,12 +114,23 @@ public class OdpsRegexEventSerializer implements OdpsEventSerializer {
         return rowMap;
     }
 
-    @Override public OdpsWriter createOdpsWriter(Table odpsTable, StreamWriter[] streamWriters,
-        String dateFormat) throws UnsupportedEncodingException {
+    @Override
+    public OdpsWriter createOdpsWriter(Table odpsTable, StreamWriter[] streamWriters,
+                                       String dateFormat) throws UnsupportedEncodingException {
         throw new UnsupportedEncodingException("Not implemented!");
     }
 
-    @Override public String[] getInputColumnNames() {
+    @Override
+    public String[] getInputColumnNames() {
         return inputColNames;
+    }
+
+    public String getRawBody() throws UnsupportedEncodingException {
+        return new String(payload, charset);
+    }
+
+    @Override
+    public Event getEvent(RecordEntry data) {
+        throw new IllegalArgumentException("Regex serializer not support this method");
     }
 }

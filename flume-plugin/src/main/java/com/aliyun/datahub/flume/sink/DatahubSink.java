@@ -18,23 +18,21 @@
 
 package com.aliyun.datahub.flume.sink;
 
+import com.aliyun.datahub.client.model.RecordEntry;
+import com.aliyun.datahub.client.model.TupleRecordData;
 import com.aliyun.datahub.flume.sink.serializer.OdpsDelimitedTextSerializer;
-import com.aliyun.datahub.flume.sink.serializer.OdpsRegexEventSerializer;
 import com.aliyun.datahub.flume.sink.serializer.OdpsEventSerializer;
-import com.aliyun.odps.OdpsException;
-import com.aliyun.odps.PartitionSpec;
+import com.aliyun.datahub.flume.sink.serializer.OdpsRegexEventSerializer;
+
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import org.apache.commons.lang.StringUtils;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
-import org.apache.flume.formatter.output.BucketPath;
 import org.apache.flume.instrumentation.SinkCounter;
 import org.apache.flume.sink.AbstractSink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -50,147 +48,101 @@ public class DatahubSink extends AbstractSink implements Configurable {
 
     private DatahubWriter datahubWriter;
 
-    @Override public void configure(Context context) {
+    @Override
+    public void configure(Context context) {
+        //threadId = Thread.currentThread().getId();
+
         configure = new Configure();
-        String partitionColsStr = context.getString(DatahubConfigConstants.MAXCOMPUTE_PARTITION_COLUMNS, Configure.DEFAULT_MAXCOMPUTE_PARTITION_COLUMNS);
-        String partitionValsStr = context.getString(DatahubConfigConstants.MAXCOMPUTE_PARTITION_VALUES, Configure.DEFAULT_MAXCOMPUTE_PARTITION_VALUES);
-        List<String> partitionCols = getPropCols(partitionColsStr, true);
-        List<String> partitionVals = getPropCols(partitionValsStr, false);
-        if (partitionCols != null) {
-            if (partitionVals != null & partitionCols.size() == partitionVals.size()) {
-                configure.setMaxcomputePartitionCols(partitionCols);
-                configure.setMaxcomputePartitionVals(partitionVals);
-            } else {
-                logger.error("Number of partition cols and vals are not consistent.");
-                throw new RuntimeException("Number of partition cols and vals are not consistent.");
-            }
-        }
 
         String accessId = Preconditions
-            .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_ID),
-                "%s config setting is not" + " specified for sink %s",
-                DatahubConfigConstants.DATAHUB_ACCESS_ID, getName());
-        configure.setDatahubAccessId(accessId);
+                .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_ID),
+                        "%s config setting is not" + " specified for sink %s",
+                        DatahubConfigConstants.DATAHUB_ACCESS_ID, getName());
+        configure.setAccessId(accessId);
+
         String accessKey = Preconditions
-            .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_KEY),
-                "%s config setting is " + "not specified for sink %s",
-                DatahubConfigConstants.DATAHUB_ACCESS_KEY, getName());
-        configure.setDatahubAccessKey(accessKey);
-        String endPoint = context.getString(DatahubConfigConstants.DATAHUB_END_POINT,
-            Configure.DEFAULT_DATAHUB_END_POINT);
-        configure.setDatahubEndPoint(endPoint);
+                .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_ACCESS_KEY),
+                        "%s config setting is " + "not specified for sink %s",
+                        DatahubConfigConstants.DATAHUB_ACCESS_KEY, getName());
+        configure.setAccessKey(accessKey);
+
+        String endPoint = Preconditions
+                .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_END_POINT),
+                        "%s config setting is " + "not specified for sink %s",
+                        DatahubConfigConstants.DATAHUB_END_POINT, getName());
+        configure.setEndPoint(endPoint);
+
         String projectName = Preconditions
-            .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_PROJECT),
-                "%s config setting is not " + "specified for sink %s",
-                DatahubConfigConstants.DATAHUB_PROJECT, getName());
-        configure.setDatahubProject(projectName);
+                .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_PROJECT),
+                        "%s config setting is not " + "specified for sink %s",
+                        DatahubConfigConstants.DATAHUB_PROJECT, getName());
+        configure.setProject(projectName);
+
         String topic = Preconditions
-            .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_TOPIC),
-                "%s config setting is not " + "specified for sink %s",
-                DatahubConfigConstants.DATAHUB_TOPIC, getName());
-        configure.setDatahubTopic(topic);
+                .checkNotNull(context.getString(DatahubConfigConstants.DATAHUB_TOPIC),
+                        "%s config setting is not " + "specified for sink %s",
+                        DatahubConfigConstants.DATAHUB_TOPIC, getName());
+        configure.setTopic(topic);
 
-        String dateFormat =
-            context.getString(DatahubConfigConstants.DATE_FORMAT, Configure.DEFAULT_DATE_FORMAT);
-        configure.setDateFormat(dateFormat);
-
-        String shardId = context.getString(DatahubConfigConstants.DATAHUB_SHARD_ID);
-        configure.setShardId(shardId);
-
-        String serializerType = Preconditions
-            .checkNotNull(context.getString(DatahubConfigConstants.SERIALIZER),
-                "%s config setting" + " is not specified for sink %s",
-                DatahubConfigConstants.SERIALIZER, getName());
-        configure.setSerializerType(serializerType);
-        serializer = this.createSerializer(serializerType);
-        Context serializerContext = new Context();
-        serializerContext
-            .putAll(context.getSubProperties(DatahubConfigConstants.SERIALIZER_PREFIX));
-        serializer.configure(serializerContext);
-        configure.setInputColumnNames(serializer.getInputColumnNames());
-
-        String shardColumns = context.getString(DatahubConfigConstants.SHARD_COLUMNS, "");
-        configure.setShardColumnNames(StringUtils.split(shardColumns, ","));
-        String dateformatColumns =
-            context.getString(DatahubConfigConstants.DATE_FORMAT_COLUMNS, "");
-        configure.setDateformatColumnNames(StringUtils.split(dateformatColumns, ","));
-
-        int batchSize = context
-            .getInteger(DatahubConfigConstants.BATCH_SIZE, Configure.DEFAULT_DATAHUB_BATCHSIZE);
-        if (batchSize < 0) {
-            logger.warn("{}.batchSize must be positive number. Defaulting to {}", getName(),
-                Configure.DEFAULT_DATAHUB_BATCHSIZE);
-            batchSize = Configure.DEFAULT_DATAHUB_BATCHSIZE;
+        String shardIds = context.getString(DatahubConfigConstants.DATAHUB_SHARD_IDS);
+        if (shardIds != null) {
+            List<String> ids = Arrays.asList(shardIds.split(","));
+            configure.setShardIds(ids);
         }
+
+        String compressType = context.getString(DatahubConfigConstants.DATAHUB_COMPRESS_TYPE);
+        configure.setCompressType(compressType);
+
+        boolean enablePb = context.getBoolean(DatahubConfigConstants.DATAHUB_ENABLE_PB, Configure.DEFAULT_ENABLE_PB);
+        configure.setEnablePb(enablePb);
+
+        int batchSize = context.getInteger(DatahubConfigConstants.BATCH_SIZE, Configure.DEFAULT_DATAHUB_BATCHSIZE);
         configure.setBatchSize(batchSize);
 
-        int retryTimes =
-            context.getInteger(DatahubConfigConstants.RETRY_TIMES, Configure.DEFAULT_RETRY_TIMES);
+        int maxBufferSize = context.getInteger(DatahubConfigConstants.MAX_Buffer_SIZE, Configure.DEFAULT_DATAHUB_MAX_BUFFERSIZE);
+        configure.setMaxBufferSize(maxBufferSize);
+
+        int batchTimeout = context.getInteger(DatahubConfigConstants.BATCH_TIMEOUT, Configure.DEFAULT_DATAHUB_BATCHTIMEOUT);
+        configure.setBatchTimeout(batchTimeout);
+
+        int retryTimes = context.getInteger(DatahubConfigConstants.RETRY_TIMES, Configure.DEFAULT_RETRY_TIMES);
         configure.setRetryTimes(retryTimes);
-        int retryInterval = context
-            .getInteger(DatahubConfigConstants.RETRY_INTERVAL, Configure.DEFAULT_RETRY_INTERVAL);
+
+        int retryInterval = context.getInteger(DatahubConfigConstants.RETRY_INTERVAL, Configure.DEFAULT_RETRY_INTERVAL);
         configure.setRetryInterval(retryInterval);
 
-        boolean useLocalTime = context.getBoolean(DatahubConfigConstants.USE_LOCAL_TIME_STAMP, true);
-        String tzName = context.getString(DatahubConfigConstants.TIME_ZONE);
-        TimeZone timeZone = (StringUtils.isEmpty(tzName)) ? null : TimeZone.getTimeZone(tzName);
-        boolean needRounding = context.getBoolean(DatahubConfigConstants.NEED_ROUNDING, Configure.DEFAULT_NEED_ROUNDING);
-        String unit = context.getString(DatahubConfigConstants.ROUND_UNIT, DatahubConfigConstants.HOUR);
-        int roundUnit = Calendar.HOUR_OF_DAY;
-        if (unit.equalsIgnoreCase(DatahubConfigConstants.HOUR)) {
-            roundUnit = Calendar.HOUR_OF_DAY;
-        } else if (unit.equalsIgnoreCase(DatahubConfigConstants.MINUTE)) {
-            roundUnit = Calendar.MINUTE;
-        } else if (unit.equalsIgnoreCase(DatahubConfigConstants.SECOND)) {
-            roundUnit = Calendar.SECOND;
-        } else {
-            logger.warn(getName() + ". Rounding unit is not valid, please set one of " +
-                "minute, hour or second. Rounding will be disabled");
-            needRounding = false;
-        }
-        int roundValue = context.getInteger(DatahubConfigConstants.ROUND_VALUE, 1);
-        if (roundUnit == Calendar.SECOND || roundUnit == Calendar.MINUTE) {
-            Preconditions.checkArgument(roundValue > 0 && roundValue <= 60, "Round value must be > 0 and <= 60");
-        } else if (roundUnit == Calendar.HOUR_OF_DAY) {
-            Preconditions.checkArgument(roundValue > 0 && roundValue <= 24, "Round value must be > 0 and <= 24");
-        }
-        configure.setUseLocalTime(useLocalTime);
-        configure.setTimeZone(timeZone);
-        configure.setNeedRounding(needRounding);
-        configure.setRoundUnit(roundUnit);
-        configure.setRoundValue(roundValue);
+        boolean dirtyDataContinue = context.getBoolean(DatahubConfigConstants.Dirty_DATA_CONTINUE, Configure.DEFAULT_DIRTY_DATA_CONTINUE);
+        configure.setDirtyDataContinue(dirtyDataContinue);
 
-        boolean isBlankValueAsNull = context.getBoolean(DatahubConfigConstants.IS_BLANK_VALUE_AS_NULL, true);
-        configure.setBlankValueAsNull(isBlankValueAsNull);
+        String dirtyDataFile = context.getString(DatahubConfigConstants.Dirty_DATA_FILE, Configure.DEFAULT_DIRTY_DATA_FILE);
+        configure.setDirtyDataFile(dirtyDataFile);
+
+        String serializerType = Preconditions
+                .checkNotNull(context.getString(DatahubConfigConstants.SERIALIZER),
+                        "%s config setting" + " is not specified for sink %s",
+                        DatahubConfigConstants.SERIALIZER, getName());
+        configure.setSerializerType(serializerType);
+        serializer = this.createSerializer(serializerType);
+
+        Context serializerContext = new Context();
+        serializerContext
+                .putAll(context.getSubProperties(DatahubConfigConstants.SERIALIZER_PREFIX));
+        serializer.configure(serializerContext);
+        configure.setInputColumnNames(serializer.getInputColumnNames());
 
         if (sinkCounter == null) {
             sinkCounter = new SinkCounter(getName());
         }
-    }
 
-    private List<String> getPropCols(String propertyString, boolean lowercase) {
-        if (StringUtils.isEmpty(propertyString)) {
-            logger.warn("Property is empty. property name:" + propertyString);
-            return null;
-        }
-        List<String> propList = Lists.newArrayList();
-        String[] propCols = propertyString.split(",");
-        for (int i = 0; i < propCols.length; i++) {
-            String prop = propCols[i].split("/")[0].trim();
-            if (lowercase) {
-                prop = prop.toLowerCase();
-            }
-            propList.add(prop);
-        }
-        return propList;
+        logger.debug(configure.sinktoString());
     }
 
     private OdpsEventSerializer createSerializer(String serializerType) {
         if (serializerType.compareToIgnoreCase(OdpsDelimitedTextSerializer.ALIAS) == 0
-            || serializerType.compareTo(OdpsDelimitedTextSerializer.class.getName()) == 0) {
+                || serializerType.compareTo(OdpsDelimitedTextSerializer.class.getName()) == 0) {
             return new OdpsDelimitedTextSerializer();
         } else if (serializerType.compareToIgnoreCase(OdpsRegexEventSerializer.ALIAS) == 0
-            || serializerType.compareTo(OdpsRegexEventSerializer.class.getName()) == 0) {
+                || serializerType.compareTo(OdpsRegexEventSerializer.class.getName()) == 0) {
             return new OdpsRegexEventSerializer();
         }
 
@@ -198,119 +150,135 @@ public class DatahubSink extends AbstractSink implements Configurable {
             return (OdpsEventSerializer) Class.forName(serializerType).newInstance();
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                "Unable to instantiate serializer: " + serializerType + " on sink: " +
-                    getName(), e);
+                    "Unable to instantiate serializer: " + serializerType + " on sink: " +
+                            getName(), e);
         }
     }
 
-    @Override public void start() {
-        logger.info("Datahub Sink {}: starting...", getName());
+    @Override
+    public void start() {
         super.start();
+
+        // Initial datahub writer
+        if (datahubWriter == null) {
+            try {
+                datahubWriter = new DatahubWriter(configure);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        logger.info("Init DatahubWriter success");
+
         // Sleep a random time (<= 5s)
         try {
             Thread.sleep((new Random()).nextInt(5000));
         } catch (InterruptedException e) {
             // DO NOTHING
         }
-
-        // Initial datahub writer
-        datahubWriter = new DatahubWriter(configure, sinkCounter);
-        logger.info("Init DatahubWriter success");
-
         sinkCounter.start();
-        logger.info("Datahub Sink {}: started", getName());
+        logger.info("DataHub Sink {}: started", getName());
     }
 
-    @Override public void stop() {
+    @Override
+    public void stop() {
         sinkCounter.stop();
         super.stop();
-        logger.info("Datahub Sink {}: stopped", getName());
+        try {
+            datahubWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            logger.warn("close dirtyFile failed. ", e);
+        }
+        logger.info("DataHub Sink {}: stopped", getName());
     }
 
-    @Override public Status process() throws EventDeliveryException {
-        logger.debug("Sink {} processing...", getName());
+    @Override
+    public Status process() throws EventDeliveryException {
+        long threadId = Thread.currentThread().getId();
+        logger.debug("[Thread " + threadId + "] " + "Sink {} processing...", getName());
         Status status = Status.READY;
         Channel channel = getChannel();
         Transaction transaction = channel.getTransaction();
+        transaction.begin();
 
-        logger.debug("batch process size: " + configure.getBatchSize());
+        String shardId = datahubWriter.getActiveShardId();
+
         try {
-            transaction.begin();
-            for (int i = 0; i < configure.getBatchSize(); i++) {
+            List<RecordEntry> recordEntries = new ArrayList<RecordEntry>();
+            long endTime = System.currentTimeMillis() + configure.getBatchTimeout() * 1000;
+            int currentSize = 0;
+            int buffSize = 0;
+            while (true) {
                 Event event = channel.take();
                 if (event == null) {
+                    Thread.sleep(1000);
+                } else {
+                    serializer.initialize(event);
+                    Map<String, String> rowMap = serializer.getRow();
+                    if (!rowMap.isEmpty()) {
+                        TupleRecordData data = datahubWriter.buildRecord(rowMap);
+                        if (data != null) {
+                            buffSize += event.getBody().length;
+                            RecordEntry entry = new RecordEntry();
+                            entry.setRecordData(data);
+                            entry.setShardId(shardId);
+                            recordEntries.add(entry);
+                            currentSize++;
+                        }
+                    } else {
+                        datahubWriter.handleDirtyData(serializer.getRawBody());
+                    }
+                }
+
+                if (currentSize >= configure.getBatchSize()) {
+                    logger.debug("[Thread {}] BatchSize finished.", threadId);
+                    break;
+                } else if (System.currentTimeMillis() > endTime) {
+                    logger.debug("[Thread {}] Batch timeout.", threadId);
                     break;
                 }
-                serializer.initialize(event);
-                Map<String,String> rowMap = serializer.getRow();
 
-                // add maxcompute partition columns
-                if (configure.getMaxcomputePartitionVals() != null) {
-                    Map<String, String> partitionMap =
-                        buildPartitionSpec(configure.getMaxcomputePartitionVals(), event.getHeaders(),
-                            configure.getTimeZone(), configure.isNeedRounding(), configure.getRoundUnit(),
-                            configure.getRoundValue(), configure.isUseLocalTime());
-                    rowMap.putAll(partitionMap);
-                }
-
-                if (!rowMap.isEmpty()) {
-                    datahubWriter.addRecord(rowMap);
+                if (buffSize > configure.getMaxBufferSize()) {
+                    logger.debug("[Thread {}] " +
+                            "Buffer size exceed maxBufferSize {}.", threadId, configure.getMaxBufferSize());
+                    break;
                 }
             }
 
-            int recordSize = datahubWriter.getRecordSize();
+            int recordSize = recordEntries.size();
             sinkCounter.addToEventDrainAttemptCount(recordSize);
             if (recordSize == 0) {
                 sinkCounter.incrementBatchEmptyCount();
-                logger.debug("No events in channel {}", getChannel().getName());
+                logger.debug("[Thread {}] No events in channel {}.", threadId, getChannel().getName());
                 status = Status.BACKOFF;
             } else {
-                // Write batch to Datahub
-                datahubWriter.writeToHub();
+                logger.debug("[Thread {}] Record batch size is {}, buffer size is {} bytes, start sink to DataHub...", threadId, recordEntries.size(), buffSize);
 
-                logger.info("Write success. Sink: {}, Event count: {}", getName(), recordSize);
+                int putSucNum = datahubWriter.writeRecords(recordEntries);
+
                 if (configure.getBatchSize() == recordSize) {
                     sinkCounter.incrementBatchCompleteCount();
                 } else {
                     sinkCounter.incrementBatchUnderflowCount();
                 }
-                sinkCounter.addToEventDrainSuccessCount(recordSize);
+                sinkCounter.addToEventDrainSuccessCount(putSucNum);
             }
             transaction.commit();
         } catch (Throwable t) {
             transaction.rollback();
+            status = Status.BACKOFF;
             if (t instanceof Error) {
                 throw (Error) t;
             } else if (t instanceof ChannelException) {
-                logger.error("Datahub Sink " + getName() + ": Unable to get event from channel " +
-                    channel.getName() + "" + ". Exception follows.", t);
-                status = Status.BACKOFF;
+                logger.error("[Thread {}] DataHub Sink {}: Unable to get event from channel {}. Exception follows.", threadId, getName(), channel.getName(), t);
+
             } else {
-                throw new EventDeliveryException("Failed to send events", t);
+                logger.error("[Thread {}] ", threadId, t);
+                throw new EventDeliveryException("Failed to take events", t);
             }
         } finally {
             transaction.close();
         }
         return status;
     }
-
-    private Map<String, String> buildPartitionSpec(List<String> partitionValues, Map<String, String> headers, TimeZone timeZone,
-        boolean needRounding, int roundUnit, Integer roundValue, boolean useLocalTime)
-        throws OdpsException {
-        Map<String, String> partitionMap = Maps.newHashMap();
-        if (partitionValues == null || partitionValues.size() == 0) {
-            return partitionMap;
-        }
-        if (configure.getMaxcomputePartitionCols().size() != configure.getMaxcomputePartitionVals().size()) {
-            throw new RuntimeException("MaxCompute partition fields number not equals input partition values number");
-        }
-        for (int i = 0; i < partitionValues.size(); i++) {
-            String realPartVal = BucketPath
-                .escapeString(partitionValues.get(i), headers, timeZone, needRounding,
-                    roundUnit, roundValue, useLocalTime);
-            partitionMap.put(configure.getMaxcomputePartitionCols().get(i), realPartVal);
-        }
-        return partitionMap;
-    }
-
 }

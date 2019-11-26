@@ -18,18 +18,24 @@
 
 package com.aliyun.datahub.flume.sink.serializer;
 
+import com.aliyun.datahub.client.model.Field;
+import com.aliyun.datahub.client.model.RecordEntry;
+import com.aliyun.datahub.client.model.TupleRecordData;
 import com.aliyun.odps.Table;
 import com.aliyun.odps.flume.sink.OdpsWriter;
 import com.aliyun.odps.tunnel.io.StreamWriter;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
+import org.apache.flume.event.EventBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,9 +66,11 @@ public class OdpsDelimitedTextSerializer implements OdpsEventSerializer {
     public void configure(Context context) {
         delimiter = parseDelimiterSpec(context.getString(DELIMITER, DEFAULT_DELIMITER));
         charset = context.getString(CHARSET, DEFAULT_CHARSET);
-        String fieldNames = Preconditions.checkNotNull(context.getString(FIELD_NAMES), "Field names cannot be empty, " +
-                "please specify in configuration file");
-        inputColNames = fieldNames.split(",", -1);
+        String fieldNames = context.getString(FIELD_NAMES);
+        if (fieldNames != null){
+            inputColNames = fieldNames.split(",", -1);
+        }
+
     }
 
     // if delimiter is a double quoted like "\t", drop quotes
@@ -83,14 +91,14 @@ public class OdpsDelimitedTextSerializer implements OdpsEventSerializer {
 
     @Override
     public Map<String, String> getRow() throws UnsupportedEncodingException {
+        Map<String, String> rowMap = Maps.newHashMap();
         String[] fieldValues = (new String(payLoad, charset)).split(delimiter, -1);
         if (inputColNames.length != fieldValues.length) {
-            throw new RuntimeException("Serializing events failed. Check the " +
-                "configuration in serializer. The filednames count (" +
-                inputColNames.length + ") must equals fieldvalues count ( " +
-                fieldValues.length + ")");
+            logger.warn("Serializing events failed. Check the configuration in serializer. " +
+                            "The filedNames count ({}) must equals fieldValues count ({})",
+                    inputColNames.length, fieldValues.length);
+            return rowMap;
         }
-        Map<String, String> rowMap = Maps.newHashMap();
         for (int i = 0; i < inputColNames.length; i++) {
             if (!StringUtils.isEmpty(inputColNames[i])) {
                 rowMap.put(inputColNames[i], fieldValues[i]);
@@ -100,12 +108,42 @@ public class OdpsDelimitedTextSerializer implements OdpsEventSerializer {
     }
 
     @Override
+    public String[] getInputColumnNames() {
+        return inputColNames;
+    }
+
+    @Override
     public OdpsWriter createOdpsWriter(Table odpsTable, StreamWriter[] streamWriters, String dateFormat) {
         return new OdpsWriter(odpsTable, streamWriters, dateFormat, inputColNames);
     }
 
     @Override
-    public String[] getInputColumnNames() {
-        return inputColNames;
+    public String getRawBody() throws UnsupportedEncodingException {
+        return new String(payLoad, charset);
+    }
+
+    @Override
+    public Event getEvent(RecordEntry entry) {
+        TupleRecordData data = (TupleRecordData) entry.getRecordData();
+
+        StringBuilder builder = new StringBuilder();
+        List<Field> fields = data.getRecordSchema().getFields();
+        for (int i = 0; i < fields.size(); ++i) {
+            if (i > 0) {
+                builder.append(delimiter);
+            }
+            builder.append(data.getField(fields.get(i).getName()));
+        }
+
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("Timestamp", String.valueOf(entry.getSystemTime()));
+        headers.put("Sequence", String.valueOf(entry.getSequence()));
+        headers.put("ShardId", entry.getShardId());
+        headers.put("Cursor", entry.getCursor());
+        if (entry.getAttributes() != null) {
+            headers.putAll(entry.getAttributes());
+        }
+
+        return EventBuilder.withBody(builder.toString(), Charset.forName(charset), headers);
     }
 }

@@ -25,7 +25,7 @@ import com.aliyun.odps.ogg.handler.datahub.DataHubWriter;
 import com.aliyun.odps.ogg.handler.datahub.RecordBuilder;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
-import com.goldengate.atg.datasource.adapt.Op;
+import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

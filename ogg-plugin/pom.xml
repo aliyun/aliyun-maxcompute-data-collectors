@@ -13,7 +13,7 @@
     <name>aliyun-datahub-ogg-plugin</name>
 
     <properties>
-        <goldengate.version>12.1.2.1.1.001</goldengate.version>
+        <goldengate.version>12.2.0.1.2.001</goldengate.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
@@ -35,26 +35,10 @@
 
         <dependency>
             <groupId>com.goldengate.atg</groupId>
-            <artifactId>ggcache</artifactId>
-            <version>${goldengate.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/ggcache-${goldengate.version}.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.goldengate.atg</groupId>
             <artifactId>ggcmdui</artifactId>
             <version>${goldengate.version}</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/ggcmdui-${goldengate.version}.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.goldengate.atg</groupId>
-            <artifactId>ggcoh</artifactId>
-            <version>${goldengate.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/ggcoh-${goldengate.version}.jar</systemPath>
         </dependency>
 
         <dependency>

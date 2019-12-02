@@ -23,10 +23,10 @@ import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandler;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandlerManager;
-import com.goldengate.atg.datasource.*;
-import com.goldengate.atg.datasource.GGDataSource.Status;
-import com.goldengate.atg.datasource.adapt.Op;
-import com.goldengate.atg.datasource.meta.DsMetaData;
+import oracle.goldengate.datasource.*;
+import oracle.goldengate.datasource.GGDataSource.Status;
+import oracle.goldengate.datasource.meta.DsMetaData;
+import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +64,7 @@ public class DatahubHandler extends AbstractHandler {
     }
 
     @Override
-    public Status metaDataChanged(DsEvent e, DsMetaData meta) {
+    public GGDataSource.Status metaDataChanged(DsEvent e, DsMetaData meta) {
         return super.metaDataChanged(e, meta);
     }
 
@@ -124,7 +124,7 @@ public class DatahubHandler extends AbstractHandler {
         try {
             DataHubWriter.instance().flushAll();
         } catch (Exception e1) {
-            status = status.ABEND;
+            status = Status.ABEND;
             logger.error("Unable to deliver records", e1);
         }
 

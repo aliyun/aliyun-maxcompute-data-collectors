@@ -19,22 +19,24 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import maxcompute.data.collectors.common.datahub.*;
 import com.aliyun.datahub.common.data.Field;
 import com.aliyun.datahub.model.RecordEntry;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
 import com.aliyun.odps.ogg.handler.datahub.util.BucketPath;
-import com.goldengate.atg.datasource.DsColumn;
-import com.goldengate.atg.datasource.adapt.Op;
 import com.google.common.collect.Maps;
+import maxcompute.data.collectors.common.datahub.RecordUtil;
+import oracle.goldengate.datasource.DsColumn;
+import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 public class RecordBuilder {
     private final static Logger logger = LoggerFactory

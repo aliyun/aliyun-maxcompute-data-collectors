@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone='yes'?>
+<jpsConfig xmlns="http://xmlns.oracle.com/oracleas/schema/11/jps-config-11_1.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://xmlns.oracle.com/oracleas/schema/11/jps-config-11_1.xsd" schema-major-version="11" schema-minor-version="1">
+    <!-- This property is for jaas mode. Possible values are "off", "doas" and "doasprivileged" -->
+    <property name="oracle.security.jps.jaas.mode" value="off"/>
+
+    <propertySets>
+        <!-- SAML Trusted Issuer -->
+        <propertySet name="saml.trusted.issuers.1">
+            <property name="name" value="www.oracle.com"/>
+        </propertySet>
+    </propertySets>
+
+    <serviceProviders>
+        <serviceProvider type="CREDENTIAL_STORE" name="credstoressp" class="oracle.security.jps.internal.credstore.ssp.SspCredentialStoreProvider">
+            <description>SecretStore-based CSF provider</description>
+        </serviceProvider>
+    </serviceProviders>
+
+    <serviceInstances>
+        <serviceInstance name="credstore" provider="credstoressp" location="../../../dircrd/">
+            <description>File Based Credential Store Service Instance</description>
+        </serviceInstance>
+    </serviceInstances>
+
+    <jpsContexts default="default">
+        <!-- This is the default JPS context. All the mandatory services and Login Modules must be configured in this default context -->
+        <jpsContext name="default">
+            <serviceInstanceRef ref="credstore"/>
+        </jpsContext>
+    </jpsContexts>
+</jpsConfig>

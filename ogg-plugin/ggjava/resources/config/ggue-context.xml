@@ -28,13 +28,13 @@ http://www.springframework.org/schema/jms     http://www.springframework.org/sch
 <context:annotation-config/>
 
 <bean id="dataSourceConfig"
-      class="com.goldengate.atg.datasource.DataSourceConfig"
+      class="oracle.goldengate.datasource.DataSourceConfig"
       scope="singleton">
   <constructor-arg  type="java.lang.String" value="/dirprm/javaue.properties"/>
 </bean>
 
 <bean id="versionInfo"
-      class="com.goldengate.atg.util.VersionInfo"
+      class="oracle.goldengate.util.VersionInfo"
       scope="singleton">
   <constructor-arg  type="java.lang.String" value="/config/ggue.properties"/>
 </bean>

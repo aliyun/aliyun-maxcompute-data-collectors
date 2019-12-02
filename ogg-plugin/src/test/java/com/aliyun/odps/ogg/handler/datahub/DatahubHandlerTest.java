@@ -20,19 +20,17 @@
 package com.aliyun.odps.ogg.handler.datahub;
 
 import com.aliyun.datahub.model.GetCursorRequest;
-import com.aliyun.datahub.model.GetCursorResult;
 import com.aliyun.datahub.model.GetRecordsResult;
 import com.aliyun.datahub.model.RecordEntry;
 import com.aliyun.datahub.wrapper.Topic;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
-import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandlerManager;
-import com.goldengate.atg.datasource.*;
-import com.goldengate.atg.datasource.meta.ColumnMetaData;
-import com.goldengate.atg.datasource.meta.DsMetaData;
-import com.goldengate.atg.datasource.meta.TableMetaData;
-import com.goldengate.atg.datasource.meta.TableName;
 import maxcompute.data.collectors.common.datahub.RecordUtil;
+import oracle.goldengate.datasource.*;
+import oracle.goldengate.datasource.meta.ColumnMetaData;
+import oracle.goldengate.datasource.meta.DsMetaData;
+import oracle.goldengate.datasource.meta.TableMetaData;
+import oracle.goldengate.datasource.meta.TableName;
 import org.dom4j.DocumentException;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -42,7 +40,6 @@ import org.testng.annotations.Test;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Random;
 import java.util.UUID;
 
 /**

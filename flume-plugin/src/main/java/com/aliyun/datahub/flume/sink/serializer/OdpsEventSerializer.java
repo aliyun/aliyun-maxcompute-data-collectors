@@ -19,9 +19,6 @@
 package com.aliyun.datahub.flume.sink.serializer;
 
 import com.aliyun.datahub.client.model.RecordEntry;
-import com.aliyun.odps.Table;
-import com.aliyun.odps.flume.sink.OdpsWriter;
-import com.aliyun.odps.tunnel.io.StreamWriter;
 import org.apache.flume.Event;
 import org.apache.flume.conf.Configurable;
 
@@ -45,18 +42,6 @@ public interface OdpsEventSerializer extends Configurable {
      * @throws UnsupportedEncodingException
      */
     public Map<String, String> getRow() throws UnsupportedEncodingException;
-
-
-    /**
-     * Create the writer for writing events batch to ODPS table.
-     * @param odpsTable Destination ODPS table.
-     * @param streamWriters Writers to be used in the {@link com.aliyun.odps.flume.sink.OdpsWriter}.
-     * @param dateFormat Parsing format for the datetime fields in the ODPS table.
-     * @return {@link com.aliyun.odps.flume.sink.OdpsWriter} for writing events.
-     */
-    public OdpsWriter createOdpsWriter(Table odpsTable, StreamWriter[] streamWriters, String dateFormat)
-            throws UnsupportedEncodingException;
-
 
     /**
      * Get serializer's column names

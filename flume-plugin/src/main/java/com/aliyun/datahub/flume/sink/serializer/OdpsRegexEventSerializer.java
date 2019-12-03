@@ -20,9 +20,6 @@
 package com.aliyun.datahub.flume.sink.serializer;
 
 import com.aliyun.datahub.client.model.RecordEntry;
-import com.aliyun.odps.Table;
-import com.aliyun.odps.flume.sink.OdpsWriter;
-import com.aliyun.odps.tunnel.io.StreamWriter;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.Context;
@@ -112,12 +109,6 @@ public class OdpsRegexEventSerializer implements OdpsEventSerializer {
         }
 
         return rowMap;
-    }
-
-    @Override
-    public OdpsWriter createOdpsWriter(Table odpsTable, StreamWriter[] streamWriters,
-                                       String dateFormat) throws UnsupportedEncodingException {
-        throw new UnsupportedEncodingException("Not implemented!");
     }
 
     @Override

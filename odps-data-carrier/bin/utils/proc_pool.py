@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import os
 import subprocess
 import traceback
 import threading
 import time
 
+from utils import print_utils
 
 class ProcessPool:
 
-    _LOGGER = logging.getLogger("proccess pool")
     _PROCESS_POOL_JOIN_TIMEOUT = 0.01
     _PROCESS_POLL_ROLLING_INTERVAL = 1
 
@@ -37,8 +36,6 @@ class ProcessPool:
         self._consumer_thread = threading.Thread(target=self._consume)
         self._rolling_thread = threading.Thread(target=self._rolling)
         self._verbose = verbose
-        if verbose:
-            self._LOGGER.setLevel(logging.DEBUG)
 
     def start(self):
         self._consumer_thread.start()
@@ -46,9 +43,7 @@ class ProcessPool:
 
     def submit(self, command: str, log_dir: str, context: dict, retry=5) -> None:
         os.makedirs(log_dir, exist_ok=True)
-        t = threading.Thread(
-            target=self._execute,
-            args=(command, log_dir, retry, context))
+        t = threading.Thread(target=self._execute, args=(command, log_dir, retry, context))
         with self._waiting_queue_lock:
             self._waiting_queue.append(t)
 
@@ -66,6 +61,13 @@ class ProcessPool:
     def stop(self):
         with self._stopped_lock:
             self._stopped = True
+
+    def status(self):
+        with self._waiting_queue_lock:
+            waiting = len(self._waiting_queue)
+        with self._proc_pool_lock:
+            running = len(self._proc_pool)
+        return waiting, running
 
     def _consume(self):
         while True:
@@ -91,20 +93,24 @@ class ProcessPool:
                 for t in self._proc_pool:
                     t.join(timeout=self._PROCESS_POOL_JOIN_TIMEOUT)
                     if not t.is_alive():
-                        self._LOGGER.info("thread finished")
                         self._proc_pool.remove(t)
             time.sleep(self._PROCESS_POLL_ROLLING_INTERVAL)
 
-    def _execute(
-            self,
-            cmd: str,
-            log_dir: str,
-            retry: int,
-            context: dict,
-    ) -> None:
-        self._LOGGER.info("execute \'%s\'" % cmd)
-        num_retry_times = retry
-        while retry > 0:
+    def _process_and_log(self, it: iter, log_path: str, is_stdout: bool, context: dict):
+        with open(log_path, 'a') as fd:
+            for line in it:
+                if is_stdout and "on_stdout_output_callback" in context:
+                    context["on_stdout_output_callback"](line, context)
+                if not is_stdout and "on_stderr_output_callback" in context:
+                    context["on_stderr_output_callback"](line, context)
+                if self._verbose:
+                    msg = "[Process pool] %s: %s" % ("STDOUT" if is_stdout else "STDERR", line)
+                    print_utils.print_yellow(msg)
+                fd.write(line)
+                fd.flush()
+
+    def _execute(self, cmd: str, log_dir: str, retry: int, context: dict) -> None:
+        while retry >= 0:
             try:
                 if "on_submit_callback" in context:
                     context["on_submit_callback"](context)
@@ -116,61 +122,37 @@ class ProcessPool:
                     shell=True,
                     preexec_fn=os.setsid,
                     encoding='utf-8')
-                stdout, stderr = sp.communicate()
 
-                if self._verbose:
-                    print("cmd: ")
-                    print(cmd)
-                    print("stdout: ")
-                    print(stdout)
-                    print("stderr: ")
-                    print(stderr)
+                stdout_path = os.path.join(log_dir, "stdout.log")
+                stderr_path = os.path.join(log_dir, "stderr.log")
+                stdout_reader = threading.Thread(target=self._process_and_log,
+                                                 args=(iter(sp.stdout.readline, ""),
+                                                       stdout_path,
+                                                       True,
+                                                       context))
+                stderr_reader = threading.Thread(target=self._process_and_log,
+                                                 args=(iter(sp.stderr.readline, ""),
+                                                       stderr_path,
+                                                       False,
+                                                       context))
+                stdout_reader.start()
+                stderr_reader.start()
+                sp.wait()
+                stdout_reader.join()
+                stderr_reader.join()
 
                 if sp.returncode == 0:
-                    stdout_path = os.path.join(log_dir, "stdout.log")
-                    with open(stdout_path, 'a') as fd:
-                        fd.write("=============================================================\n")
-                        fd.write("cmd:\n")
-                        fd.write(cmd + "\n")
-                        fd.write("-------------------------------------------------------------\n")
-                        fd.write(stdout + "\n")
-                        fd.write("=============================================================\n")
-
-                    stderr_path = os.path.join(log_dir, "stderr.log")
-                    with open(stderr_path, 'a') as fd:
-                        fd.write("=============================================================\n")
-                        fd.write("cmd:\n")
-                        fd.write(cmd + "\n")
-                        fd.write("-------------------------------------------------------------\n")
-                        fd.write(stderr + "\n")
-                        fd.write("=============================================================\n")
-
                     if "on_success_callback" in context:
                         context["on_success_callback"](context)
-
                     break
                 else:
-                    log_path = os.path.join(log_dir, "error.log." + str(num_retry_times - retry))
-                    with open(log_path, 'a') as fd:
-                        fd.write("=============================================================\n")
-                        fd.write("cmd:\n")
-                        fd.write(cmd + "\n")
-                        fd.write("-------------------------------------------------------------\n")
-                        fd.write("stdout:\n")
-                        fd.write(stdout + "\n")
-                        fd.write("-------------------------------------------------------------\n")
-                        fd.write("stderr:\n")
-                        fd.write(stderr + "\n")
-                        fd.write("=============================================================\n")
-
-                retry -= 1
+                    retry -= 1
             except Exception as e:
-                log_path = os.path.join(log_dir, "error.log." + str(num_retry_times - retry))
+                log_path = os.path.join(log_dir, "error.log")
                 with open(log_path, 'a') as fd:
                     fd.write("error:\n")
                     fd.write(traceback.format_exc())
                 retry -= 1
 
-        if retry == 0:
-            self._LOGGER.error("execute \'%s\' failed %d times" % (cmd, num_retry_times))
-
+        if retry < 0:
+            print_utils.print_red("execute \'%s\' failed" % cmd)

@@ -19,10 +19,13 @@
 
 package com.aliyun.odps.datacarrier.commons;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Path;
+
 import org.apache.commons.io.FileUtils;
 
 public class DirUtils {
@@ -52,6 +55,10 @@ public class DirUtils {
 
   public static String readFromFile(Path filePath) throws IOException {
     return FileUtils.readFileToString(filePath.toFile(), Constants.DEFAULT_CHARSET);
+  }
+
+  public static BufferedReader getLineReader(Path filePath) throws IOException {
+    return new BufferedReader(new FileReader(filePath.toFile()));
   }
 
   public static String[] listDirs(Path dir) {

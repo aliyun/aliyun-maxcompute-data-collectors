@@ -102,12 +102,14 @@ public class MetaManager {
     public String datasourceType;
     public String odpsVersion = "ODPS_V2";
     public Boolean hiveCompatible = false;
+    public String ossEndpoint = "";
+    public String ossBucket = "";
   }
 
   public static class DatabaseMetaModel {
     public String databaseName;
     public String odpsProjectName;
-    public Boolean dropTableIfExists = false;
+    public Boolean dropTableIfExists = true;
   }
 
   public static class TableMetaModel {
@@ -116,8 +118,11 @@ public class MetaManager {
     public Integer lifeCycle;
     public String comment;
     public Boolean ifNotExists = true;
-    public Boolean dropIfExists = false;
+    public Boolean dropIfExists = true;
     public String location;
+    public String inputFormat;
+    public String outputFormat;
+    public String serDe;
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }

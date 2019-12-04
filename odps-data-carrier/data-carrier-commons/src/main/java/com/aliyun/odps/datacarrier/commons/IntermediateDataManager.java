@@ -36,14 +36,20 @@ import java.util.List;
  *         |______[table name]
  *                |______odps_ddl
  *                |      |______create_table.sql
- *                |      |______[partition spec].sql
+ *                |      |______create_partition_[index].sql
  *                |      |______...
  *                |______hive_udtf_sql
+ *                |      |______single_partition
+ *                |      |      |______[partition spec].sql
+ *                |      |      |______...
+ *                |      |______multi_partition
+ *                |            |______[table name].sql
+ *                |______odps_external_ddl
+ *                |      |______create_table.sql
+ *                |      |______create_partition_[index].sql
+ *                |______odps_oss_transfer_sql
  *                       |______single_partition
- *                       |      |______[partition spec].sql
- *                       |      |______...
- *                       |______multi_partition
- *                              |______[table name].sql
+ *
  */
 public class IntermediateDataManager {
 
@@ -51,11 +57,13 @@ public class IntermediateDataManager {
    * Directory & file names
    */
   private static final String ODPS_DDL_DIR = "odps_ddl";
+  private static final String ODPS_EXTERNAL_DDL_DIR = "odps_external_ddl";
   private static final String HIVE_UDTF_DIR = "hive_udtf_sql";
+  private static final String ODPS_OSS_TRANSFER_DIR = "odps_oss_transfer_sql";
   private static final String HIVE_VERIFY_DIR = "hive_verify_sql";
   private static final String ODPS_VERIFY_DIR = "odps_verify_sql";
   private static final String CREATE_TABLE_FILENAME = "create_table";
-  private static final String CREATE_PARTITION_FILENAME = "create_partition_";
+  private static final String CREATE_PARTITION_PREFIX = "create_partition_";
   private static final String SINGLE_PARTITION_DIR = "single_partition";
   private static final String MULTI_PARTITION_DIR = "multi_partition";
   private static final String REPROT = "Report.html";
@@ -87,26 +95,57 @@ public class IntermediateDataManager {
     DirUtils.writeToFile(filePath, content);
   }
 
-  public List<String> getOdpsAddPartitionStatements(String databaseName,
-                                                   String tableName) throws IOException {
-    List<String> addPartitionStatements = new ArrayList<>();
-
-    Path odpsDdlDir = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR);
-    String[] filenames = DirUtils.listFiles(odpsDdlDir, CREATE_PARTITION_FILENAME);
-    for (String filename : filenames) {
-      Path filePath = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR, filename);
-      addPartitionStatements.add(DirUtils.readFromFile(filePath));
-    }
-    return addPartitionStatements;
+  public void setOdpsCreateExternalTableStatement(String databaseName,
+                                                  String tableName,
+                                                  String content) throws IOException {
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_EXTERNAL_DDL_DIR,
+                              CREATE_TABLE_FILENAME + SQL_SUFFIX);
+    DirUtils.writeToFile(filePath, content);
   }
 
   public void setOdpsAddPartitionStatement(String databaseName,
                                            String tableName,
-                                           String partitionSpec,
-                                           String addPartitionStatement) throws IOException {
-    String filename = CREATE_PARTITION_FILENAME + partitionSpec + SQL_SUFFIX;
-    Path filePath = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR, filename);
-    DirUtils.writeToFile(filePath, addPartitionStatement);
+                                           List<String> addPartitionStatements)
+      throws IOException {
+    int counter = 0;
+    int fileIndex = 0;
+    while (counter < addPartitionStatements.size()) {
+      int batchSize = 1000;
+      String filename = CREATE_PARTITION_PREFIX + fileIndex + SQL_SUFFIX;
+      Path filePath = Paths.get(this.root, databaseName, tableName, ODPS_DDL_DIR, filename);
+      while (counter < addPartitionStatements.size() && batchSize > 0) {
+        DirUtils.appendToFile(filePath, addPartitionStatements.get(counter));
+        batchSize--;
+        counter++;
+      }
+      fileIndex += 1;
+    }
+  }
+
+  public void setOdpsAddExternalPartitionStatement(String databaseName,
+                                                   String tableName,
+                                                   List<String> addPartitionStatements)
+      throws IOException {
+    int counter = 0;
+    int fileIndex = 0;
+    while (counter < addPartitionStatements.size()) {
+      int batchSize = 1000;
+      String filename = CREATE_PARTITION_PREFIX + fileIndex + SQL_SUFFIX;
+      Path filePath = Paths.get(this.root,
+                                databaseName,
+                                tableName,
+                                ODPS_EXTERNAL_DDL_DIR,
+                                filename);
+      while (counter < addPartitionStatements.size() && batchSize > 0) {
+        DirUtils.appendToFile(filePath, addPartitionStatements.get(counter));
+        batchSize--;
+        counter++;
+      }
+      fileIndex += 1;
+    }
   }
 
   public List<String> getHiveUdtfSqlSinglePartition(String databaseName,
@@ -192,6 +231,42 @@ public class IntermediateDataManager {
                               MULTI_PARTITION_DIR,
                               tableName + SQL_SUFFIX);
     DirUtils.writeToFile(filePath, content);
+  }
+
+  public void setOdpsOssTransferSql(String databaseName, String tableName, String content)
+      throws IOException {
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_OSS_TRANSFER_DIR,
+                              MULTI_PARTITION_DIR,
+                              tableName + SQL_SUFFIX);
+    DirUtils.writeToFile(filePath, content);
+  }
+
+  public String getOdpsOssTransferSql(String databaseName, String tableName, String partitionSpe)
+      throws IOException {
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_OSS_TRANSFER_DIR,
+                              MULTI_PARTITION_DIR,
+                              tableName + SQL_SUFFIX);
+    return DirUtils.readFromFile(filePath);
+  }
+
+  public void setOdpsOssTransferSqlSinglePartition(String databaseName,
+                                                   String tableName,
+                                                   String partitionSpec,
+                                                   String odpsSql) throws IOException {
+    String filename =  partitionSpec + SQL_SUFFIX;
+    Path filePath = Paths.get(this.root,
+                              databaseName,
+                              tableName,
+                              ODPS_OSS_TRANSFER_DIR,
+                              SINGLE_PARTITION_DIR,
+                              filename);
+    DirUtils.writeToFile(filePath, odpsSql);
   }
 
   public void setHiveVerifySqlWholeTable(String databaseName, String tableName, String content)

@@ -120,8 +120,11 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
 
         odpsProjectName = soi0.getPrimitiveJavaObject(args[0]).trim();
         odps.setDefaultProject(odpsProjectName);
+        System.out.println("[Data-carrier] MaxCompute project: " + odpsProjectName);
 
         odpsTableName = soi1.getPrimitiveJavaObject(args[1]).trim();
+        System.out.println("[Data-carrier] MaxCompute table: " + odpsTableName);
+
         schema = odps.tables().get(odpsTableName).getSchema();
 
         String odpsColumnNameString = soi2.getPrimitiveJavaObject(args[2]).trim();
@@ -219,12 +222,16 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
 
     if (uploadSession == null) {
       if (partitionSpec.isEmpty()) {
+        System.out.println("[Data-carrier] creating record worker");
         uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
                                                    odpsTableName);
+        System.out.println("[Data-carrier] creating record worker done");
       } else {
+        System.out.println("[Data-carrier] creating record worker for " + partitionSpec);
         uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
                                                    odpsTableName,
                                                    new PartitionSpec(partitionSpec));
+        System.out.println("[Data-carrier] creating record worker for " + partitionSpec + " done");
       }
       partitionSpecToUploadSession.put(partitionSpec, uploadSession);
     }
@@ -241,19 +248,44 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
 
   @Override
   public void close() throws HiveException {
-    try {
-      recordWriter.close();
-    } catch (IOException e) {
-      e.printStackTrace();
-      throw new HiveException(e);
+    if (recordWriter == null) {
+      System.out.println("[Data-carrier] recordWriter is null, seems no record is fed to this UDTF");
+    } else {
+      // TODO: rely on tunnel retry strategy once the RuntimeException bug is fixed
+      int retry = 3;
+      while (true) {
+        try {
+          recordWriter.close();
+          break;
+        } catch (Exception e) {
+          System.out.println("[Data-carrier] Record writer failed to close, retry: " + retry);
+          e.printStackTrace(System.out);
+          retry--;
+          if (retry <= 0) {
+            throw new HiveException(e);
+          }
+        }
+      }
     }
 
     for (String partitionSpec : partitionSpecToUploadSession.keySet()) {
-      try {
-        partitionSpecToUploadSession.get(partitionSpec).commit();
-      } catch (IOException | TunnelException e) {
-        e.printStackTrace();
-        throw new HiveException(e);
+      // If the number of parallel commit is huge, commit could fail. So we retry 5 times for each
+      // session
+      int retry = 5;
+      while (true) {
+        try {
+          System.out.println("[Data-carrier] committing " + partitionSpec);
+          partitionSpecToUploadSession.get(partitionSpec).commit();
+          System.out.println("[Data-carrier] committing " + partitionSpec + " done");
+          break;
+        } catch (IOException | TunnelException e) {
+          System.out.println("[Data-carrier] committing" + partitionSpec + " failed, retry: " + retry);
+          e.printStackTrace(System.out);
+          retry--;
+          if (retry <= 0) {
+            throw new HiveException(e);
+          }
+        }
       }
     }
 

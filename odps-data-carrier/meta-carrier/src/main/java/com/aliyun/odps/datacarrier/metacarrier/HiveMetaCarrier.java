@@ -19,19 +19,9 @@
 
 package com.aliyun.odps.datacarrier.metacarrier;
 
-import com.aliyun.odps.datacarrier.commons.MetaManager;
-import com.aliyun.odps.datacarrier.commons.MetaManager.ColumnMetaModel;
-import com.aliyun.odps.datacarrier.commons.MetaManager.DatabaseMetaModel;
-import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
-import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
-import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
-import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-import me.tongfei.progressbar.ProgressBar;
-import me.tongfei.progressbar.ProgressBarBuilder;
-import me.tongfei.progressbar.ProgressBarStyle;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -46,6 +36,18 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.thrift.TException;
+
+import com.aliyun.odps.datacarrier.commons.MetaManager;
+import com.aliyun.odps.datacarrier.commons.MetaManager.ColumnMetaModel;
+import com.aliyun.odps.datacarrier.commons.MetaManager.DatabaseMetaModel;
+import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
+import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
+import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
+import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
+
+import me.tongfei.progressbar.ProgressBar;
+import me.tongfei.progressbar.ProgressBarBuilder;
+import me.tongfei.progressbar.ProgressBarStyle;
 
 /**
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
@@ -99,6 +101,9 @@ public class HiveMetaCarrier {
     tableMeta.tableName = tableName;
     tableMeta.odpsTableName = tableName;
     tableMeta.location = table.getSd().getLocation();
+    tableMeta.inputFormat = table.getSd().getInputFormat();
+    tableMeta.outputFormat = table.getSd().getOutputFormat();
+    tableMeta.serDe = table.getSd().getSerdeInfo().getSerializationLib();
     List<FieldSchema> columns = metaStoreClient.getFields(databaseName, tableName);
     for (FieldSchema column : columns) {
       ColumnMetaModel columnMetaModel = new ColumnMetaModel();
@@ -156,77 +161,28 @@ public class HiveMetaCarrier {
     return progressBarBuilder.build();
   }
 
-  public void carrySingleTableMeta(String databaseName, String tableName)
-      throws IOException, TException {
-    System.out.println("Working on " + databaseName + "." + tableName);
-    GlobalMetaModel globalMeta = getGlobalMeta();
-    metaManager.setGlobalMeta(globalMeta);
-
-    DatabaseMetaModel databaseMeta = getDatabaseMeta(databaseName);
-    metaManager.setDatabaseMeta(databaseMeta);
-
-    TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
-    metaManager.setTableMeta(databaseName, tableMeta);
-
-    TablePartitionMetaModel tablePartitionMeta =
-        getTablePartitionMeta(databaseName, tableName);
-    if (tablePartitionMeta != null) {
-      metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
-    }
-  }
-
-  public void carrySingleDatabase(String databaseName) throws IOException, TException {
-    GlobalMetaModel globalMeta = getGlobalMeta();
-    metaManager.setGlobalMeta(globalMeta);
-
-    List<String> tableNames = metaStoreClient.getAllTables(databaseName);
-    DatabaseMetaModel databaseMeta = getDatabaseMeta(databaseName);
-    metaManager.setDatabaseMeta(databaseMeta);
-
-    // Create progress bar for this database
-    System.out.println("Working on " + databaseName);
-    ProgressBar progressBar = initProgressBar(tableNames.size());
-
-    // Iterate over tables
-    for (String tableName :  tableNames) {
-      // Update progress bar
-      progressBar.step();
-      progressBar.setExtraMessage("Working on " + databaseName + "." + tableName);
-
-      TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
-      metaManager.setTableMeta(databaseName, tableMeta);
-
-      // Handle partition meta
-      TablePartitionMetaModel tablePartitionMeta =
-          getTablePartitionMeta(databaseName, tableName);
-      if (tablePartitionMeta != null) {
-        metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
-      }
-    }
-    progressBar.close();
-  }
-
-  public void carryAll() throws IOException, TException {
+  public void carry(MetaCarrierConfiguration configuration) throws IOException, TException {
     GlobalMetaModel globalMeta = getGlobalMeta();
     metaManager.setGlobalMeta(globalMeta);
 
     List<String> databaseNames = metaStoreClient.getAllDatabases();
-
-    // Iterate over databases
     for (String databaseName : databaseNames) {
       List<String> tableNames = metaStoreClient.getAllTables(databaseName);
       DatabaseMetaModel databaseMeta = getDatabaseMeta(databaseName);
-      metaManager.setDatabaseMeta(databaseMeta);
 
       // Create progress bar for this database
-      System.out.println("Working on " + databaseName);
+      System.err.println("Working on " + databaseName);
       ProgressBar progressBar = initProgressBar(tableNames.size());
 
-      // Iterate over tables
+      int numTableToCarry = 0;
       for (String tableName :  tableNames) {
         // Update progress bar
         progressBar.step();
         progressBar.setExtraMessage("Working on " + databaseName + "." + tableName);
+
+        if (!configuration.shouldCarry(databaseName, tableName)) {
+          continue;
+        }
 
         TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
         metaManager.setTableMeta(databaseName, tableMeta);
@@ -237,8 +193,29 @@ public class HiveMetaCarrier {
         if (tablePartitionMeta != null) {
           metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
         }
+
+        numTableToCarry += 1;
+      }
+
+      if (numTableToCarry > 0) {
+        metaManager.setDatabaseMeta(databaseMeta);
       }
       progressBar.close();
+    }
+  }
+
+  private static void validateCommandLine(CommandLine commandLine, Options options) {
+    if (!commandLine.hasOption("uri")) {
+      System.err.println("Please provide the thrift address of Hive MetaStore Service");
+    }
+    if (!commandLine.hasOption("output-dir")) {
+      System.err.println("Please provide an output directory");
+    }
+
+    if (commandLine.hasOption("help")) {
+      HelpFormatter formatter = new HelpFormatter();
+      formatter.printHelp("sh meta-carrier", options);
+      System.exit(0);
     }
   }
 
@@ -257,19 +234,27 @@ public class HiveMetaCarrier {
         .hasArg()
         .desc("Required, output directory")
         .build();
-    Option database = Option
+    Option databases = Option
         .builder("d")
-        .longOpt("database")
-        .argName("database")
-        .hasArg()
-        .desc("Optional, specify a database")
+        .longOpt("databases")
+        .argName("databases")
+        .hasArgs()
+        .desc("Optional, specify databases to migrate")
         .build();
-    Option table = Option
+    Option tables = Option
         .builder("t")
-        .longOpt("table")
-        .argName("table")
+        .longOpt("tables")
+        .argName("tables")
+        .hasArgs()
+        .desc("Optional, specify tables to migrate. The format should be: <hive db>.<hive table>")
+        .build();
+    Option configPath = Option
+        .builder()
+        .longOpt("config")
+        .argName("config")
         .hasArg()
-        .desc("Optional, specify a table")
+        .desc("Optional, specify tables to migrate. "
+              + "Each line should be in the following format: <hive db>.<hive table>")
         .build();
     Option help = Option
         .builder("h")
@@ -304,39 +289,46 @@ public class HiveMetaCarrier {
     options.addOption(uri);
     options.addOption(outputDir);
     options.addOption(help);
-    options.addOption(database);
-    options.addOption(table);
+    options.addOption(databases);
+    options.addOption(tables);
+    options.addOption(configPath);
     options.addOption(principal);
     options.addOption(keyTab);
     options.addOption(systemProperties);
 
     CommandLineParser parser = new DefaultParser();
-    CommandLine cmd = parser.parse(options, args);
+    CommandLine commandLine = parser.parse(options, args);
 
-    if (!cmd.hasOption("uri") || !cmd.hasOption("output-dir") || cmd.hasOption("help")) {
+    if (commandLine.hasOption("help")) {
       HelpFormatter formatter = new HelpFormatter();
-      formatter.printHelp(
-          "meta-carrier -u <uri> -o <output dir> [-h] [-d <database>] [-t <table>] "
-              + "[--keyTab <path to keytab>] [--principal <metastore principal>] "
-              + "[--system [key=value]+]", options);
-    } else{
-      String hiveMetastoreAddress = cmd.getOptionValue("uri");
-      String outputPath = cmd.getOptionValue("output-dir");
-      String principalVal = cmd.getOptionValue("principal");
-      String keyTabVal = cmd.getOptionValue("keyTab");
-      String[] systemPropertiesValue = cmd.getOptionValues("system");
-      HiveMetaCarrier hiveMetaCarrier =
-          new HiveMetaCarrier(hiveMetastoreAddress, outputPath, principalVal, keyTabVal, systemPropertiesValue);
-      if (cmd.hasOption("database") && cmd.hasOption("table")) {
-        String databaseName = cmd.getOptionValue("database");
-        String tableName = cmd.getOptionValue("table");
-        hiveMetaCarrier.carrySingleTableMeta(databaseName, tableName);
-      } else if (cmd.hasOption("database")) {
-        String databaseName = cmd.getOptionValue("database");
-        hiveMetaCarrier.carrySingleDatabase(databaseName);
-      } else {
-        hiveMetaCarrier.carryAll();
-      }
+      formatter.printHelp("sh meta-carrier", options);
+      return;
     }
+
+    validateCommandLine(commandLine, options);
+
+    String uriValue = commandLine.getOptionValue("uri");
+    String outputDirValue = commandLine.getOptionValue("output-dir");
+    String principalVal = commandLine.getOptionValue("principal");
+    String keyTabVal = commandLine.getOptionValue("keyTab");
+    String[] systemPropertiesValue = commandLine.getOptionValues("system");
+    String[] databasesValue = commandLine.getOptionValues("databases");
+    String[] tablesValue = commandLine.getOptionValues("tables");
+    String configPathValue = commandLine.getOptionValue("config");
+    HiveMetaCarrier hiveMetaCarrier = new HiveMetaCarrier(uriValue,
+                                                          outputDirValue,
+                                                          principalVal,
+                                                          keyTabVal,
+                                                          systemPropertiesValue);
+
+    MetaCarrierConfiguration config;
+    if (configPathValue != null) {
+      config = new MetaCarrierConfiguration(configPathValue);
+      config.addDatabases(databasesValue);
+      config.addTables(tablesValue);
+    } else {
+      config = new MetaCarrierConfiguration(databasesValue, tablesValue);
+    }
+    hiveMetaCarrier.carry(config);
   }
 }

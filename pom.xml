@@ -40,7 +40,6 @@
         <module>ogg-plugin</module>
         <module>odps-sqoop</module>
         <module>common</module>
-        <module>hive_data_transfer_udtf</module>
     </modules>
 
     <build>

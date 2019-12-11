@@ -252,7 +252,7 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
       System.out.println("[Data-carrier] recordWriter is null, seems no record is fed to this UDTF");
     } else {
       // TODO: rely on tunnel retry strategy once the RuntimeException bug is fixed
-      int retry = 3;
+      int retry = 5;
       while (true) {
         try {
           recordWriter.close();

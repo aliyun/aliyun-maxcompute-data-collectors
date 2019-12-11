@@ -66,11 +66,14 @@ if __name__ == '__main__':
     os.makedirs("odps-data-carrier/bin")
     os.makedirs("odps-data-carrier/libs")
     os.makedirs("odps-data-carrier/res")
+    os.makedirs("odps-data-carrier/tmp")
     shutil.copyfile("odps_config.ini", "odps-data-carrier/odps_config.ini")
     shutil.copyfile("extra_settings.ini", "odps-data-carrier/extra_settings.ini")
 
     # copy libs & necessary tools
     shutil.copytree("bin/utils", "odps-data-carrier/bin/utils")
+    shutil.copyfile("bin/migration_runner.py", "odps-data-carrier/bin/migration_runner.py")
+    shutil.copyfile("bin/data_validator.py", "odps-data-carrier/bin/data_validator.py")
     shutil.copyfile("bin/run.py", "odps-data-carrier/bin/run.py")
 
     # meta-carrier
@@ -97,7 +100,7 @@ if __name__ == '__main__':
 
     # odps-data-validator
     shutil.copytree("resources/console", "odps-data-carrier/res/console")
-    shutil.copyfile("bin/odps_data_validator.py", "odps-data-carrier/bin/odps_data_validator.py")
+    shutil.copyfile("bin/data_validator.py", "odps-data-carrier/bin/data_validator.py")
 
     # add tools
     excluded = args.excluded_tools

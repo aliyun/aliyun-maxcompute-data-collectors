@@ -167,14 +167,17 @@ public class HiveMetaCarrier {
 
     List<String> databaseNames = metaStoreClient.getAllDatabases();
     for (String databaseName : databaseNames) {
-      List<String> tableNames = metaStoreClient.getAllTables(databaseName);
+      if (!configuration.shouldCarry(databaseName)) {
+        continue;
+      }
       DatabaseMetaModel databaseMeta = getDatabaseMeta(databaseName);
+      metaManager.setDatabaseMeta(databaseMeta);
 
+      List<String> tableNames = metaStoreClient.getAllTables(databaseName);
       // Create progress bar for this database
       System.err.println("Working on " + databaseName);
       ProgressBar progressBar = initProgressBar(tableNames.size());
 
-      int numTableToCarry = 0;
       for (String tableName :  tableNames) {
         // Update progress bar
         progressBar.step();
@@ -193,12 +196,6 @@ public class HiveMetaCarrier {
         if (tablePartitionMeta != null) {
           metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
         }
-
-        numTableToCarry += 1;
-      }
-
-      if (numTableToCarry > 0) {
-        metaManager.setDatabaseMeta(databaseMeta);
       }
       progressBar.close();
     }
@@ -225,6 +222,7 @@ public class HiveMetaCarrier {
         .longOpt("uri")
         .argName("uri")
         .hasArg()
+        .required()
         .desc("Required, hive metastore thrift uri")
         .build();
     Option outputDir = Option
@@ -232,6 +230,7 @@ public class HiveMetaCarrier {
         .longOpt("output-dir")
         .argName("output-dir")
         .hasArg()
+        .required()
         .desc("Required, output directory")
         .build();
     Option databases = Option

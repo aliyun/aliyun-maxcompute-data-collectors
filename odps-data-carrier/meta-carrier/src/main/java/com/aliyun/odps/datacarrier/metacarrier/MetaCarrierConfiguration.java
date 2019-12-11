@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import com.aliyun.odps.datacarrier.commons.DirUtils;
@@ -13,13 +15,24 @@ public class MetaCarrierConfiguration {
   private static final String DB_TABLE_NAME_SEPARATOR = ".";
 
   private Set<String> databases = new HashSet<>();
-  private Set<String> tables = new HashSet<>();
+  private Map<String, HashSet<String>> databaseToTables = new HashMap<>();
 
   public MetaCarrierConfiguration(String configPath) throws IOException {
     if (configPath == null || configPath.length() == 0) {
       throw new IllegalArgumentException("Config cannot be null or empty");
     }
     parse(configPath);
+  }
+
+  public MetaCarrierConfiguration(String[] databases, String[] tables) {
+    if (databases != null) {
+      this.databases.addAll(Arrays.asList(databases));
+    }
+    if (tables != null) {
+      for (String table : tables) {
+        parseLine(table);
+      }
+    }
   }
 
   private void parse(String configPath) throws IOException {
@@ -37,21 +50,17 @@ public class MetaCarrierConfiguration {
     }
 
     // TODO: support including a whole database & excluding a table
-    tables.add(line);
-  }
-
-  public MetaCarrierConfiguration(String[] databases, String[] tables) {
-    if (databases != null) {
-      for (String database : databases) {
-        System.out.println(database);
+    int idx = line.indexOf(DB_TABLE_NAME_SEPARATOR);
+    if (idx != -1 && idx != line.length() - 1) {
+      String database = line.substring(0, idx);
+      String table = line.substring(idx + 1);
+      if (!databaseToTables.containsKey(database)) {
+        databaseToTables.put(database, new HashSet<>());
       }
-      this.databases.addAll(Arrays.asList(databases));
-    }
-    if (tables != null) {
-      for (String table : tables) {
-        System.out.println(table);
-      }
-      this.tables = new HashSet<>(Arrays.asList(tables));
+      databaseToTables.get(database).add(table);
+    } else {
+      throw new IllegalArgumentException(
+          "Each line should be in the following format: <hive db>.<hive table>");
     }
   }
 
@@ -63,7 +72,9 @@ public class MetaCarrierConfiguration {
 
   public void addTables(String[] tables) {
     if (tables != null) {
-      this.tables.addAll(Arrays.asList(tables));
+      for (String table : tables) {
+        parseLine(table);
+      }
     }
   }
 
@@ -75,7 +86,20 @@ public class MetaCarrierConfiguration {
     if (databases.contains(database)) {
       return true;
     }
-    if (tables.contains(database + DB_TABLE_NAME_SEPARATOR + table)) {
+    if (databaseToTables.containsKey(database)
+        && databaseToTables.get(database).contains(table)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public boolean shouldCarry(String database) {
+    if (database == null) {
+      throw new IllegalArgumentException("Argument \'database\' cannot be null");
+    }
+
+    if (databases.contains(database) || databaseToTables.containsKey(database)) {
       return true;
     }
 

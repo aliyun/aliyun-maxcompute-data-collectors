@@ -16,9 +16,11 @@
 import argparse
 import os
 import re
+from concurrent.futures import Future
 
 from utils import print_utils
 from utils.proc_pool import ProcessPool
+
 
 '''
       [output directory]
@@ -42,48 +44,78 @@ class OdpsSQLRunner:
     def __init__(self, odps_data_carrier_dir: str, parallelism, verbose):
         self._odps_config_path = os.path.join(odps_data_carrier_dir, "odps_config.ini")
         self._odpscmd_path = os.path.join(odps_data_carrier_dir, "res", "console", "bin", "odpscmd")
+        self._verbose = verbose
         self._pool = ProcessPool(parallelism, verbose)
-        self._pool.start()
 
-    def execute(self,
-                database_name: str,
-                table_name: str,
-                sql_script_path: str,
-                log_dir:str,
-                is_ddl: bool) -> None:
+    def execute_script(self,
+                       database_name: str,
+                       table_name: str,
+                       sql_script_path: str,
+                       log_dir: str,
+                       is_ddl: bool) -> Future:
         def on_submit_callback(context: dict):
-            msg = "[%s.%s] ODPS " + ("DDL" if is_ddl else "SQL") + " submitted\n"
-            print_utils.print_yellow(msg % (database_name, table_name))
+            if self._verbose:
+                msg = "[%s.%s] ODPS " + ("DDL" if is_ddl else "SQL") + " submitted\n"
+                print_utils.print_yellow(msg % (database_name, table_name))
 
         def on_success_callback(context: dict):
-            msg = "[%s.%s] ODPS " + ("DDL" if is_ddl else "SQL") + " finished\n"
-            print_utils.print_green(msg % (database_name, table_name))
+            if self._verbose:
+                msg = "[%s.%s] ODPS " + ("DDL" if is_ddl else "SQL") + " finished\n"
+                print_utils.print_green(msg % (database_name, table_name))
 
         def on_stderr_output_callback(line: str, context:dict):
-            m = re.search(r'ID = (.*)', line)
-            if m is not None:
-                msg = "[%s.%s] Instance ID = %s\n"
-                print_utils.print_yellow(msg % (database_name, table_name, m.group(1)))
+            if self._verbose:
+                m = re.search(r'ID = (.*)', line)
+                if m is not None:
+                    msg = "[%s.%s] Instance ID = %s\n"
+                    print_utils.print_yellow(msg % (database_name, table_name, m.group(1)))
 
         context = {"type": "odps",
                    "on_submit_callback": on_submit_callback,
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
-        command = "%s --config=%s -s %s" % (self._odpscmd_path,
+        command = "%s --config=%s -M -s %s" % (self._odpscmd_path,
                                             self._odps_config_path,
                                             sql_script_path)
-        self._pool.submit(command=command, log_dir=log_dir, context=context, retry=0)
+        return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
-    def status(self):
-        return self._pool.status()
+    def execute(self,
+                database_name: str,
+                table_name: str,
+                sql: str,
+                log_dir: str,
+                is_ddl: bool) -> Future:
+        def on_submit_callback(context: dict):
+            if self._verbose:
+                msg = "[%s.%s] ODPS " + ("DDL" if is_ddl else "SQL") + " submitted\n"
+                print_utils.print_yellow(msg % (database_name, table_name))
 
-    def wait_for_completion(self):
-        self._pool.join_all()
+        def on_success_callback(context: dict):
+            if self._verbose:
+                msg = "[%s.%s] ODPS " + ("DDL" if is_ddl else "SQL") + " finished\n"
+                print_utils.print_green(msg % (database_name, table_name))
+
+        def on_stderr_output_callback(line: str, context:dict):
+            if self._verbose:
+                m = re.search(r'ID = (.*)', line)
+                if m is not None:
+                    msg = "[%s.%s] Instance ID = %s\n"
+                    print_utils.print_yellow(msg % (database_name, table_name, m.group(1)))
+
+        context = {"type": "odps",
+                   "on_submit_callback": on_submit_callback,
+                   "on_success_callback": on_success_callback,
+                   "on_stderr_output_callback": on_stderr_output_callback}
+
+        sql = sql.replace("`", "").replace("\n", " ")
+        command = "%s --config=%s -M -e \"%s\"" % (self._odpscmd_path,
+                                                   self._odps_config_path,
+                                                   sql)
+        return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def stop(self):
-        self._pool.join_all()
-        self._pool.stop()
+        self._pool.shutdown()
 
 
 if __name__ == '__main__':

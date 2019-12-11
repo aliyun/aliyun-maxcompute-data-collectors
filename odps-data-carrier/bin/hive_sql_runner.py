@@ -17,9 +17,11 @@ import argparse
 import copy
 import os
 import re
+from concurrent.futures import Future
 
 from utils import print_utils
 from utils.proc_pool import ProcessPool
+
 
 '''
       [output directory]
@@ -55,8 +57,8 @@ class HiveSQLRunner:
         self._settings = []
         self._load_settings(extra_settings_path)
         self._udtf_jar_path = os.path.join(odps_data_carrier_dir, "libs", self._udtf_jar_name)
+        self._verbose = verbose
         self._pool = ProcessPool(parallelism, verbose)
-        self._pool.start()
 
     def _load_settings(self, path: str):
         with open(path, "r") as fd:
@@ -70,11 +72,14 @@ class HiveSQLRunner:
                     line += ";"
                 self._settings.append("set " + line)
 
-    def _get_runnable_hive_sql(self, sql_script_path: str, is_udtf_sql: bool) -> str:
-        lines = copy.deepcopy(self._settings)
+    def _get_runnable_hive_sql_from_file(self, sql_script_path: str, is_udtf_sql: bool) -> str:
         with open(sql_script_path, "r") as fd:
             hive_sql = fd.read()
 
+        return self._get_runnable_hive_sql(hive_sql=hive_sql, is_udtf_sql=is_udtf_sql)
+
+    def _get_runnable_hive_sql(self, hive_sql: str, is_udtf_sql) -> str:
+        lines = copy.deepcopy(self._settings)
         hive_sql = hive_sql.replace("\n", " ")
         hive_sql = hive_sql.replace("`", "")
         if is_udtf_sql:
@@ -87,43 +92,77 @@ class HiveSQLRunner:
         lines.append(hive_sql)
         return " ".join(lines)
 
-    def execute(self,
-                database_name: str,
-                table_name: str,
-                sql_script_path: str,
-                log_dir: str,
-                is_udtf_sql: bool) -> None:
+    def execute_script(self,
+                       database_name: str,
+                       table_name: str,
+                       sql_script_path: str,
+                       log_dir: str,
+                       is_udtf_sql: bool) -> Future:
         def on_submit_callback(context: dict):
-            msg = "[%s.%s] Hive " + ("UDTF " if is_udtf_sql else "") + "SQL submitted\n"
-            print_utils.print_yellow(msg % (database_name, table_name))
+            if self._verbose:
+                msg = "[%s.%s] Hive " + ("UDTF " if is_udtf_sql else "") + "SQL submitted\n"
+                print_utils.print_yellow(msg % (database_name, table_name))
 
         def on_success_callback(context: dict):
-            msg = "[%s.%s] Hive " + ("UDTF " if is_udtf_sql else "") + "SQL finished\n"
-            print_utils.print_green(msg % (database_name, table_name))
+            if self._verbose:
+                msg = "[%s.%s] Hive " + ("UDTF " if is_udtf_sql else "") + "SQL finished\n"
+                print_utils.print_green(msg % (database_name, table_name))
 
         def on_stderr_output_callback(line: str, context:dict):
-            m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
-            if m is not None:
-                msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
-                print_utils.print_yellow(msg % (database_name,
-                                                table_name,
-                                                m.group(1),
-                                                m.group(2)))
+            if self._verbose:
+                m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
+                if m is not None:
+                    msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
+                    print_utils.print_yellow(msg % (database_name,
+                                                    table_name,
+                                                    m.group(1),
+                                                    m.group(2)))
 
         context = {"type": "hive",
                    "on_submit_callback": on_submit_callback,
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
-        command = "hive -e \"%s\"" % self._get_runnable_hive_sql(sql_script_path, is_udtf_sql)
-        self._pool.submit(command=command, log_dir=log_dir, context=context, retry=0)
+        command = "hive -e \"%s\"" % self._get_runnable_hive_sql_from_file(sql_script_path,
+                                                                           is_udtf_sql)
+        return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
-    def wait_for_completion(self):
-        self._pool.join_all()
+    def execute(self,
+                database_name: str,
+                table_name: str,
+                sql: str,
+                log_dir: str,
+                is_udtf_sql: bool) -> Future:
+        def on_submit_callback(context: dict):
+            if self._verbose:
+                msg = "[%s.%s] Hive " + ("UDTF " if is_udtf_sql else "") + "SQL submitted\n"
+                print_utils.print_yellow(msg % (database_name, table_name))
+
+        def on_success_callback(context: dict):
+            if self._verbose:
+                msg = "[%s.%s] Hive " + ("UDTF " if is_udtf_sql else "") + "SQL finished\n"
+                print_utils.print_green(msg % (database_name, table_name))
+
+        def on_stderr_output_callback(line: str, context:dict):
+            if self._verbose:
+                m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
+                if m is not None:
+                    msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
+                    print_utils.print_yellow(msg % (database_name,
+                                                    table_name,
+                                                    m.group(1),
+                                                    m.group(2)))
+
+        context = {"type": "hive",
+                   "on_submit_callback": on_submit_callback,
+                   "on_success_callback": on_success_callback,
+                   "on_stderr_output_callback": on_stderr_output_callback}
+
+        command = "hive -e \"%s\"" % self._get_runnable_hive_sql(sql, is_udtf_sql)
+        return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def stop(self):
-        self._pool.join_all()
-        self._pool.stop()
+        self._pool.shutdown()
 
 
 if __name__ == '__main__':

@@ -143,20 +143,20 @@ if __name__ == '__main__':
         type=str,
         help="""The path of table mapping from Hive to MaxCompute in BATCH mode. Lines of the file 
         should be formatted as follows: <hive db>.<hive tbl>:<mc project>.<mc tbl>""")
-    # parser.add_argument(
-    #     "--dynamic_scheduling",
-    #     required=False,
-    #     const=True,
-    #     action="store_const",
-    #     default=False,
-    #     help="Turn on dynamic scheduling")
-    # parser.add_argument(
-    #     "--threshold",
-    #     required=False,
-    #     default=10,
-    #     type=int,
-    #     help="""When dynamic scheduling is on, jobs will be submitted if the number of running job
-    #     is less than the threshold""")
+    parser.add_argument(
+        "--dynamic_scheduling",
+        required=False,
+        const=True,
+        action="store_const",
+        default=False,
+        help="Turn on dynamic scheduling")
+    parser.add_argument(
+        "--threshold",
+        required=False,
+        default=10,
+        type=int,
+        help="""When dynamic scheduling is on, jobs will be submitted if the number of running job
+        is less than the threshold""")
 
     # optional arguments
     parser.add_argument(
@@ -182,7 +182,10 @@ if __name__ == '__main__':
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
                                        args.hms_thrift_addr,
-                                       args.parallelism,
                                        args.verbose)
+    if args.dynamic_scheduling:
+        migration_runner.set_dynamic_scheduling()
+        migration_runner.set_threshold(args.threshold)
+    migration_runner.set_parallelism(args.parallelism)
     migration_runner.run()
     migration_runner.stop()

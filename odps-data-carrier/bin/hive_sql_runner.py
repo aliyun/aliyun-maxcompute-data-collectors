@@ -109,14 +109,13 @@ class HiveSQLRunner:
                 print_utils.print_green(msg % (database_name, table_name))
 
         def on_stderr_output_callback(line: str, context:dict):
-            if self._verbose:
-                m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
-                if m is not None:
-                    msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
-                    print_utils.print_yellow(msg % (database_name,
-                                                    table_name,
-                                                    m.group(1),
-                                                    m.group(2)))
+            m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
+            if m is not None:
+                msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
+                print_utils.print_yellow(msg % (database_name,
+                                                table_name,
+                                                m.group(1),
+                                                m.group(2)))
 
         context = {"type": "hive",
                    "on_submit_callback": on_submit_callback,
@@ -144,14 +143,13 @@ class HiveSQLRunner:
                 print_utils.print_green(msg % (database_name, table_name))
 
         def on_stderr_output_callback(line: str, context:dict):
-            if self._verbose:
-                m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
-                if m is not None:
-                    msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
-                    print_utils.print_yellow(msg % (database_name,
-                                                    table_name,
-                                                    m.group(1),
-                                                    m.group(2)))
+            m = re.search(r'Starting Job = (.*), Tracking URL = (.*)', line)
+            if m is not None:
+                msg = "[%s.%s] Job ID = %s, Tracking URL = %s\n"
+                print_utils.print_yellow(msg % (database_name,
+                                                table_name,
+                                                m.group(1),
+                                                m.group(2)))
 
         context = {"type": "hive",
                    "on_submit_callback": on_submit_callback,

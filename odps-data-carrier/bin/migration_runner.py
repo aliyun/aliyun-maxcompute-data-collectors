@@ -14,11 +14,13 @@
 
 import os
 # import sqlite3
+import re
 import shutil
 import subprocess
 import sys
 import time
 import traceback
+import threading
 
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
@@ -31,11 +33,16 @@ from utils import print_utils
 
 def _execute_command(cmd):
     try:
-        sp = subprocess.Popen(cmd, shell=True)
-        sp.wait()
+        sp = subprocess.Popen(cmd,
+                              shell=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              encoding='utf-8')
+        stdout, stderr = sp.communicate()
         if sp.returncode != 0:
             print_utils.print_red("Execute %s failed, exiting\n" % cmd)
             sys.exit(1)
+        return stdout, stderr
     except Exception as e:
         print_utils.print_red(traceback.format_exc())
         sys.exit(1)
@@ -48,12 +55,16 @@ class MigrationRunner:
         TRANSFER_DATA_DONE = 3
         VALIDATE_DONE = 4
 
-    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, parallelism, verbose):
+    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, verbose):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
-        self._parallelism = parallelism
         self._verbose = verbose
+
+        # scheduling properties
+        self._dynamic_scheduling = False
+        self._threshold = 10
+        self._parallelism = 20
 
         # dir and paths
         self._timestamp = str(int(time.time()))
@@ -82,10 +93,15 @@ class MigrationRunner:
                                              self._verbose)
 
         # status tracking
-        self._num_jobs = 0
+        self._jobs = []
+        self._num_total_jobs = 0
         self._num_succeed_jobs = 0
         self._num_failed_jobs = 0
-        self._conn = None
+        # self._conn = None
+
+        # TODO: very hack, remove later
+        self._num_hive_jobs = 0
+        self._num_hive_jobs_lock = threading.Lock()
 
     def _gather_metadata(self):
         tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
@@ -268,42 +284,104 @@ class MigrationRunner:
     #     c.close()
     def _migrate(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._increase_num_hive_jobs()
         self._transfer_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._decrease_num_hive_jobs()
 
-    def run(self, ):
+    def _increase_num_hive_jobs(self):
+        with self._num_hive_jobs_lock:
+            self._num_hive_jobs += 1
+
+    def _decrease_num_hive_jobs(self):
+        with self._num_hive_jobs_lock:
+            self._num_hive_jobs -= 1
+
+    def _report_progress(self):
+        progress_format = ("[Progress][%.2f%%] waiting: %d, running: %d, "
+                           "succeed: %d, failed: %d, total: %d\n")
+        while not (self._num_succeed_jobs + self._num_failed_jobs == self._num_jobs):
+            progress = ((self._num_succeed_jobs + self._num_failed_jobs) / self._num_jobs) * 100
+            num_waiting_jobs = (self._num_jobs - len(self._jobs) - self._num_succeed_jobs
+                                - self._num_failed_jobs)
+            print_utils.print_yellow(progress_format % (progress,
+                                                        num_waiting_jobs,
+                                                        len(self._jobs),
+                                                        self._num_succeed_jobs,
+                                                        self._num_failed_jobs,
+                                                        self._num_jobs))
+            time.sleep(10)
+
+    def _wait(self, decider):
+        while not decider():
+            succeed, failed = self._handle_finished_jobs()
+            self._num_succeed_jobs += succeed
+            self._num_failed_jobs += failed
+            time.sleep(10)
+
+    def _can_submit(self):
+        if self._dynamic_scheduling:
+            stdout, _ = _execute_command("/usr/lib/hadoop-current/bin/mapred job -list")
+            m = re.search("Total jobs:(.*)\n", stdout)
+            if m is not None:
+                try:
+                    return int(m.group(1)) + len(self._jobs) - self._num_hive_jobs < self._threshold
+                except Exception as e:
+                    traceback.print_exc()
+                    pass
+
+        return len(self._jobs) < self._parallelism
+
+    def _can_terminate(self):
+        return len(self._jobs) <= 0
+
+    def _handle_finished_jobs(self):
+        num_succeed_job = 0
+        num_failed_job = 0
+        for job in self._jobs:
+            hive_db, hive_tbl, odps_pjt, odps_tbl, future = job
+            mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl)]
+            if future.done():
+                self._jobs.remove(job)
+                try:
+                    future.result()
+                    num_succeed_job += 1
+                    print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
+                                                                            hive_tbl,
+                                                                            mc_pjt,
+                                                                            mc_tbl))
+                    succeed_list_path = os.path.join(self._odps_data_carrier_dir, "succeed.txt")
+                    with open(succeed_list_path, 'a') as fd:
+                        fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
+                except Exception as e:
+                    num_failed_job += 1
+                    print_utils.print_red("[FAILED] %s.%s -> %s.%s\n" % (hive_db,
+                                                                         hive_tbl,
+                                                                         mc_pjt,
+                                                                         mc_tbl))
+                    print_utils.print_red(traceback.format_exc())
+                    failed_list_path = os.path.join(self._odps_data_carrier_dir, "failed.txt")
+                    with open(failed_list_path, 'a') as fd:
+                        fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
+        return num_succeed_job, num_failed_job
+
+    def set_dynamic_scheduling(self):
+        if os.path.exists("/usr/lib/hadoop-current/bin/mapred"):
+            self._dynamic_scheduling = True
+        else:
+            print_utils.print_red("[ERROR] Failed to turn on dynamic scheduling, "
+                                  "file \'/usr/lib/hadoop-current/bin/mapred\' not found")
+            sys.exit(1)
+
+    def set_threshold(self, threshold):
+        self._threshold = threshold
+
+    def set_parallelism(self, parallelism):
+        self._parallelism = parallelism
+
+    def run(self):
         # TODO: add scheduling module
         # TODO: use sqlite to track migration status, support resuming
-        def handle_finished_jobs():
-            num_succeed_job = 0
-            num_failed_job = 0
-            for job in jobs:
-                hive_db, hive_tbl, odps_pjt, odps_tbl, future = job
-                mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl)]
-                if future.done():
-                    jobs.remove(job)
-                    try:
-                        future.result()
-                        num_succeed_job += 1
-                        print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
-                                                                                hive_tbl,
-                                                                                mc_pjt,
-                                                                                mc_tbl))
-                        succeed_list_path = os.path.join(self._odps_data_carrier_dir, "succeed.txt")
-                        with open(succeed_list_path, 'a') as fd:
-                            fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-                    except Exception as e:
-                        num_failed_job += 1
-                        print_utils.print_red("[FAILED] %s.%s -> %s.%s\n" % (hive_db,
-                                                                             hive_tbl,
-                                                                             mc_pjt,
-                                                                             mc_tbl))
-                        print_utils.print_red(traceback.format_exc())
-                        failed_list_path = os.path.join(self._odps_data_carrier_dir, "failed.txt")
-                        with open(failed_list_path, 'a') as fd:
-                            fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-            return num_succeed_job, num_failed_job
-
         self._num_jobs = len(self._table_mapping)
 
         print_utils.print_yellow("[Gathering metadata]\n")
@@ -316,38 +394,19 @@ class MigrationRunner:
 
         print_utils.print_yellow("[Migration starts]\n")
         executor = ThreadPoolExecutor(self._parallelism)
-        jobs = []
-        progress_format = "[Progress][%%%.2f] running: %d, succeed: %d, failed: %d, total: %d\n"
+        progress_reporter = threading.Thread(target=self._report_progress)
+        progress_reporter.start()
         for hive_db, hive_tbl in self._table_mapping:
             odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
 
             # wait for available slot
-            while len(jobs) > self._parallelism + 10:
-                progress = ((self._num_succeed_jobs + self._num_failed_jobs) / self._num_jobs) * 100
-                print_utils.print_yellow(progress_format % (progress,
-                                                            len(jobs),
-                                                            self._num_succeed_jobs,
-                                                            self._num_failed_jobs,
-                                                            self._num_jobs))
-                succeed, failed = handle_finished_jobs()
-                self._num_succeed_jobs += succeed
-                self._num_failed_jobs += failed
-                time.sleep(10)
+            self._wait(self._can_submit)
 
             future = executor.submit(self._migrate, hive_db, hive_tbl, odps_pjt, odps_tbl)
-            jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
+            self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
 
-        while len(jobs) > 0:
-            progress = ((self._num_succeed_jobs + self._num_failed_jobs) / self._num_jobs) * 100
-            print_utils.print_yellow(progress_format % (progress,
-                                                        len(jobs),
-                                                        self._num_succeed_jobs,
-                                                        self._num_failed_jobs,
-                                                        self._num_jobs))
-            succeed, failed = handle_finished_jobs()
-            self._num_succeed_jobs += succeed
-            self._num_failed_jobs += failed
-            time.sleep(10)
+        self._wait(self._can_terminate)
+        progress_reporter.join()
         print_utils.print_green("[Migration done]\n")
 
         print_utils.print_yellow("[Cleaning]\n")

@@ -97,11 +97,10 @@ class OdpsSQLRunner:
                 print_utils.print_green(msg % (database_name, table_name))
 
         def on_stderr_output_callback(line: str, context:dict):
-            if self._verbose:
-                m = re.search(r'ID = (.*)', line)
-                if m is not None:
-                    msg = "[%s.%s] Instance ID = %s\n"
-                    print_utils.print_yellow(msg % (database_name, table_name, m.group(1)))
+            m = re.search(r'ID = (.*)', line)
+            if m is not None:
+                msg = "[%s.%s] Instance ID = %s\n"
+                print_utils.print_yellow(msg % (database_name, table_name, m.group(1)))
 
         context = {"type": "odps",
                    "on_submit_callback": on_submit_callback,

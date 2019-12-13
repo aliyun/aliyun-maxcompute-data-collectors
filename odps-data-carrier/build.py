@@ -69,6 +69,7 @@ if __name__ == '__main__':
     os.makedirs("odps-data-carrier/tmp")
     shutil.copyfile("odps_config.ini", "odps-data-carrier/odps_config.ini")
     shutil.copyfile("extra_settings.ini", "odps-data-carrier/extra_settings.ini")
+    shutil.copyfile("oss_config.ini", "odps-data-carrier/oss_config.ini")
 
     # copy libs & necessary tools
     shutil.copytree("bin/utils", "odps-data-carrier/bin/utils")

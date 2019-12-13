@@ -165,19 +165,19 @@ public class MetaManager {
 
   public GlobalMetaModel getGlobalMeta() throws IOException {
     Path filePath = Paths.get(this.root, GLOBAL + JSON_SUFFIX);
-    String jsonString = DirUtils.readFromFile(filePath);
+    String jsonString = DirUtils.readFile(filePath);
     return Constants.GSON.fromJson(jsonString, GlobalMetaModel.class);
   }
 
   public void setGlobalMeta(GlobalMetaModel globalMeta) throws IOException {
     Path filePath = Paths.get(this.root, GLOBAL + JSON_SUFFIX);
     String jsonString = Constants.GSON.toJson(globalMeta, GlobalMetaModel.class);
-    DirUtils.writeToFile(filePath, jsonString);
+    DirUtils.writeFile(filePath, jsonString);
   }
 
   public DatabaseMetaModel getDatabaseMeta(String databaseName) throws IOException {
     Path filePath = Paths.get(this.root, databaseName, databaseName + JSON_SUFFIX);
-    String jsonString = DirUtils.readFromFile(filePath);
+    String jsonString = DirUtils.readFile(filePath);
     return Constants.GSON.fromJson(jsonString, DatabaseMetaModel.class);
   }
 
@@ -185,13 +185,13 @@ public class MetaManager {
     Path filePath = Paths.get(this.root, databaseMeta.databaseName,
         databaseMeta.databaseName + JSON_SUFFIX);
     String jsonString = Constants.GSON.toJson(databaseMeta, DatabaseMetaModel.class);
-    DirUtils.writeToFile(filePath, jsonString);
+    DirUtils.writeFile(filePath, jsonString);
   }
 
   public TableMetaModel getTableMeta(String databaseName, String tableName) throws IOException {
     Path filePath = Paths.get(this.root, databaseName, TABLE_META_DIR,
         tableName + JSON_SUFFIX);
-    String jsonString = DirUtils.readFromFile(filePath);
+    String jsonString = DirUtils.readFile(filePath);
     return Constants.GSON.fromJson(jsonString, TableMetaModel.class);
   }
 
@@ -200,14 +200,14 @@ public class MetaManager {
     Path filePath = Paths.get(this.root, databaseName, TABLE_META_DIR,
         tableMetaModel.tableName + JSON_SUFFIX);
     String jsonString = Constants.GSON.toJson(tableMetaModel, TableMetaModel.class);
-    DirUtils.writeToFile(filePath, jsonString);
+    DirUtils.writeFile(filePath, jsonString);
   }
 
   public TablePartitionMetaModel getTablePartitionMeta(String databaseName, String tableName)
       throws IOException {
     Path filePath = Paths.get(this.root, databaseName, PARTITION_META_DIR,
         tableName + JSON_SUFFIX);
-    String jsonString = DirUtils.readFromFile(filePath);
+    String jsonString = DirUtils.readFile(filePath);
     return Constants.GSON.fromJson(jsonString, TablePartitionMetaModel.class);
   }
 
@@ -216,7 +216,7 @@ public class MetaManager {
     Path filePath = Paths.get(this.root, databaseName, PARTITION_META_DIR,
         tablePartitionMeta.tableName + JSON_SUFFIX);
     String jsonString = Constants.GSON.toJson(tablePartitionMeta, TablePartitionMetaModel.class);
-    DirUtils.writeToFile(filePath, jsonString);
+    DirUtils.writeFile(filePath, jsonString);
   }
 
   public String[] listDatabases() {

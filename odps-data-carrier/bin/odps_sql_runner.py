@@ -69,15 +69,19 @@ class OdpsSQLRunner:
                 if m is not None:
                     msg = "[%s.%s] Instance ID = %s\n"
                     print_utils.print_yellow(msg % (database_name, table_name, m.group(1)))
+                m = re.search(r'http://logview.*', line)
+                if m is not None:
+                    msg = "[%s.%s] Log view = %s\n"
+                    print_utils.print_yellow(msg % (database_name, table_name, m.group(0)))
 
         context = {"type": "odps",
                    "on_submit_callback": on_submit_callback,
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
-        command = "%s --config=%s -M -s %s" % (self._odpscmd_path,
-                                            self._odps_config_path,
-                                            sql_script_path)
+        command = "%s --config=%s -M -f %s" % (self._odpscmd_path,
+                                               self._odps_config_path,
+                                               sql_script_path)
         return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def execute(self,

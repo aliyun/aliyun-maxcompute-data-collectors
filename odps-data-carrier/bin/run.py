@@ -64,6 +64,12 @@ def validate_arguments(args):
         print_utils.print_red("Must specify --hms_thrift_addr\n")
         sys.exit(1)
 
+    if args.datasource is None:
+        args.datasource = "Hive"
+    elif args.datasource != "Hive" and args.datasource != "OSS":
+        print_utils.print_red("Datasource can only be Hive or OSS")
+        sys.exit(1)
+
     if args.mode == "SINGLE":
         should_exit = False
         if args.hive_db is None:
@@ -101,12 +107,17 @@ if __name__ == '__main__':
         help="Thrift address of Hive metastore.")
     parser.add_argument(
         "--mode",
-        required=True,
+        required=False,
         default="SINGLE",
         type=str,
         help="""Migration mode, SINGLE or BATCH.
         SINGLE means migrate one Hive table to MaxCompute, BATCH means migrate all the Hive tables 
         specified by the table mapping file""")
+    parser.add_argument(
+        "--datasource",
+        required=False,
+        default="Hive",
+        help="Specify datasource, can be Hive or OSS")
 
     # single mode arguments
     parser.add_argument(
@@ -182,10 +193,13 @@ if __name__ == '__main__':
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
                                        args.hms_thrift_addr,
+                                       args.datasource,
                                        args.verbose)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)
     migration_runner.set_parallelism(args.parallelism)
-    migration_runner.run()
-    migration_runner.stop()
+    try:
+        migration_runner.run()
+    finally:
+        migration_runner.stop()

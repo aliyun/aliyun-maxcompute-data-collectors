@@ -32,15 +32,15 @@ public class DirUtils {
   /**
    * Write to a file specified by filePath, create its parent directories if they doesn't exist.
    */
-  public static void writeToFile(Path filePath, String content) throws IOException {
-    writeToFile(filePath, content, false);
+  public static void writeFile(Path filePath, String content) throws IOException {
+    writeFile(filePath, content, false);
   }
 
   public static void appendToFile(Path filePath, String content) throws IOException {
-    writeToFile(filePath, content, true);
+    writeFile(filePath, content, true);
   }
 
-  public static void writeToFile(Path filePath, String content, boolean append)
+  public static void writeFile(Path filePath, String content, boolean append)
       throws IOException {
     File file = filePath.toFile();
     File parent = file.getParentFile();
@@ -53,7 +53,7 @@ public class DirUtils {
     FileUtils.writeStringToFile(file, content, Constants.DEFAULT_CHARSET, append);
   }
 
-  public static String readFromFile(Path filePath) throws IOException {
+  public static String readFile(Path filePath) throws IOException {
     return FileUtils.readFileToString(filePath.toFile(), Constants.DEFAULT_CHARSET);
   }
 

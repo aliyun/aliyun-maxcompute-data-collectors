@@ -17,7 +17,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 import traceback
 import threading
@@ -31,23 +30,6 @@ from data_validator import DataValidator
 from utils import print_utils
 
 
-def _execute_command(cmd):
-    try:
-        sp = subprocess.Popen(cmd,
-                              shell=True,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE,
-                              encoding='utf-8')
-        stdout, stderr = sp.communicate()
-        if sp.returncode != 0:
-            print_utils.print_red("Execute %s failed, exiting\n" % cmd)
-            sys.exit(1)
-        return stdout, stderr
-    except Exception as e:
-        print_utils.print_red(traceback.format_exc())
-        sys.exit(1)
-
-
 class MigrationRunner:
     class JobStatus(Enum):
         INIT = 1
@@ -55,10 +37,11 @@ class MigrationRunner:
         TRANSFER_DATA_DONE = 3
         VALIDATE_DONE = 4
 
-    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, verbose):
+    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, datasource, verbose):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
+        self._datasource = datasource
         self._verbose = verbose
 
         # scheduling properties
@@ -71,10 +54,10 @@ class MigrationRunner:
         self._meta_carrier_path = os.path.join(self._odps_data_carrier_dir, "bin", "meta-carrier")
         self._meta_carrier_input_path = os.path.join(self._odps_data_carrier_dir,
                                                      "tmp",
-                                                     "meta-carrier_input_" + self._timestamp)
+                                                     "meta_carrier_input_" + self._timestamp)
         self._meta_carrier_output_dir = os.path.join(self._odps_data_carrier_dir,
                                                      "tmp",
-                                                     "meta-carrier_output_" + self._timestamp)
+                                                     "meta_carrier_output_" + self._timestamp)
         self._meta_processor_path = os.path.join(self._odps_data_carrier_dir,
                                                  "bin",
                                                  "meta-processor")
@@ -83,9 +66,12 @@ class MigrationRunner:
                                                        "meta_processor_output_" + self._timestamp)
         self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "odps")
         self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "hive")
-
+        self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "oss")
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,
+                                                     self._parallelism,
+                                                     self._verbose)
+        self._global_odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir,
                                                      self._parallelism,
                                                      self._verbose)
         self._data_validator = DataValidator(self._odps_data_carrier_dir,
@@ -103,39 +89,93 @@ class MigrationRunner:
         self._num_hive_jobs = 0
         self._num_hive_jobs_lock = threading.Lock()
 
+    def _execute_command(self, cmd):
+        try:
+            if self._verbose:
+                print_utils.print_yellow("Executing %s\n" % cmd)
+            sp = subprocess.Popen(cmd,
+                                  shell=True,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  encoding='utf-8')
+            stdout, stderr = sp.communicate()
+            if sp.returncode != 0:
+                raise Exception(
+                    "Execute %s failed, stdout: %s, stderr %s\n" % (cmd, stdout, stderr))
+            return stdout, stderr
+        except Exception as e:
+            print_utils.print_red(traceback.format_exc())
+            raise e
+
     def _gather_metadata(self):
+        # TODO: hack, refactor later
+        def _parse_oss_config():
+            with open(os.path.join(self._odps_data_carrier_dir, "oss_config.ini")) as fd:
+                oss_endpoint = None
+                oss_bucket = None
+                for line in fd.readlines():
+                    line = line[: -1] if line.endswith("\n") else line
+                    if line.startswith("end_point="):
+                        oss_endpoint = line[len("end_point="):]
+                    if line.startswith("bucket="):
+                        oss_bucket = line[len("bucket="):]
+            if oss_endpoint is None or oss_bucket is None:
+                raise Exception("Invalid oss configuration")
+            return oss_endpoint, oss_bucket
+
         tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
         with open(self._meta_carrier_input_path, "w") as fd:
             fd.write(tables)
 
-        _execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
-                                                           self._hms_thrift_addr,
-                                                           self._meta_carrier_input_path,
-                                                           self._meta_carrier_output_dir))
+        self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
+                                                                self._hms_thrift_addr,
+                                                                self._meta_carrier_input_path,
+                                                                self._meta_carrier_output_dir))
         os.unlink(self._meta_carrier_input_path)
+
+        # handle oss configs
+        oss_endpoint, oss_bucket = _parse_oss_config()
+        sed_oss_endpoint_cmd = "sed -i 's#\"ossEndpoint\": .*,#\"ossEndpoint\": \"%s\",#g' %s"
+        sed_oss_bucket_cmd = "sed -i 's#\"ossBucket\": .*#\"ossBucket\": \"%s\"#g' %s"
+        global_config_path = os.path.join(self._meta_carrier_output_dir, "global.json")
+        self._execute_command(sed_oss_endpoint_cmd % (oss_endpoint, global_config_path))
+        self._execute_command(sed_oss_bucket_cmd % (oss_bucket, global_config_path))
 
         for hive_db, hive_tbl in self._table_mapping:
             odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
-            sed_odps_pjt_cmd = "sed -i 's#\"odpsProjectName\": .*,#\"odpsProjectName\": \"%s\",#g' %s"
+            sed_odps_pjt_cmd = ("sed -i "
+                                "'s#\"odpsProjectName\": .*,#\"odpsProjectName\": \"%s\",#g' %s")
             hive_db_config_path = os.path.join(self._meta_carrier_output_dir,
                                                hive_db,
                                                hive_db + ".json")
-            _execute_command(sed_odps_pjt_cmd % (odps_pjt, hive_db_config_path))
+            self._execute_command(sed_odps_pjt_cmd % (odps_pjt, hive_db_config_path))
 
             sed_odps_tbl_cmd = "sed -i 's#\"odpsTableName\": .*,#\"odpsTableName\": \"%s\",#g' %s"
             hive_tbl_config_path = os.path.join(self._meta_carrier_output_dir,
                                                 hive_db,
                                                 "table_meta",
                                                 hive_tbl + ".json")
-            _execute_command(sed_odps_tbl_cmd % (odps_tbl, hive_tbl_config_path))
+            self._execute_command(sed_odps_tbl_cmd % (odps_tbl, hive_tbl_config_path))
+
+            # TODO: remove later
+            # since SQL doesn't support org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat,
+            # use org.apache.hadoop.mapred.TextOutputFormat to work around
+            target = ("\"outputFormat\": "
+                      "\"org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat\"")
+            replacement = ("\"outputFormat\": "
+                           "\"org.apache.hadoop.mapred.TextOutputFormat\"")
+            sed_output_format_cmd = ("sed -i 's#%s#%s#g' %s" % (target,
+                                                                replacement,
+                                                                hive_tbl_config_path))
+            self._execute_command(sed_output_format_cmd)
 
     def _process_metadata(self):
-        _execute_command("sh %s -i %s -o %s" % (self._meta_processor_path,
-                                                self._meta_carrier_output_dir,
-                                                self._meta_processor_output_dir))
+        self._execute_command("sh %s -i %s -o %s" % (self._meta_processor_path,
+                                                     self._meta_carrier_output_dir,
+                                                     self._meta_processor_output_dir))
 
     def _build_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
-        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 50, self._verbose)
+        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 10, self._verbose)
         try:
             odps_ddl_dir = os.path.join(self._meta_processor_output_dir,
                                         hive_db,
@@ -167,19 +207,50 @@ class MigrationRunner:
             # wait for success
             for future in add_partition_futures:
                 future.result()
-
-            # update status
-            self._update_job_status(hive_db,
-                                    hive_tbl,
-                                    odps_pjt,
-                                    odps_tbl,
-                                    self.JobStatus.BUILD_TABLE_DONE)
         except Exception as e:
             raise e
         finally:
             odps_sql_runner.stop()
 
-    def _transfer_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+    def _build_external_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 10, self._verbose)
+        try:
+            odps_external_ddl_dir = os.path.join(self._meta_processor_output_dir,
+                                                 hive_db,
+                                                 hive_tbl,
+                                                 "odps_external_ddl")
+            odps_log_dir = os.path.join(self._odps_log_root_dir, hive_db, hive_tbl)
+            # create external table
+            script_path = os.path.join(odps_external_ddl_dir, "create_table.sql")
+            create_external_table_future = odps_sql_runner.execute_script(hive_db,
+                                                                          hive_tbl,
+                                                                          script_path,
+                                                                          odps_log_dir,
+                                                                          True)
+            # wait for success
+            create_external_table_future.result()
+
+            # add partitions
+            add_external_partition_futures = []
+            scripts = os.listdir(odps_external_ddl_dir)
+            for script in scripts:
+                if "create_table.sql" == script:
+                    continue
+                script_path = os.path.join(odps_external_ddl_dir, script)
+                add_external_partition_futures.append(odps_sql_runner.execute_script(hive_db,
+                                                                                     hive_tbl,
+                                                                                     script_path,
+                                                                                     odps_log_dir,
+                                                                                     True))
+            # wait for success
+            for future in add_external_partition_futures:
+                future.result()
+        except Exception as e:
+            raise e
+        finally:
+            odps_sql_runner.stop()
+
+    def _transfer_data_from_hive(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
             hive_sql_dir = os.path.join(self._meta_processor_output_dir,
                                         hive_db,
@@ -198,7 +269,23 @@ class MigrationRunner:
                                     odps_tbl,
                                     self.JobStatus.TRANSFER_DATA_DONE)
         except Exception as e:
-            pass
+            raise e
+
+    def _transfer_data_from_oss(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        try:
+            transfer_sql_dir = os.path.join(self._meta_processor_output_dir,
+                                            hive_db,
+                                            hive_tbl,
+                                            "odps_oss_transfer_sql")
+            oss_log_dir = os.path.join(self._oss_log_root_dir, hive_db, hive_tbl)
+            script_path = os.path.join(transfer_sql_dir, "multi_partition", hive_tbl + ".sql")
+            self._global_odps_sql_runner.execute_script(hive_db,
+                                                        hive_tbl,
+                                                        script_path,
+                                                        oss_log_dir,
+                                                        False).result()
+        except Exception as e:
+            raise e
 
     def _validate_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
@@ -282,12 +369,17 @@ class MigrationRunner:
     #                                                                                    odps_pjt,
     #                                                                                    odps_tbl))
     #     c.close()
-    def _migrate(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+    def _migrate_from_hive(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._increase_num_hive_jobs()
-        self._transfer_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._transfer_data_from_hive(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._decrease_num_hive_jobs()
+
+    def _migrate_from_oss(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._build_external_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._transfer_data_from_oss(hive_db, hive_tbl, odps_pjt, odps_tbl)
 
     def _increase_num_hive_jobs(self):
         with self._num_hive_jobs_lock:
@@ -321,7 +413,7 @@ class MigrationRunner:
 
     def _can_submit(self):
         if self._dynamic_scheduling:
-            stdout, _ = _execute_command("/usr/lib/hadoop-current/bin/mapred job -list")
+            stdout, _ = self._execute_command("/usr/lib/hadoop-current/bin/mapred job -list")
             m = re.search("Total jobs:(.*)\n", stdout)
             if m is not None:
                 try:
@@ -369,9 +461,9 @@ class MigrationRunner:
         if os.path.exists("/usr/lib/hadoop-current/bin/mapred"):
             self._dynamic_scheduling = True
         else:
-            print_utils.print_red("[ERROR] Failed to turn on dynamic scheduling, "
-                                  "file \'/usr/lib/hadoop-current/bin/mapred\' not found")
-            sys.exit(1)
+            msg = ("[ERROR] Failed to turn on dynamic scheduling, "
+                   "file \'/usr/lib/hadoop-current/bin/mapred\' not found")
+            raise Exception(msg)
 
     def set_threshold(self, threshold):
         self._threshold = threshold
@@ -402,7 +494,18 @@ class MigrationRunner:
             # wait for available slot
             self._wait(self._can_submit)
 
-            future = executor.submit(self._migrate, hive_db, hive_tbl, odps_pjt, odps_tbl)
+            if self._datasource == "Hive":
+                migrate = self._migrate_from_hive
+            elif self._datasource == "OSS":
+                migrate = self._migrate_from_oss
+            else:
+                raise Exception("Unsupported datasource")
+
+            future = executor.submit(migrate,
+                                     hive_db,
+                                     hive_tbl,
+                                     odps_pjt,
+                                     odps_tbl)
             self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
 
         self._wait(self._can_terminate)

@@ -19,7 +19,7 @@
 
 package com.aliyun.odps.ogg.handler.datahub.operations;
 
-import com.aliyun.datahub.model.RecordEntry;
+import com.aliyun.datahub.client.model.RecordEntry;
 import com.aliyun.odps.ogg.handler.datahub.BadOperateWriter;
 import com.aliyun.odps.ogg.handler.datahub.DataHubWriter;
 import com.aliyun.odps.ogg.handler.datahub.RecordBuilder;
@@ -51,15 +51,15 @@ public abstract class OperationHandler {
                         getOperateType(),
                         tableMapping);
             } catch (Exception e){
-                logger.error("dirty data :" + op.toString(), e);
+                logger.error("dirty data : {}", op.toString(), e);
 
                 if(configure.isDirtyDataContinue()){
 
                     BadOperateWriter.write(op,
                             oracleFullTableName,
-                            tableMapping.getTopic().getTopicName(),
+                            tableMapping.getTopicName(),
                             configure.getDirtyDataFile(),
-                            configure.getDirtyDataFileMaxSize() * 1000000,
+                            configure.getDirtyDataFileMaxSize(),
                             e.getMessage());
 
                     return;
@@ -70,7 +70,7 @@ public abstract class OperationHandler {
             DataHubWriter.instance().addRecord(tableMapping.getOracleFullTableName(), record);
 
         } else{
-            logger.warn("oracle table:" + oracleFullTableName + " not config");
+            logger.warn("oracle table: {} not config",oracleFullTableName);
         }
 
     }

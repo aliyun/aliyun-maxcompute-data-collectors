@@ -19,6 +19,10 @@
         <accessId>YOUR_DATAHUB_ACCESS_ID</accessId>
         <!-- datahub accessKey, 可以被mapping中的datahubAccessKey覆盖, 两者必须有一个非空-->
         <accessKey>YOUR_DATAHUB_ACCESS_KEY</accessKey>
+        <!-- 数据传输压缩格式，现支持DEFLATE和LZ4，默认不压缩-->
+        <compressType></compressType>
+        <!-- 数据传输是否使用protobuf，默认false-->
+        <enablePb></enablePb>
     </defaultDatahubConfigure>
 
     <!-- 默认最严格，不落文件 直接退出 无限重试-->
@@ -27,7 +31,7 @@
     <batchSize>1000</batchSize>
 
     <!-- 脏数据是否继续, 可选, 默认false-->
-    <dirtyDataContinue>true</dirtyDataContinue>
+    <dirtyDataContinue>false</dirtyDataContinue>
 
     <!-- 脏数据文件, 可选, 默认datahub_ogg_plugin.dirty-->
     <dirtyDataFile>datahub_ogg_plugin.dirty</dirtyDataFile>
@@ -36,12 +40,14 @@
     <dirtyDataFileMaxSize>200</dirtyDataFileMaxSize>
 
     <!-- 重试次数, -1:无限重试 0:不重试 n:重试次数, 可选, 默认-1-->
-    <retryTimes>0</retryTimes>
+    <retryTimes>5</retryTimes>
 
     <!-- 重试间隔, 单位毫秒, 可选, 默认3000-->
-    <retryInterval>4000</retryInterval>
+    <retryInterval>1000</retryInterval>
 
-    <!-- 点位文件, 可选, 默认datahub_ogg_plugin.chk-->
+    <!-- 是否禁用checkpoint file, 可选, 默认false-->
+    <disableCheckPointFile>true</disableCheckPointFile>
+
     <checkPointFileName>datahub_ogg_plugin.chk</checkPointFileName>
 
     <mappings>
@@ -50,14 +56,18 @@
             <oracleSchema></oracleSchema>
             <!-- oracle table, 必选-->
             <oracleTable>t_person</oracleTable>
-            <!-- datahub project, 见上描述-->
-            <datahubProject></datahubProject>
-            <!-- datahub AccessId, 见上描述-->
-            <datahubAccessId></datahubAccessId>
-            <!-- datahub AccessKey, 见上描述-->
-            <datahubAccessKey></datahubAccessKey>
             <!-- datahub topic, 必选-->
-            <datahubTopic>not_exsit_tttt</datahubTopic>
+            <datahubTopic>ogg_handler</datahubTopic>
+
+            <!--指定shard id, 优先生效, 可选-->
+            <shardId>0</shardId>
+
+            <rowIdColumn></rowIdColumn>
+            <ctypeColumn></ctypeColumn>
+            <ctimeColumn></ctimeColumn>
+            <cidColumn></cidColumn>
+            <constColumnMap></constColumnMap>
+
             <columnMapping>
                 <!--
                 src:oracle字段名称, 必须;
@@ -65,17 +75,32 @@
                 destOld:变更前数据落到datahub的field, 可选;
                 isShardColumn: 是否作为shard的hashkey, 可选, 默认为false, 可以被shardId覆盖
                 isDateFormat: timestamp字段是否采用DateFormat格式转换, 默认true. 如果是false, 源端数据必须是long
-                dateFormat: timestamp字段的转换格式, 不填就用默认值
+                dateFormat: timestamp字段的转换格式, 不填就用默认值yyyy-MM-dd HH:mm:ss
                 -->
-                <column src="c1" dest="c1"/>
-                <column src="c2" dest="c2"/>
-                <column src="c3" dest="c3"/>
-                <column src="c4" dest="c4"/>
-                <column src="c5" dest="c5"/>
+                <column src="c1" dest="c1" />
+                <column src="c2" dest="c2" />
+                <column src="c3" dest="c3" />
+                <column src="c4" dest="c4" />
+                <column src="c5" dest="c5" />
+                <column src="c5" dest="c5" />
+                <column src="c6" dest="c6" />
             </columnMapping>
+        </mapping>
+        <mapping>
+            <!-- oracle schema, 见上描述-->
+            <oracleSchema></oracleSchema>
+            <!-- oracle table, 必选-->
+            <oracleTable>t_blob</oracleTable>
+            <!-- datahub topic, 必选-->
+            <datahubTopic>ogg_blob</datahubTopic>
 
             <!--指定shard id, 优先生效, 可选-->
-            <shardId>1</shardId>
+            <shardId>0</shardId>
+
+            <columnMapping>
+                <column src="c1" dest="blob"/>
+            </columnMapping>
+
         </mapping>
     </mappings>
 </configure>

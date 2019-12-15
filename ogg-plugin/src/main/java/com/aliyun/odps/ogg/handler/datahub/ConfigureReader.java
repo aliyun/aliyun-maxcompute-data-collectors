@@ -19,13 +19,7 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.DatahubConfiguration;
-import com.aliyun.datahub.auth.AliyunAccount;
-import com.aliyun.datahub.common.data.Field;
-import com.aliyun.datahub.common.data.FieldType;
-import com.aliyun.datahub.common.data.RecordSchema;
-import com.aliyun.datahub.wrapper.Project;
-import com.aliyun.datahub.wrapper.Topic;
+
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
@@ -40,7 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +56,7 @@ public class ConfigureReader {
         Document document = reader.read(file);
         Element root = document.getRootElement();
 
+        /* for root element */
         String elementText = root.elementTextTrim("batchSize");
         if (StringUtils.isNotBlank(elementText)) {
             configure.setBatchSize(Integer.parseInt(elementText));
@@ -93,7 +89,7 @@ public class ConfigureReader {
 
         elementText = root.elementTextTrim("disableCheckPointFile");
         if (StringUtils.isNotBlank(elementText)) {
-            configure.setDisableCheckPointFile(Boolean.parseBoolean(elementText));
+            configure.setCheckPointFileDisable(Boolean.parseBoolean(elementText));
         }
 
         elementText = root.elementTextTrim("checkPointFileName");
@@ -101,6 +97,7 @@ public class ConfigureReader {
             configure.setCheckPointFileName(elementText);
         }
 
+        /* for oracle default config */
         Element element = root.element("defaultOracleConfigure");
         if (element == null) {
             throw new RuntimeException("defaultOracleConfigure is null");
@@ -110,76 +107,65 @@ public class ConfigureReader {
         if (StringUtils.isBlank(elementText)) {
             throw new RuntimeException("defaultOracleConfigure.sid is null");
         }
-        configure.setSid(elementText);
-
-        elementText = root.elementTextTrim("storageCtimeColumnAsTimestamp");
-        if (StringUtils.isNotBlank(elementText)) {
-            configure.setStorageCtimeColumnAsTimestamp(Boolean.parseBoolean(elementText));
-        }
+        configure.setOracleSid(elementText);
 
         String defaultOracleSchema = element.elementTextTrim("schema");
 
-        SimpleDateFormat defaultSimpleDateFormat;
-        elementText = element.elementTextTrim("dateFormat");
-        if (StringUtils.isNotBlank(elementText)) {
-            defaultSimpleDateFormat = new SimpleDateFormat(elementText);
-        } else {
-            defaultSimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        }
-
-        element = root.element("defalutDatahubConfigure");
+        /* for DataHub default config */
+        element = root.element("defaultDatahubConfigure");
         if (element == null) {
-            throw new RuntimeException("defalutDatahubConfigure is null");
+            throw new RuntimeException("defaultDatahubConfigure is null");
         }
 
         String endPoint = element.elementText("endPoint");
         if (StringUtils.isBlank(endPoint)) {
-            throw new RuntimeException("defalutDatahubConfigure.endPoint is null");
+            throw new RuntimeException("defaultDatahubConfigure.endPoint is null");
+        }
+        configure.setDatahubEndpoint(endPoint);
 
+        String defaultDatahubAccessID = element.elementText("accessId");
+        if (StringUtils.isNotBlank(defaultDatahubAccessID)) {
+            configure.setDatahubAccessId(defaultDatahubAccessID);
+        }
+
+        String defaultDatahubAccessKey = element.elementText("accessKey");
+        if (StringUtils.isNotBlank(defaultDatahubAccessKey)) {
+            configure.setDatahubAccessKey(defaultDatahubAccessKey);
         }
 
         String defaultDatahubProject = element.elementText("project");
-        String defaultDatahubAccessID = element.elementText("accessId");
-        String defaultDatahubAccessKey = element.elementText("accessKey");
-
-        Field defaultCTypeField = null;
         String defaultCTypeColumn = element.elementText("ctypeColumn");
-        if (StringUtils.isNotBlank(defaultCTypeColumn)) {
-            defaultCTypeField = new Field(defaultCTypeColumn, FieldType.STRING);
-        }
-        Field defaultCTimeField = null;
         String defaultCTimeColumn = element.elementText("ctimeColumn");
-        if (StringUtils.isNotBlank(defaultCTimeColumn)) {
-            if (configure.isStorageCtimeColumnAsTimestamp()) {
-                defaultCTimeField = new Field(defaultCTimeColumn, FieldType.TIMESTAMP);
-            } else {
-                defaultCTimeField = new Field(defaultCTimeColumn, FieldType.STRING);
-            }
-        }
-        Field defaultCidField = null;
         String defaultCidColumn = element.elementText("cidColumn");
-        if (StringUtils.isNotBlank(defaultCidColumn)) {
-            defaultCidField = new Field(defaultCidColumn, FieldType.STRING);
-        }
-
 
         String defaultConstColumnMapStr = element.elementText("constColumnMap");
         Map<String, String> defalutConstColumnMappings = Maps.newHashMap();
-        Map<String, Field> defaultConstColumnFieldMappings = Maps.newHashMap();
-        parseConstColumnMap(defaultConstColumnMapStr, defalutConstColumnMappings,
-            defaultConstColumnFieldMappings);
+        parseConstColumnMap(defaultConstColumnMapStr, defalutConstColumnMappings);
 
+        String compressType = element.elementText("compressType");
+        if (StringUtils.isNotBlank(compressType)) {
+            configure.setCompressType(compressType);
+        }
+
+        String enablePb = element.elementText("enablePb");
+        if (StringUtils.isNotBlank(enablePb)) {
+            configure.setEnablePb(Boolean.parseBoolean(enablePb));
+        }
+
+        /** for table mappings **/
         element = root.element("mappings");
         if (element == null) {
             throw new RuntimeException("mappings is null");
         }
 
+
         List<Element> mappingElements = element.elements("mapping");
+        System.out.println(mappingElements.size());
         if (mappingElements == null || mappingElements.size() == 0) {
             throw new RuntimeException("mappings.mapping is null");
         }
 
-        //init table mapping
+        /** for table mapping **/
         for (Element e : mappingElements) {
             String oracleSchema = e.elementTextTrim("oracleSchema");
             if (StringUtils.isNotBlank(oracleSchema)) {
@@ -188,7 +174,7 @@ public class ConfigureReader {
                 oracleSchema = defaultOracleSchema;
             } else {
                 throw new RuntimeException(
-                    "both mappings.mapping.oracleSchema and defaultOracleConfigure.schema is null");
+                        "both mappings.mapping.oracleSchema and defaultOracleConfigure.schema is null");
             }
 
             String oracleTable = e.elementTextTrim("oracleTable");
@@ -199,11 +185,11 @@ public class ConfigureReader {
             String datahubProject = e.elementTextTrim("datahubProject");
             if (StringUtils.isNotBlank(datahubProject)) {
                 //nothing
-            } else if (StringUtils.isNotBlank(defaultOracleSchema)) {
+            } else if (StringUtils.isNotBlank(defaultDatahubProject)) {
                 datahubProject = defaultDatahubProject;
             } else {
                 throw new RuntimeException(
-                    "both mappings.mapping.datahubProject and defalutDatahubConfigure.project is null");
+                        "both mappings.mapping.datahubProject and defaultDatahubConfigure.project is null");
             }
 
             String datahubAccessId = e.elementTextTrim("datahubAccessId");
@@ -213,7 +199,7 @@ public class ConfigureReader {
                 datahubAccessId = defaultDatahubAccessID;
             } else {
                 throw new RuntimeException(
-                    "both mappings.mapping.datahubAccessId and defalutDatahubConfigure.accessId is null");
+                        "both mappings.mapping.datahubAccessId and defaultDatahubConfigure.accessId is null");
             }
 
             String datahubAccessKey = e.elementTextTrim("datahubAccessKey");
@@ -223,77 +209,60 @@ public class ConfigureReader {
                 datahubAccessKey = defaultDatahubAccessKey;
             } else {
                 throw new RuntimeException(
-                    "both mappings.mapping.datahubAccessKey and defalutDatahubConfigure.accessKey is null");
+                        "both mappings.mapping.datahubAccessKey and defaultDatahubConfigure.accessKey is null");
             }
 
             String topicName = e.elementTextTrim("datahubTopic");
-            if (topicName == null) {
+            if (StringUtils.isBlank(topicName)) {
                 throw new RuntimeException("mappings.mapping.datahubTopic is null");
             }
 
-            String ctypeColumn = e.elementText("ctypeColumn");
-            String ctimeColumn = e.elementText("ctimeColumn");
-            String cidColumn = e.elementText("cidColumn");
+            String rowIdColumn = e.elementText("rowIdColumn");
 
-            DatahubConfiguration datahubConfiguration =
-                new DatahubConfiguration(new AliyunAccount(datahubAccessId, datahubAccessKey),
-                    endPoint);
-            Project project = Project.Builder.build(datahubProject, datahubConfiguration);
-            Topic topic = project.getTopic(topicName);
-            if (topic == null) {
-                throw new RuntimeException("Can not find datahub topic[" + topicName + "]");
-            } else {
-                logger.info("topic name: " + topicName + ", topic schema: " + topic.getRecordSchema().toJsonString());
-            }
+            String cTypeColumn = e.elementText("ctypeColumn");
+            cTypeColumn = StringUtils.isNotBlank(cTypeColumn) ? cTypeColumn : defaultCTypeColumn;
 
-            TableMapping tableMapping = new TableMapping();
-            tableMapping.setTopic(topic);
-            tableMapping.setOracleSchema(oracleSchema.toLowerCase());
-            tableMapping.setOracleTableName(oracleTable.toLowerCase());
-            tableMapping.setOracleFullTableName(
-                tableMapping.getOracleSchema() + "." + tableMapping.getOracleTableName());
-            tableMapping.setCtypeField(StringUtils.isNotBlank(ctypeColumn) ?
-                new Field(ctypeColumn, FieldType.STRING) :
-                defaultCTypeField);
-            if (configure.isStorageCtimeColumnAsTimestamp()) {
-                tableMapping.setCtimeField(StringUtils.isNotBlank(ctimeColumn) ?
-                        new Field(ctimeColumn, FieldType.TIMESTAMP) :
-                        defaultCTimeField);
-            } else {
-                tableMapping.setCtimeField(StringUtils.isNotBlank(ctimeColumn) ?
-                        new Field(ctimeColumn, FieldType.STRING) :
-                        defaultCTimeField);
-            }
-            tableMapping.setCidField(StringUtils.isNotBlank(cidColumn) ?
-                new Field(cidColumn, FieldType.STRING) :
-                defaultCidField);
+            String cTimeColumn = e.elementText("ctimeColumn");
+            cTimeColumn = StringUtils.isNotBlank(cTimeColumn) ? cTimeColumn : defaultCTimeColumn;
+
+            String cIdColumn = e.elementText("cidColumn");
+            cIdColumn = StringUtils.isNotBlank(cIdColumn) ? cIdColumn : defaultCidColumn;
 
             String constColumnMapStr = e.elementText("constColumnMap");
             Map<String, String> constColumnMappings = Maps.newHashMap();
-            Map<String, Field> constColumnFieldMappings = Maps.newHashMap();
-            parseConstColumnMap(constColumnMapStr, constColumnMappings, constColumnFieldMappings);
-
-            tableMapping.setConstColumnMappings(
-                constColumnMappings.isEmpty() ?
-                    defalutConstColumnMappings :
-                    constColumnMappings);
-            tableMapping.setConstFieldMappings(
-                constColumnFieldMappings.isEmpty() ?
-                    defaultConstColumnFieldMappings :
-                    constColumnFieldMappings);
-
-            Map<String, ColumnMapping> columnMappings = Maps.newHashMap();
-            tableMapping.setColumnMappings(columnMappings);
+            parseConstColumnMap(constColumnMapStr, constColumnMappings);
+            constColumnMappings = constColumnMappings.isEmpty() ? defalutConstColumnMappings : constColumnMappings;
 
             elementText = e.elementTextTrim("shardId");
-            if (StringUtils.isNotBlank(elementText)) {
-                tableMapping.setShardId(elementText);
+            List<String> shardIds = new ArrayList<String>();
+            paraseShardList(elementText, shardIds);
+
+            TableMapping tableMapping = new TableMapping();
+
+            tableMapping.setOracleSchema(oracleSchema.toLowerCase());
+            tableMapping.setOracleTableName(oracleTable.toLowerCase());
+            tableMapping.setOracleFullTableName(
+                    tableMapping.getOracleSchema() + "." + tableMapping.getOracleTableName());
+            tableMapping.setProjectName(datahubProject);
+            tableMapping.setTopicName(topicName);
+            tableMapping.setAccessId(datahubAccessId);
+            tableMapping.setAccessKey(datahubAccessKey);
+            tableMapping.setRowIdColumn(rowIdColumn);
+            tableMapping.setcTypeColumn(cTypeColumn);
+            tableMapping.setcTimeColumn(cTimeColumn);
+            tableMapping.setcIdColumn(cIdColumn);
+            tableMapping.setConstColumnMappings(constColumnMappings);
+            tableMapping.setShardIds(shardIds);
+            if (!shardIds.isEmpty()) {
+                tableMapping.setSetShardId(true);
             }
 
             configure.addTableMapping(tableMapping);
+            Map<String, ColumnMapping> columnMappings = Maps.newHashMap();
+            tableMapping.setColumnMappings(columnMappings);
 
-            RecordSchema recordSchema = topic.getRecordSchema();
 
+            /** for column mapping **/
             Element columnMappingElement = e.element("columnMapping");
             List<Element> columns = columnMappingElement.elements("column");
             for (Element columnElement : columns) {
@@ -305,37 +274,23 @@ public class ConfigureReader {
                 oracleColumnName = oracleColumnName.toLowerCase();
                 ColumnMapping columnMapping = new ColumnMapping();
                 columnMappings.put(oracleColumnName, columnMapping);
-                columnMapping.setOracleColumnName(oracleColumnName);
+                columnMapping.setSrc(oracleColumnName);
 
-                String datahubFieldName = columnElement.attributeValue("dest");
-                if (datahubFieldName == null) {
+                String dest = columnElement.attributeValue("dest");
+                if (StringUtils.isBlank(dest)) {
                     throw new RuntimeException("Topic[" + topicName + "] dest attribute is null");
                 }
+                columnMapping.setDest(dest);
 
-                Field field = recordSchema.getField(datahubFieldName.toLowerCase());
-                if (field == null) {
-                    throw new RuntimeException(
-                        "Topic[" + topicName + "] Field[" + datahubFieldName + "] is not exist");
-                }
-
-                columnMapping.setField(field);
-
-                String datahubOldFieldName = columnElement.attributeValue("destOld");
-                if (StringUtils.isNotBlank(datahubOldFieldName)) {
-                    Field oldField = recordSchema.getField(datahubOldFieldName);
-
-                    if (field == null) {
-                        throw new RuntimeException(
-                            "Topic[" + topicName + "] Field[" + datahubOldFieldName
-                                + "] is not exist");
-                    }
-                    columnMapping.setOldFiled(oldField);
+                String destOld = columnElement.attributeValue("destOld");
+                if (StringUtils.isNotBlank(destOld)) {
+                    columnMapping.setDestOld(destOld);
                 }
 
                 String isShardColumn = columnElement.attributeValue("isShardColumn");
                 if (StringUtils.isNotBlank(isShardColumn) && Boolean.TRUE
-                    .equals(Boolean.valueOf(isShardColumn))) {
-                    tableMapping.setIsShardHash(true);
+                        .equals(Boolean.valueOf(isShardColumn))) {
+                    tableMapping.setShardHash(true);
                     columnMapping.setIsShardColumn(true);
                 } else {
                     columnMapping.setIsShardColumn(false);
@@ -349,21 +304,14 @@ public class ConfigureReader {
                     columnMapping.setIsKeyColumn(false);
                 }
 
-                String dateFormat = columnElement.attributeValue("dateFormat");
-
-                if (StringUtils.isNotBlank(dateFormat)) {
-                    columnMapping.setSimpleDateFormat(new SimpleDateFormat(dateFormat));
-                } else {
-                    columnMapping.setSimpleDateFormat(defaultSimpleDateFormat);
+                String isDateFormat = columnElement.attributeValue("isDateFormat");
+                if (StringUtils.isNotBlank(isDateFormat)) {
+                    columnMapping.setIsDateFormat(Boolean.parseBoolean(isDateFormat));
                 }
 
-                String isDateFormat = columnElement.attributeValue("isDateFormat");
-
-                if (StringUtils.isNotBlank(isDateFormat) && Boolean.FALSE
-                    .equals(Boolean.valueOf(isDateFormat))) {
-                    columnMapping.setIsDateFormat(false);
-                } else {
-                    columnMapping.setIsDateFormat(true);
+                String dateFormat = columnElement.attributeValue("dateFormat");
+                if (StringUtils.isNotBlank(dateFormat)){
+                    columnMapping.setDateFormat(dateFormat);
                 }
             }
         }
@@ -373,19 +321,31 @@ public class ConfigureReader {
     }
 
     private static void parseConstColumnMap(String constColumnMapStr,
-        Map<String, String> constColumnMappings, Map<String, Field> constColumnFieldMappings) {
+                                            Map<String, String> constColumnMappings) {
         if (StringUtils.isBlank(constColumnMapStr)) {
             return;
         }
         String[] constColumns = constColumnMapStr.split(",");
-        for (String c: constColumns) {
+        for (String c : constColumns) {
             String[] kv = c.split("=");
             if (kv.length != 2) {
                 throw new RuntimeException(
-                    "Const column map configure is wrong, should like c1=xxx,c2=xxx,c3=xxx");
+                        "Const column map configure is wrong, should like c1=xxx,c2=xxx,c3=xxx. But found " + constColumnMapStr);
             }
             constColumnMappings.put(kv[0], kv[1]);
-            constColumnFieldMappings.put(kv[0], new Field(kv[0], FieldType.STRING));
         }
+    }
+
+    private static void paraseShardList(String shardListStr, List<String> shardIds) {
+        if (shardIds == null) {
+            shardIds = new ArrayList<String>();
+        }
+
+        if (StringUtils.isBlank(shardListStr)) {
+            return;
+        }
+
+        String[] strs = StringUtils.split(shardListStr, ",");
+        shardIds.addAll(Arrays.asList(strs));
     }
 }

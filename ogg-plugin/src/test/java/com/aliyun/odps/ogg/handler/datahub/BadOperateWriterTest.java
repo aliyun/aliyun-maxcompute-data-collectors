@@ -20,11 +20,9 @@
 package com.aliyun.odps.ogg.handler.datahub;
 
 
-import com.aliyun.datahub.DatahubConfiguration;
-import com.aliyun.datahub.auth.AliyunAccount;
-import com.aliyun.datahub.model.RecordEntry;
-import com.aliyun.datahub.wrapper.Project;
-import com.aliyun.datahub.wrapper.Topic;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.aliyun.datahub.client.model.*;
 import oracle.goldengate.datasource.DsColumn;
 import oracle.goldengate.datasource.DsColumnAfterValue;
 import oracle.goldengate.datasource.DsOperation;
@@ -36,9 +34,12 @@ import oracle.goldengate.datasource.meta.TableMetaData;
 import oracle.goldengate.datasource.meta.TableName;
 import org.apache.commons.io.FileUtils;
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 
 /**
@@ -46,53 +47,48 @@ import java.util.ArrayList;
  */
 public class BadOperateWriterTest {
 
+    private String fileName = "test.txt";
+
+    @BeforeMethod
+    public void setUpBeforeMethod() {
+
+    }
+
+    @AfterMethod
+    public void tearDownAfterMethod() throws IOException {
+        File file = new File(fileName);
+        if (file.exists()){
+            FileUtils.forceDelete(file);
+        }
+
+        file = new File(fileName + ".bak");
+        if (file.exists()) {
+            FileUtils.forceDelete(file);
+        }
+    }
+
     @Test
     public void testCheckFileSize() throws IOException {
-
-        for(int i = 0 ; i < 2; i++){
+        for (int i = 0; i < 5; i++) {
             String content = "hello,world";
 
-            if(i == 1){
+            if (i == 1) {
                 content = "hello,liangyf";
             }
 
-            String fileName = "1.txt";
-
-
             File file = new File(fileName);
-
-            FileOutputStream outputStream = FileUtils.openOutputStream(file);
-
-            outputStream.write(content.getBytes());
-            outputStream.flush();
-            outputStream.close();
-
+            FileUtils.writeStringToFile(file, content);
             BadOperateWriter.checkFileSize(fileName, 1);
 
-            Assert.assertTrue(!file.exists());
+            Assert.assertFalse(file.exists());
 
-            BufferedReader br=new BufferedReader(new FileReader(fileName+".bak"));
-
-            String line="";
-            StringBuffer  buffer = new StringBuffer();
-            while((line=br.readLine())!=null){
-                buffer.append(line);
-            }
-
-            br.close();
-
-            String fileContent = buffer.toString();
-
-            Assert.assertEquals(content, fileContent);
+            String fileContent = FileUtils.readFileToString(new File(fileName + ".bak"));
+            Assert.assertEquals(fileContent, content);
         }
-
-
-        FileUtils.deleteQuietly(new File("1.txt"));
-        FileUtils.deleteQuietly(new File("1.txt.bak"));
     }
 
     @Test(testName = "测试写入op")
-    public void testWriteOp(){
+    public void testWriteOp() throws IOException {
         ArrayList<ColumnMetaData> columnMetaDatas = new ArrayList<ColumnMetaData>();
 
         ColumnMetaData columnMetaData = new ColumnMetaData("c1", 1);
@@ -105,7 +101,6 @@ public class BadOperateWriterTest {
         columnMetaDatas.add(columnMetaData);
         columnMetaData = new ColumnMetaData("c5", 5);
         columnMetaDatas.add(columnMetaData);
-
 
 
         TableName tableName = new TableName("ogg_test.t_person");
@@ -124,47 +119,80 @@ public class BadOperateWriterTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
 
         Op op = new Op(dsOperation, tableMetaData, null);
 
         BadOperateWriter.write(op,
                 "ogg_test.t_person",
                 "t_person",
-                "op.txt",
+                fileName,
                 10000,
                 "op error");
 
-        FileUtils.deleteQuietly(new File("op.txt"));
+        //FileUtils.deleteDirectory(new File("op.txt"));
+        String jsonStr = FileUtils.readFileToString(new File(fileName));
+        JSONObject object = JSON.parseObject(jsonStr);
+        Assert.assertEquals(object.getString("oracleTable"), "ogg_test.t_person");
+        Assert.assertEquals(object.getString("topicName"), "t_person");
+        Assert.assertNull(object.getString("shardId"));
+        Assert.assertEquals(object.getString("errorMessage"), "op error");
+
+        JSONObject record = object.getJSONObject("record");
+        Assert.assertEquals(record.getString("c1"), "testNormal");
+        Assert.assertEquals(record.getString("c2"), "2");
+        Assert.assertEquals(record.getString("c3"), "3");
+        Assert.assertEquals(record.getString("c4"), "2016-05-20 09:00:00");
+        Assert.assertEquals(record.getString("c5"), "6");
     }
 
     @Test(testName = "测试写入record")
-    public void testWriteRecord(){
-        DatahubConfiguration datahubConfiguration = new DatahubConfiguration(new AliyunAccount("YOUR_DATAHUB_ACCESS_ID", "YOUR_DATAHUB_ACCESS_KEY"), "YOUR_DATAHUB_ENDPOINT");
-        Project project = Project.Builder.build("YOUR_DATAHUB_PROJECT", datahubConfiguration);
+    public void testWriteRecord() throws IOException {
 
-        Topic topic = project.getTopic("ogg_test_normal");
-        RecordEntry recordEntry = new RecordEntry(topic.getRecordSchema());
+        RecordSchema recordSchema = new RecordSchema() {{
+            addField(new Field("bigint_field", FieldType.BIGINT));
+            addField(new Field("timestamp_field", FieldType.TIMESTAMP));
+            addField(new Field("string_field", FieldType.STRING));
+            addField(new Field("double_field", FieldType.DOUBLE));
+            addField(new Field("boolean_field", FieldType.BOOLEAN));
+            addField(new Field("decimal_field", FieldType.DECIMAL));
+        }};
+
+        RecordEntry recordEntry = new RecordEntry();
+        TupleRecordData recordData = new TupleRecordData(recordSchema);
+        long timestamp = System.currentTimeMillis();
+
+        recordData.setField("bigint_field", timestamp + 2);
+        recordData.setField("timestamp_field", timestamp);
+        recordData.setField("string_field", "abcdefg");
+        recordData.setField("double_field", 3.1415926);
+        recordData.setField("boolean_field", true);
+        recordData.setField("decimal_field", new BigDecimal("3.1415926"));
+
         recordEntry.setShardId("1");
-
-        recordEntry.setString("c1", "c1");
-        recordEntry.setBigint("c2", 2L);
-        recordEntry.setDouble("c3", 2.0);
-        recordEntry.setTimeStamp("c4", 1000L);
-        recordEntry.setBoolean("c5", true);
+        recordEntry.setRecordData(recordData);
 
 
         BadOperateWriter.write(recordEntry,
                 "ogg_test.t_person",
                 "t_person",
-                "record.txt",
+                fileName,
                 10000,
                 "record error");
 
-        FileUtils.deleteQuietly(new File("record.txt"));
+        String jsonStr = FileUtils.readFileToString(new File(fileName));
+        JSONObject object = JSON.parseObject(jsonStr);
+        Assert.assertEquals(object.getString("oracleTable"), "ogg_test.t_person");
+        Assert.assertEquals(object.getString("topicName"), "t_person");
+        Assert.assertNull(object.getString("shardId"), null);
+        Assert.assertEquals(object.getString("errorMessage"), "record error");
 
-
+        JSONObject record = object.getJSONObject("record");
+        Assert.assertEquals(record.getLongValue("bigint_field"), timestamp + 2);
+        Assert.assertEquals(record.getLongValue("timestamp_field"), timestamp);
+        Assert.assertEquals(record.getString("string_field"), "abcdefg");
+        Assert.assertEquals(record.getDoubleValue("double_field"), 3.1415926);
+        Assert.assertTrue(record.getBooleanValue("boolean_field"));
+        Assert.assertEquals(record.getBigDecimal("decimal_field"), new BigDecimal("3.1415926"));
     }
-
-
 }

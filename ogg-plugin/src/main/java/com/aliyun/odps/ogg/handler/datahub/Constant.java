@@ -32,4 +32,6 @@ public class Constant {
     public static final String TABNMAE = "tabName";
     public static final String OPER_TYPE = "operType";
     public static final String HASH = "hash";
+
+    public static final String PLUGIN_VERSION = "2.0.3";
 }

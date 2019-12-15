@@ -19,29 +19,33 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.model.*;
-import com.aliyun.datahub.wrapper.Topic;
+import com.aliyun.datahub.client.DatahubClient;
+import com.aliyun.datahub.client.DatahubClientBuilder;
+import com.aliyun.datahub.client.auth.AliyunAccount;
+import com.aliyun.datahub.client.common.DatahubConfig;
+import com.aliyun.datahub.client.exception.DatahubClientException;
+import com.aliyun.datahub.client.http.HttpConfig;
+import com.aliyun.datahub.client.model.*;
+import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
-import com.google.common.collect.Lists;
+import com.aliyun.odps.ogg.handler.datahub.util.JsonHelper;
 import com.google.common.collect.Maps;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class DataHubWriter {
     private static final Logger logger = LoggerFactory.getLogger(DataHubWriter.class);
 
     private Map<String, List<RecordEntry>> recordCache = Maps.newHashMap();
-    private Map<String, Integer> shardIndexs = Maps.newHashMap();
-    private Map<String, List<String>> shardIdLists = Maps.newHashMap();
     private Configure configure;
 
     private static DataHubWriter dataHubWriter;
+    private DatahubClient client;
 
     public static DataHubWriter instance() {
         return dataHubWriter;
@@ -53,46 +57,126 @@ public class DataHubWriter {
         }
     }
 
-    // only used in unit test
-    static void reInit(Configure configure) {
-        dataHubWriter = new DataHubWriter(configure);
+    private DataHubWriter(Configure configure) {
+        this.configure = configure;
+        initDataHub();
+
+        checkTableMapping();
     }
 
-    private DataHubWriter(Configure configure) {
-        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
-            TableMapping tableMapping = entry.getValue();
-            Topic topic = entry.getValue().getTopic();
-            List<String> shardIds = Lists.newArrayList();
-            List<ShardEntry> shardEntries = topic.listShard();
-
-            for (ShardEntry shardEntry : shardEntries) {
-                if (tableMapping.getShardId() != null) {
-                    if (tableMapping.getShardId().equals(shardEntry.getShardId())) {
-                        if (ShardState.ACTIVE.equals(shardEntry.getState())) {
-                            shardIds.add(shardEntry.getShardId());
-                        }
-                        break;
-                    }
-                } else {
-                    if (ShardState.ACTIVE.equals(shardEntry.getState())) {
-                        shardIds.add(shardEntry.getShardId());
-                    }
+    private void initDataHub() {
+        HttpConfig httpConfig = new HttpConfig();
+        if (StringUtils.isNotBlank(configure.getCompressType())) {
+            boolean flag = false;
+            for (HttpConfig.CompressType type : HttpConfig.CompressType.values()) {
+                if (type.name().equals(configure.getCompressType())) {
+                    httpConfig.setCompressType(HttpConfig.CompressType.valueOf(configure.getCompressType()));
+                    flag = true;
+                    break;
                 }
-
             }
-
-            if (shardIds.size() == 0) {
-                throw new RuntimeException(
-                    "Topic[" + topic.getTopicName() + "] has not active shard");
+            if (!flag) {
+                logger.warn("Invalid DataHub compressType {}, default no compress.", configure.getCompressType());
             }
-
-            shardIdLists.put(entry.getKey(), shardIds);
-            recordCache.put(entry.getKey(), new ArrayList<RecordEntry>());
-            shardIndexs.put(entry.getKey(), 0);
         }
 
-        this.configure = configure;
+        client = DatahubClientBuilder.newBuilder()
+                .setUserAgent(Constant.PLUGIN_VERSION)
+                .setDatahubConfig(
+                        new DatahubConfig(configure.getDatahubEndpoint(),
+                                // 是否开启二进制传输，服务端2.12版本开始支持
+                                new AliyunAccount(configure.getDatahubAccessId(), configure.getDatahubAccessKey()),
+                                configure.isEnablePb()))
+                .setHttpConfig(httpConfig)
+                .build();
 
+        // init RecordSchema and shardList
+        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
+            TableMapping tableMapping = entry.getValue();
+            GetTopicResult topic = client.getTopic(tableMapping.getProjectName(), tableMapping.getTopicName());
+            if (topic.getRecordType() == RecordType.TUPLE) {
+                tableMapping.setRecordSchema(topic.getRecordSchema());
+            }
+            freshShardList(tableMapping);
+            recordCache.put(entry.getKey(), new ArrayList<RecordEntry>());
+        }
+    }
+
+    private void checkTableMapping() {
+        for (TableMapping tableMapping : configure.getTableMappings().values()) {
+            checkColumnMapping(tableMapping);
+        }
+    }
+
+    private void checkColumnMapping(TableMapping tableMapping) {
+        if (tableMapping.getRecordSchema() == null) {
+            return;
+        }
+
+
+        checkColumn(tableMapping.getRowIdColumn(), Arrays.asList(FieldType.STRING),
+                tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        checkColumn(tableMapping.getcTypeColumn(), Arrays.asList(FieldType.STRING),
+                tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        checkColumn(tableMapping.getcTimeColumn(), Arrays.asList(FieldType.STRING,
+                FieldType.TIMESTAMP), tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        checkColumn(tableMapping.getcIdColumn(), Arrays.asList(FieldType.STRING),
+                tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        for (Map.Entry<String, String> entry : tableMapping.getConstColumnMappings().entrySet()) {
+            checkColumn(entry.getKey(), Arrays.asList(FieldType.STRING),
+                    tableMapping.getRecordSchema(), tableMapping.getTopicName());
+        }
+
+        for (Map.Entry<String, ColumnMapping> entry : tableMapping.getColumnMappings().entrySet()) {
+            ColumnMapping columnMapping = entry.getValue();
+
+            checkColumn(columnMapping.getDest(), null, tableMapping.getRecordSchema(), tableMapping.getTopicName());
+            checkColumn(columnMapping.getDestOld(), null, tableMapping.getRecordSchema(), tableMapping.getTopicName());
+        }
+    }
+
+    private void checkColumn(String columnName, List<FieldType> types, RecordSchema recordSchema, String topicName) {
+        if (StringUtils.isBlank(columnName)) {
+            return;
+        }
+
+        Field field = recordSchema.getField(columnName);
+        if (field == null) {
+            throw new IllegalArgumentException("Topic[" + topicName + "] Field[" + columnName + "] is not exist.");
+        }
+
+        if (types != null) {
+            boolean flag = false;
+            for (FieldType type : types) {
+                if (type == field.getType()) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (!flag) {
+                throw new IllegalArgumentException("Topic[" + topicName + "] Field[" + columnName + "] type is invalid.");
+            }
+        }
+    }
+
+    private void freshShardList(TableMapping tableMapping) {
+        if (tableMapping.isSetShardId()) {
+            return;
+        }
+
+        ListShardResult result = client.listShard(tableMapping.getProjectName(), tableMapping.getTopicName());
+        List<String> shardIds = new ArrayList<String>();
+
+        for (ShardEntry entry : result.getShards()) {
+            if (entry.getState() == ShardState.ACTIVE) {
+                shardIds.add(entry.getShardId());
+            }
+        }
+        tableMapping.setShardIds(shardIds);
     }
 
     public void addRecord(String oracleFullTableName, RecordEntry recordEntry) {
@@ -106,25 +190,18 @@ public class DataHubWriter {
     }
 
     private void initRecordShardIds(String oracleFullTableName, List<RecordEntry> recordEntries) {
-        TableMapping tableMapping = this.configure.getTableMapping(oracleFullTableName);
-        List<String> shardIds = this.shardIdLists.get(oracleFullTableName);
-        Integer index = this.shardIndexs.get(oracleFullTableName) % shardIds.size();
 
-        for (RecordEntry recordEntry : recordEntries) {
-            if (tableMapping.getShardId() != null) {
-                recordEntry.setShardId(tableMapping.getShardId());
-            } else if (tableMapping.isShardHash()) {
-                int hashCode = Integer.valueOf(recordEntry.getAttributes().get(Constant.HASH));
-                recordEntry.setShardId(shardIds.get(hashCode % shardIds.size()));
-            } else {
-                index = index % shardIds.size();
-                recordEntry.setShardId(shardIds.get(index));
-                index++;
-            }
+        TableMapping tableMapping = this.configure.getTableMapping(oracleFullTableName);
+
+        // if not set shardId, and set hash
+        if (!tableMapping.isSetShardId() && tableMapping.isShardHash()) {
+            return;
         }
 
-        this.shardIndexs.put(oracleFullTableName, index);
-
+        String shardId = tableMapping.getShardId();
+        for (RecordEntry recordEntry : recordEntries) {
+            recordEntry.setShardId(shardId);
+        }
     }
 
     //TODO 可以多线程优化写性能
@@ -140,101 +217,124 @@ public class DataHubWriter {
             return;
         }
 
+        initRecordShardIds(oracleFullTableName, recordEntries);
         TableMapping tableMapping = this.configure.getTableMapping(oracleFullTableName);
-        Topic topic = tableMapping.getTopic();
+
         int retryCount = 0;
-        this.initRecordShardIds(oracleFullTableName, recordEntries);
-        List<ErrorEntry> errorEntries = Lists.newArrayList();
         while (true) {
             String errorMessage = "";
+            PutRecordsResult putRecordsResult = null;
             try {
-                PutRecordsResult putRecordsResult = topic.putRecords(recordEntries);
-                //write had fail records
-                if (putRecordsResult.getFailedRecordCount() > 0) {
-                    recordEntries = putRecordsResult.getFailedRecords();
-                    errorEntries = putRecordsResult.getFailedRecordError();
-                    //需要重试
-                    if (configure.getRetryTimes() < 0 || (configure.getRetryTimes() >= 0
-                        && retryCount < configure.getRetryTimes())) {
-                        //轮训写shard, 需要重新判断shard的状态
-                        if (tableMapping.getShardId() == null || tableMapping.isShardHash()) {
+                putRecordsResult = client.putRecords(tableMapping.getProjectName(), tableMapping.getTopicName(), recordEntries);
+            } catch (DatahubClientException e) {
+                logger.error("oracle table[{}] put {} records to topic[{}] failed. ",
+                        oracleFullTableName, recordEntries.size(), tableMapping.getTopicName(), e);
+                errorMessage = e.getErrorMessage();
+            }
 
-                            for (ErrorEntry errorEntry : errorEntries) {
-                                //有无效的shard id
-                                if ("InvalidShardOperation"
-                                    .equalsIgnoreCase(errorEntry.getErrorcode())) {
-                                    List<ShardEntry> shardEntries = topic.listShard();
-                                    List<String> shardIds = Lists.newArrayList();
+            if (putRecordsResult != null && putRecordsResult.getFailedRecordCount() == 0) {
+                logger.info("oracle table[{}] put {} records to topic[{}] successful.",
+                        oracleFullTableName, recordEntries.size(), tableMapping.getTopicName());
 
-                                    for (ShardEntry shardEntry : shardEntries) {
-                                        if (ShardState.ACTIVE.equals(shardEntry.getState())) {
-                                            shardIds.add(shardEntry.getShardId());
-                                        }
-                                    }
-                                    //没有可用的shard 使用以前的shard接着写
-                                    if (shardIds.size() > 0) {
-                                        this.shardIdLists.put(oracleFullTableName, shardIds);
+                // save checkpoints
+                HandlerInfoManager.instance().saveHandlerInfos();
+                PluginStatictics.addSendTimesInTx();
+                this.recordCache.get(oracleFullTableName).clear();
+                break;
+            }
 
-                                        this.initRecordShardIds(oracleFullTableName, recordEntries);
-                                    }
-                                    break;
-                                }
+            if (configure.getRetryTimes() < 0 || retryCount < configure.getRetryTimes()) {
+                if (putRecordsResult != null && putRecordsResult.getFailedRecordCount() > 0) {
+                    logger.error("oracle table[{}] put {} records to topic[{}] failed. ErrorCode : {}, Message : {}",
+                            oracleFullTableName, putRecordsResult.getFailedRecordCount(),
+                            tableMapping.getTopicName(), putRecordsResult.getPutErrorEntries().get(0).getErrorcode(),
+                            putRecordsResult.getPutErrorEntries().get(0).getMessage());
+                    recordEntries.clear();
+                    List<RecordEntry> failedRecords = putRecordsResult.getFailedRecords();
+
+                    boolean needFresh = true;
+                    String shardId = "";
+                    for (int i = 0; i < failedRecords.size(); ++i) {
+                        RecordEntry entry = failedRecords.get(i);
+                        PutErrorEntry errorEntry = putRecordsResult.getPutErrorEntries().get(i);
+
+                        if ("MalformedRecord".equals(errorEntry.getErrorcode())) {
+                            if (configure.isDirtyDataContinue()) {
+                                BadOperateWriter.write(entry, oracleFullTableName, tableMapping.getTopicName(),
+                                        configure.getDirtyDataFile(),
+                                        configure.getDirtyDataFileMaxSize(), errorEntry.getMessage());
+                            } else {
+                                throw new RuntimeException(
+                                        "oracle table [" + oracleFullTableName + "] put record to topic["
+                                                + tableMapping.getTopicName() + "] failed. Found dirty data." + JsonHelper.beanToJson(entry));
                             }
                         }
-                    }
-                } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Write " + String.valueOf(recordEntries.size()) + " record to topic["
-                                + topic.getTopicName() + "] success");
-                    }
 
-                    // save checkpoints
-                    HandlerInfoManager.instance().saveHandlerInfos();
-                    PluginStatictics.addSendTimesInTx();
-                    this.recordCache.get(oracleFullTableName).clear();
-                    break;
-                }
-            } catch (Exception e) {
-                logger.warn("Write record to topic[" + topic.getTopicName() + "] failed", e);
-                errorMessage = e.getMessage();
-            }
-
-            if (configure.getRetryTimes() >= 0 && retryCount >= configure.getRetryTimes()) {
-                if (configure.isDirtyDataContinue()) {
-                    for (int i = 0; i < recordEntries.size(); i++) {
-                        if (errorEntries.size() > 0) {
-                            errorMessage = errorEntries.get(i).getMessage();
+                        // reset shardId if need
+                        if ("InvalidShardOperation".equals(errorEntry.getErrorcode())) {
+                            if (needFresh) {
+                                freshShardList(tableMapping);
+                                shardId = tableMapping.getShardId();
+                                needFresh = false;
+                            }
+                            entry.setShardId(shardId);
                         }
+                        recordEntries.add(entry);
+                    }
+                }
+                logger.warn("oracle table[{}] put record to topic[{}] failed, will retry after {} ms",
+                        oracleFullTableName, tableMapping.getTopicName(), configure.getRetryInterval());
+                try {
+                    Thread.sleep(configure.getRetryInterval());
+                } catch (InterruptedException e1) {
+                    // Do nothing
+                }
+            } else { // no retry or retry count exceed.
 
-                        BadOperateWriter
-                            .write(recordEntries.get(i), oracleFullTableName, topic.getTopicName(),
-                                configure.getDirtyDataFile(),
-                                configure.getDirtyDataFileMaxSize() * 1000000, errorMessage);
+                logger.error("oracle table[{}] put record to topic[{}] failed.",
+                        oracleFullTableName, tableMapping.getTopicName());
+
+                if (configure.isDirtyDataContinue()) {
+                    // put record failed for putRecord throw exception
+                    if (putRecordsResult == null) {
+                        for (RecordEntry entry : recordEntries) {
+                            BadOperateWriter.write(entry, oracleFullTableName,
+                                    tableMapping.getTopicName(), configure.getDirtyDataFile(),
+                                    configure.getDirtyDataFileMaxSize(), errorMessage);
+                        }
+                    } else {
+                        for (int i = 0; i < putRecordsResult.getFailedRecordCount(); ++i) {
+                            BadOperateWriter.write(putRecordsResult.getFailedRecords().get(i), oracleFullTableName,
+                                    tableMapping.getTopicName(), configure.getDirtyDataFile(),
+                                    configure.getDirtyDataFileMaxSize(),
+                                    putRecordsResult.getPutErrorEntries().get(i).getMessage());
+                        }
+                    }
+                } else {
+                    if (putRecordsResult != null) {
+                        errorMessage = putRecordsResult.getPutErrorEntries().get(0).getMessage();
                     }
 
-                    this.recordCache.get(oracleFullTableName).clear();
-
-                    break;
-                } else {
                     throw new RuntimeException(
-                        "Write record to topic[" + topic.getTopicName() + "] failed");
+                            "oracle table[" + oracleFullTableName + "] put record to topic["
+                                    + tableMapping.getTopicName() + "] failed. " + errorMessage);
                 }
-
-            }
-
-            logger.warn(
-                "Write record to topic[" + topic.getTopicName() + "] failed, will retry after "
-                    + configure.getRetryInterval() + "ms");
-            try {
-                Thread.sleep(configure.getRetryInterval());
-            } catch (InterruptedException e1) {
-                // Do nothing
-            }
-            if (errorEntries != null) {
-                errorEntries.clear();
+                this.recordCache.get(oracleFullTableName).clear();
+                break;
             }
             retryCount++;
         }
+    }
+
+
+    /**
+     * only used in unit test
+     */
+    static void reInit(Configure configure) {
+        dataHubWriter = new DataHubWriter(configure);
+    }
+
+    public DatahubClient getDataHubClient() {
+        return client;
     }
 }

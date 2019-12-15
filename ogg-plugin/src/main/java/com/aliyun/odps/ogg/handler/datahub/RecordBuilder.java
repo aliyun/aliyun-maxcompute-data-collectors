@@ -19,22 +19,23 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.common.data.Field;
-import com.aliyun.datahub.model.RecordEntry;
+import com.aliyun.datahub.client.model.*;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
-import com.aliyun.odps.ogg.handler.datahub.util.BucketPath;
 import com.google.common.collect.Maps;
-import maxcompute.data.collectors.common.datahub.RecordUtil;
 import oracle.goldengate.datasource.DsColumn;
+import oracle.goldengate.datasource.DsToken;
 import oracle.goldengate.datasource.adapt.Op;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+import java.nio.charset.Charset;
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -44,8 +45,6 @@ public class RecordBuilder {
 
     private Configure configure;
     private Map<String, Integer> latestSyncId = Maps.newHashMap();
-    private final static SimpleDateFormat DEFAULT_DATE_FORMATTER =
-        new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
 
     private static RecordBuilder recordBuilder;
 
@@ -67,113 +66,206 @@ public class RecordBuilder {
         }
     }
 
-    public RecordEntry buildRecord(Op op,
-                                   String opType,
-                                   TableMapping tableMapping) throws ParseException {
-        RecordEntry recordEntry = new RecordEntry(tableMapping.getTopic().getRecordSchema());
+    public RecordEntry buildRecord(Op op, String opType, TableMapping tableMapping) throws ParseException {
+        RecordEntry recordEntry = new RecordEntry();
 
-        List<DsColumn> columns = op.getColumns();
+        logger.debug("oracle table[{}] record [{}]", tableMapping.getOracleFullTableName(), op.getRecord().toString());
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("table:[" + tableMapping.getOracleFullTableName() + "] record:" + op.getRecord().toString());
-        }
-
-        String hashString = "";
-        for (int i = 0; i < columns.size(); i++) {
-            String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
-            ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
-            if (columnMapping == null) {
-                logger.debug("column name : " + columnName + " is not configured.  the table name is :"  + op.getTableMeta().getTableName());
-//                throw new RuntimeException("column name : " + columnName + " is not configured.  the table name is :"  + op.getTableMeta().getTableName());
-                continue;
-            }
-            Field field = columnMapping.getField();
-
-            if (field != null) {
-                if (columnMapping.isKeyColumn()) {
-                    if (columns.get(i).getAfter() == null) {
-                        RecordUtil.setFieldValue(recordEntry,
-                                field,
-                                columns.get(i).getBefore() == null || columns.get(i).getBefore().isValueNull(),
-                                columns.get(i).getBeforeValue(),
-                                columnMapping.isDateFormat(),
-                                columnMapping.getSimpleDateFormat(), true);
-                    } else {
-                        RecordUtil.setFieldValue(recordEntry,
-                                field,
-                                columns.get(i).getAfter() == null || columns.get(i).getAfter().isValueNull(),
-                                columns.get(i).getAfterValue(),
-                                columnMapping.isDateFormat(),
-                                columnMapping.getSimpleDateFormat(), true);
-                    }
-                } else {
-                    RecordUtil.setFieldValue(recordEntry,
-                            field,
-                            columns.get(i).getAfter() == null || columns.get(i).getAfter().isValueNull(),
-                            columns.get(i).getAfterValue(),
-                            columnMapping.isDateFormat(),
-                            columnMapping.getSimpleDateFormat(), true);
-                }
-            }
-
-            Field oldField = columnMapping.getOldFiled();
-            if (oldField != null && columns.get(i).hasBeforeValue()) {
-                RecordUtil.setFieldValue(recordEntry,
-                        oldField,
-                        columns.get(i).getBefore() == null || columns.get(i).getBefore().isValueNull(),
-                        columns.get(i).getBeforeValue(),
-                        columnMapping.isDateFormat(),
-                        columnMapping.getSimpleDateFormat(), true);
-            }
-            if (columnMapping.isShardColumn()) {
-                hashString += columns.get(i).getAfterValue();
-            }
-        }
-
-        // setFieldValue中有对field为null的判断
-        // string写入变更类型
-        RecordUtil.setFieldValue(recordEntry, tableMapping.getCtypeField(),
-            false, opType, false, null, true);
-
-        if (configure.isStorageCtimeColumnAsTimestamp()) {
-            RecordUtil.setFieldValue(recordEntry, tableMapping.getCtimeField(),
-                    false, op.getTimestamp(), true, DEFAULT_DATE_FORMATTER, true);
+        if (tableMapping.getRecordSchema() == null) {
+            // blob topic
+            buildBlobRecord(op, opType, tableMapping, recordEntry);
         } else {
-            // 毫秒的string写入变更时间
-            RecordUtil.setFieldValue(recordEntry, tableMapping.getCtimeField(),
-                    false, op.getTimestamp(), false, null, true);
-        }
-
-        // 写入变更序号
-        RecordUtil.setFieldValue(recordEntry, tableMapping.getCidField(), false,
-            Long.toString(HandlerInfoManager.instance().getRecordId()), false, null, true);
-
-        // 写入const columns
-        Date readTime = DEFAULT_DATE_FORMATTER.parse(op.getTimestamp());
-        for (Map.Entry<String, String> e : tableMapping.getConstColumnMappings().entrySet()) {
-            RecordUtil.setFieldValue(recordEntry, tableMapping.getConstFieldMappings().get(e.getKey()), false,
-                BucketPath.escapeString(e.getValue(), readTime.getTime(), tableMapping.getConstColumnMappings()), false, null, true);
+            buildTupleRecord(op, opType, tableMapping, recordEntry);
         }
 
         Integer syncId = this.latestSyncId.get(tableMapping.getOracleFullTableName());
-
         String strSyncId = String.format("%06d", syncId);
 
-        recordEntry.putAttribute(Constant.SYNCID, strSyncId);
-        recordEntry.putAttribute(Constant.VERSION, "1.0");
-        recordEntry.putAttribute(Constant.SRC_TYPE, "Oracle");
-        recordEntry.putAttribute(Constant.SRC_ID, configure.getSid());
-        recordEntry.putAttribute(Constant.TS, op.getTimestamp());
-        recordEntry.putAttribute(Constant.DBNAME, tableMapping.getOracleSchema());
-        recordEntry.putAttribute(Constant.TABNMAE, tableMapping.getOracleTableName());
-        recordEntry.putAttribute(Constant.OPER_TYPE, opType);
+        recordEntry.addAttribute(Constant.SYNCID, strSyncId);
+        recordEntry.addAttribute(Constant.VERSION, "1.0");
+        recordEntry.addAttribute(Constant.SRC_TYPE, "Oracle");
+        recordEntry.addAttribute(Constant.SRC_ID, configure.getOracleSid());
+        recordEntry.addAttribute(Constant.TS, op.getTimestamp());
+        recordEntry.addAttribute(Constant.DBNAME, tableMapping.getOracleSchema());
+        recordEntry.addAttribute(Constant.TABNMAE, tableMapping.getOracleTableName());
+        recordEntry.addAttribute(Constant.OPER_TYPE, opType);
 
-        if (tableMapping.isShardHash()) {
-            // for hashCode() may return negative values, should & 0x7fffffff to insure a positive value
-            recordEntry.putAttribute(Constant.HASH, String.valueOf(hashString.hashCode() & Integer.MAX_VALUE));
-        }
         this.latestSyncId.put(tableMapping.getOracleFullTableName(), (syncId++) % 1000000);
 
         return recordEntry;
+    }
+
+    private void buildTupleRecord(Op op, String opType, TableMapping tableMapping, RecordEntry recordEntry) throws ParseException {
+        TupleRecordData recordData = new TupleRecordData(tableMapping.getRecordSchema());
+        RecordSchema recordSchema = tableMapping.getRecordSchema();
+        StringBuilder hashString = new StringBuilder();
+
+        List<DsColumn> columns = op.getColumns();
+
+        String rowIdColumn = tableMapping.getRowIdColumn();
+        if (StringUtils.isNotBlank(rowIdColumn)) {
+            DsToken token = op.getRecord().getUserToken("TKN-ROWID");
+            if (token == null) {
+                throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
+                        + "] token TKN-ROWID is not set, can not get oracle rowid");
+            }
+            recordData.setField(rowIdColumn, token.getValue());
+        }
+
+        String ctype = tableMapping.getcTypeColumn();
+        if (StringUtils.isNotBlank(ctype)) {
+            recordData.setField(ctype, opType);
+        }
+
+        String ctime = tableMapping.getcTimeColumn();
+        if (StringUtils.isNotBlank(ctime)) {
+            if (recordSchema.getField(ctime).getType() == FieldType.STRING) {
+                recordData.setField(ctime, op.getTimestamp());
+            } else if (recordSchema.getField(ctime).getType() == FieldType.TIMESTAMP) {
+                recordData.setField(ctime, convertStrToMicroseconds(op.getTimestamp()));
+            } else {
+                throw new RuntimeException("DataHub topic[{}] filed[{}] type must be string or timestamp");
+            }
+        }
+
+        String cId = tableMapping.getcIdColumn();
+        if (StringUtils.isNotBlank(cId)) {
+            recordData.setField(cId, Long.toString(HandlerInfoManager.instance().getRecordId()));
+        }
+
+        Map<String, String> constMap = tableMapping.getConstColumnMappings();
+        if (constMap != null && !constMap.isEmpty()) {
+            for (Map.Entry<String, String> entry : constMap.entrySet()) {
+                recordData.setField(entry.getKey(), entry.getValue());
+            }
+        }
+
+        for (int i = 0; i < columns.size(); i++) {
+
+            String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
+            ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
+            if (columnMapping == null) {
+                logger.debug("oracle table[{}] column[{}] is not configured.", op.getTableMeta().getTableName().getFullName(), columnName);
+
+                continue;
+            }
+
+            DsColumn dsColumn = columns.get(i);
+
+            String dest = columnMapping.getDest();
+            if (StringUtils.isNotBlank(dest)) {
+                if (columnMapping.isKeyColumn()) {
+                    if (dsColumn.getAfter() == null) {
+                        //recordData.setField(dest, dsColumn.getBeforeValue());
+                        setTupleData(recordData, recordSchema.getField(dest), dsColumn.getBeforeValue(),
+                                columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
+                    } else {
+                        setTupleData(recordData, recordSchema.getField(dest), dsColumn.getAfterValue(),
+                                columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
+                    }
+                } else {
+                    setTupleData(recordData, recordSchema.getField(dest), dsColumn.getAfterValue(),
+                            columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
+                }
+            }
+
+            String destOld = columnMapping.getDestOld();
+            if (StringUtils.isNotBlank(destOld)) {
+                setTupleData(recordData, recordSchema.getField(destOld), dsColumn.getBeforeValue(),
+                        columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
+            }
+
+            if (columnMapping.isShardColumn()) {
+                hashString.append(columns.get(i).getAfterValue());
+            }
+        }
+
+        recordEntry.setPartitionKey(hashString.toString());
+        recordEntry.setRecordData(recordData);
+    }
+
+    private void buildBlobRecord(Op op, String opType, TableMapping tableMapping, RecordEntry recordEntry) {
+        List<DsColumn> columns = op.getColumns();
+        if (tableMapping.getColumnMappings().size() != 1) {
+            logger.error("oracle table[{}] must have only one column for blob topic[{}], but found {} column",
+                    tableMapping.getOracleFullTableName(), tableMapping.getTopicName(), op.getNumColumns());
+            throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
+                    + "] must have only one column for blob topic[" + tableMapping.getTopicName() + "]");
+        }
+
+        for (int i = 0; i < columns.size(); i++) {
+
+            String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
+            ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
+            if (columnMapping == null) {
+                continue;
+            }
+
+            BlobRecordData recordData = new BlobRecordData(columns.get(i).getAfterValue().getBytes(Charset.forName("UTF-8")));
+            recordEntry.setRecordData(recordData);
+            break;
+        }
+
+        recordEntry.addAttribute("opType", opType);
+    }
+
+    private void setTupleData(TupleRecordData recordData, Field field, String val, boolean isDateFormat, SimpleDateFormat format) {
+        if (val == null || val.isEmpty() || field == null || "null".equalsIgnoreCase(val)) {
+            return;
+        }
+        switch (field.getType()) {
+            case STRING:
+                recordData.setField(field.getName(), val);
+                break;
+            case BIGINT:
+                recordData.setField(field.getName(), Long.parseLong(val));
+                break;
+            case DOUBLE:
+                recordData.setField(field.getName(), Double.parseDouble(val));
+                break;
+            case BOOLEAN:
+                recordData.setField(field.getName(), Boolean.parseBoolean(val));
+                break;
+            case TIMESTAMP:
+                if (isDateFormat) {
+                    if (format == null) {
+                        // set timestamp Microseconds
+                        recordData.setField(field.getName(), convertStrToMicroseconds(val));
+                    } else {
+                        try {
+                            recordData.setField(field.getName(), format.parse(val).getTime() * 1000);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+
+                } else {
+                    recordData.setField(field.getName(), Long.parseLong(val));
+                }
+                break;
+            case DECIMAL:
+                recordData.setField(field.getName(), new BigDecimal(val));
+                break;
+            default:
+                throw new RuntimeException("Unknown column type: " + field.getType().name() + " ,value is: " + val);
+        }
+    }
+
+    // convert time string like yyyy-mm-dd:hh:mm:ss[.fffffffff] to microseconds
+    private Object convertStrToMicroseconds(String timeStr) {
+        if (StringUtils.isBlank(timeStr)) {
+            return null;
+        }
+
+        // convert yyyy-mm-dd:hh:mm:ss to yyyy-mm-dd hh:mm:ss
+        StringBuilder sb = new StringBuilder(timeStr);
+        sb.setCharAt(10, ' ');
+        timeStr = sb.toString();
+
+        Timestamp ts = java.sql.Timestamp.valueOf(timeStr);
+        long milliseconds = ts.getTime();
+        int nanos = ts.getNanos();
+        return milliseconds * 1000 + nanos % 1000000 / 1000;
     }
 }

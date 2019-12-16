@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.network.tester;
+package com.aliyun.odps.datacarrier.network.tester.Utils;
 
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;

@@ -1,7 +1,8 @@
-package com.aliyun.odps.datacarrier.network.tester;
+package com.aliyun.odps.datacarrier.network.tester.Utils;
 
 import com.aliyun.odps.data.Record;
 import com.aliyun.odps.data.RecordWriter;
+import com.aliyun.odps.datacarrier.network.tester.Utils.ConcurrentProgressBar;
 import com.aliyun.odps.tunnel.io.TunnelBufferedWriter;
 import java.util.concurrent.Callable;
 

@@ -2,6 +2,8 @@ package com.aliyun.odps.datacarrier.network.tester;
 
 import com.aliyun.odps.datacarrier.network.Endpoint;
 import com.aliyun.odps.datacarrier.network.summary.AvailabilitySummary;
+import com.aliyun.odps.datacarrier.network.tester.Utils.ConcurrentProgressBar;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -9,6 +11,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -19,20 +22,27 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class AvailabilityTester {
-  private static final int MAX_RETRY = 5;
+  private static final int MAX_RETRY = 3;
   private static final int NUM_THREAD = 16;
   private static final int CONN_TIMEOUT = 5 * 1000;
 
   private static final Logger logger = LogManager.getLogger();
 
   public AvailabilitySummary test(Endpoint endpoint) {
-    return isAvailable(endpoint);
+    ConcurrentProgressBar progressBar = new ConcurrentProgressBar(1);
+    try {
+      return isAvailable(endpoint, progressBar);
+    } finally {
+      progressBar.close();
+    }
   }
 
   public List<AvailabilitySummary> testAll(List<Endpoint> endpoints) {
     ArrayList<Callable<AvailabilitySummary>> callList = new ArrayList<>();
+    ConcurrentProgressBar progressBar = new ConcurrentProgressBar(endpoints.size());
+
     for (Endpoint endpoint : endpoints) {
-      Callable<AvailabilitySummary> call = () -> isAvailable(endpoint);
+      Callable<AvailabilitySummary> call = () -> isAvailable(endpoint, progressBar);
       callList.add(call);
     }
 
@@ -48,13 +58,15 @@ public class AvailabilityTester {
       e.printStackTrace();
     } catch (ExecutionException e) {
       e.printStackTrace();
+    } finally {
+      progressBar.close();
+      pool.shutdown();
     }
 
-    pool.shutdown();
     return summaries;
   }
 
-  private AvailabilitySummary isAvailable(Endpoint endpoint) {
+  private AvailabilitySummary isAvailable(Endpoint endpoint, ConcurrentProgressBar progressBar) {
     AvailabilitySummary summary = new AvailabilitySummary(endpoint);
 
     // Equals 'curl http://odps.endpoint', timeout is 10 seconds
@@ -84,6 +96,7 @@ public class AvailabilityTester {
       summary.setAvailable(false);
       summary.setElapsedTime(Long.MAX_VALUE);
     }
+    progressBar.step();
     return summary;
   }
 

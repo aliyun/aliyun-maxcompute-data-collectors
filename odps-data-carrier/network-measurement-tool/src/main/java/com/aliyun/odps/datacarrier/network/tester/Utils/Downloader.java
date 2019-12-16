@@ -1,6 +1,8 @@
-package com.aliyun.odps.datacarrier.network.tester;
+package com.aliyun.odps.datacarrier.network.tester.Utils;
 
 import com.aliyun.odps.data.RecordReader;
+import com.aliyun.odps.datacarrier.network.tester.Utils.ConcurrentProgressBar;
+
 import java.util.concurrent.Callable;
 
 public class Downloader implements Callable<Object> {

@@ -22,33 +22,17 @@ public class NetworkMeasureMentTool {
 
   private static void findAvailableEndpoint() {
     AvailabilityTester tester = new AvailabilityTester();
-    List<AvailabilitySummary> availableOnes = new ArrayList<>();
+    List<Endpoint> endpoints = new ArrayList<>();
 
-    List<AvailabilitySummary> vpcSummaries = tester.testAll(Endpoints.getVPCEndpoints());
-    for (AvailabilitySummary summary : vpcSummaries) {
-      if (summary.getAvailable()) {
-        availableOnes.add(summary);
-      }
-    }
+    endpoints.addAll(Endpoints.getVPCEndpoints());
+    endpoints.addAll(Endpoints.getExternalEndpoints());
+    endpoints.addAll(Endpoints.getClassicNetworkEndpoints());
 
-    List<AvailabilitySummary> classicNetworkSummaries =
-        tester.testAll(Endpoints.getClassicNetworkEndpoints());
-    for (AvailabilitySummary summary : classicNetworkSummaries) {
-      if (summary.getAvailable()) {
-        availableOnes.add(summary);
-      }
-    }
-
-    List<AvailabilitySummary> externalSummaries = tester.testAll(Endpoints.getExternalEndpoints());
-    for (AvailabilitySummary summary : externalSummaries) {
-      if (summary.getAvailable()) {
-        availableOnes.add(summary);
-      }
-    }
+    List<AvailabilitySummary> summaries = tester.testAll(endpoints);
 
     // Sort the list of summary in ascending order by the elapsed time
-    availableOnes.sort((o1, o2) -> (int) (o1.getElapsedTime() - o2.getElapsedTime()));
-    for (AvailabilitySummary summary : availableOnes) {
+    summaries.sort((o1, o2) -> (int) (o1.getElapsedTime() - o2.getElapsedTime()));
+    for (AvailabilitySummary summary : summaries) {
       if (summary.getAvailable()) {
         summary.print();
       }

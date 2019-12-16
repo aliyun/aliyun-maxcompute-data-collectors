@@ -37,11 +37,17 @@ class MigrationRunner:
         TRANSFER_DATA_DONE = 3
         VALIDATE_DONE = 4
 
-    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, datasource, verbose):
+    def __init__(self,
+                 odps_data_carrier_dir,
+                 table_mapping,
+                 hms_thrift_addr,
+                 datasource,
+                 verbose):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
         self._datasource = datasource
+        self._metasource_specified_by_user = False
         self._verbose = verbose
 
         # scheduling properties
@@ -108,6 +114,17 @@ class MigrationRunner:
             raise e
 
     def _gather_metadata(self):
+        tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
+        with open(self._meta_carrier_input_path, "w") as fd:
+            fd.write(tables)
+
+        self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
+                                                                self._hms_thrift_addr,
+                                                                self._meta_carrier_input_path,
+                                                                self._meta_carrier_output_dir))
+        os.unlink(self._meta_carrier_input_path)
+
+    def _apply_oss_config(self):
         # TODO: hack, refactor later
         def _parse_oss_config():
             with open(os.path.join(self._odps_data_carrier_dir, "oss_config.ini")) as fd:
@@ -123,16 +140,6 @@ class MigrationRunner:
                 raise Exception("Invalid oss configuration")
             return oss_endpoint, oss_bucket
 
-        tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
-        with open(self._meta_carrier_input_path, "w") as fd:
-            fd.write(tables)
-
-        self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
-                                                                self._hms_thrift_addr,
-                                                                self._meta_carrier_input_path,
-                                                                self._meta_carrier_output_dir))
-        os.unlink(self._meta_carrier_input_path)
-
         # handle oss configs
         oss_endpoint, oss_bucket = _parse_oss_config()
         sed_oss_endpoint_cmd = "sed -i 's#\"ossEndpoint\": .*,#\"ossEndpoint\": \"%s\",#g' %s"
@@ -141,6 +148,7 @@ class MigrationRunner:
         self._execute_command(sed_oss_endpoint_cmd % (oss_endpoint, global_config_path))
         self._execute_command(sed_oss_bucket_cmd % (oss_bucket, global_config_path))
 
+    def _apply_table_mapping(self):
         for hive_db, hive_tbl in self._table_mapping:
             odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
             sed_odps_pjt_cmd = ("sed -i "
@@ -471,14 +479,21 @@ class MigrationRunner:
     def set_parallelism(self, parallelism):
         self._parallelism = parallelism
 
+    def set_metasource(self, metasource):
+        self._meta_carrier_output_dir = metasource
+        self._metasource_specified_by_user = True
+
     def run(self):
         # TODO: add scheduling module
         # TODO: use sqlite to track migration status, support resuming
         self._num_jobs = len(self._table_mapping)
 
-        print_utils.print_yellow("[Gathering metadata]\n")
-        self._gather_metadata()
-        print_utils.print_green("[Gathering metadata Done]\n")
+        if not self._metasource_specified_by_user:
+            print_utils.print_yellow("[Gathering metadata]\n")
+            self._gather_metadata()
+            print_utils.print_green("[Gathering metadata Done]\n")
+        self._apply_oss_config()
+        self._apply_table_mapping()
 
         print_utils.print_yellow("[Processing metadata]\n")
         self._process_metadata()
@@ -513,7 +528,8 @@ class MigrationRunner:
         print_utils.print_green("[Migration done]\n")
 
         print_utils.print_yellow("[Cleaning]\n")
-        shutil.rmtree(self._meta_carrier_output_dir)
+        if not self._metasource_specified_by_user:
+            shutil.rmtree(self._meta_carrier_output_dir)
         shutil.rmtree(self._meta_processor_output_dir)
         print_utils.print_green("[Cleaning done]\n")
 

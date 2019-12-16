@@ -110,9 +110,13 @@ if __name__ == '__main__':
         required=False,
         default="SINGLE",
         type=str,
-        help="""Migration mode, SINGLE or BATCH.
-        SINGLE means migrate one Hive table to MaxCompute, BATCH means migrate all the Hive tables 
-        specified by the table mapping file""")
+        help="""Migration mode, SINGLE or BATCH. SINGLE means migrating one Hive table to 
+        MaxCompute, BATCH means migrating all the Hive tables specified by the table mapping 
+        file""")
+    parser.add_argument(
+        "--metasource",
+        required=False,
+        help="Specify metadata source, should be a meta-carrier's output")
     parser.add_argument(
         "--datasource",
         required=False,
@@ -198,6 +202,8 @@ if __name__ == '__main__':
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)
+    if args.metasource is not None:
+        migration_runner.set_metasource(args.metasource)
     migration_runner.set_parallelism(args.parallelism)
     try:
         migration_runner.run()

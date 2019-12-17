@@ -49,6 +49,7 @@ class MigrationRunner:
         self._datasource = datasource
         self._metasource_specified_by_user = False
         self._verbose = verbose
+        self._validate_only = False
 
         # scheduling properties
         self._dynamic_scheduling = False
@@ -70,9 +71,23 @@ class MigrationRunner:
         self._meta_processor_output_dir = os.path.join(self._odps_data_carrier_dir,
                                                        "tmp",
                                                        "meta_processor_output_" + self._timestamp)
-        self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "odps")
-        self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "hive")
-        self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "oss")
+        self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                               "log_%s" % self._timestamp,
+                                               "odps")
+        self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                               "log_%s" % self._timestamp,
+                                               "hive")
+        self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                              "log_%s" % self._timestamp,
+                                              "oss")
+        self._verify_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                                 "log_%s" % self._timestamp,
+                                                 "verify")
+        self._succeed_job_list_path = os.path.join(self._odps_data_carrier_dir,
+                                                   "succeed_%s.txt" % self._timestamp)
+        self._failed_job_list_path =os.path.join(self._odps_data_carrier_dir,
+                                                 "failed_%s.txt" % self._timestamp)
+
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,
                                                      self._parallelism,
@@ -114,6 +129,7 @@ class MigrationRunner:
             raise e
 
     def _gather_metadata(self):
+        print_utils.print_yellow("[Gathering metadata]\n")
         tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
         with open(self._meta_carrier_input_path, "w") as fd:
             fd.write(tables)
@@ -123,6 +139,7 @@ class MigrationRunner:
                                                                 self._meta_carrier_input_path,
                                                                 self._meta_carrier_output_dir))
         os.unlink(self._meta_carrier_input_path)
+        print_utils.print_green("[Gathering metadata Done]\n")
 
     def _apply_oss_config(self):
         # TODO: hack, refactor later
@@ -178,9 +195,11 @@ class MigrationRunner:
             self._execute_command(sed_output_format_cmd)
 
     def _process_metadata(self):
+        print_utils.print_yellow("[Processing metadata]\n")
         self._execute_command("sh %s -i %s -o %s" % (self._meta_processor_path,
                                                      self._meta_carrier_output_dir,
                                                      self._meta_processor_output_dir))
+        print_utils.print_green("[Processing metadata done]\n")
 
     def _build_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 10, self._verbose)
@@ -297,7 +316,11 @@ class MigrationRunner:
 
     def _validate_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
-            if self._data_validator.verify(hive_db, hive_tbl, odps_pjt, odps_tbl):
+            if self._data_validator.verify(hive_db,
+                                           hive_tbl,
+                                           odps_pjt,
+                                           odps_tbl,
+                                           self._verify_log_root_dir):
                 # self._update_job_status(hive_db,
                 #                         hive_tbl,
                 #                         odps_pjt,
@@ -389,6 +412,9 @@ class MigrationRunner:
         self._build_external_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._transfer_data_from_oss(hive_db, hive_tbl, odps_pjt, odps_tbl)
 
+    def _validate(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+
     def _increase_num_hive_jobs(self):
         with self._num_hive_jobs_lock:
             self._num_hive_jobs += 1
@@ -450,8 +476,7 @@ class MigrationRunner:
                                                                             hive_tbl,
                                                                             mc_pjt,
                                                                             mc_tbl))
-                    succeed_list_path = os.path.join(self._odps_data_carrier_dir, "succeed.txt")
-                    with open(succeed_list_path, 'a') as fd:
+                    with open(self._succeed_job_list_path, 'a') as fd:
                         fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
                 except Exception as e:
                     num_failed_job += 1
@@ -460,8 +485,7 @@ class MigrationRunner:
                                                                          mc_pjt,
                                                                          mc_tbl))
                     print_utils.print_red(traceback.format_exc())
-                    failed_list_path = os.path.join(self._odps_data_carrier_dir, "failed.txt")
-                    with open(failed_list_path, 'a') as fd:
+                    with open(self._failed_job_list_path, 'a') as fd:
                         fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
         return num_succeed_job, num_failed_job
 
@@ -483,54 +507,60 @@ class MigrationRunner:
         self._meta_carrier_output_dir = metasource
         self._metasource_specified_by_user = True
 
+    def set_validate_only(self):
+        self._validate_only = True
+
     def run(self):
         # TODO: add scheduling module
         # TODO: use sqlite to track migration status, support resuming
         self._num_jobs = len(self._table_mapping)
 
-        if not self._metasource_specified_by_user:
-            print_utils.print_yellow("[Gathering metadata]\n")
+        if not self._metasource_specified_by_user and not self._validate_only:
             self._gather_metadata()
-            print_utils.print_green("[Gathering metadata Done]\n")
-        self._apply_oss_config()
-        self._apply_table_mapping()
 
-        print_utils.print_yellow("[Processing metadata]\n")
-        self._process_metadata()
-        print_utils.print_green("[Processing metadata done]\n")
+        if not self._validate_only:
+            self._apply_oss_config()
+            self._apply_table_mapping()
+            self._process_metadata()
 
         print_utils.print_yellow("[Migration starts]\n")
         executor = ThreadPoolExecutor(self._parallelism)
         progress_reporter = threading.Thread(target=self._report_progress)
         progress_reporter.start()
-        for hive_db, hive_tbl in self._table_mapping:
-            odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
+        try:
+            for hive_db, hive_tbl in self._table_mapping:
+                odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
 
-            # wait for available slot
-            self._wait(self._can_submit)
+                # wait for available slot
+                self._wait(self._can_submit)
 
-            if self._datasource == "Hive":
-                migrate = self._migrate_from_hive
-            elif self._datasource == "OSS":
-                migrate = self._migrate_from_oss
-            else:
-                raise Exception("Unsupported datasource")
+                if self._validate_only:
+                    migrate = self._validate
+                elif self._datasource == "Hive":
+                    migrate = self._migrate_from_hive
+                elif self._datasource == "OSS":
+                    migrate = self._migrate_from_oss
+                else:
+                    raise Exception("Unsupported datasource")
 
-            future = executor.submit(migrate,
-                                     hive_db,
-                                     hive_tbl,
-                                     odps_pjt,
-                                     odps_tbl)
-            self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
+                future = executor.submit(migrate,
+                                         hive_db,
+                                         hive_tbl,
+                                         odps_pjt,
+                                         odps_tbl)
+                self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
 
-        self._wait(self._can_terminate)
-        progress_reporter.join()
+            self._wait(self._can_terminate)
+            progress_reporter.join()
+        finally:
+            executor.shutdown()
         print_utils.print_green("[Migration done]\n")
 
         print_utils.print_yellow("[Cleaning]\n")
-        if not self._metasource_specified_by_user:
+        if not self._metasource_specified_by_user and not self._validate_only:
             shutil.rmtree(self._meta_carrier_output_dir)
-        shutil.rmtree(self._meta_processor_output_dir)
+        if not self._validate_only:
+            shutil.rmtree(self._meta_processor_output_dir)
         print_utils.print_green("[Cleaning done]\n")
 
     def stop(self):

@@ -291,20 +291,21 @@ public class MetaProcessor {
         || StringUtils.isNullOrEmpty(globalMeta.ossBucket)) {
       throw new IllegalArgumentException("Undefined OSS endpoint or OSS bucket");
     }
-    StringBuilder locatitionBuilder = new StringBuilder();
+    StringBuilder locationBuilder = new StringBuilder();
     if (!globalMeta.ossEndpoint.startsWith("oss://")) {
-      locatitionBuilder.append("oss://");
+      locationBuilder.append("oss://");
     }
-    locatitionBuilder.append(globalMeta.ossEndpoint);
+    locationBuilder.append(globalMeta.ossEndpoint);
     if (!globalMeta.ossEndpoint.endsWith("/")) {
-      locatitionBuilder.append("/");
+      locationBuilder.append("/");
     }
-    locatitionBuilder.append(globalMeta.ossBucket);
+    locationBuilder.append(globalMeta.ossBucket);
     if (!globalMeta.ossBucket.endsWith("/")) {
-      locatitionBuilder.append("/");
+      locationBuilder.append("/");
     }
-    locatitionBuilder.append(tableMeta.tableName);
-    ddlBuilder.append("LOCATION \'").append(locatitionBuilder.toString()).append("\';\n");
+    locationBuilder.append(databaseMeta.databaseName).append(".db").append("/");
+    locationBuilder.append(tableMeta.tableName);
+    ddlBuilder.append("LOCATION \'").append(locationBuilder.toString()).append("\';\n");
 
     return ddlBuilder.toString();
   }
@@ -351,7 +352,7 @@ public class MetaProcessor {
           if (!globalMeta.ossBucket.endsWith("/")) {
             locationBuilder.append("/");
           }
-          locationBuilder.append(databaseMeta.databaseName).append("/");
+          locationBuilder.append(databaseMeta.databaseName).append(".db").append("/");
           locationBuilder.append(tableMeta.tableName).append("/");
           for (Map.Entry<String, String> entry : partitionMeta.partitionSpec.entrySet()) {
             locationBuilder.append(entry.getKey()).append("=").append(entry.getValue()).append("/");

@@ -122,6 +122,13 @@ if __name__ == '__main__':
         required=False,
         default="Hive",
         help="Specify datasource, can be Hive or OSS")
+    parser.add_argument(
+        "--validate_only",
+        required=False,
+        const=True,
+        action="store_const",
+        default=False,
+        help="Only run data validation on specified tables")
 
     # single mode arguments
     parser.add_argument(
@@ -204,7 +211,10 @@ if __name__ == '__main__':
         migration_runner.set_threshold(args.threshold)
     if args.metasource is not None:
         migration_runner.set_metasource(args.metasource)
+    if args.validate_only:
+        migration_runner.set_validate_only()
     migration_runner.set_parallelism(args.parallelism)
+
     try:
         migration_runner.run()
     finally:

@@ -104,6 +104,7 @@ public class HiveMetaCarrier {
     tableMeta.inputFormat = table.getSd().getInputFormat();
     tableMeta.outputFormat = table.getSd().getOutputFormat();
     tableMeta.serDe = table.getSd().getSerdeInfo().getSerializationLib();
+    tableMeta.serDeProperties = table.getSd().getSerdeInfo().getParameters();
     List<FieldSchema> columns = metaStoreClient.getFields(databaseName, tableName);
     for (FieldSchema column : columns) {
       ColumnMetaModel columnMetaModel = new ColumnMetaModel();

@@ -102,8 +102,8 @@ public class MetaManager {
     public String datasourceType;
     public String odpsVersion = "ODPS_V2";
     public Boolean hiveCompatible = false;
-    public String ossEndpoint = "";
-    public String ossBucket = "";
+    public String ossEndpoint = "oss-cn-hangzhou-internal.aliyuncs.com";
+    public String ossBucket = "mma";
   }
 
   public static class DatabaseMetaModel {
@@ -123,6 +123,7 @@ public class MetaManager {
     public String inputFormat;
     public String outputFormat;
     public String serDe;
+    public Map<String, String> serDeProperties = new HashMap<>();
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }

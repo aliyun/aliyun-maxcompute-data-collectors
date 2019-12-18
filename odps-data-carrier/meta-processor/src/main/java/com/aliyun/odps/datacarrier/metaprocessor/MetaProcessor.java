@@ -47,6 +47,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.commons.lang3.StringEscapeUtils;
 
 /**
  * @author: jon (wangzhong.zw@alibaba-inc.com)
@@ -281,7 +282,21 @@ public class MetaProcessor {
 
     ddlBuilder
         .append("ROW FORMAT SERDE\n")
-        .append("\'").append(tableMeta.serDe).append("\'\n")
+        .append("\'").append(tableMeta.serDe).append("\'\n");
+
+    if (!tableMeta.serDeProperties.isEmpty()) {
+      ddlBuilder.append("WITH SERDEPROPERTIES (").append("\n");
+      List<String> propertyStrings = new LinkedList<>();
+      for (Map.Entry<String, String> property : tableMeta.serDeProperties.entrySet()) {
+        String propertyString = String.format("\'%s\'=\'%s\'",
+                                              StringEscapeUtils.escapeJava(property.getKey()),
+                                              StringEscapeUtils.escapeJava(property.getValue()));
+        propertyStrings.add(propertyString);
+      }
+      ddlBuilder.append(String.join(",\n", propertyStrings)).append(")\n");
+    }
+
+    ddlBuilder
         .append("STORED AS INPUTFORMAT\n")
         .append("\'").append(tableMeta.inputFormat).append("\'\n")
         .append("OUTPUTFORMAT\n")

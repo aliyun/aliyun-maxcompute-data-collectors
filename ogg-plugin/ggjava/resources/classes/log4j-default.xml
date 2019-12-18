@@ -14,7 +14,7 @@
             <param value="%p %t %c - %m%n" name="ConversionPattern"/>
         </layout>
     </appender>
-    <logger additivity="false" name="com.goldengate">
+    <logger additivity="false" name="oracle.goldengate">
         <level value="${gg.log.level}"/>
         <appender-ref ref="rolling"/>
     </logger>

@@ -27,7 +27,17 @@ import java.util.Map;
  * Created by lyf0429 on 16/5/15.
  */
 public class Configure {
-    private String sid;
+    private String oracleSid;
+
+    private String datahubEndpoint;
+
+    private String datahubAccessId;
+
+    private String datahubAccessKey;
+
+    private boolean enablePb = false;
+
+    private String compressType;
 
     private int batchSize = 1000;
 
@@ -35,7 +45,7 @@ public class Configure {
 
     private String dirtyDataFile = "datahub_ogg_plugin.dirty";
 
-    private int dirtyDataFileMaxSize = 500;
+    private int dirtyDataFileMaxSize = 500 * 1000000;
 
     private int retryTimes = -1;
 
@@ -47,14 +57,52 @@ public class Configure {
 
     private boolean isCheckPointFileDisable = false;
 
-    private boolean isStorageCtimeAsTimestamp = false;
-
-    public String getSid() {
-        return sid;
+    public String getOracleSid() {
+        return oracleSid;
     }
 
-    public void setSid(String sid) {
-        this.sid = sid;
+    public void setOracleSid(String oracleSid) {
+        this.oracleSid = oracleSid;
+    }
+
+    public String getDatahubEndpoint() {
+        return datahubEndpoint;
+    }
+
+    public void setDatahubEndpoint(String datahubEndpoint) {
+        this.datahubEndpoint = datahubEndpoint;
+    }
+
+    public String getDatahubAccessId() {
+        return datahubAccessId;
+    }
+
+    public void setDatahubAccessId(String datahubAccessId) {
+        this.datahubAccessId = datahubAccessId;
+    }
+
+    public String getDatahubAccessKey() {
+        return datahubAccessKey;
+    }
+
+    public void setDatahubAccessKey(String datahubAccessKey) {
+        this.datahubAccessKey = datahubAccessKey;
+    }
+
+    public boolean isEnablePb() {
+        return enablePb;
+    }
+
+    public void setEnablePb(boolean enablePb) {
+        this.enablePb = enablePb;
+    }
+
+    public String getCompressType() {
+        return compressType;
+    }
+
+    public void setCompressType(String compressType) {
+        this.compressType = compressType;
     }
 
     public int getBatchSize() {
@@ -86,7 +134,7 @@ public class Configure {
     }
 
     public void setDirtyDataFileMaxSize(int dirtyDataFileMaxSize) {
-        this.dirtyDataFileMaxSize = dirtyDataFileMaxSize;
+        this.dirtyDataFileMaxSize = dirtyDataFileMaxSize * 1000000;
     }
 
     public int getRetryTimes() {
@@ -113,6 +161,14 @@ public class Configure {
         this.checkPointFileName = checkPointFileName;
     }
 
+    public boolean isCheckPointFileDisable() {
+        return isCheckPointFileDisable;
+    }
+
+    public void setCheckPointFileDisable(boolean checkPointFileDisable) {
+        isCheckPointFileDisable = checkPointFileDisable;
+    }
+
     public Map<String, TableMapping> getTableMappings() {
         return tableMappings;
     }
@@ -133,19 +189,5 @@ public class Configure {
         return this.tableMappings.get(oracleFullTableName);
     }
 
-    public void setDisableCheckPointFile(boolean isDisable) {
-        isCheckPointFileDisable = isDisable;
-    }
 
-    public boolean isCheckPointFileDisabled() {
-        return isCheckPointFileDisable;
-    }
-
-    public void setStorageCtimeColumnAsTimestamp(boolean enable) {
-        isStorageCtimeAsTimestamp = enable;
-    }
-
-    public boolean isStorageCtimeColumnAsTimestamp() {
-        return isStorageCtimeAsTimestamp;
-    }
 }

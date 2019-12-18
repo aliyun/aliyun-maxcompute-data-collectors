@@ -19,15 +19,14 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.common.data.Field;
-import com.aliyun.datahub.model.RecordEntry;
+import com.aliyun.datahub.client.model.Field;
+import com.aliyun.datahub.client.model.RecordEntry;
+import com.aliyun.datahub.client.model.RecordSchema;
+import com.aliyun.datahub.client.model.TupleRecordData;
 import com.aliyun.odps.ogg.handler.datahub.modle.DirtyRecordInfo;
 import com.aliyun.odps.ogg.handler.datahub.util.JsonHelper;
-import com.beust.jcommander.internal.Maps;
-import com.goldengate.atg.datasource.DsColumn;
-import com.goldengate.atg.datasource.adapt.Op;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.node.ArrayNode;
+import oracle.goldengate.datasource.DsColumn;
+import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,11 +36,14 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Created by lyf0429 on 16/5/20.
+ *
+ * @author lyf0429
+ * @date 16/5/20
  */
 public class BadOperateWriter {
     private final static Logger logger = LoggerFactory.getLogger(BadOperateWriter.class);
@@ -56,8 +58,9 @@ public class BadOperateWriter {
         }
     }
 
-    public static void write(Op op, String oracleFullTableName, String topicName, String fileName,
-        int maxFileSize, String msg) {
+    private static void write(Map<String, String> record, String oracleFullTableName, String topicName,
+                             String fileName, int maxFileSize, String msg) {
+
         checkFileSize(fileName, maxFileSize);
 
         DirtyRecordInfo dirtyRecordInfo = new DirtyRecordInfo();
@@ -69,14 +72,8 @@ public class BadOperateWriter {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         dirtyRecordInfo.setErrorTime(simpleDateFormat.format(new Date()));
 
-        Map<String, String> record = Maps.newHashMap();
         dirtyRecordInfo.setRecord(record);
 
-        List<DsColumn> cols = op.getColumns();
-        for (int i = 0; i < cols.size(); i++) {
-            String colName = op.getTableMeta().getColumnName(i).toLowerCase();
-            record.put(colName, cols.get(i).getAfterValue());
-        }
         try {
             BufferedWriter bw = new BufferedWriter(new FileWriter(fileName, true));
             bw.write(JsonHelper.beanToJson(dirtyRecordInfo) + "\n");
@@ -87,37 +84,34 @@ public class BadOperateWriter {
         }
     }
 
+
+    public static void write(Op op, String oracleFullTableName, String topicName, String fileName,
+                             int maxFileSize, String msg) {
+        Map<String, String> record = new HashMap<String, String>(10);
+        List<DsColumn> cols = op.getColumns();
+        for (int i = 0; i < cols.size(); i++) {
+            String colName = op.getTableMeta().getColumnName(i).toLowerCase();
+            record.put(colName, cols.get(i).getAfterValue());
+        }
+        write(record, oracleFullTableName, topicName, fileName, maxFileSize, msg);
+    }
+
     public static void write(RecordEntry recordEntry, String oracleFullTableName, String topicName,
-        String fileName, int maxFileSize, String msg) {
+                             String fileName, int maxFileSize, String msg) {
         checkFileSize(fileName, maxFileSize);
 
-        DirtyRecordInfo dirtyRecordInfo = new DirtyRecordInfo();
-        dirtyRecordInfo.setOracleTable(oracleFullTableName);
-        dirtyRecordInfo.setTopicName(topicName);
-        dirtyRecordInfo.setShardId(recordEntry.getShardId());
-        dirtyRecordInfo.setErrorMessage(msg);
+        Map<String, String> record = new HashMap<String, String>(10);
+        if (recordEntry.getRecordData() instanceof TupleRecordData) {
+            TupleRecordData recordData = (TupleRecordData) recordEntry.getRecordData();
+            RecordSchema recordSchema = recordData.getRecordSchema();
+            List<Field> fields = recordSchema.getFields();
 
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        dirtyRecordInfo.setErrorTime(simpleDateFormat.format(new Date()));
-
-        Map<String, String> record = Maps.newHashMap();
-        dirtyRecordInfo.setRecord(record);
-
-        Field[] fields = recordEntry.getFields();
-        JsonNode jsonNode = recordEntry.toJsonNode();
-        ArrayNode arrayNode = (ArrayNode) jsonNode.get("Data");
-
-        for (int i = 0; i < recordEntry.getFieldCount(); i++) {
-            record.put(fields[i].getName(), arrayNode.get(i).getTextValue());
+            for (Field field : fields) {
+                Object obj = recordData.getField(field.getName());
+                record.put(field.getName(), obj != null ? obj.toString() : null);
+            }
         }
 
-        try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(fileName, true));
-            bw.write(JsonHelper.beanToJson(dirtyRecordInfo) + "\n");
-            bw.close();
-        } catch (IOException e) {
-            logger.error("logBadOperation() failed. ", e);
-            throw new RuntimeException("logBadOperation() failed. ", e);
-        }
+        write(record, oracleFullTableName, topicName, fileName, maxFileSize, msg);
     }
 }

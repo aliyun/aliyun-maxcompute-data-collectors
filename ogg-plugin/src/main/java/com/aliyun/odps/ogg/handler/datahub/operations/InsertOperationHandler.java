@@ -21,7 +21,7 @@ package com.aliyun.odps.ogg.handler.datahub.operations;
 
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
-import com.goldengate.atg.datasource.adapt.Op;
+import oracle.goldengate.datasource.adapt.Op;
 
 public class InsertOperationHandler extends OperationHandler {
 

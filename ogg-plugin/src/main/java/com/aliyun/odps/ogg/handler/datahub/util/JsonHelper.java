@@ -19,12 +19,11 @@
 
 package com.aliyun.odps.ogg.handler.datahub.util;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.DeserializationConfig;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,20 +31,23 @@ import java.io.IOException;
 import java.io.StringWriter;
 
 /**
- * Created by liqiang on 15/4/17.
+ * @author liqiang
+ * @date 15/4/17
  */
 public class JsonHelper {
     private static final Logger LOG = LoggerFactory.getLogger(JsonHelper.class);
-    private static final ObjectMapper objmapper = new ObjectMapper();
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     static {
-        objmapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    private JsonHelper() {}
+    private JsonHelper() {
+    }
 
     public static JsonNode getJsonNodeFromString(String jsonString) {
         try {
-            return objmapper.readTree(jsonString);
+            return objectMapper.readTree(jsonString);
         } catch (IOException e) {
             LOG.error("", e);
             return null;
@@ -55,8 +57,8 @@ public class JsonHelper {
     public static String beanToJson(Object bean) {
         StringWriter sw = new StringWriter();
         try {
-            JsonGenerator jsongenerator = objmapper.getJsonFactory().createJsonGenerator(sw);
-            objmapper.writeValue(jsongenerator, bean);
+            JsonGenerator jsongenerator = objectMapper.getFactory().createGenerator(sw);
+            objectMapper.writeValue(jsongenerator, bean);
             jsongenerator.close();
         } catch (IOException e) {
             LOG.error("", e);
@@ -72,25 +74,25 @@ public class JsonHelper {
             return null;
         }
         try {
-            return objmapper.readValue(jsonString, clazz);
+            return objectMapper.readValue(jsonString, clazz);
         } catch (IOException e) {
             LOG.error("", e);
             return null;
         }
     }
 
-    public static <T> T jsonToBean(String jsonString, TypeReference valueTypeRef) {
+    /*public static <T> T jsonToBean(String jsonString, TypeReference valueTypeRef) {
 
         if (Strings.isNullOrEmpty(jsonString)) {
             return null;
         }
         try {
-            return objmapper.readValue(jsonString, valueTypeRef);
+            return objectMapper.readValue(jsonString, valueTypeRef);
         } catch (IOException e) {
             LOG.error("", e);
             return null;
         }
-    }
+    }*/
 
     public static <T> T jsonToBeanWithException(String jsonString, Class<T> clazz) {
 
@@ -98,7 +100,7 @@ public class JsonHelper {
             return null;
         }
         try {
-            return objmapper.readValue(jsonString, clazz);
+            return objectMapper.readValue(jsonString, clazz);
         } catch (IOException e) {
             LOG.error("", e);
             throw new RuntimeException("Deserialize failed", e);

@@ -6,11 +6,9 @@
         <sid>100</sid>
         <!-- oracle schema, 可以被mapping中的oracleSchema覆盖, 两者必须有一个非空-->
         <schema>ogg_test</schema>
-        <!-- 默认时间字段转换格式, 可选, 默认yyyy-MM-dd HH:mm:ss-->
-        <dateFormat>yyyy-MM-dd HH:mm:ss</dateFormat>
     </defaultOracleConfigure>
 
-    <defalutDatahubConfigure>
+    <defaultDatahubConfigure>
         <!-- datahub endpoint, 必填-->
         <endPoint>YOUR_DATAHUB_ENDPOINT</endPoint>
         <!-- datahub project, 可以被mapping中的datahubProject, 两者必须有一个非空-->
@@ -19,6 +17,10 @@
         <accessId>YOUR_DATAHUB_ACCESS_ID</accessId>
         <!-- datahub accessKey, 可以被mapping中的datahubAccessKey覆盖, 两者必须有一个非空-->
         <accessKey>YOUR_DATAHUB_ACCESS_KEY</accessKey>
+        <!-- 数据传输压缩格式，现支持DEFLATE和LZ4，默认不压缩-->
+        <compressType></compressType>
+        <!-- 数据传输是否使用protobuf,默认为false不使用-->
+        <enablePb></enablePb>
         <!-- 数据变更类型同步到datahub对应的字段，可以被columnMapping中的ctypeColumn覆盖 -->
         <ctypeColumn></ctypeColumn>
         <!-- 数据变更时间同步到datahub对应的字段，可以被columnMapping中的ctimeColumn覆盖 -->
@@ -27,7 +29,9 @@
         <cidColumn></cidColumn>
         <!-- 额外增加的常量列，每条record该列值为指定值，格式为c1=xxx,c2=xxx，可以被columnMapping中的constColumnMap覆盖-->
         <constColumnMap></constColumnMap>
-    </defalutDatahubConfigure>
+        <!-- 额外增加的常量列，每条record该列值为指定值，格式为c1=xxx,c2=xxx，可以被columnMapping中的constColumnMap覆盖-->
+        <constColumnMap></constColumnMap>
+    </defaultDatahubConfigure>
 
     <!-- 默认最严格，不落文件 直接退出 无限重试-->
 
@@ -60,16 +64,17 @@
             <oracleTable>t_person</oracleTable>
             <!-- datahub project, 见上描述-->
             <datahubProject></datahubProject>
-            <!-- datahub AccessId, 见上描述-->
-            <datahubAccessId></datahubAccessId>
-            <!-- datahub AccessKey, 见上描述-->
-            <datahubAccessKey></datahubAccessKey>
             <!-- datahub topic, 必选-->
             <datahubTopic>t_person</datahubTopic>
+            <!-- 源表rowid同步到datahub对应的字段, 可选 -->
+            <rowIdColumn></rowIdColumn>
+
             <ctypeColumn></ctypeColumn>
             <ctimeColumn></ctimeColumn>
             <cidColumn></cidColumn>
             <constColumnMap></constColumnMap>
+            <!--指定shard id列表, 优先生效, 可选, 例如0,1-->
+            <shardId></shardId>
             <columnMapping>
                 <!--
                 src:oracle字段名称, 必须;
@@ -79,8 +84,7 @@
                 isDateFormat: timestamp字段是否采用DateFormat格式转换, 默认true. 如果是false, 源端数据必须是long
                 dateFormat: timestamp字段的转换格式, 不填就用默认值
                 -->
-                <column src="id" dest="id" isShardColumn="false" isDateFormat="true"
-                        dateFormat="yyyy-MM-dd HH:mm:ss"/>
+                <column src="id" dest="id" isShardColumn="false" isDateFormat="true"/>
                 <column src="name" dest="name" isShardColumn="true"/>
                 <column src="age" dest="age"/>
                 <column src="address" dest="address"/>
@@ -88,9 +92,6 @@
                 <column src="sex" dest="sex"/>
                 <column src="temp" dest="temp" destOld="temp1"/>
             </columnMapping>
-
-            <!--指定shard id, 优先生效, 可选-->
-            <shardId>1</shardId>
         </mapping>
     </mappings>
 </configure>

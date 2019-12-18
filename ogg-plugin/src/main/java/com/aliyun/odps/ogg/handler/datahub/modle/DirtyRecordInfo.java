@@ -23,7 +23,9 @@ package com.aliyun.odps.ogg.handler.datahub.modle;
 import java.util.Map;
 
 /**
- * Created by lyf0429 on 16/5/25.
+ *
+ * @author lyf0429
+ * @date 16/5/25
  */
 public class DirtyRecordInfo {
     private String oracleTable;

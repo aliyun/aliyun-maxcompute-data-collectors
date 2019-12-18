@@ -13,9 +13,9 @@ The datahub handler processes the operations of OGG trails, and upload the chang
 
 ### Requirements
 
-1. JDK 1.6 or later (JDK 1.7 recommended)
+1. JDK 1.7 or later (JDK 1.8 recommended)
 2. Apache Maven 3.x
-3. OGG Java Adapter
+3. OGG and OGG Adapter
 
 ### Build the Package
 
@@ -65,8 +65,6 @@ Wait until building success. The datahub handler will be in **target/aliyun-data
         <sid>100</sid>
         <!-- oracle database name, can overwritten by oracleSchema in mappings-->
         <schema>ogg_test</schema>
-        <!-- dateformat, optional, default is yyyy-MM-dd HH:mm:ss-->
-        <dateFormat>yyyy-MM-dd HH:mm:ss</dateFormat>
     </defaultOracleConfigure>
 
     <defalutDatahubConfigure>
@@ -112,10 +110,6 @@ Wait until building success. The datahub handler will be in **target/aliyun-data
             <oracleTable>t_person</oracleTable>
             <!-- datahub project-->
             <datahubProject></datahubProject>
-            <!-- datahub AccessId-->
-            <datahubAccessId></datahubAccessId>
-            <!-- datahub AccessKey-->
-            <datahubAccessKey></datahubAccessKey>
             <!-- datahub topic-->
             <datahubTopic>t_person</datahubTopic>
             <ctypeColumn></ctypeColumn>
@@ -128,9 +122,8 @@ Wait until building success. The datahub handler will be in **target/aliyun-data
                 isShardColumn: whether as hashkey of shard, optional, default is false, can be overwritten by shardId
                 isDateFormat: timestamp column whether using DateFormat to transform, default true. 
                               if false, source data must be long;
-                dateFormat: timestamp transform format, optional
                 -->
-                <column src="id" dest="id" isShardColumn="false"  isDateFormat="true" dateFormat="yyyy-MM-dd HH:mm:ss"/>
+                <column src="id" dest="id" isShardColumn="false"  isDateFormat="true"/>
                 <column src="name" dest="name" isShardColumn="true"/>
                 <column src="age" dest="age"/>
                 <column src="address" dest="address"/>

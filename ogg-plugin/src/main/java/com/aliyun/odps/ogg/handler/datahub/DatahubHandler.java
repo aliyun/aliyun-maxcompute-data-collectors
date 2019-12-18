@@ -23,10 +23,10 @@ import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandler;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandlerManager;
-import com.goldengate.atg.datasource.*;
-import com.goldengate.atg.datasource.GGDataSource.Status;
-import com.goldengate.atg.datasource.adapt.Op;
-import com.goldengate.atg.datasource.meta.DsMetaData;
+import oracle.goldengate.datasource.*;
+import oracle.goldengate.datasource.GGDataSource.Status;
+import oracle.goldengate.datasource.meta.DsMetaData;
+import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +39,9 @@ public class DatahubHandler extends AbstractHandler {
 
     @Override
     public void init(DsConfiguration dsConf, DsMetaData dsMeta) {
-        try{
+        super.init(dsConf, dsMeta);
+
+        try {
             configure = ConfigureReader.reader(configureFileName);
 
             HandlerInfoManager.init(configure);
@@ -53,33 +55,33 @@ public class DatahubHandler extends AbstractHandler {
 
             OperationHandlerManager.init();
             logger.info("Init OperationHandlerManager success");
-        } catch (Exception e){
+        } catch (Exception e) {
             logger.error("Init error", e);
             throw new RuntimeException("init error:" + e.getMessage());
-        }
-
-        if(dsConf != null){
-            super.init(dsConf, dsMeta);
         }
     }
 
     @Override
-    public Status metaDataChanged(DsEvent e, DsMetaData meta) {
+    public GGDataSource.Status metaDataChanged(DsEvent e, DsMetaData meta) {
+
         return super.metaDataChanged(e, meta);
     }
 
     @Override
     public Status transactionBegin(DsEvent e, DsTransaction tx) {
+
+
+
         PluginStatictics.setSendTimesInTx(0);
         return super.transactionBegin(e, tx);
     }
 
     @Override
     public Status operationAdded(DsEvent e, DsTransaction tx, DsOperation dsOperation) {
-        if(logger.isDebugEnabled()){
+        if (logger.isDebugEnabled()) {
             logger.debug(e.toString());
             logger.debug(tx.toString());
-            logger.debug("operation add:" + dsOperation.toString());
+            logger.debug("operation add:{}", dsOperation.toString());
         }
 
         Status status = Status.OK;
@@ -89,17 +91,17 @@ public class DatahubHandler extends AbstractHandler {
         OperationHandler operationHandler = OperationHandlerManager.getHandler(dsOperation.getOperationType());
 
         if (operationHandler != null) {
-            if ((!configure.isCheckPointFileDisabled()) && dsOperation.getPosition().
-                compareTo(HandlerInfoManager.instance().getSendPosition()) <= 0) {
+            if ((!configure.isCheckPointFileDisable()) && dsOperation.getPosition().
+                    compareTo(HandlerInfoManager.instance().getSendPosition()) <= 0) {
                 logger.warn("dsOperation.getPosition(): " + dsOperation.getPosition() +
-                    " old sendPosition is: " + HandlerInfoManager.instance().getSendPosition()
-                    + ", Skip this operation, it maybe duplicated!!!");
+                        " old sendPosition is: " + HandlerInfoManager.instance().getSendPosition()
+                        + ", Skip this operation, it maybe duplicated!!!");
                 return status;
             } else {
                 // update handler info
                 HandlerInfoManager.instance().updateHandlerInfos(
-                    dsOperation.getReadTime().getTime(),
-                    dsOperation.getPosition());
+                        dsOperation.getReadTime().getTime(),
+                        dsOperation.getPosition());
             }
 
             try {
@@ -115,7 +117,7 @@ public class DatahubHandler extends AbstractHandler {
             logger.error(msg);
             status = Status.ABEND;
         }
-       return status;
+        return status;
     }
 
     @Override
@@ -124,7 +126,7 @@ public class DatahubHandler extends AbstractHandler {
         try {
             DataHubWriter.instance().flushAll();
         } catch (Exception e1) {
-            status = status.ABEND;
+            status = Status.ABEND;
             logger.error("Unable to deliver records", e1);
         }
 

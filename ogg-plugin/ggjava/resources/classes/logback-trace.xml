@@ -12,7 +12,7 @@
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
 
       <!-- Rollover to "dirrpt" directory, old logs automatically compressed -->
-      <fileNamePattern>dirrpt/${CONTEXT_NAME}_12.1.2.1.0.003_%d{yyyy-MM-dd}_%i.log.gz</fileNamePattern>
+      <fileNamePattern>dirrpt/${CONTEXT_NAME}_12.2.0.1.2.001_%d{yyyy-MM-dd}_%i.log.gz</fileNamePattern>
 
       <!-- Rollover daily or at the max file size. Periodically purge old logs -->
       <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
@@ -32,7 +32,7 @@
     </encoder>
   </appender>
 
-  <logger name="com.goldengate.atg" level="TRACE"/>
+  <logger name="oracle.goldengate" level="TRACE"/>
   <logger name="example" level="TRACE"/>
 
   <root level="WARN">

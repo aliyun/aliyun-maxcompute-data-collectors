@@ -19,8 +19,8 @@
 
 package com.aliyun.odps.ogg.handler.datahub.operations;
 
-import com.goldengate.atg.datasource.DsOperation;
 import com.google.common.collect.Maps;
+import oracle.goldengate.datasource.DsOperation;
 
 import java.util.Map;
 

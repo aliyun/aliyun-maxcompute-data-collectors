@@ -17,37 +17,42 @@
  * under the License.
  */
 
+
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.model.GetCursorRequest;
-import com.aliyun.datahub.model.GetCursorResult;
-import com.aliyun.datahub.model.GetRecordsResult;
-import com.aliyun.datahub.model.RecordEntry;
-import com.aliyun.datahub.wrapper.Topic;
+import com.aliyun.datahub.client.model.CursorType;
+import com.aliyun.datahub.client.model.GetRecordsResult;
+import com.aliyun.datahub.client.model.RecordEntry;
+import com.aliyun.datahub.client.model.TupleRecordData;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
-import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
+import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandlerManager;
-import com.goldengate.atg.datasource.*;
-import com.goldengate.atg.datasource.meta.ColumnMetaData;
-import com.goldengate.atg.datasource.meta.DsMetaData;
-import com.goldengate.atg.datasource.meta.TableMetaData;
-import com.goldengate.atg.datasource.meta.TableName;
-import maxcompute.data.collectors.common.datahub.RecordUtil;
+import oracle.goldengate.datasource.*;
+import oracle.goldengate.datasource.meta.ColumnMetaData;
+import oracle.goldengate.datasource.meta.DsMetaData;
+import oracle.goldengate.datasource.meta.TableMetaData;
+import oracle.goldengate.datasource.meta.TableName;
+import oracle.goldengate.util.DsMetric;
+import org.apache.commons.io.FileUtils;
 import org.dom4j.DocumentException;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.text.ParseException;
+import java.io.File;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Random;
-import java.util.UUID;
+import java.util.Arrays;
+
 
 /**
  * Created by lyf0429 on 16/5/20.lic
  */
+
 public class DatahubHandlerTest {
     private DatahubHandler datahubHandler;
 
@@ -65,7 +70,7 @@ public class DatahubHandlerTest {
 
         datahubHandler.setState(DataSourceListener.State.READY);
 
-        configure = ConfigureReader.reader("src/test/resources/configure.xml");
+        configure = ConfigureReader.reader("src/test/resources/configure_datahub_handler.xml");
 
         datahubHandler.setConfigure(configure);
 
@@ -87,7 +92,8 @@ public class DatahubHandlerTest {
         columnMetaDatas.add(columnMetaData);
         columnMetaData = new ColumnMetaData("c5", 5);
         columnMetaDatas.add(columnMetaData);
-
+        columnMetaData = new ColumnMetaData("c6", 6);
+        columnMetaDatas.add(columnMetaData);
 
 
         tableName = new TableName("ogg_test.t_person");
@@ -106,81 +112,94 @@ public class DatahubHandlerTest {
 
     @BeforeMethod
     public void reInit() throws DocumentException {
-        configure = ConfigureReader.reader("src/test/resources/configure.xml");
+        configure = ConfigureReader.reader("src/test/resources/configure_datahub_handler.xml");
+
+        HandlerInfoManager.init(configure);
+
+        RecordBuilder.init(configure);
+
+        DataHubWriter.reInit(configure);
+
+        OperationHandlerManager.init();
 
         datahubHandler.setConfigure(configure);
 
-        DataHubWriter.reInit(configure);
+        DsMetric dsMetric = new DsMetric();
+        datahubHandler.setHandlerMetric(dsMetric);
     }
 
 
-    private RecordEntry getRecord(Topic topic, String shardId){
-        String cursor = topic.getCursor(shardId, GetCursorRequest.CursorType.LATEST);
+    private RecordEntry getRecord(TableMapping tableMapping) {
 
-        GetRecordsResult getRecordsResult = topic.getRecords(shardId, cursor, 1);
+        String cursor = DataHubWriter.instance().getDataHubClient().getCursor(tableMapping.getProjectName(),
+                tableMapping.getTopicName(), tableMapping.getShardId(), CursorType.LATEST).getCursor();
 
-        if(getRecordsResult.getRecordCount() > 0){
-            return  getRecordsResult.getRecords().get(0);
+        GetRecordsResult getRecordsResult = DataHubWriter.instance().getDataHubClient().getRecords(tableMapping.getProjectName(),
+                tableMapping.getTopicName(), tableMapping.getShardId(), tableMapping.getRecordSchema(), cursor, 1);
+
+        if (getRecordsResult.getRecordCount() > 0) {
+            return getRecordsResult.getRecords().get(0);
         }
 
-        return  null;
+        return null;
     }
 
-    private void myAssert(RecordEntry record, DsColumn[] columns, boolean isDateFormat, String dateFormat){
-        if(record == null || columns == null){
-            Assert.assertTrue(false);
+    private void myAssert(RecordEntry record, DsColumn[] columns) {
+        if (record == null || columns == null) {
+            Assert.fail();
         }
 
-        Assert.assertEquals(record.getString("c1"), columns[0].getAfterValue());
-        Assert.assertEquals(record.getBigint("c2"), Long.valueOf(columns[1].getAfterValue()));
-        Assert.assertEquals(record.getDouble("c3"), Double.valueOf(columns[2].getAfterValue()));
+        TupleRecordData recordData = (TupleRecordData) record.getRecordData();
 
-        if(isDateFormat){
-            if(dateFormat == null){
-                dateFormat = "yyyy-MM-dd HH:mm:ss";
-            }
+        Assert.assertEquals(recordData.getField("c1"), columns[0].getAfterValue());
+        Assert.assertEquals(recordData.getField("c2"), Long.valueOf(columns[1].getAfterValue()));
+        Assert.assertEquals(recordData.getField("c3"), Double.valueOf(columns[2].getAfterValue()));
+        Assert.assertEquals(recordData.getField("c4"), Boolean.valueOf(columns[3].getAfterValue()));
 
-            SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Timestamp ts = Timestamp.valueOf(columns[4].getAfterValue());
 
-            try {
-                Long timeStamp = simpleDateFormat.parse(columns[3].getAfterValue()).getTime();
-                Assert.assertEquals(record.getTimeStamp("c4"), timeStamp);
-            } catch (ParseException e1) {
-                Assert.assertTrue(false);
-            }
-        } else{
-            Assert.assertEquals(record.getTimeStamp("c4"), Long.valueOf(columns[3].getAfterValue()));
+        long timeStamp = ts.getTime() * 1000 + (ts.getNanos() % 1000000 / 1000);
+        Assert.assertEquals(recordData.getField("c5"), timeStamp);
+
+        Assert.assertEquals(recordData.getField("c6"), new BigDecimal(columns[5].getAfterValue()));
+    }
+
+    private void myAssert(RecordEntry record, DsColumn[] columns, boolean isDateFormat) {
+        if (record == null || columns == null) {
+            Assert.fail();
         }
 
-        if(RecordUtil.trueString.contains(columns[4].getAfterValue().toLowerCase())){
-            Assert.assertEquals(record.getBoolean("c5"), Boolean.TRUE);
-        } else if(RecordUtil.falseString.contains(columns[4].getAfterValue().toLowerCase())){
-            Assert.assertEquals(record.getBoolean("c5"), Boolean.FALSE);
-        } else {
-            Assert.assertEquals(record.getBoolean("c5"), null);
-        }
+        TupleRecordData recordData = (TupleRecordData) record.getRecordData();
+
+        Assert.assertEquals(recordData.getField("c1"), columns[0].getAfterValue());
+        Assert.assertEquals(recordData.getField("c2"), Long.valueOf(columns[1].getAfterValue()));
+        Assert.assertEquals(recordData.getField("c3"), Double.valueOf(columns[2].getAfterValue()));
+        Assert.assertEquals(recordData.getField("c4"), Boolean.valueOf(columns[3].getAfterValue()));
+        Assert.assertEquals(recordData.getField("c5"), Long.valueOf(columns[4].getAfterValue()));
+        Assert.assertEquals(recordData.getField("c6"), new BigDecimal(columns[5].getAfterValue()));
     }
 
 
     @Test
-    public void testNormal(){
+    public void testNormal() {
         configure.setDirtyDataContinue(false);
 
         DataHubWriter.reInit(configure);
 
         datahubHandler.transactionBegin(e, dsTransaction);
 
-        DsColumn[] columns = new DsColumn[5];
+        DsColumn[] columns = new DsColumn[6];
         columns[0] = new DsColumnAfterValue("testNormal");
-        columns[1] = new DsColumnAfterValue("2");
-        columns[2] = new DsColumnAfterValue("3");
-        columns[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-        columns[4] = new DsColumnAfterValue("6");
-
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("2019-12-12 12:00:00.123456789");
+        columns[5] = new DsColumnAfterValue("1.23456789");
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -188,33 +207,30 @@ public class DatahubHandlerTest {
 
         datahubHandler.transactionCommit(e, dsTransaction);
 
-        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                configure.getTableMapping("ogg_test.t_person").getShardId());
-
-        myAssert(record, columns, true, null);
+        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person"));
+        myAssert(record, columns);
     }
 
 
     @Test
-    public void testDirtyNotContinue(){
+    public void testDirtyNotContinue() {
         configure.setDirtyDataContinue(false);
-
         DataHubWriter.reInit(configure);
-
-
         datahubHandler.transactionBegin(e, dsTransaction);
 
-        DsColumn[] columns = new DsColumn[5];
-        columns[0] = new DsColumnAfterValue("testDirtyNotContinue");
-        columns[1] = new DsColumnAfterValue("2");
-        columns[2] = new DsColumnAfterValue("3");
-        columns[3] = new DsColumnAfterValue("4");
-        columns[4] = new DsColumnAfterValue("5");
+
+        DsColumn[] columns = new DsColumn[6];
+        columns[0] = new DsColumnAfterValue("testNormal");
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("4");
+        columns[5] = new DsColumnAfterValue("1.23456789");
 
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -225,24 +241,24 @@ public class DatahubHandlerTest {
     }
 
     @Test
-    public void testDirtyContinue(){
+    public void testDirtyContinue() throws IOException {
         configure.setDirtyDataContinue(true);
 
         DataHubWriter.reInit(configure);
 
         datahubHandler.transactionBegin(e, dsTransaction);
 
-        DsColumn[] columns = new DsColumn[5];
-        columns[0] = new DsColumnAfterValue("testDirtyContinue");
-        columns[1] = new DsColumnAfterValue("2");
-        columns[2] = new DsColumnAfterValue("3");
-        columns[3] = new DsColumnAfterValue("4");
-        columns[4] = new DsColumnAfterValue("5");
-
+        DsColumn[] columns = new DsColumn[6];
+        columns[0] = new DsColumnAfterValue("testNormal");
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("4");
+        columns[5] = new DsColumnAfterValue("1.23456789");
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -250,29 +266,33 @@ public class DatahubHandlerTest {
 
         Assert.assertEquals(GGDataSource.Status.OK, status);
 
+        File file = new File(configure.getDirtyDataFile());
+
+        FileUtils.forceDelete(file);
     }
 
     @Test(testName = "指定shard id写入")
-    public void testShardId(){
+    public void testShardId() {
         configure.setDirtyDataContinue(true);
 
-        configure.getTableMapping("ogg_test.t_person").setShardId("0");
+        configure.getTableMapping("ogg_test.t_person").setShardIds(Arrays.asList("1"));
+        configure.getTableMapping("ogg_test.t_person").setSetShardId(true);
 
         DataHubWriter.reInit(configure);
 
         datahubHandler.transactionBegin(e, dsTransaction);
 
-        DsColumn[] columns = new DsColumn[5];
-        columns[0] = new DsColumnAfterValue("testShardId");
-        columns[1] = new DsColumnAfterValue("2");
-        columns[2] = new DsColumnAfterValue("3");
-        columns[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-        columns[4] = new DsColumnAfterValue("TRUE");
-
+        DsColumn[] columns = new DsColumn[6];
+        columns[0] = new DsColumnAfterValue("testNormal");
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("2019-12-12 12:00:00");
+        columns[5] = new DsColumnAfterValue("1.23456789");
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -280,188 +300,36 @@ public class DatahubHandlerTest {
 
         datahubHandler.transactionCommit(e, dsTransaction);
 
-        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                configure.getTableMapping("ogg_test.t_person").getShardId());
+        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person"));
 
-        myAssert(record, columns, true, null);
+        myAssert(record, columns);
 
-    }
-
-    @Test(testName = "hash写入")
-    public void testHashShard(){
-        configure.setDirtyDataContinue(true);
-
-        configure.getTableMapping("ogg_test.t_person").setShardId(null);
-        configure.getTableMapping("ogg_test.t_person").setIsShardHash(true);
-        configure.getTableMapping("ogg_test.t_person").getColumnMappings().get("c1").setIsShardColumn(true);
-
-        DataHubWriter.reInit(configure);
-
-        datahubHandler.transactionBegin(e, dsTransaction);
-
-        String id = UUID.randomUUID().toString();
-
-        String shardId = "0";
-
-        {
-            DsColumn[] columns = new DsColumn[5];
-            columns[0] = new DsColumnAfterValue(id);
-            columns[1] = new DsColumnAfterValue("1");
-            columns[2] = new DsColumnAfterValue("1");
-            columns[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-            columns[4] = new DsColumnAfterValue("TRUE");
-
-
-            DsRecord dsRecord = new DsRecord(columns);
-
-            DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
-
-            GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
-
-            Assert.assertEquals(GGDataSource.Status.OK, status);
-
-            datahubHandler.transactionCommit(e, dsTransaction);
-
-            RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                    "0");
-
-            try {
-                myAssert(record, columns, true, null);
-            } catch (AssertionError assertionError){
-                shardId = "1";
-            }
-
-        }
-
-
-        {
-            DsColumn[] columns = new DsColumn[5];
-            columns[0] = new DsColumnAfterValue(id);
-            columns[1] = new DsColumnAfterValue("2");
-            columns[2] = new DsColumnAfterValue("2");
-            columns[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-            columns[4] = new DsColumnAfterValue("TRUE");
-
-
-            DsRecord dsRecord = new DsRecord(columns);
-
-            DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
-
-            GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
-
-            Assert.assertEquals(GGDataSource.Status.OK, status);
-
-            datahubHandler.transactionCommit(e, dsTransaction);
-
-
-            RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                    shardId);
-
-            myAssert(record, columns, true, null);
-        }
-    }
-
-    @Test(testName = "轮询写入")
-    public void testPollingShard(){
-        configure.setDirtyDataContinue(true);
-
-        configure.getTableMapping("ogg_test.t_person").setShardId(null);
-
-        DataHubWriter.reInit(configure);
-
-        datahubHandler.transactionBegin(e, dsTransaction);
-
-        DsColumn[] columns1 = new DsColumn[5];
-
-        {
-            String id = UUID.randomUUID().toString();
-
-            columns1[0] = new DsColumnAfterValue(id);
-            columns1[1] = new DsColumnAfterValue("1");
-            columns1[2] = new DsColumnAfterValue("1");
-            columns1[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-            columns1[4] = new DsColumnAfterValue("TRUE");
-
-
-            DsRecord dsRecord = new DsRecord(columns1);
-
-            DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
-
-            GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
-
-            Assert.assertEquals(GGDataSource.Status.OK, status);
-        }
-
-        DsColumn[] columns2 = new DsColumn[5];
-
-        {
-            String id = UUID.randomUUID().toString();
-
-            columns2[0] = new DsColumnAfterValue(id);
-            columns2[1] = new DsColumnAfterValue("2");
-            columns2[2] = new DsColumnAfterValue("2");
-            columns2[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-            columns2[4] = new DsColumnAfterValue("TRUE");
-
-
-            DsRecord dsRecord = new DsRecord(columns2);
-
-            DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
-
-            GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
-
-            Assert.assertEquals(GGDataSource.Status.OK, status);
-        }
-
-        datahubHandler.transactionCommit(e, dsTransaction);
-
-        try{
-            RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                    "0");
-
-            myAssert(record, columns1, true, null);
-
-            record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                    "1");
-
-            myAssert(record, columns2, true, null);
-        } catch (AssertionError assertionError){
-            RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                    "1");
-
-            myAssert(record, columns1, true, null);
-
-            record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                    "0");
-
-            myAssert(record, columns2, true, null);
-        }
     }
 
     @Test
-    public void testTimestamp(){
+    public void testTimestamp() {
         configure.setDirtyDataContinue(true);
 
-        configure.getTableMapping("ogg_test.t_person").setShardId("1");
-        configure.getTableMapping("ogg_test.t_person").getColumnMappings().get("c4").setIsDateFormat(false);
+        configure.getTableMapping("ogg_test.t_person").setShardIds(Arrays.asList("1"));
+        configure.getTableMapping("ogg_test.t_person").setSetShardId(true);
+        configure.getTableMapping("ogg_test.t_person").getColumnMappings().get("c5").setIsDateFormat(false);
 
         DataHubWriter.reInit(configure);
 
         datahubHandler.transactionBegin(e, dsTransaction);
 
-        String id = UUID.randomUUID().toString();
-
-        DsColumn[] columns = new DsColumn[5];
-        columns[0] = new DsColumnAfterValue(id);
-        columns[1] = new DsColumnAfterValue("2");
-        columns[2] = new DsColumnAfterValue("3");
-        columns[3] = new DsColumnAfterValue("100");
-        columns[4] = new DsColumnAfterValue("TRUE");
+        DsColumn[] columns = new DsColumn[6];
+        columns[0] = new DsColumnAfterValue("testNormal");
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("1575983705123");
+        columns[5] = new DsColumnAfterValue("1.23456789");
 
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -469,43 +337,78 @@ public class DatahubHandlerTest {
 
         datahubHandler.transactionCommit(e, dsTransaction);
 
-        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                configure.getTableMapping("ogg_test.t_person").getShardId());
+        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person"));
 
-        myAssert(record, columns, false, null);
+        myAssert(record, columns, false);
     }
 
     @Test
-    public void testBatchSize(){
+    public void testBatchSize() {
         configure.setDirtyDataContinue(true);
 
         configure.setBatchSize(0);
 
         datahubHandler.transactionBegin(e, dsTransaction);
 
-        String id = UUID.randomUUID().toString();
-
-        DsColumn[] columns = new DsColumn[5];
-        columns[0] = new DsColumnAfterValue(id);
-        columns[1] = new DsColumnAfterValue("1");
-        columns[2] = new DsColumnAfterValue("1");
-        columns[3] = new DsColumnAfterValue("2016-05-20 09:00:00");
-        columns[4] = new DsColumnAfterValue("TRUE");
+        DsColumn[] columns = new DsColumn[6];
+        columns[0] = new DsColumnAfterValue("testNormal");
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("2019-12-12 20:30:00");
+        columns[5] = new DsColumnAfterValue("1.23456789");
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010",0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
         Assert.assertEquals(GGDataSource.Status.OK, status);
 
-        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person").getTopic(),
-                configure.getTableMapping("ogg_test.t_person").getShardId());
+        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person"));
 
-        myAssert(record, columns, true, null);
+        myAssert(record, columns);
 
         datahubHandler.transactionCommit(e, dsTransaction);
     }
 
+    @Test(testName = "hash写入")
+    public void testHashShard(){
+        configure.setDirtyDataContinue(true);
+
+        configure.getTableMapping("ogg_test.t_person").setSetShardId(false);
+        configure.getTableMapping("ogg_test.t_person").setShardIds(Arrays.asList("0"));
+        configure.getTableMapping("ogg_test.t_person").setShardHash(true);
+        configure.getTableMapping("ogg_test.t_person").getColumnMappings().get("c1").setIsShardColumn(true);
+        configure.getTableMapping("ogg_test.t_person").getColumnMappings().get("c2").setIsShardColumn(true);
+        configure.getTableMapping("ogg_test.t_person").getColumnMappings().get("c3").setIsShardColumn(true);
+
+        DataHubWriter.reInit(configure);
+
+        datahubHandler.transactionBegin(e, dsTransaction);
+
+        DsColumn[] columns = new DsColumn[6];
+        columns[0] = new DsColumnAfterValue("testNormal");
+        columns[1] = new DsColumnAfterValue("123456");
+        columns[2] = new DsColumnAfterValue("3.1415926");
+        columns[3] = new DsColumnAfterValue("true");
+        columns[4] = new DsColumnAfterValue("2019-12-12:12:00:00");
+        columns[5] = new DsColumnAfterValue("1.23456789");
+
+
+        DsRecord dsRecord = new DsRecord(columns);
+
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
+
+        GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
+
+        Assert.assertEquals(GGDataSource.Status.OK, status);
+
+        datahubHandler.transactionCommit(e, dsTransaction);
+
+        RecordEntry record = this.getRecord(configure.getTableMapping("ogg_test.t_person"));
+
+    }
 }
+

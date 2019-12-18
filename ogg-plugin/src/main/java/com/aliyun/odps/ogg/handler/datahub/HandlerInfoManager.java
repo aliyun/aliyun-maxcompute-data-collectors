@@ -24,13 +24,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.charset.Charset;
 
 /**
  * Created by ouyangzhe on 16/12/1.
  */
 public class HandlerInfoManager {
     private final static Logger logger = LoggerFactory
-        .getLogger(HandlerInfoManager.class);
+            .getLogger(HandlerInfoManager.class);
 
     private static final int MS_RECORD_MAX = 10000;
 
@@ -81,7 +82,7 @@ public class HandlerInfoManager {
     }
 
     public void saveHandlerInfos() {
-        if (configure.isCheckPointFileDisabled()) {
+        if (configure.isCheckPointFileDisable()) {
             return;
         }
         DataOutputStream out = null;
@@ -92,14 +93,14 @@ public class HandlerInfoManager {
             out.writeBytes(sendPosition);
         } catch (IOException e) {
             logger.error("Error writing handler info file. recordId=" + recordId + ", "
-                + "sendPosition=" + sendPosition, e);
+                    + "sendPosition=" + sendPosition, e);
         } finally {
             if (out != null) {
                 try {
                     out.close();
                 } catch (IOException e) {
                     logger.error("Close handler info file failed. recordId=" + recordId + ", "
-                        + "sendPosition=" + sendPosition, e);
+                            + "sendPosition=" + sendPosition, e);
                 }
             }
         }
@@ -122,8 +123,9 @@ public class HandlerInfoManager {
                 int length = in.readInt();
                 byte[] buffer = new byte[1024];
                 in.read(buffer, 0, length);
-                sendPosition = new String(buffer, 0, length, "UTF-8");
+                sendPosition = new String(buffer, 0, length, Charset.forName("UTF-8"));
             } catch (IOException e) {
+                logger.error("Error reading handler info file, may cause duplication.", e);
                 throw new RuntimeException("Error reading handler info file, may cause duplication ", e);
             } finally {
                 if (in != null) {

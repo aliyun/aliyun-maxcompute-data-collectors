@@ -13,7 +13,7 @@
     <name>aliyun-datahub-ogg-plugin</name>
 
     <properties>
-        <goldengate.version>12.1.2.1.1.001</goldengate.version>
+        <goldengate.version>12.2.0.1.2.001</goldengate.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
@@ -23,6 +23,7 @@
         <dependency>
             <groupId>com.aliyun.datahub</groupId>
             <artifactId>aliyun-sdk-datahub</artifactId>
+            <version>2.13.0-public</version>
         </dependency>
 
         <dependency>
@@ -35,26 +36,10 @@
 
         <dependency>
             <groupId>com.goldengate.atg</groupId>
-            <artifactId>ggcache</artifactId>
-            <version>${goldengate.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/ggcache-${goldengate.version}.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.goldengate.atg</groupId>
             <artifactId>ggcmdui</artifactId>
             <version>${goldengate.version}</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/ggcmdui-${goldengate.version}.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.goldengate.atg</groupId>
-            <artifactId>ggcoh</artifactId>
-            <version>${goldengate.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/ggcoh-${goldengate.version}.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -112,19 +97,19 @@
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
-            <version>1.2.16</version>
+            <version>1.2.17</version>
         </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.6.2</version>
+            <version>1.7.12</version>
         </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.6.2</version>
+            <version>1.7.12</version>
         </dependency>
 
         <dependency>
@@ -150,10 +135,29 @@
             <artifactId>testng</artifactId>
             <version>6.7</version>
         </dependency>
+
         <dependency>
-            <groupId>com.aliyun</groupId>
-            <artifactId>maxcompute.data.collectors.common</artifactId>
-            <version>2.0.3</version>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>2.9.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.9.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>2.9.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.58</version>
         </dependency>
     </dependencies>
 

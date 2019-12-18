@@ -10,7 +10,7 @@
         <dateFormat>yyyy-MM-dd HH:mm:ss</dateFormat>
     </defaultOracleConfigure>
 
-    <defalutDatahubConfigure>
+    <defaultDatahubConfigure>
         <!-- datahub endpoint, 必填-->
         <endPoint>YOUR_DATAHUB_ENDPOINT</endPoint>
         <!-- datahub project, 可以被mapping中的datahubProject, 两者必须有一个非空-->
@@ -19,7 +19,7 @@
         <accessId>YOUR_DATAHUB_ACCESS_ID</accessId>
         <!-- datahub accessKey, 可以被mapping中的datahubAccessKey覆盖, 两者必须有一个非空-->
         <accessKey>YOUR_DATAHUB_ACCESS_KEY</accessKey>
-    </defalutDatahubConfigure>
+    </defaultDatahubConfigure>
 
     <!-- 默认最严格，不落文件 直接退出 无限重试-->
 

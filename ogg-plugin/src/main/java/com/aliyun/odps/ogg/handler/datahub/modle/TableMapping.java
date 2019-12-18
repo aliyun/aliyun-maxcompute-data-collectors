@@ -19,10 +19,12 @@
 
 package com.aliyun.odps.ogg.handler.datahub.modle;
 
-import com.aliyun.datahub.common.data.Field;
-import com.aliyun.datahub.wrapper.Topic;
+import com.aliyun.datahub.client.model.RecordSchema;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * Created by lyf0429 on 16/5/15.
@@ -34,23 +36,33 @@ public class TableMapping {
 
     private String oracleFullTableName;
 
-    private Topic topic;
+    @Deprecated
+    private String accessId;
 
-    private Field ctypeField;
+    @Deprecated
+    private String accessKey;
 
-    private Field ctimeField;
+    private String projectName;
 
-    private Field cidField;
+    private String topicName;
+
+    private String rowIdColumn;
+
+    private String cTypeColumn;
+    private String cTimeColumn;
+    private String cIdColumn;
+    private Map<String, String> constColumnMappings;
+
+    private RecordSchema recordSchema;
+
+    private boolean setShardId = false;
+
+    private List<String> shardIds;
 
     private Map<String, ColumnMapping> columnMappings;
 
-    private Map<String, Field> constFieldMappings;
-
-    private Map<String, String> constColumnMappings;
-
-    private String shardId;
-
-    private boolean isShardHash = false;
+    @JsonIgnore
+    private boolean shardHash = false;
 
     public String getOracleFullTableName() {
         return oracleFullTableName;
@@ -60,20 +72,99 @@ public class TableMapping {
         this.oracleFullTableName = oracleFullTableName;
     }
 
-    public Topic getTopic() {
-        return topic;
+
+    public String getAccessId() {
+        return accessId;
     }
 
-    public void setTopic(Topic topic) {
-        this.topic = topic;
+    public void setAccessId(String accessId) {
+        this.accessId = accessId;
     }
 
+    public String getAccessKey() {
+        return accessKey;
+    }
+
+    public void setAccessKey(String accessKey) {
+        this.accessKey = accessKey;
+    }
+
+    public String getProjectName() {
+        return projectName;
+    }
+
+    public void setProjectName(String projectName) {
+        this.projectName = projectName;
+    }
+
+    public String getTopicName() {
+        return topicName;
+    }
+
+    public String getRowIdColumn() {
+        return rowIdColumn;
+    }
+
+    public void setRowIdColumn(String rowIdColumn) {
+        this.rowIdColumn = rowIdColumn;
+    }
+
+    public void setTopicName(String topicName) {
+        this.topicName = topicName;
+    }
+
+    public String getcTypeColumn() {
+        return cTypeColumn;
+    }
+
+    public void setcTypeColumn(String cTypeColumn) {
+        this.cTypeColumn = cTypeColumn;
+    }
+
+    public String getcTimeColumn() {
+        return cTimeColumn;
+    }
+
+    public void setcTimeColumn(String cTimeColumn) {
+        this.cTimeColumn = cTimeColumn;
+    }
+
+    public String getcIdColumn() {
+        return cIdColumn;
+    }
+
+    public void setcIdColumn(String cIdColumn) {
+        this.cIdColumn = cIdColumn;
+    }
+
+    public RecordSchema getRecordSchema() {
+        return recordSchema;
+    }
+
+    public void setRecordSchema(RecordSchema recordSchema) {
+        this.recordSchema = recordSchema;
+    }
+
+    public boolean isSetShardId() {
+        return setShardId;
+    }
+
+    public void setSetShardId(boolean setShardId) {
+        this.setShardId = setShardId;
+    }
+
+    public List<String> getShardIds() {
+        return shardIds;
+    }
+
+    public void setShardIds(List<String> shardIds) {
+        this.shardIds = shardIds;
+    }
+
+    @JsonIgnore
     public String getShardId() {
-        return shardId;
-    }
-
-    public void setShardId(String shardId) {
-        this.shardId = shardId;
+        int index = new Random().nextInt(shardIds.size());
+        return shardIds.get(index);
     }
 
     public String getOracleSchema() {
@@ -92,30 +183,6 @@ public class TableMapping {
         this.oracleTableName = oracleTableName;
     }
 
-    public Field getCtimeField() {
-        return ctimeField;
-    }
-
-    public void setCtimeField(Field ctimeField) {
-        this.ctimeField = ctimeField;
-    }
-
-    public Field getCtypeField() {
-        return ctypeField;
-    }
-
-    public void setCtypeField(Field ctypeField) {
-        this.ctypeField = ctypeField;
-    }
-
-    public Field getCidField() {
-        return cidField;
-    }
-
-    public void setCidField(Field cidField) {
-        this.cidField = cidField;
-    }
-
     public Map<String, ColumnMapping> getColumnMappings() {
         return columnMappings;
     }
@@ -125,20 +192,11 @@ public class TableMapping {
     }
 
     public boolean isShardHash() {
-        return isShardHash;
+        return shardHash;
     }
 
-    public void setIsShardHash(boolean isShardHash) {
-        this.isShardHash = isShardHash;
-    }
-
-
-    public Map<String, Field> getConstFieldMappings() {
-        return constFieldMappings;
-    }
-
-    public void setConstFieldMappings(Map<String, Field> constFieldMappings) {
-        this.constFieldMappings = constFieldMappings;
+    public void setShardHash(boolean shardHash) {
+        this.shardHash = shardHash;
     }
 
     public Map<String, String> getConstColumnMappings() {

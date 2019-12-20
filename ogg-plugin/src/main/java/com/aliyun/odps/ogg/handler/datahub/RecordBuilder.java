@@ -23,6 +23,7 @@ import com.aliyun.datahub.client.model.*;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
+import com.aliyun.odps.ogg.handler.datahub.util.BucketPath;
 import com.google.common.collect.Maps;
 import oracle.goldengate.datasource.DsColumn;
 import oracle.goldengate.datasource.DsToken;
@@ -36,6 +37,7 @@ import java.nio.charset.Charset;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +47,8 @@ public class RecordBuilder {
 
     private Configure configure;
     private Map<String, Integer> latestSyncId = Maps.newHashMap();
+    private final static SimpleDateFormat DEFAULT_DATE_FORMATTER =
+            new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
 
     private static RecordBuilder recordBuilder;
 
@@ -104,8 +108,10 @@ public class RecordBuilder {
 
         String rowIdColumn = tableMapping.getRowIdColumn();
         if (StringUtils.isNotBlank(rowIdColumn)) {
-            DsToken token = op.getRecord().getUserToken("TKN-ROWID");
-            if (token == null) {
+            DsToken token = op.getRecord().getUserToken(Constant.ROWID_TOKEN);
+            if (!token.isSet()) {
+                logger.error("oracle table[{}] token TKN-ROWID is not set, can not get oracle rowid",
+                        tableMapping.getOracleFullTableName());
                 throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
                         + "] token TKN-ROWID is not set, can not get oracle rowid");
             }
@@ -133,10 +139,13 @@ public class RecordBuilder {
             recordData.setField(cId, Long.toString(HandlerInfoManager.instance().getRecordId()));
         }
 
+
+        Date readTime = DEFAULT_DATE_FORMATTER.parse(op.getTimestamp());
         Map<String, String> constMap = tableMapping.getConstColumnMappings();
         if (constMap != null && !constMap.isEmpty()) {
             for (Map.Entry<String, String> entry : constMap.entrySet()) {
-                recordData.setField(entry.getKey(), entry.getValue());
+                recordData.setField(entry.getKey(), BucketPath.escapeString(entry.getValue(),
+                        readTime.getTime(), tableMapping.getConstColumnMappings()));
             }
         }
 

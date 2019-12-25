@@ -53,6 +53,7 @@ class HiveSQLRunner:
         self._odps_config_path = os.path.join(odps_data_carrier_dir, "odps_config.ini")
 
         # init hadoop & hive settings
+
         extra_settings_path = os.path.join(odps_data_carrier_dir, "extra_settings.ini")
         self._settings = []
         self._load_settings(extra_settings_path)

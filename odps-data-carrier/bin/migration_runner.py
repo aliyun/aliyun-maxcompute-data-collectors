@@ -37,12 +37,18 @@ class MigrationRunner:
         TRANSFER_DATA_DONE = 3
         VALIDATE_DONE = 4
 
-    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, datasource, verbose):
+    def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, datasource, verbose, version, mode,
+                 jdbc_address, user, password):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
         self._datasource = datasource
         self._verbose = verbose
+        self._version = version
+        self._mode = mode
+        self._jdbc_address = jdbc_address
+        self._user = user
+        self._password = password
 
         # scheduling properties
         self._dynamic_scheduling = False
@@ -61,6 +67,9 @@ class MigrationRunner:
         self._meta_processor_path = os.path.join(self._odps_data_carrier_dir,
                                                  "bin",
                                                  "meta-processor")
+        self._task_scheduler_path = os.path.join(self._odps_data_carrier_dir,
+                                                 "bin",
+                                                 "task-scheduler")
         self._meta_processor_output_dir = os.path.join(self._odps_data_carrier_dir,
                                                        "tmp",
                                                        "meta_processor_output_" + self._timestamp)
@@ -170,10 +179,40 @@ class MigrationRunner:
             self._execute_command(sed_output_format_cmd)
 
     def _process_metadata(self):
-        self._execute_command("sh %s -i %s -o %s" % (self._meta_processor_path,
-                                                     self._meta_carrier_output_dir,
-                                                     self._meta_processor_output_dir))
+        print_utils.print_yellow("sh %s -i %s -o %s -v %s\n" % (self._meta_processor_path,
+                                                                self._meta_carrier_output_dir,
+                                                                self._meta_processor_output_dir,
+                                                                self._version))
+        self._execute_command("sh %s -i %s -o %s -v %s\n" % (self._meta_processor_path,
+                                                             self._meta_carrier_output_dir,
+                                                             self._meta_processor_output_dir,
+                                                             self._version))
 
+    def _schedule_tasks(self):
+        if self._jdbc_address is None or self._user is None or self._password is None:
+            print_utils.print_yellow("sh %s -i %s -d %s -m %s \n" % (self._task_scheduler_path,
+                                                                     self._meta_processor_output_dir,
+                                                                     self._datasource,
+                                                                     self._mode))
+            self._execute_command("sh %s -i %s -d %s -m %s \n" % (self._task_scheduler_path,
+                                                                  self._meta_processor_output_dir,
+                                                                  self._datasource,
+                                                                  self._mode))
+        else:
+            print_utils.print_yellow("sh %s -i %s -d %s -m %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,
+                                                                                        self._meta_processor_output_dir,
+                                                                                        self._datasource,
+                                                                                        self._mode,
+                                                                                        self._jdbc_address,
+                                                                                        self._user,
+                                                                                        self._password))
+            self._execute_command("sh %s -i %s -d %s -m %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,
+                                                                                     self._meta_processor_output_dir,
+                                                                                     self._datasource,
+                                                                                     self._mode,
+                                                                                     self._jdbc_address,
+                                                                                     self._user,
+                                                                                     self._password))
     def _build_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 10, self._verbose)
         try:
@@ -485,37 +524,42 @@ class MigrationRunner:
         print_utils.print_green("[Processing metadata done]\n")
 
         print_utils.print_yellow("[Migration starts]\n")
-        executor = ThreadPoolExecutor(self._parallelism)
-        progress_reporter = threading.Thread(target=self._report_progress)
-        progress_reporter.start()
-        for hive_db, hive_tbl in self._table_mapping:
-            odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
 
-            # wait for available slot
-            self._wait(self._can_submit)
+        if self._version == 1:
+            executor = ThreadPoolExecutor(self._parallelism)
+            progress_reporter = threading.Thread(target=self._report_progress)
+            progress_reporter.start()
+            for hive_db, hive_tbl in self._table_mapping:
+                odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
 
-            if self._datasource == "Hive":
-                migrate = self._migrate_from_hive
-            elif self._datasource == "OSS":
-                migrate = self._migrate_from_oss
-            else:
-                raise Exception("Unsupported datasource")
+                # wait for available slot
+                self._wait(self._can_submit)
 
-            future = executor.submit(migrate,
-                                     hive_db,
-                                     hive_tbl,
-                                     odps_pjt,
-                                     odps_tbl)
-            self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
+                if self._datasource == "Hive":
+                    migrate = self._migrate_from_hive
+                elif self._datasource == "OSS":
+                    migrate = self._migrate_from_oss
+                else:
+                    raise Exception("Unsupported datasource")
 
-        self._wait(self._can_terminate)
-        progress_reporter.join()
+                future = executor.submit(migrate,
+                                         hive_db,
+                                         hive_tbl,
+                                         odps_pjt,
+                                         odps_tbl)
+                self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
+
+            self._wait(self._can_terminate)
+            progress_reporter.join()
+        else:
+            self._schedule_tasks()
         print_utils.print_green("[Migration done]\n")
 
-        print_utils.print_yellow("[Cleaning]\n")
-        shutil.rmtree(self._meta_carrier_output_dir)
-        shutil.rmtree(self._meta_processor_output_dir)
-        print_utils.print_green("[Cleaning done]\n")
+
+        # print_utils.print_yellow("[Cleaning]\n")
+        # shutil.rmtree(self._meta_carrier_output_dir)
+        # shutil.rmtree(self._meta_processor_output_dir)
+        # print_utils.print_green("[Cleaning done]\n")
 
     def stop(self):
         self._global_hive_sql_runner.stop()

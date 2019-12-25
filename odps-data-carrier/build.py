@@ -69,12 +69,14 @@ if __name__ == '__main__':
     os.makedirs("odps-data-carrier/tmp")
     shutil.copyfile("odps_config.ini", "odps-data-carrier/odps_config.ini")
     shutil.copyfile("extra_settings.ini", "odps-data-carrier/extra_settings.ini")
+    shutil.copyfile("extra_settings_jdbc.ini", "odps-data-carrier/extra_settings_jdbc.ini")
     shutil.copyfile("oss_config.ini", "odps-data-carrier/oss_config.ini")
 
     # copy libs & necessary tools
     shutil.copytree("bin/utils", "odps-data-carrier/bin/utils")
     shutil.copyfile("bin/migration_runner.py", "odps-data-carrier/bin/migration_runner.py")
     shutil.copyfile("bin/data_validator.py", "odps-data-carrier/bin/data_validator.py")
+    shutil.copyfile("bin/odps_sql_runner.py", "odps-data-carrier/bin/odps_sql_runner.py")
     shutil.copyfile("bin/run.py", "odps-data-carrier/bin/run.py")
 
     # meta-carrier
@@ -88,16 +90,21 @@ if __name__ == '__main__':
     shutil.copyfile("meta-processor/target/" + jar_name, "odps-data-carrier/libs/" + jar_name)
     shutil.copyfile("resources/style.css", "odps-data-carrier/res/style.css")
 
-    # odps-ddl-runner
-    shutil.copyfile("bin/odps_sql_runner.py", "odps-data-carrier/bin/odps_sql_runner.py")
-    jar_name = "ddl-executor-1.0-SNAPSHOT-jar-with-dependencies.jar"
-    shutil.copyfile("ddl-executor/target/" + jar_name, "odps-data-carrier/libs/" + jar_name)
+    # # odps-ddl-runner
+    # shutil.copyfile("bin/odps_sql_runner.py", "odps-data-carrier/bin/odps_sql_runner.py")
+    # jar_name = "ddl-executor-1.0-SNAPSHOT-jar-with-dependencies.jar"
+    # shutil.copyfile("ddl-executor/target/" + jar_name, "odps-data-carrier/libs/" + jar_name)
 
     # hive-udtf-sql-runner
     jar_name = "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
     shutil.copyfile("bin/hive_sql_runner.py", "odps-data-carrier/bin/hive_sql_runner.py")
     shutil.copyfile("data-transfer-hive-udtf/target/" + jar_name,
                     "odps-data-carrier/libs/" + jar_name)
+
+    # task-scheduler
+    jar_name = "task-scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar"
+    shutil.copyfile("bin/task-scheduler", "odps-data-carrier/bin/task-scheduler")
+    shutil.copyfile("task-scheduler/target/" + jar_name, "odps-data-carrier/libs/" + jar_name)
 
     # odps-data-validator
     shutil.copytree("resources/console", "odps-data-carrier/res/console")

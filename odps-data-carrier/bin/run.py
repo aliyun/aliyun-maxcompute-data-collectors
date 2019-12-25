@@ -168,8 +168,31 @@ if __name__ == '__main__':
         type=int,
         help="""When dynamic scheduling is on, jobs will be submitted if the number of running job
         is less than the threshold""")
+    parser.add_argument(
+        "--version",
+        required=False,
+        default=1,
+        type=int,
+        help="Specify mma version to scheduler migration tasks."
+    )
+    parser.add_argument(
+        "--jdbc_address",
+        required=False,
+        type=str,
+        help="Specify JDBC Address in version=2.")
+    parser.add_argument(
+        "--user",
+        required=False,
+        type=str,
+        help="Specify JDBC user in version=2.")
+    parser.add_argument(
+        "--password",
+        required=False,
+        type=str,
+        help="Specify JDBC password in version=2.")
 
-    # optional arguments
+
+# optional arguments
     parser.add_argument(
         "--verbose",
         required=False,
@@ -194,7 +217,12 @@ if __name__ == '__main__':
                                        table_mapping,
                                        args.hms_thrift_addr,
                                        args.datasource,
-                                       args.verbose)
+                                       args.verbose,
+                                       args.version,
+                                       args.mode,
+                                       args.jdbc_address,
+                                       args.user,
+                                       args.password)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

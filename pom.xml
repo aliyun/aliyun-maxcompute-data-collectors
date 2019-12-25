@@ -41,6 +41,7 @@
         <module>odps-sqoop</module>
         <module>common</module>
         <module>hive_data_transfer_udtf</module>
+        <module>odps-data-carrier</module>
     </modules>
 
     <build>

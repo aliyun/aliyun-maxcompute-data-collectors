@@ -102,7 +102,7 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
   public void process(Object[] args) throws HiveException {
     try {
       if(odps == null) {
-        OdpsConfig odpsConfig = new OdpsConfig("odps_config.ini");
+        OdpsConfig odpsConfig = new OdpsConfig( "hdfs://emr-header-1.cluster-139215:9000/user/root/mma/odps_config.ini");
         AliyunAccount account = new AliyunAccount(odpsConfig.getAccessId(), odpsConfig.getAccessKey());
         odps = new Odps(account);
         odps.setEndpoint(odpsConfig.getOdpsEndpoint());

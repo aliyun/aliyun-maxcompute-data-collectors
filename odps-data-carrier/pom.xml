@@ -17,6 +17,7 @@
     <module>odps-sql-migration-tool-wrapper</module>
     <module>network-measurement-tool</module>
     <module>data-transfer-spark</module>
+    <module>task-scheduler</module>
   </modules>
 
   <properties>
@@ -34,6 +35,11 @@
       <dependency>
         <groupId>org.apache.hive</groupId>
         <artifactId>hive-exec</artifactId>
+        <version>${hive.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hive</groupId>
+        <artifactId>hive-jdbc</artifactId>
         <version>${hive.version}</version>
       </dependency>
       <!--  Gson: Java to Json conversion -->
@@ -90,6 +96,16 @@
         <groupId>me.tongfei</groupId>
         <artifactId>progressbar</artifactId>
         <version>0.7.3</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>1.7.10</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+        <version>1.7.10</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

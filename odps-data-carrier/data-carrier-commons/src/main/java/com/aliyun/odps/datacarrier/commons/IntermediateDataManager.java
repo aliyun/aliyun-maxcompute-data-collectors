@@ -56,16 +56,17 @@ public class IntermediateDataManager {
   /**
    * Directory & file names
    */
-  private static final String ODPS_DDL_DIR = "odps_ddl";
-  private static final String ODPS_EXTERNAL_DDL_DIR = "odps_external_ddl";
-  private static final String HIVE_UDTF_DIR = "hive_udtf_sql";
-  private static final String ODPS_OSS_TRANSFER_DIR = "odps_oss_transfer_sql";
-  private static final String HIVE_VERIFY_DIR = "hive_verify_sql";
-  private static final String ODPS_VERIFY_DIR = "odps_verify_sql";
-  private static final String CREATE_TABLE_FILENAME = "create_table";
-  private static final String CREATE_PARTITION_PREFIX = "create_partition_";
-  private static final String SINGLE_PARTITION_DIR = "single_partition";
-  private static final String MULTI_PARTITION_DIR = "multi_partition";
+  public static final String ODPS_DDL_DIR = "odps_ddl";
+  public static final String ODPS_EXTERNAL_DDL_DIR = "odps_external_ddl";
+  public static final String HIVE_UDTF_DIR = "hive_udtf_sql";
+  public static final String ODPS_OSS_TRANSFER_DIR = "odps_oss_transfer_sql";
+  public static final String HIVE_VERIFY_DIR = "hive_verify_sql";
+  public static final String ODPS_VERIFY_DIR = "odps_verify_sql";
+
+  public static final String CREATE_TABLE_FILENAME = "create_table";
+  public static final String CREATE_PARTITION_PREFIX = "create_partition_";
+  public static final String SINGLE_PARTITION_DIR = "single_partition";
+  public static final String MULTI_PARTITION_DIR = "multi_partition";
   private static final String REPROT = "Report.html";
   private static final String SQL_SUFFIX = ".sql";
 

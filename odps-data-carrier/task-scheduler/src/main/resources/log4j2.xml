@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Appenders>
+        <RollingFile name="LogFile" fileName="log/task_scheduler.LOG"
+                     filePattern="log/task_scheduler.LOG.%i.gz">
+            <PatternLayout>
+                <!-- 2019-03-01 20:57:25,271 INFO  [main] app.DagAppMaster (DagAppMaster.java:<init>(337)) - Log example. -->
+                <Pattern>%d{DEFAULT} %-5p [%t] %c{2} (%F:%M(%L)) - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <OnStartupTriggeringPolicy />
+                <SizeBasedTriggeringPolicy size="100 MB" />
+            </Policies>
+            <DefaultRolloverStrategy fileIndex="min" max="10000"/>
+        </RollingFile>
+        <Async name="LogAppender" bufferSize="100000" blocking="false" includeLocation="true">
+            <AppenderRef ref="LogFile"/>
+        </Async>
+        <RollingFile name="RunnerLogFile" fileName="log/task_runner.LOG"
+                     filePattern="log/task_runner.LOG.%i.gz">
+            <PatternLayout>
+                <!-- Only print the original message. -->
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <OnStartupTriggeringPolicy />
+                <SizeBasedTriggeringPolicy size="100 MB" />
+            </Policies>
+            <DefaultRolloverStrategy fileIndex="min" max="10000"/>
+        </RollingFile>
+        <Async name="RunnerLoggerAppender" bufferSize="100000" blocking="false" includeLocation="false">
+            <AppenderRef ref="RunnerLogFile"/>
+        </Async>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="LogAppender"/>
+        </Root>
+        <logger name="RunnerLogger" level="all" additivity="false">
+            <AppenderRef ref="RunnerLoggerAppender"/>
+        </logger>
+    </Loggers>
+</Configuration>

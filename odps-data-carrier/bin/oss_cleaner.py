@@ -89,8 +89,6 @@ if __name__ == '__main__':
                 warning("Found staging file: " + b.key)
                 staging_files.append(b.key)
         print("Scan finished, found " + str(len(staging_files)) + " staging files")
-        for staging_file in staging_files:
-            print(staging_file)
 
         if args.action.lower() == "clean":
             threads = []

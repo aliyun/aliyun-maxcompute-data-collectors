@@ -241,16 +241,17 @@ public class IntermediateDataManager {
 
   public void setOdpsOssTransferSqlSinglePartition(String databaseName,
                                                    String tableName,
-                                                   String partitionSpec,
-                                                   String odpsSql) throws IOException {
-    String filename =  partitionSpec + SQL_SUFFIX;
-    Path filePath = Paths.get(this.root,
-                              databaseName,
-                              tableName,
-                              ODPS_OSS_TRANSFER_DIR,
-                              SINGLE_PARTITION_DIR,
-                              filename);
-    DirUtils.writeFile(filePath, odpsSql);
+                                                   List<String> transferSqls) throws IOException {
+    for (int i = 0; i < transferSqls.size(); i++) {
+      String filename =  "multi_insert_" + i + SQL_SUFFIX;
+      Path filePath = Paths.get(this.root,
+                                databaseName,
+                                tableName,
+                                ODPS_OSS_TRANSFER_DIR,
+                                SINGLE_PARTITION_DIR,
+                                filename);
+      DirUtils.writeFile(filePath, transferSqls.get(i));
+    }
   }
 
   public void setHiveVerifySqlWholeTable(String databaseName, String tableName, String content)

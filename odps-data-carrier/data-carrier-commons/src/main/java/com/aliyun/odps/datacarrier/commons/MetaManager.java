@@ -25,7 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -123,7 +123,7 @@ public class MetaManager {
     public String inputFormat;
     public String outputFormat;
     public String serDe;
-    public Map<String, String> serDeProperties = new HashMap<>();
+    public Map<String, String> serDeProperties = new LinkedHashMap<>();
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }
@@ -136,7 +136,7 @@ public class MetaManager {
   }
 
   public static class PartitionMetaModel {
-    public Map<String, String> partitionSpec = new HashMap<>();
+    public Map<String, String> partitionSpec = new LinkedHashMap<>();
     public String location;
     public String createTime;
   }

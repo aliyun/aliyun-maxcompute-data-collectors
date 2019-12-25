@@ -61,7 +61,7 @@ class ProcessPool:
 
         os.makedirs(log_dir, exist_ok=True)
         cmd_path = os.path.join(log_dir, "command.log")
-        with open(cmd_path, "w") as fd:
+        with open(cmd_path, "a") as fd:
             fd.write("%s\n" % cmd)
         stdout_path = os.path.join(log_dir, "stdout.log")
         stderr_path = os.path.join(log_dir, "stderr.log")

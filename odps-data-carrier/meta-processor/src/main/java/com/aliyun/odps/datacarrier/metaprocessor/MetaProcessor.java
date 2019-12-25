@@ -190,8 +190,8 @@ public class MetaProcessor {
   }
 
   private List<String> getAddPartitionStatements(DatabaseMetaModel databaseMeta,
-                                                             TableMetaModel tableMeta,
-                                                             TablePartitionMetaModel tablePartitionMeta) {
+                                                 TableMetaModel tableMeta,
+                                                 TablePartitionMetaModel tablePartitionMeta) {
     String odpsProjectName = databaseMeta.odpsProjectName;
     String odpsTableName = tableMeta.odpsTableName;
 
@@ -232,7 +232,7 @@ public class MetaProcessor {
     ddlBuilder.append("set odps.sql.type.system.odps2=true;\n");
 
     String odpsProjectName = databaseMeta.odpsProjectName;
-    String odpsTableName = tableMeta.odpsTableName + "_TMP";
+    String odpsTableName = tableMeta.odpsTableName + "_external";
 
     ddlBuilder
         .append("DROP TABLE IF EXISTS ")
@@ -288,10 +288,12 @@ public class MetaProcessor {
       ddlBuilder.append("WITH SERDEPROPERTIES (").append("\n");
       List<String> propertyStrings = new LinkedList<>();
       for (Map.Entry<String, String> property : tableMeta.serDeProperties.entrySet()) {
-        String propertyString = String.format("\'%s\'=\'%s\'",
-                                              StringEscapeUtils.escapeJava(property.getKey()),
-                                              StringEscapeUtils.escapeJava(property.getValue()));
-        propertyStrings.add(propertyString);
+        if (!StringEscapeUtils.escapeJava(property.getValue()).startsWith("\\u")) {
+          String propertyString = String.format("\'%s\'=\'%s\'",
+                                                StringEscapeUtils.escapeJava(property.getKey()),
+                                                StringEscapeUtils.escapeJava(property.getValue()));
+          propertyStrings.add(propertyString);
+        }
       }
       ddlBuilder.append(String.join(",\n", propertyStrings)).append(")\n");
     }
@@ -335,7 +337,7 @@ public class MetaProcessor {
     }
 
     String odpsProjectName = databaseMeta.odpsProjectName;
-    String odpsTableName = tableMeta.odpsTableName + "_TMP";
+    String odpsTableName = tableMeta.odpsTableName + "_external";
 
     List<String> addPartitionStatements = new LinkedList<>();
 
@@ -385,10 +387,16 @@ public class MetaProcessor {
     return addPartitionStatements;
   }
 
-  private String getOdpsOssTransferSql(TableMetaModel tableMeta) {
+  private String getOdpsOssTransferSql(DatabaseMetaModel databaseMeta,
+                                       TableMetaModel tableMeta) {
     StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SET odps.sql.allow.fullscan=true; ");
-    sqlBuilder.append("INSERT OVERWRITE TABLE ").append(tableMeta.odpsTableName);
+    sqlBuilder.append("SET odps.task.major.version=tpch; ");
+    sqlBuilder.append("SET odps.sql.hive.compatible=true; ");
+    sqlBuilder.append("INSERT OVERWRITE TABLE ")
+        .append(databaseMeta.odpsProjectName)
+        .append(".")
+        .append(tableMeta.odpsTableName);
 
     if (tableMeta.partitionColumns.size() != 0) {
       sqlBuilder.append(" PARTITION(");
@@ -400,9 +408,67 @@ public class MetaProcessor {
       }
       sqlBuilder.append(")");
     }
-    sqlBuilder.append(" SELECT * FROM ").append(tableMeta.odpsTableName).append("_TMP; ");
-    sqlBuilder.append("DROP TABLE IF EXISTS ").append(tableMeta.odpsTableName).append("_TMP; ");
+    sqlBuilder.append(" SELECT * FROM ")
+        .append(databaseMeta.odpsProjectName)
+        .append(".")
+        .append(tableMeta.odpsTableName)
+        .append("_external; ");
+    sqlBuilder.append("DROP TABLE IF EXISTS ").append(tableMeta.odpsTableName).append("_external; ");
     return sqlBuilder.toString();
+  }
+
+  private List<String> getOdpsOssTransferSqls(DatabaseMetaModel databaseMeta,
+                                              TableMetaModel tableMeta,
+                                              TablePartitionMetaModel tablePartitionMeta) {
+    String odpsProjectName = databaseMeta.odpsProjectName;
+    String odpsExternalTableName = tableMeta.odpsTableName + "_external";
+
+    List<String> transferSqls = new LinkedList<>();
+
+    Iterator<PartitionMetaModel> iterator = tablePartitionMeta.partitions.iterator();
+    while (iterator.hasNext()) {
+      StringBuilder sqlBuilder = new StringBuilder();
+      sqlBuilder.append("SET odps.sql.type.system.odps2=true;\n");
+      sqlBuilder.append("SET odps.sql.allow.fullscan=true;\n");
+      sqlBuilder.append("SET odps.sql.hive.compatible=true;\n");
+      sqlBuilder
+          .append("FROM ").append(odpsProjectName).append(".").append(odpsExternalTableName)
+          .append("\n");
+
+      for (int i = 0; i < 100; i++) {
+        if (iterator.hasNext()) {
+          PartitionMetaModel partitionMeta = iterator.next();
+          sqlBuilder
+              .append("INSERT OVERWRITE TABLE ")
+              .append(databaseMeta.odpsProjectName)
+              .append(".")
+              .append(tableMeta.odpsTableName)
+              .append(" PARTITION(")
+              .append(getOdpsPartitionSpec(tableMeta.partitionColumns,
+                                           partitionMeta.partitionSpec,
+                                           false))
+              .append(")")
+              .append(" SELECT ");
+
+          for (int j = 0; j < tableMeta.columns.size(); j++) {
+            sqlBuilder.append(tableMeta.columns.get(j).odpsColumnName);
+            if (j != tableMeta.columns.size() - 1) {
+              sqlBuilder.append(", ");
+            }
+          }
+
+          sqlBuilder.append(" WHERE ").append(getOdpsPartitionSpecForQuery(tableMeta.partitionColumns,
+                                                                           partitionMeta.partitionSpec,
+                                                                           false));
+          sqlBuilder.append("\n");
+        } else {
+          break;
+        }
+      }
+      sqlBuilder.append(";\n");
+      transferSqls.add(sqlBuilder.toString());
+    }
+    return transferSqls;
   }
 
   private String getMultiPartitionHiveUdtfSql(DatabaseMetaModel databaseMeta,
@@ -453,10 +519,21 @@ public class MetaProcessor {
       odpsPartitionSpecBuilder
           .append(partitionColumn.odpsColumnName)
           .append("=");
-      if (escape) {
-        odpsPartitionSpecBuilder.append("\\\'").append(partitionValue).append("\\\'");
+      if ("STRING".equalsIgnoreCase(partitionColumn.type)) {
+        if (escape) {
+          odpsPartitionSpecBuilder.append("\\\'").append(partitionValue).append("\\\'");
+        } else {
+          odpsPartitionSpecBuilder.append("\'").append(partitionValue).append("\'");
+        }
       } else {
-        odpsPartitionSpecBuilder.append("\'").append(partitionValue).append("\'");
+        // For a partition column, its partition value cannot always be parsed based on its
+        // type. For example, a partition column whose type is INT may have a partition value
+        // '__HIVE_DEFAULT_PARTITION__'. In this case, use -1 as partition value.
+        if ("__HIVE_DEFAULT_PARTITION__".equals(partitionValue)) {
+          odpsPartitionSpecBuilder.append("0");
+        } else {
+          odpsPartitionSpecBuilder.append(partitionValue);
+        }
       }
       if (i != partitionColumns.size() - 1) {
         odpsPartitionSpecBuilder.append(",");
@@ -478,10 +555,14 @@ public class MetaProcessor {
       odpsPartitionSpecBuilder
           .append(partitionColumn.odpsColumnName)
           .append("=");
-      if (escape) {
-        odpsPartitionSpecBuilder.append("\\\'").append(partitionValue).append("\\\'");
+      if ("STRING".equalsIgnoreCase(partitionColumn.type)) {
+        if (escape) {
+          odpsPartitionSpecBuilder.append("\\\'").append(partitionValue).append("\\\'");
+        } else {
+          odpsPartitionSpecBuilder.append("\'").append(partitionValue).append("\'");
+        }
       } else {
-        odpsPartitionSpecBuilder.append("\'").append(partitionValue).append("\'");
+        odpsPartitionSpecBuilder.append(partitionValue);
       }
       if (i != partitionColumns.size() - 1) {
         odpsPartitionSpecBuilder.append(" AND ");
@@ -546,7 +627,7 @@ public class MetaProcessor {
         intermediateDataDirManager.setOdpsCreateExternalTableStatement(databaseName,
                                                                        tableName,
                                                                        createExternalTableStatement);
-        String odpsOssTransferSql = getOdpsOssTransferSql(tableMeta);
+        String odpsOssTransferSql = getOdpsOssTransferSql(databaseMeta, tableMeta);
         intermediateDataDirManager.setOdpsOssTransferSql(databaseName,
                                                          tableName,
                                                          odpsOssTransferSql);
@@ -576,6 +657,13 @@ public class MetaProcessor {
         intermediateDataDirManager.setOdpsAddExternalPartitionStatement(databaseName,
                                                                         partitionTableName,
                                                                         addExternalPartitionStatements);
+
+        List<String> odpsOssTransferSqls = getOdpsOssTransferSqls(databaseMeta,
+                                                                  tableMeta,
+                                                                  tablePartitionMeta);
+        intermediateDataDirManager.setOdpsOssTransferSqlSinglePartition(databaseName,
+                                                                        partitionTableName,
+                                                                        odpsOssTransferSqls);
       }
     }
 

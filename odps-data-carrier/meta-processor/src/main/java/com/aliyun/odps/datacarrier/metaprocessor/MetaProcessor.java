@@ -19,7 +19,21 @@
 
 package com.aliyun.odps.datacarrier.metaprocessor;
 
-import com.aliyun.odps.datacarrier.commons.Constants.ODPS_VERSION;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.lang3.StringEscapeUtils;
+
 import com.aliyun.odps.datacarrier.commons.GeneratedStatement;
 import com.aliyun.odps.datacarrier.commons.IntermediateDataManager;
 import com.aliyun.odps.datacarrier.commons.MetaManager;
@@ -32,22 +46,6 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.risk.Risk;
 import com.aliyun.odps.datacarrier.metaprocessor.report.ReportBuilder;
 import com.aliyun.odps.utils.StringUtils;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.lang3.StringEscapeUtils;
 
 /**
  * @author: jon (wangzhong.zw@alibaba-inc.com)

@@ -390,9 +390,10 @@ public class MetaProcessor {
   private String getOdpsOssTransferSql(DatabaseMetaModel databaseMeta,
                                        TableMetaModel tableMeta) {
     StringBuilder sqlBuilder = new StringBuilder();
-    sqlBuilder.append("SET odps.sql.allow.fullscan=true; ");
-    sqlBuilder.append("SET odps.task.major.version=tpch; ");
-    sqlBuilder.append("SET odps.sql.hive.compatible=true; ");
+    sqlBuilder.append("SET odps.sql.type.system.odps2=true;\n");
+    sqlBuilder.append("SET odps.sql.allow.fullscan=true;\n");
+    // Some SerDe depends on this flag
+    sqlBuilder.append("SET odps.sql.hive.compatible=true;\n");
     sqlBuilder.append("INSERT OVERWRITE TABLE ")
         .append(databaseMeta.odpsProjectName)
         .append(".")
@@ -430,6 +431,7 @@ public class MetaProcessor {
       StringBuilder sqlBuilder = new StringBuilder();
       sqlBuilder.append("SET odps.sql.type.system.odps2=true;\n");
       sqlBuilder.append("SET odps.sql.allow.fullscan=true;\n");
+      // Some SerDe depends on this flag
       sqlBuilder.append("SET odps.sql.hive.compatible=true;\n");
       sqlBuilder
           .append("FROM ").append(odpsProjectName).append(".").append(odpsExternalTableName)
@@ -528,7 +530,7 @@ public class MetaProcessor {
       } else {
         // For a partition column, its partition value cannot always be parsed based on its
         // type. For example, a partition column whose type is INT may have a partition value
-        // '__HIVE_DEFAULT_PARTITION__'. In this case, use -1 as partition value.
+        // '__HIVE_DEFAULT_PARTITION__'. In this case, use 0 as partition value.
         if ("__HIVE_DEFAULT_PARTITION__".equals(partitionValue)) {
           odpsPartitionSpecBuilder.append("0");
         } else {

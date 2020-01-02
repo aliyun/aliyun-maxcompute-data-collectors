@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.datacarrier.transfer.converter;
 
+import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.type.TypeInfo;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
@@ -28,6 +29,16 @@ public class HiveDateObjectConverter extends AbstractHiveObjectConverter {
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
     DateObjectInspector dateObjectInspector = (DateObjectInspector) objectInspector;
-    return new java.sql.Date(dateObjectInspector.getPrimitiveJavaObject(o).getTime());
+    java.sql.Date value = dateObjectInspector.getPrimitiveJavaObject(o);
+    if (OdpsType.STRING.equals(odpsTypeInfo.getOdpsType())) {
+      return value.toString();
+    } else if (OdpsType.DATETIME.equals(odpsTypeInfo.getOdpsType())) {
+      return new java.sql.Date(value.getTime());
+    } else {
+      String msg = String.format("Unsupported implicit type conversion: from %s to %s",
+                                 "Hive.Date",
+                                 "ODPS." + odpsTypeInfo.getOdpsType());
+      throw new IllegalArgumentException(msg);
+    }
   }
 }

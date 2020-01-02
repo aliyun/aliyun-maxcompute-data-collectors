@@ -63,16 +63,20 @@ class MigrationRunner:
                                                        "tmp",
                                                        "meta_processor_output_" + self._timestamp)
         self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir,
-                                               "log_%s" % self._timestamp,
+                                               "log",
+                                               self._timestamp,
                                                "odps")
         self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir,
-                                               "log_%s" % self._timestamp,
+                                               "log",
+                                               self._timestamp,
                                                "hive")
         self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir,
-                                              "log_%s" % self._timestamp,
+                                              "log",
+                                              self._timestamp,
                                               "oss")
         self._verify_log_root_dir = os.path.join(self._odps_data_carrier_dir,
-                                                 "log_%s" % self._timestamp,
+                                                 "log",
+                                                 self._timestamp,
                                                  "verify")
         self._succeed_job_list_path = os.path.join(self._odps_data_carrier_dir,
                                                    "succeed_%s.txt" % self._timestamp)

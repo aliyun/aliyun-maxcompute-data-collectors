@@ -33,24 +33,22 @@ class DataValidator:
     def _parse_hive_result(self, result: str) -> int:
         return int(result.strip())
 
-    def verify(self, hive_db, hive_tbl, mc_pjt, mc_tbl, log_root_dir):
+    def verify(self, hive_db, hive_tbl, mc_pjt, mc_tbl, hive_verify_sql_path, odps_verify_sql_path,
+            log_root_dir):
         log_dir = os.path.join(log_root_dir, hive_db, hive_tbl)
         # TODO: support more validation methods
-        odps_settings = "SET odps.sql.allow.fullscan=true;"
-        odps_verify_sql = "SELECT count(1) FROM %s.%s;" % (mc_pjt, mc_tbl)
 
-        odps_verify_sql_future = self._odps_sql_runner.execute(hive_db,
-                                                             hive_tbl,
-                                                             odps_settings + odps_verify_sql,
-                                                             os.path.join(log_dir, "odps"),
-                                                             False)
+        odps_verify_sql_future = self._odps_sql_runner.execute_script(hive_db,
+                                                                      hive_tbl,
+                                                                      odps_verify_sql_path,
+                                                                      os.path.join(log_dir, "odps"),
+                                                                      False)
 
-        hive_verify_sql = "SELECT count(1) FROM %s.%s;" % (hive_db, hive_tbl)
-        hive_verify_future = self._hive_sql_runner.execute(hive_db,
-                                                           hive_tbl,
-                                                           hive_verify_sql,
-                                                           os.path.join(log_dir, "hive"),
-                                                           False)
+        hive_verify_future = self._hive_sql_runner.execute_script(hive_db,
+                                                                  hive_tbl,
+                                                                  hive_verify_sql_path,
+                                                                  os.path.join(log_dir, "hive"),
+                                                                  False)
 
         odps_stdout, _ = odps_verify_sql_future.result()
         hive_stdout, _ = hive_verify_future.result()

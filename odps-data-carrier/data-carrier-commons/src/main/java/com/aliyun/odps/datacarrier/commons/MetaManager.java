@@ -109,7 +109,6 @@ public class MetaManager {
   public static class DatabaseMetaModel {
     public String databaseName;
     public String odpsProjectName;
-    public Boolean dropTableIfExists = true;
   }
 
   public static class TableMetaModel {

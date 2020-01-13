@@ -41,6 +41,7 @@ class MigrationRunner:
         self._metasource_specified_by_user = False
         self._verbose = verbose
         self._validate_only = False
+        self._append = False
 
         # scheduling properties
         self._dynamic_scheduling = False
@@ -125,15 +126,27 @@ class MigrationRunner:
 
     def _gather_metadata(self):
         print_utils.print_yellow("[Gathering metadata]\n")
-        tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
+        tables = []
+        new_table_mapping = {}
+        for hive_db, hive_tbl, hive_part_spec in self._table_mapping:
+            if hive_part_spec is not None:
+                tables.append("%s.%s(%s)" % (hive_db, hive_tbl, hive_part_spec))
+            else:
+                tables.append("%s.%s" % (hive_db, hive_tbl))
+
+            # HACK here
+            mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl, hive_part_spec)]
+            new_table_mapping[(hive_db, hive_tbl)] = (mc_pjt, mc_tbl)
+        # replace multiple
         with open(self._meta_carrier_input_path, "w") as fd:
-            fd.write(tables)
+            fd.write("\n".join(tables))
 
         self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
                                                                 self._hms_thrift_addr,
                                                                 self._meta_carrier_input_path,
                                                                 self._meta_carrier_output_dir))
         os.unlink(self._meta_carrier_input_path)
+        self._table_mapping = new_table_mapping
         print_utils.print_green("[Gathering metadata Done]\n")
 
     def _apply_oss_config(self):
@@ -164,18 +177,22 @@ class MigrationRunner:
         for hive_db, hive_tbl in self._table_mapping:
             odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
             sed_odps_pjt_cmd = ("sed -i "
-                                "'s#\"odpsProjectName\": .*,#\"odpsProjectName\": \"%s\",#g' %s")
+                                "'s#\"odpsProjectName\": \"%s\"#\"odpsProjectName\": \"%s\"#g' %s")
             hive_db_config_path = os.path.join(self._meta_carrier_output_dir,
                                                hive_db,
                                                hive_db + ".json")
-            self._execute_command(sed_odps_pjt_cmd % (odps_pjt, hive_db_config_path))
+            self._execute_command(sed_odps_pjt_cmd % (hive_db, odps_pjt, hive_db_config_path))
 
-            sed_odps_tbl_cmd = "sed -i 's#\"odpsTableName\": .*,#\"odpsTableName\": \"%s\",#g' %s"
+            sed_odps_tbl_cmd = "sed -i 's#\"odpsTableName\": \"%s\"#\"odpsTableName\": \"%s\"#g' %s"
             hive_tbl_config_path = os.path.join(self._meta_carrier_output_dir,
                                                 hive_db,
                                                 "table_meta",
                                                 hive_tbl + ".json")
-            self._execute_command(sed_odps_tbl_cmd % (odps_tbl, hive_tbl_config_path))
+            self._execute_command(sed_odps_tbl_cmd % (hive_tbl, odps_tbl, hive_tbl_config_path))
+
+            if self._append:
+                sed_drop_if_exists = "sed -i 's#\"dropIfExists\": true,#\"dropIfExists\": false,#g' %s"
+                self._execute_command(sed_drop_if_exists % hive_tbl_config_path)
 
             # TODO: remove later
             # since SQL doesn't support org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat,
@@ -323,10 +340,23 @@ class MigrationRunner:
 
     def _validate_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
+            hive_verify_sql_path = os.path.join(self._meta_processor_output_dir,
+                                                hive_db,
+                                                hive_tbl,
+                                                "hive_verify_sql",
+                                                hive_tbl + ".sql")
+
+            odps_verify_sql_path = os.path.join(self._meta_processor_output_dir,
+                                                hive_db,
+                                                hive_tbl,
+                                                "odps_verify_sql",
+                                                hive_tbl + ".sql")
             if not self._data_validator.verify(hive_db,
                                                hive_tbl,
                                                odps_pjt,
                                                odps_tbl,
+                                               hive_verify_sql_path,
+                                               odps_verify_sql_path,
                                                self._verify_log_root_dir):
                 raise Exception("Data validation failed")
         except Exception as e:
@@ -442,13 +472,17 @@ class MigrationRunner:
     def set_validate_only(self):
         self._validate_only = True
 
+    def set_append(self):
+        self._append = True
+
     def run(self):
         # TODO: add scheduling module
         # TODO: use sqlite to track migration status, support resuming
-        self._num_jobs = len(self._table_mapping)
 
         if not self._metasource_specified_by_user and not self._validate_only:
             self._gather_metadata()
+
+        self._num_jobs = len(self._table_mapping)
 
         if not self._validate_only:
             self._apply_oss_config()

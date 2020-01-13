@@ -17,7 +17,7 @@ import argparse
 import copy
 import os
 import re
-import time
+import uuid
 from concurrent.futures import Future
 
 from utils import print_utils
@@ -96,7 +96,7 @@ class HiveSQLRunner:
     def _create_temp_sql_script(self, database_name, table_name, content):
         temp_script_path = os.path.join(self._odps_data_carrier_dir,
                                         "tmp",
-                                        "temp_hive_sql_script_%s.sql" % str(int(time.time())))
+                                        "temp_hive_sql_script_%s.sql" % str(uuid.uuid4()))
         with open(temp_script_path, "w") as fd:
             fd.write(content)
 

@@ -20,7 +20,9 @@
 package com.aliyun.odps.datacarrier.metacarrier;
 
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -53,11 +55,12 @@ import me.tongfei.progressbar.ProgressBarStyle;
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
  */
 public class HiveMetaCarrier {
+
   private HiveMetaStoreClient metaStoreClient;
   private MetaManager metaManager;
 
   public HiveMetaCarrier(String metastoreAddress, String outputPath, String principal,
-      String keyTab, String[] systemProperties) throws MetaException {
+                         String keyTab, String[] systemProperties) throws MetaException {
     HiveConf hiveConf = new HiveConf();
     hiveConf.setVar(ConfVars.METASTOREURIS, metastoreAddress);
     if (principal != null) {
@@ -126,10 +129,23 @@ public class HiveMetaCarrier {
     return tableMeta;
   }
 
-  private TablePartitionMetaModel getTablePartitionMeta(String databaseName, String tableName)
+  private TablePartitionMetaModel getTablePartitionMeta(String databaseName,
+                                                        String tableName,
+                                                        List<Map<String, String>> partitionSpecs)
       throws TException {
-    List<Partition> partitions =
-        metaStoreClient.listPartitions(databaseName, tableName, (short) -1);
+
+    List<Partition> partitions = new LinkedList<>();
+
+    if (partitionSpecs != null) {
+      for (Map<String, String> spec : partitionSpecs) {
+        List<String> partVals = new LinkedList<>(spec.values());
+        Partition p = metaStoreClient.getPartition(databaseName, tableName, partVals);
+        partitions.add(p);
+      }
+    } else {
+      partitions = metaStoreClient.listPartitions(databaseName, tableName, (short) -1);
+    }
+
     if (partitions.isEmpty()) {
       return null;
     }
@@ -179,26 +195,33 @@ public class HiveMetaCarrier {
       System.err.println("Working on " + databaseName);
       ProgressBar progressBar = initProgressBar(tableNames.size());
 
-      for (String tableName :  tableNames) {
-        // Update progress bar
-        progressBar.step();
-        progressBar.setExtraMessage("Working on " + databaseName + "." + tableName);
+      try {
+        for (String tableName : tableNames) {
+          // Update progress bar
+          progressBar.step();
+          progressBar.setExtraMessage("Working on " + databaseName + "." + tableName);
 
-        if (!configuration.shouldCarry(databaseName, tableName)) {
-          continue;
+          if (!configuration.shouldCarry(databaseName, tableName)) {
+            continue;
+          }
+
+          TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
+          metaManager.setTableMeta(databaseName, tableMeta);
+
+          // Handle partition meta
+          List<Map<String, String>> partitionSpecs = configuration
+              .getPartitionsToCarry(databaseName,
+                                    tableName);
+          TablePartitionMetaModel tablePartitionMeta = getTablePartitionMeta(databaseName,
+                                                                             tableName,
+                                                                             partitionSpecs);
+          if (tablePartitionMeta != null) {
+            metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
+          }
         }
-
-        TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
-        metaManager.setTableMeta(databaseName, tableMeta);
-
-        // Handle partition meta
-        TablePartitionMetaModel tablePartitionMeta =
-            getTablePartitionMeta(databaseName, tableName);
-        if (tablePartitionMeta != null) {
-          metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
-        }
+      } finally {
+        progressBar.close();
       }
-      progressBar.close();
     }
   }
 
@@ -254,7 +277,7 @@ public class HiveMetaCarrier {
         .argName("config")
         .hasArg()
         .desc("Optional, specify tables to migrate. "
-              + "Each line should be in the following format: <hive db>.<hive table>")
+                  + "Each line should be in the following format: <hive db>.<hive table>")
         .build();
     Option help = Option
         .builder("h")
@@ -321,14 +344,13 @@ public class HiveMetaCarrier {
                                                           keyTabVal,
                                                           systemPropertiesValue);
 
-    MetaCarrierConfiguration config;
+    MetaCarrierConfiguration config = new MetaCarrierConfiguration();
+
     if (configPathValue != null) {
-      config = new MetaCarrierConfiguration(configPathValue);
-      config.addDatabases(databasesValue);
-      config.addTables(tablesValue);
-    } else {
-      config = new MetaCarrierConfiguration(databasesValue, tablesValue);
+      config.load(configPathValue);
     }
+    config.addTables(tablesValue);
+    config.addDatabases(databasesValue);
     hiveMetaCarrier.carry(config);
   }
 }

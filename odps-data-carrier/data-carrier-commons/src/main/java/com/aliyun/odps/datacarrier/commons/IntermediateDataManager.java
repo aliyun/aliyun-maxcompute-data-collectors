@@ -254,7 +254,7 @@ public class IntermediateDataManager {
     }
   }
 
-  public void setHiveVerifySqlWholeTable(String databaseName, String tableName, String content)
+  public void setHiveVerifySqlMultiPartition(String databaseName, String tableName, String content)
       throws IOException {
     Path filePath = Paths.get(this.root,
                               databaseName,
@@ -264,7 +264,7 @@ public class IntermediateDataManager {
     DirUtils.writeFile(filePath, content);
   }
 
-  public void setOdpsVerifySqlWholeTable(String databaseName, String tableName, String content)
+  public void setOdpsVerifySqlMultiPartition(String databaseName, String tableName, String content)
       throws IOException {
     Path filePath = Paths.get(this.root,
                               databaseName,

@@ -14,7 +14,7 @@
     <module>data-carrier-commons</module>
     <module>meta-processor</module>
     <module>data-transfer-hive-udtf</module>
-    <!--<module>odps-sql-migration-tool-wrapper</module>-->
+    <module>odps-sql-migration-tool-wrapper</module>
     <module>network-measurement-tool</module>
     <module>data-transfer-spark</module>
   </modules>

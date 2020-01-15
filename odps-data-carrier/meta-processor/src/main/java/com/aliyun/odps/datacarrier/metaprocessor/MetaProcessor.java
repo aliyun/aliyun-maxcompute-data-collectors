@@ -505,7 +505,8 @@ public class MetaProcessor {
 
     if (tablePartitionMeta != null &&
         tablePartitionMeta.partitions != null &&
-        !tablePartitionMeta.partitions.isEmpty()) {
+        !tablePartitionMeta.partitions.isEmpty() &&
+        tablePartitionMeta.userSpecified) {
       hiveUdtfSqlBuilder.append("WHERE\n");
       for (int i = 0; i < tablePartitionMeta.partitions.size(); i++) {
         PartitionMetaModel partitionMetaModel = tablePartitionMeta.partitions.get(i);
@@ -541,9 +542,11 @@ public class MetaProcessor {
     hiveVerifySqlBuilder.append("COUNT(1) FROM\n");
     hiveVerifySqlBuilder.append(databaseMetaModel.databaseName)
             .append(".`").append(tableMetaModel.tableName).append("`\n");
+
     if (tablePartitionMetaModel != null &&
         tablePartitionMetaModel.partitions != null &&
-        !tablePartitionMetaModel.partitions.isEmpty()) {
+        !tablePartitionMetaModel.partitions.isEmpty() &&
+        tablePartitionMetaModel.userSpecified) {
       hiveVerifySqlBuilder.append("WHERE\n");
       for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
         PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);

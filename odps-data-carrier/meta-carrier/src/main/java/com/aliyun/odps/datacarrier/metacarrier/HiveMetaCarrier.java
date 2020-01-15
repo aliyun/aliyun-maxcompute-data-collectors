@@ -135,8 +135,10 @@ public class HiveMetaCarrier {
       throws TException {
 
     List<Partition> partitions = new LinkedList<>();
+    TablePartitionMetaModel tablePartitionMeta = new TablePartitionMetaModel();
 
     if (partitionSpecs != null) {
+      tablePartitionMeta.userSpecified = true;
       for (Map<String, String> spec : partitionSpecs) {
         List<String> partVals = new LinkedList<>(spec.values());
         Partition p = metaStoreClient.getPartition(databaseName, tableName, partVals);
@@ -150,7 +152,6 @@ public class HiveMetaCarrier {
       return null;
     }
 
-    TablePartitionMetaModel tablePartitionMeta = new TablePartitionMetaModel();
     Table table = metaStoreClient.getTable(databaseName, tableName);
     List<FieldSchema> partitionColumns = table.getPartitionKeys();
 

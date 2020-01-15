@@ -141,6 +141,7 @@ public class MetaManager {
   }
 
   public static class TablePartitionMetaModel {
+    public Boolean userSpecified = false;
     public String tableName;
     public List<PartitionMetaModel> partitions = new ArrayList<>();
   }

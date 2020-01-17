@@ -251,7 +251,8 @@ if __name__ == '__main__':
                                        args.mode,
                                        args.jdbc_address,
                                        args.user,
-                                       args.password)
+                                       args.password,
+                                       args.table_mapping)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

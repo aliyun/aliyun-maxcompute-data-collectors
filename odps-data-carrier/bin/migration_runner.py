@@ -30,7 +30,7 @@ from utils import print_utils
 class MigrationRunner:
 
     def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, datasource, verbose, version, mode,
-                 jdbc_address, user, password):
+                 jdbc_address, user, password, table_mapping_file_path):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
@@ -42,6 +42,7 @@ class MigrationRunner:
         self._jdbc_address = jdbc_address
         self._user = user
         self._password = password
+        self._table_mapping_file_path = table_mapping_file_path
         self._validate_only = False
         self._append = False
 
@@ -232,20 +233,23 @@ class MigrationRunner:
                                                                   self._datasource,
                                                                   self._mode))
         else:
-            print_utils.print_yellow("sh %s -i %s -d %s -m %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,
-                                                                                        self._meta_processor_output_dir,
-                                                                                        self._datasource,
-                                                                                        self._mode,
-                                                                                        self._jdbc_address,
-                                                                                        self._user,
-                                                                                        self._password))
-            self._execute_command("sh %s -i %s -d %s -m %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,
-                                                                                     self._meta_processor_output_dir,
-                                                                                     self._datasource,
-                                                                                     self._mode,
-                                                                                     self._jdbc_address,
-                                                                                     self._user,
-                                                                                     self._password))
+            print_utils.print_yellow(
+                "sh %s -i %s -d %s -m %s -tm %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,
+                                                                          self._meta_processor_output_dir,
+                                                                          self._datasource,
+                                                                          self._mode,
+                                                                          self._table_mapping_file_path,
+                                                                          self._jdbc_address,
+                                                                          self._user,
+                                                                          self._password))
+            self._execute_command("sh %s -i %s -d %s -m %s -tm %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,
+                                                                                            self._meta_processor_output_dir,
+                                                                                            self._datasource,
+                                                                                            self._mode,
+                                                                                            self._table_mapping_file_path,
+                                                                                            self._jdbc_address,
+                                                                                            self._user,
+                                                                                            self._password))
     def _build_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         # parallelism set to 1 to avoid OTS conflicts
         odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 1, self._verbose)

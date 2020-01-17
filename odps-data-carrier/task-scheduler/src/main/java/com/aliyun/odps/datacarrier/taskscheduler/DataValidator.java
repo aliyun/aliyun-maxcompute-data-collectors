@@ -19,15 +19,14 @@ public class DataValidator {
   private static final Logger LOG = LogManager.getLogger(DataValidator.class);
 
   private static String COUNT_VALIDATION_TASK = "count_validation_task";
-  private static String TABLE_MAPPING_PATH = "table_mappings";
 
   // hive.database -> odps.project
   private Map<String, String> projectMap = new HashMap<>();
   // hive.database -> (hive.database.tablename -> odps.database.tablename)
   private Map<String, Map<String, String>> tableMap = new HashMap<>();
 
-  public void generateValidateActions(List<Task> tasks) {
-    getTableMapping();
+  public void generateValidateActions(String tableMappingFilePath, List<Task> tasks) {
+    getTableMapping(tableMappingFilePath);
     for (Task task : tasks) {
       String hiveDB = task.getProject();
       if (StringUtils.isNullOrEmpty(hiveDB)) {
@@ -60,32 +59,29 @@ public class DataValidator {
     }
   }
 
-  private void getTableMapping() {
-    Path tableMappingPath = Paths.get(System.getProperty("user.dir"), TABLE_MAPPING_PATH);
-    for (String projectFileName : DirUtils.listFiles(tableMappingPath)) {
-      Path projectFilePath = Paths.get(tableMappingPath.toString(), projectFileName);
-      LOG.info("Start parsing table mapping for {}.", projectFilePath.toString());
-      try {
-        List<String> tableMappings = Files.readAllLines(projectFilePath);
-        for (String tableMappingStr : tableMappings) {
-          String[] mappings = tableMappingStr.split(":");
-          if (mappings.length != 2) {
-            LOG.error("Load table mappings failed, {}", tableMappingStr);
-            continue;
-          }
-          String hiveDB = mappings[0].split("[.]")[0];
-          String hiveTable = mappings[0].split("[.]")[1];
-          String odpsProject = mappings[1].split("[.]")[0];
-          String odpsTable = mappings[1].split("[.]")[1];
-          projectMap.putIfAbsent(hiveDB, odpsProject);
-          tableMap.putIfAbsent(hiveDB, new HashMap<>());
-          Map<String, String> tableMapOfHiveDB = tableMap.get(hiveDB);
-          tableMapOfHiveDB.putIfAbsent(hiveTable, odpsTable);
+  private void getTableMapping(String tableMappingFilePath) {
+    Path projectFilePath = Paths.get(System.getProperty("user.dir"), tableMappingFilePath);
+    LOG.info("Start parsing table mapping for {}.", projectFilePath.toString());
+    try {
+      List<String> tableMappings = Files.readAllLines(projectFilePath);
+      for (String tableMappingStr : tableMappings) {
+        String[] mappings = tableMappingStr.split(":");
+        if (mappings.length != 2) {
+          LOG.error("Load table mappings failed, {}", tableMappingStr);
+          continue;
         }
-      } catch (Exception e) {
-        LOG.error("Load table mappings failed, {}", e.getMessage());
-        e.printStackTrace();
+        String hiveDB = mappings[0].split("[.]")[0];
+        String hiveTable = mappings[0].split("[.]")[1];
+        String odpsProject = mappings[1].split("[.]")[0];
+        String odpsTable = mappings[1].split("[.]")[1];
+        projectMap.putIfAbsent(hiveDB, odpsProject);
+        tableMap.putIfAbsent(hiveDB, new HashMap<>());
+        Map<String, String> tableMapOfHiveDB = tableMap.get(hiveDB);
+        tableMapOfHiveDB.putIfAbsent(hiveTable, odpsTable);
       }
+    } catch (Exception e) {
+      LOG.error("Load table mappings failed, {}", e.getMessage());
+      e.printStackTrace();
     }
   }
 

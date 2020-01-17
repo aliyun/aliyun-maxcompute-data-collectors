@@ -37,6 +37,7 @@ public class TaskScheduler {
   private static final String INPUT_DIR = "input-dir";
   private static final String DATA_SOURCE = "datasource";
   private static final String MODE = "mode";
+  private static final String TABLE_MAPPING = "table-mapping";
   private static final String JDBC_ADDRESS = "jdbc-address";
   private static final String USER = "user";
   private static final String PASSWORD = "password";
@@ -50,6 +51,7 @@ public class TaskScheduler {
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
   private DataSource dataSource;
+  private String tableMappingFilePath;
 
   private final SchedulerHeartbeatThread heartbeatThread;
   private volatile boolean keepRunning;
@@ -68,14 +70,16 @@ public class TaskScheduler {
     this.tasks = new LinkedList<>();
   }
 
-  private void run(String inputPath, DataSource dataSource, Mode mode, String jdbcAddress, String user, String password) {
+  private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
+                   String jdbcAddress, String user, String password) {
     this.dataSource = dataSource;
     generateActions(dataSource);
+    this.tableMappingFilePath = tableMappingFilePath;
     this.taskManager = new ScriptTaskManager(inputPath, actions, mode, jdbcAddress, user, password);
     tasks.addAll(this.taskManager.generateTasks(actions, mode));
     //Add data validator
     if (DataSource.Hive.equals(dataSource)) {
-      this.dataValidator.generateValidateActions(tasks);
+      this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks);
     }
     updateConcurrencyThreshold();
     heartbeatThread.start();
@@ -278,6 +282,13 @@ public class TaskScheduler {
         .desc("Migration mode, SINGLE or BATCH.")
         .build();
 
+    Option tableMapping = Option
+        .builder("tm")
+        .longOpt(TABLE_MAPPING)
+        .argName(TABLE_MAPPING)
+        .hasArg()
+        .desc("The path of table mapping from Hive to MaxCompute in BATCH mode.")
+        .build();
 
     Option jdbcAddress = Option
         .builder("ja")
@@ -313,6 +324,7 @@ public class TaskScheduler {
         .addOption(meta)
         .addOption(datasource)
         .addOption(mode)
+        .addOption(tableMapping)
         .addOption(jdbcAddress)
         .addOption(user)
         .addOption(password)
@@ -324,6 +336,7 @@ public class TaskScheduler {
     if (cmd.hasOption(INPUT_DIR)
         && cmd.hasOption(DATA_SOURCE)
         && cmd.hasOption(MODE)
+        && cmd.hasOption(TABLE_MAPPING)
         && !cmd.hasOption(HELP)) {
       TaskScheduler scheduler = new TaskScheduler();
       DataSource cmdDataSource = DataSource.Hive;
@@ -349,7 +362,8 @@ public class TaskScheduler {
       if (cmd.hasOption(PASSWORD) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(PASSWORD))) {
         cmdPassword = cmd.getOptionValue(PASSWORD);
       }
-      scheduler.run(cmd.getOptionValue(INPUT_DIR), cmdDataSource, cmdMode, cmdJdbcAddress, cmdUser, cmdPassword);
+      scheduler.run(cmd.getOptionValue(INPUT_DIR), cmdDataSource, cmdMode, cmd.getOptionValue(TABLE_MAPPING),
+          cmdJdbcAddress, cmdUser, cmdPassword);
     } else {
       logHelp(options);
     }

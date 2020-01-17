@@ -17,6 +17,7 @@ import argparse
 import copy
 import os
 import re
+import uuid
 from concurrent.futures import Future
 
 from utils import print_utils
@@ -93,6 +94,15 @@ class HiveSQLRunner:
         lines.append(hive_sql)
         return " ".join(lines)
 
+    def _create_temp_sql_script(self, database_name, table_name, content):
+        temp_script_path = os.path.join(self._odps_data_carrier_dir,
+                                        "tmp",
+                                        "temp_hive_sql_script_%s.sql" % str(uuid.uuid4()))
+        with open(temp_script_path, "w") as fd:
+            fd.write(content)
+
+        return temp_script_path
+
     def execute_script(self,
                        database_name: str,
                        table_name: str,
@@ -123,8 +133,9 @@ class HiveSQLRunner:
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
-        command = "hive -e \"%s\"" % self._get_runnable_hive_sql_from_file(sql_script_path,
-                                                                           is_udtf_sql)
+        sql = self._get_runnable_hive_sql_from_file(sql_script_path, is_udtf_sql)
+        temp_script_path = self._create_temp_sql_script(database_name, table_name, sql)
+        command = "hive -f %s" % temp_script_path
         return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def execute(self,
@@ -157,7 +168,9 @@ class HiveSQLRunner:
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
-        command = "hive -e \"%s\"" % self._get_runnable_hive_sql(sql, is_udtf_sql)
+        sql = self._get_runnable_hive_sql(sql, is_udtf_sql)
+        temp_script_path = self._create_temp_sql_script(database_name, table_name, sql)
+        command = "hive -f %s" % temp_script_path
         return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def stop(self):

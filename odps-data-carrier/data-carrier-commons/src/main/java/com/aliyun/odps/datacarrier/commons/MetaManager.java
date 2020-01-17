@@ -25,7 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -102,14 +102,13 @@ public class MetaManager {
     public String datasourceType;
     public String odpsVersion = "ODPS_V2";
     public Boolean hiveCompatible = false;
-    public String ossEndpoint = "";
-    public String ossBucket = "";
+    public String ossEndpoint = "oss-cn-hangzhou-internal.aliyuncs.com";
+    public String ossBucket = "mma";
   }
 
   public static class DatabaseMetaModel {
     public String databaseName;
     public String odpsProjectName;
-    public Boolean dropTableIfExists = true;
   }
 
   public static class TableMetaModel {
@@ -123,6 +122,7 @@ public class MetaManager {
     public String inputFormat;
     public String outputFormat;
     public String serDe;
+    public Map<String, String> serDeProperties = new LinkedHashMap<>();
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
   }
@@ -135,12 +135,13 @@ public class MetaManager {
   }
 
   public static class PartitionMetaModel {
-    public Map<String, String> partitionSpec = new HashMap<>();
+    public Map<String, String> partitionSpec = new LinkedHashMap<>();
     public String location;
     public String createTime;
   }
 
   public static class TablePartitionMetaModel {
+    public Boolean userSpecified = false;
     public String tableName;
     public List<PartitionMetaModel> partitions = new ArrayList<>();
   }

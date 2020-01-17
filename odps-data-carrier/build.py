@@ -90,10 +90,8 @@ if __name__ == '__main__':
     shutil.copyfile("meta-processor/target/" + jar_name, "odps-data-carrier/libs/" + jar_name)
     shutil.copyfile("resources/style.css", "odps-data-carrier/res/style.css")
 
-    # # odps-ddl-runner
-    # shutil.copyfile("bin/odps_sql_runner.py", "odps-data-carrier/bin/odps_sql_runner.py")
-    # jar_name = "ddl-executor-1.0-SNAPSHOT-jar-with-dependencies.jar"
-    # shutil.copyfile("ddl-executor/target/" + jar_name, "odps-data-carrier/libs/" + jar_name)
+    # odps-ddl-runner
+    shutil.copyfile("bin/odps_sql_runner.py", "odps-data-carrier/bin/odps_sql_runner.py")
 
     # hive-udtf-sql-runner
     jar_name = "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
@@ -128,6 +126,6 @@ if __name__ == '__main__':
         shutil.copyfile("odps-sql-migration-tool-wrapper/target/" + jar_name,
                         "odps-data-carrier/libs/" + jar_name)
 
-    execute("tar -zcvf odps-data-carrier.tar.gz odps-data-carrier")
+    execute("tar -zcpvf odps-data-carrier.tar.gz odps-data-carrier")
     shutil.rmtree("odps-data-carrier")
     print("Done")

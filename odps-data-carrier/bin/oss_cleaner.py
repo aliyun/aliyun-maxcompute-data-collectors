@@ -56,9 +56,12 @@ if __name__ == '__main__':
         help="OSS bucket")
     parser.add_argument(
         "--table",
-        required=True,
-        default='',
+        required=False,
         help="Hive table name")
+    parser.add_argument(
+        "--database",
+        required=True,
+        help="Hive database name")
     parser.add_argument(
         "--action",
         required=True,
@@ -71,14 +74,17 @@ if __name__ == '__main__':
 
     auth = oss2.Auth(args.access_id, args.access_key)
     bucket = oss2.Bucket(auth, args.oss_endpoint, args.bucket)
+    database = args.database + ".db"
     table = args.table
-    if table != '' and not table.endswith("/"):
-        table += "/"
+    if table is not None:
+        prefix = "%s/%s/" % (database, table)
+    else:
+        prefix = "%s/" % database
 
     if args.action.lower() == "clean" or args.action.lower() == "scan":
         staging_files = []
         pattern = "/.hive-staging"
-        for b in oss2.ObjectIterator(bucket, prefix=table):
+        for b in oss2.ObjectIterator(bucket, prefix=prefix):
             if pattern in b.key:
                 warning("Found staging file: " + b.key)
                 staging_files.append(b.key)
@@ -107,7 +113,7 @@ if __name__ == '__main__':
 
     if args.action.lower() == "restore":
         staging_files = []
-        for b in oss2.ObjectIterator(bucket, prefix=".Staging/" + args.table):
+        for b in oss2.ObjectIterator(bucket, prefix=".Staging/" + prefix):
             warning("Found staging file: " + b.key)
             staging_files.append(b.key)
         print("Scan finished, found " + str(len(staging_files)) + " staging files")
@@ -131,4 +137,5 @@ if __name__ == '__main__':
                 break
         print("Done")
         print("Scan finished, found " + str(len(staging_files)) + " staging files")
+
 

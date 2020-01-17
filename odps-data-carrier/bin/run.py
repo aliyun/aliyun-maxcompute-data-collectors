@@ -15,6 +15,7 @@
 
 import argparse
 import os
+import re
 import sys
 
 from utils import print_utils
@@ -36,24 +37,33 @@ def parse_table_mapping(table_mapping_path):
             raise Exception("Cannot parse line: " + line)
         hive_db, hive_tbl = hive[: dot_idx].strip(), hive[dot_idx + 1:].strip()
 
+        # parse partition spec
+        hive_part_spec = None
+        m = re.search(r'.*\((.*)\)', hive_tbl)
+        if m is not None:
+            hive_part_spec = m.group(1)
+            hive_tbl = hive_tbl[: -len(hive_part_spec) - 2]
+
         try:
             dot_idx = mc.index(".")
         except ValueError as e:
             raise Exception("Cannot parse line: " + line)
         mc_pjt, mc_tbl = mc[: dot_idx].strip(), mc[dot_idx + 1:].strip()
-
-        return hive_db, hive_tbl, mc_pjt, mc_tbl
+        return hive_db, hive_tbl, hive_part_spec, mc_pjt, mc_tbl
 
     table_mapping = {}
     db_mapping = {}
     with open(table_mapping_path, "r") as fd:
         for line in fd.readlines():
-            hive_db, hive_tbl, mc_pjt, mc_tbl = parse_line(line)
-            if (hive_db, hive_tbl) in table_mapping:
+            (hive_db, hive_tbl, hive_part_spec,
+             mc_pjt, mc_tbl) = parse_line(line)
+            if (hive_db, hive_tbl, hive_part_spec) in table_mapping:
                 raise Exception("Duplicated table mapping: " + line)
             if hive_db in db_mapping and db_mapping[hive_db] != mc_pjt:
-                raise Exception("A Hive database is mapped to multiple MaxCompute project")
-            table_mapping[(hive_db, hive_tbl)] = (mc_pjt, mc_tbl)
+                raise Exception("A Hive database is mapped to "
+                                "multiple MaxCompute project: " + line)
+            table_mapping[(hive_db, hive_tbl, hive_part_spec)] = (mc_pjt,
+                                                                  mc_tbl)
             db_mapping[hive_db] = mc_pjt
     return table_mapping
 
@@ -94,7 +104,8 @@ def validate_arguments(args):
         if should_exit:
             sys.exit(1)
     else:
-        print_utils.print_red("Invalid mode value, available values are SINGLE and BATCH\n")
+        print_utils.print_red(
+            "Invalid mode value, available values are SINGLE and BATCH\n")
         sys.exit(1)
 
 
@@ -110,14 +121,25 @@ if __name__ == '__main__':
         required=False,
         default="SINGLE",
         type=str,
-        help="""Migration mode, SINGLE or BATCH.
-        SINGLE means migrate one Hive table to MaxCompute, BATCH means migrate all the Hive tables 
-        specified by the table mapping file""")
+        help="""Migration mode, SINGLE or BATCH. SINGLE means migrating one Hive table to 
+        MaxCompute, BATCH means migrating all the Hive tables specified by the table mapping 
+        file""")
+    parser.add_argument(
+        "--metasource",
+        required=False,
+        help="Specify metadata source, should be a meta-carrier's output")
     parser.add_argument(
         "--datasource",
         required=False,
         default="Hive",
         help="Specify datasource, can be Hive or OSS")
+    parser.add_argument(
+        "--validate_only",
+        required=False,
+        const=True,
+        action="store_const",
+        default=False,
+        help="Only run data validation on specified tables")
 
     # single mode arguments
     parser.add_argument(
@@ -168,6 +190,13 @@ if __name__ == '__main__':
         type=int,
         help="""When dynamic scheduling is on, jobs will be submitted if the number of running job
         is less than the threshold""")
+    parser.add_argument(
+        "--append",
+        required=False,
+        const=True,
+        action="store_const",
+        default=False,
+        help="Instead of overwrite table, append to it")
     parser.add_argument(
         "--version",
         required=False,
@@ -226,7 +255,14 @@ if __name__ == '__main__':
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)
+    if args.metasource is not None:
+        migration_runner.set_metasource(args.metasource)
+    if args.validate_only:
+        migration_runner.set_validate_only()
+    if args.append:
+        migration_runner.set_append()
     migration_runner.set_parallelism(args.parallelism)
+
     try:
         migration_runner.run()
     finally:

@@ -6,8 +6,8 @@ import com.aliyun.odps.OdpsException;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.odps.data.Record;
 import com.aliyun.odps.task.SQLTask;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -18,8 +18,8 @@ import java.util.Map;
 import java.util.Properties;
 
 public class OdpsRunner extends AbstractTaskRunner {
-  private static final Logger LOG = LoggerFactory.getLogger(OdpsRunner.class);
-  private static final Logger RUNNER_LOG = LoggerFactory.getLogger("RunnerLogger");
+  private static final Logger LOG = LogManager.getLogger(OdpsRunner.class);
+  private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
   public static final String PROJECT_NAME = "project_name";
   public static final String ACCESS_ID = "access_id";
@@ -37,6 +37,7 @@ public class OdpsRunner extends AbstractTaskRunner {
       this.odps = odps();
       LOG.info("Create OdpsRunner succeeded.");
     } catch (IOException e) {
+      e.printStackTrace();
       throw new RuntimeException("Create odps failed.");
     }
   }
@@ -47,7 +48,6 @@ public class OdpsRunner extends AbstractTaskRunner {
     InputStream is = new FileInputStream(odpsConfigPath);
     properties = new Properties();
     properties.load(is);
-
     AliyunAccount account = new AliyunAccount(properties.getProperty(ACCESS_ID),
         properties.getProperty(ACCESS_KEY));
     Odps odps = new Odps(account);
@@ -59,7 +59,6 @@ public class OdpsRunner extends AbstractTaskRunner {
       throw new IllegalArgumentException("Endpoint should not be empty.");
     }
     odps.setEndpoint(properties.getProperty(END_POINT));
-
     return odps;
   }
 

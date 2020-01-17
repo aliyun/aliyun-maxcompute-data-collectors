@@ -34,7 +34,6 @@ class ProcessPool:
                          buffer: list,
                          is_stdout: bool,
                          context: dict):
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, 'a') as fd:
             for line in it:
                 buffer.append(line)
@@ -60,6 +59,10 @@ class ProcessPool:
             preexec_fn=os.setsid,
             encoding='utf-8')
 
+        os.makedirs(log_dir, exist_ok=True)
+        cmd_path = os.path.join(log_dir, "command.log")
+        with open(cmd_path, "a") as fd:
+            fd.write("%s\n" % cmd)
         stdout_path = os.path.join(log_dir, "stdout.log")
         stderr_path = os.path.join(log_dir, "stderr.log")
         stdout_lines = []

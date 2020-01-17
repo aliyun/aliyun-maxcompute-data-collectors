@@ -12,12 +12,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 abstract class AbstractTaskRunner implements TaskRunner {
 
-  private static final Logger LOG = LoggerFactory.getLogger(AbstractTaskRunner.class);
+  private static final Logger LOG = LogManager.getLogger(AbstractTaskRunner.class);
 
   private static final int CORE_POOL_SIZE = 20;
   protected ThreadPoolExecutor runnerPool;

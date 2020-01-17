@@ -18,12 +18,13 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TaskScheduler {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TaskScheduler.class);
+  private static final Logger LOG = LogManager.getLogger(TaskScheduler.class);
 
   private static final int HEARTBEAT_INTERVAL_MS = 3000;
   private static final int CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
@@ -254,6 +255,7 @@ public class TaskScheduler {
   }
 
   public static void main(String[] args) throws Exception {
+    BasicConfigurator.configure();
     Option meta = Option
         .builder("i")
         .longOpt(INPUT_DIR)

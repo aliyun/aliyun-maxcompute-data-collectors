@@ -13,16 +13,13 @@
 # limitations under the License.
 
 import os
-# import sqlite3
 import re
-import shutil
 import subprocess
 import time
 import traceback
 import threading
 
 from concurrent.futures import ThreadPoolExecutor
-from enum import Enum
 
 from odps_sql_runner import OdpsSQLRunner
 from hive_sql_runner import HiveSQLRunner
@@ -31,11 +28,6 @@ from utils import print_utils
 
 
 class MigrationRunner:
-    class JobStatus(Enum):
-        INIT = 1
-        BUILD_TABLE_DONE = 2
-        TRANSFER_DATA_DONE = 3
-        VALIDATE_DONE = 4
 
     def __init__(self, odps_data_carrier_dir, table_mapping, hms_thrift_addr, datasource, verbose, version, mode,
                  jdbc_address, user, password):
@@ -43,12 +35,15 @@ class MigrationRunner:
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
         self._datasource = datasource
+        self._metasource_specified_by_user = False
         self._verbose = verbose
         self._version = version
         self._mode = mode
         self._jdbc_address = jdbc_address
         self._user = user
         self._password = password
+        self._validate_only = False
+        self._append = False
 
         # scheduling properties
         self._dynamic_scheduling = False
@@ -73,9 +68,27 @@ class MigrationRunner:
         self._meta_processor_output_dir = os.path.join(self._odps_data_carrier_dir,
                                                        "tmp",
                                                        "meta_processor_output_" + self._timestamp)
-        self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "odps")
-        self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "hive")
-        self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir, "log", "oss")
+        self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                               "log",
+                                               self._timestamp,
+                                               "odps")
+        self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                               "log",
+                                               self._timestamp,
+                                               "hive")
+        self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                              "log",
+                                              self._timestamp,
+                                              "oss")
+        self._verify_log_root_dir = os.path.join(self._odps_data_carrier_dir,
+                                                 "log",
+                                                 self._timestamp,
+                                                 "verify")
+        self._succeed_job_list_path = os.path.join(self._odps_data_carrier_dir,
+                                                   "succeed_%s.txt" % self._timestamp)
+        self._failed_job_list_path = os.path.join(self._odps_data_carrier_dir,
+                                                  "failed_%s.txt" % self._timestamp)
+
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,
                                                      self._parallelism,
@@ -117,6 +130,31 @@ class MigrationRunner:
             raise e
 
     def _gather_metadata(self):
+        print_utils.print_yellow("[Gathering metadata]\n")
+        tables = []
+        new_table_mapping = {}
+        for hive_db, hive_tbl, hive_part_spec in self._table_mapping:
+            if hive_part_spec is not None:
+                tables.append("%s.%s(%s)" % (hive_db, hive_tbl, hive_part_spec))
+            else:
+                tables.append("%s.%s" % (hive_db, hive_tbl))
+
+            # HACK here
+            mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl, hive_part_spec)]
+            new_table_mapping[(hive_db, hive_tbl)] = (mc_pjt, mc_tbl)
+        # replace multiple
+        with open(self._meta_carrier_input_path, "w") as fd:
+            fd.write("\n".join(tables))
+
+        self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
+                                                                self._hms_thrift_addr,
+                                                                self._meta_carrier_input_path,
+                                                                self._meta_carrier_output_dir))
+        os.unlink(self._meta_carrier_input_path)
+        self._table_mapping = new_table_mapping
+        print_utils.print_green("[Gathering metadata Done]\n")
+
+    def _apply_oss_config(self):
         # TODO: hack, refactor later
         def _parse_oss_config():
             with open(os.path.join(self._odps_data_carrier_dir, "oss_config.ini")) as fd:
@@ -132,16 +170,6 @@ class MigrationRunner:
                 raise Exception("Invalid oss configuration")
             return oss_endpoint, oss_bucket
 
-        tables = "\n".join(map(lambda key: key[0] + "." + key[1], self._table_mapping.keys()))
-        with open(self._meta_carrier_input_path, "w") as fd:
-            fd.write(tables)
-
-        self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
-                                                                self._hms_thrift_addr,
-                                                                self._meta_carrier_input_path,
-                                                                self._meta_carrier_output_dir))
-        os.unlink(self._meta_carrier_input_path)
-
         # handle oss configs
         oss_endpoint, oss_bucket = _parse_oss_config()
         sed_oss_endpoint_cmd = "sed -i 's#\"ossEndpoint\": .*,#\"ossEndpoint\": \"%s\",#g' %s"
@@ -150,21 +178,26 @@ class MigrationRunner:
         self._execute_command(sed_oss_endpoint_cmd % (oss_endpoint, global_config_path))
         self._execute_command(sed_oss_bucket_cmd % (oss_bucket, global_config_path))
 
+    def _apply_table_mapping(self):
         for hive_db, hive_tbl in self._table_mapping:
             odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
             sed_odps_pjt_cmd = ("sed -i "
-                                "'s#\"odpsProjectName\": .*,#\"odpsProjectName\": \"%s\",#g' %s")
+                                "'s#\"odpsProjectName\": \"%s\"#\"odpsProjectName\": \"%s\"#g' %s")
             hive_db_config_path = os.path.join(self._meta_carrier_output_dir,
                                                hive_db,
                                                hive_db + ".json")
-            self._execute_command(sed_odps_pjt_cmd % (odps_pjt, hive_db_config_path))
+            self._execute_command(sed_odps_pjt_cmd % (hive_db, odps_pjt, hive_db_config_path))
 
-            sed_odps_tbl_cmd = "sed -i 's#\"odpsTableName\": .*,#\"odpsTableName\": \"%s\",#g' %s"
+            sed_odps_tbl_cmd = "sed -i 's#\"odpsTableName\": \"%s\"#\"odpsTableName\": \"%s\"#g' %s"
             hive_tbl_config_path = os.path.join(self._meta_carrier_output_dir,
                                                 hive_db,
                                                 "table_meta",
                                                 hive_tbl + ".json")
-            self._execute_command(sed_odps_tbl_cmd % (odps_tbl, hive_tbl_config_path))
+            self._execute_command(sed_odps_tbl_cmd % (hive_tbl, odps_tbl, hive_tbl_config_path))
+
+            if self._append:
+                sed_drop_if_exists = "sed -i 's#\"dropIfExists\": true,#\"dropIfExists\": false,#g' %s"
+                self._execute_command(sed_drop_if_exists % hive_tbl_config_path)
 
             # TODO: remove later
             # since SQL doesn't support org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat,
@@ -214,7 +247,8 @@ class MigrationRunner:
                                                                                      self._user,
                                                                                      self._password))
     def _build_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
-        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 10, self._verbose)
+        # parallelism set to 1 to avoid OTS conflicts
+        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 1, self._verbose)
         try:
             odps_ddl_dir = os.path.join(self._meta_processor_output_dir,
                                         hive_db,
@@ -252,7 +286,8 @@ class MigrationRunner:
             odps_sql_runner.stop()
 
     def _build_external_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
-        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 10, self._verbose)
+        # parallelism set to 1 to avoid OTS conflicts
+        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 1, self._verbose)
         try:
             odps_external_ddl_dir = os.path.join(self._meta_processor_output_dir,
                                                  hive_db,
@@ -302,11 +337,6 @@ class MigrationRunner:
                                                         hive_sql_script_path,
                                                         hive_log_dir,
                                                         True).result()
-            self._update_job_status(hive_db,
-                                    hive_tbl,
-                                    odps_pjt,
-                                    odps_tbl,
-                                    self.JobStatus.TRANSFER_DATA_DONE)
         except Exception as e:
             raise e
 
@@ -315,99 +345,56 @@ class MigrationRunner:
             transfer_sql_dir = os.path.join(self._meta_processor_output_dir,
                                             hive_db,
                                             hive_tbl,
-                                            "odps_oss_transfer_sql")
+                                            "odps_oss_transfer_sql",
+                                            "single_partition")
+            if not os.path.isdir(transfer_sql_dir):
+                transfer_sql_dir = os.path.join(self._meta_processor_output_dir,
+                                                hive_db,
+                                                hive_tbl,
+                                                "odps_oss_transfer_sql",
+                                                "multi_partition")
+
             oss_log_dir = os.path.join(self._oss_log_root_dir, hive_db, hive_tbl)
-            script_path = os.path.join(transfer_sql_dir, "multi_partition", hive_tbl + ".sql")
-            self._global_odps_sql_runner.execute_script(hive_db,
-                                                        hive_tbl,
-                                                        script_path,
-                                                        oss_log_dir,
-                                                        False).result()
+            futures = []
+            for script_name in os.listdir(transfer_sql_dir):
+                script_path = os.path.join(transfer_sql_dir, script_name)
+                future = self._global_odps_sql_runner.execute_script(hive_db,
+                                                                     hive_tbl,
+                                                                     script_path,
+                                                                     oss_log_dir,
+                                                                     False)
+                futures.append(future)
+
+            for future in futures:
+                future.result()
+
         except Exception as e:
             raise e
 
     def _validate_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
-            if self._data_validator.verify(hive_db, hive_tbl, odps_pjt, odps_tbl):
-                # self._update_job_status(hive_db,
-                #                         hive_tbl,
-                #                         odps_pjt,
-                #                         odps_tbl,
-                #                         self.JobStatus.VALIDATE_DONE)
-                pass
-            else:
-                # self._update_job_status(hive_db,
-                #                         hive_tbl,
-                #                         odps_pjt,
-                #                         odps_tbl,
-                #                         self.JobStatus.INIT)
+            hive_verify_sql_path = os.path.join(self._meta_processor_output_dir,
+                                                hive_db,
+                                                hive_tbl,
+                                                "hive_verify_sql",
+                                                hive_tbl + ".sql")
+
+            odps_verify_sql_path = os.path.join(self._meta_processor_output_dir,
+                                                hive_db,
+                                                hive_tbl,
+                                                "odps_verify_sql",
+                                                hive_tbl + ".sql")
+            if not self._data_validator.verify(hive_db,
+                                               hive_tbl,
+                                               odps_pjt,
+                                               odps_tbl,
+                                               hive_verify_sql_path,
+                                               odps_verify_sql_path,
+                                               self._verify_log_root_dir):
                 raise Exception("Data validation failed")
         except Exception as e:
             raise e
 
-    # status related
-    # def _init_job_status_db(self, table_mapping):
-    #     self._conn = sqlite3.connect(os.path.join(self._odps_data_carrier_dir, "job_status.db"))
-    #
-    #     c = self._conn.cursor()
-    #     c.execute("SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='job_status';")
-    #     if c.fetchone() == 0:
-    #         c.execute("""CREATE TABLE job_status
-    #                      (
-    #                          hive_db string,
-    #                          hive_tbl string,
-    #                          odps_pjt string,
-    #                          odps_tbl string,
-    #                          status int,
-    #                          CONSTRAINT pk PRIMARY KEY (hive_db, hive_tbl, odps_pjt, odps_tbl)
-    #                      );""")
-    #         for hive_db, hive_tbl in table_mapping:
-    #             odps_pjt, odps_tbl = table_mapping
-    #             c.execute("""INSERT INTO job_status VALUES
-    #                          (%s, %s, %s, %s, %d)""" % (hive_db,
-    #                                                     hive_tbl,
-    #                                                     odps_pjt,
-    #                                                     odps_tbl,
-    #                                                     self.JobStatus.INIT.value))
-    #     c.close()
-
-    def _update_job_status(self, hive_db, hive_tbl, odps_pjt, odps_tbl, status: JobStatus):
-        # c = self._conn.cursor()
-        # c.execute("""UPDATE job_status
-        #              SET status=%d
-        #              WHERE
-        #              hive_db=%s and hive_tbl=%s and odps_pjt=%s and odps_tbl=%s;""" % (status.value,
-        #                                                                                hive_db,
-        #                                                                                hive_tbl,
-        #                                                                                odps_pjt,
-        #                                                                                odps_tbl))
-        # c.close()
-        # if status == self.JobStatus.VALIDATE_DONE:
-        #     with open(os.path.join(self._odps_data_carrier_dir, "succeed.txt"), 'a') as fd:
-        #         fd.write("%s.%s:%s.%s" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-        #         print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
-        #                                                                 hive_tbl,
-        #                                                                 odps_pjt,
-        #                                                                 odps_tbl))
-        # elif status == self.JobStatus.INIT:
-        #     with open(os.path.join(self._odps_data_carrier_dir, "failed.txt"), 'a') as fd:
-        #         fd.write("%s.%s:%s.%s" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-        #         print_utils.print_red("[FAILED] %s.%s -> %s.%s\n" % (hive_db,
-        #                                                              hive_tbl,
-        #                                                              odps_pjt,
-        #                                                              odps_tbl))
-        pass
-
-    # def _get_job_status(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
-    #     c = self._conn.cursor()
-    #     c.execute("""SELECT status
-    #                  FROM job_status
-    #                  WHERE
-    #                  hive_db=%s and hive_tbl=%s and odps_pjt=%s and odps_tbl=%s;""" % (hive_db,
-    #                                                                                    hive_tbl,
-    #                                                                                    odps_pjt,
-    #                                                                                    odps_tbl))
-    #     c.close()
     def _migrate_from_hive(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._increase_num_hive_jobs()
@@ -419,6 +406,9 @@ class MigrationRunner:
         self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._build_external_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._transfer_data_from_oss(hive_db, hive_tbl, odps_pjt, odps_tbl)
+
+    def _validate(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
 
     def _increase_num_hive_jobs(self):
         with self._num_hive_jobs_lock:
@@ -481,8 +471,7 @@ class MigrationRunner:
                                                                             hive_tbl,
                                                                             mc_pjt,
                                                                             mc_tbl))
-                    succeed_list_path = os.path.join(self._odps_data_carrier_dir, "succeed.txt")
-                    with open(succeed_list_path, 'a') as fd:
+                    with open(self._succeed_job_list_path, 'a') as fd:
                         fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
                 except Exception as e:
                     num_failed_job += 1
@@ -491,8 +480,7 @@ class MigrationRunner:
                                                                          mc_pjt,
                                                                          mc_tbl))
                     print_utils.print_red(traceback.format_exc())
-                    failed_list_path = os.path.join(self._odps_data_carrier_dir, "failed.txt")
-                    with open(failed_list_path, 'a') as fd:
+                    with open(self._failed_job_list_path, 'a') as fd:
                         fd.write("%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
         return num_succeed_job, num_failed_job
 
@@ -510,18 +498,29 @@ class MigrationRunner:
     def set_parallelism(self, parallelism):
         self._parallelism = parallelism
 
+    def set_metasource(self, metasource):
+        self._meta_carrier_output_dir = metasource
+        self._metasource_specified_by_user = True
+
+    def set_validate_only(self):
+        self._validate_only = True
+
+    def set_append(self):
+        self._append = True
+
     def run(self):
         # TODO: add scheduling module
         # TODO: use sqlite to track migration status, support resuming
+
+        if not self._metasource_specified_by_user and not self._validate_only:
+            self._gather_metadata()
+
         self._num_jobs = len(self._table_mapping)
 
-        print_utils.print_yellow("[Gathering metadata]\n")
-        self._gather_metadata()
-        print_utils.print_green("[Gathering metadata Done]\n")
-
-        print_utils.print_yellow("[Processing metadata]\n")
-        self._process_metadata()
-        print_utils.print_green("[Processing metadata done]\n")
+        if not self._validate_only:
+            self._apply_oss_config()
+            self._apply_table_mapping()
+            self._process_metadata()
 
         print_utils.print_yellow("[Migration starts]\n")
 
@@ -529,37 +528,37 @@ class MigrationRunner:
             executor = ThreadPoolExecutor(self._parallelism)
             progress_reporter = threading.Thread(target=self._report_progress)
             progress_reporter.start()
-            for hive_db, hive_tbl in self._table_mapping:
-                odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
+            try:
+                for hive_db, hive_tbl in self._table_mapping:
+                    odps_pjt, odps_tbl = self._table_mapping[(hive_db, hive_tbl)]
 
-                # wait for available slot
-                self._wait(self._can_submit)
+                    # wait for available slot
+                    self._wait(self._can_submit)
 
-                if self._datasource == "Hive":
-                    migrate = self._migrate_from_hive
-                elif self._datasource == "OSS":
-                    migrate = self._migrate_from_oss
-                else:
-                    raise Exception("Unsupported datasource")
+                    if self._validate_only:
+                        migrate = self._validate
+                    elif self._datasource == "Hive":
+                        migrate = self._migrate_from_hive
+                    elif self._datasource == "OSS":
+                        migrate = self._migrate_from_oss
+                    else:
+                        raise Exception("Unsupported datasource")
 
-                future = executor.submit(migrate,
-                                         hive_db,
-                                         hive_tbl,
-                                         odps_pjt,
-                                         odps_tbl)
-                self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
+                    future = executor.submit(migrate,
+                                             hive_db,
+                                             hive_tbl,
+                                             odps_pjt,
+                                             odps_tbl)
+                    self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, future))
 
-            self._wait(self._can_terminate)
-            progress_reporter.join()
+                self._wait(self._can_terminate)
+                progress_reporter.join()
+            finally:
+                executor.shutdown()
         else:
             self._schedule_tasks()
         print_utils.print_green("[Migration done]\n")
 
-
-        # print_utils.print_yellow("[Cleaning]\n")
-        # shutil.rmtree(self._meta_carrier_output_dir)
-        # shutil.rmtree(self._meta_processor_output_dir)
-        # print_utils.print_green("[Cleaning done]\n")
 
     def stop(self):
         self._global_hive_sql_runner.stop()

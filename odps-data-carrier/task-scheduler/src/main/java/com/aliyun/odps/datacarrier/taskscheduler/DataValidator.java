@@ -3,8 +3,9 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import com.aliyun.odps.datacarrier.commons.DirUtils;
 import com.aliyun.odps.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,7 +16,7 @@ import java.util.Map;
 
 public class DataValidator {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DataValidator.class);
+  private static final Logger LOG = LogManager.getLogger(DataValidator.class);
 
   private static String COUNT_VALIDATION_TASK = "count_validation_task";
   private static String TABLE_MAPPING_PATH = "table_mappings";
@@ -35,7 +36,7 @@ public class DataValidator {
       }
       task.addExecutionInfo(Action.HIVE_VALIDATE, COUNT_VALIDATION_TASK, new HiveExecutionInfo(
           createCountValidationSqlStatement(Action.HIVE_VALIDATE, hiveDB, task.getTableName())));
-
+      LOG.info("Add ExecutionInfo for {}, {}", Action.HIVE_VALIDATE, task.toString());
       String odpsProject = projectMap.get(hiveDB);
       if (StringUtils.isNullOrEmpty(odpsProject)) {
         LOG.error("Get ODPS project error, task {}", task);
@@ -53,7 +54,9 @@ public class DataValidator {
 
       task.addExecutionInfo(Action.ODPS_VALIDATE, COUNT_VALIDATION_TASK, new OdpsExecutionInfo(
           createCountValidationSqlStatement(Action.ODPS_VALIDATE, odpsProject, odpsTable)));
+      LOG.info("Add ExecutionInfo for {}, {}", Action.ODPS_VALIDATE, task.toString());
       task.addActionInfo(Action.VALIDATION);
+      LOG.info("Add ExecutionInfo for {}, {}", Action.VALIDATION, task.toString());
     }
   }
 

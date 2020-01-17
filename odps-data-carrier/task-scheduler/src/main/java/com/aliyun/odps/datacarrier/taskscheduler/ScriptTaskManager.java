@@ -11,15 +11,16 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 
 import static com.aliyun.odps.datacarrier.commons.IntermediateDataManager.*;
 
 
 class ScriptTaskManager implements TaskManager {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ScriptTaskManager.class);
+  private static final Logger LOG = LogManager.getLogger(ScriptTaskManager.class);
 
   protected Map<RunnerType, TaskRunner> taskRunnerMap;
   private String inputPath;
@@ -71,6 +72,11 @@ class ScriptTaskManager implements TaskManager {
           Path sqlScriptDirPath = Paths.get(tableDir.toString(), sqlScriptDir);
 
           Action action = CommonUtils.getSqlActionFromDir(sqlScriptDir);
+
+          if (action.equals(Action.HIVE_VALIDATE) || action.equals(Action.ODPS_VALIDATE)) {
+            LOG.info("Generate validate tasks by DataValidator, ignorint these files {}.", sqlScriptDirPath);
+            continue;
+          }
 
           if (Action.HIVE_LOAD_DATA.equals(action) || Action.ODPS_LOAD_DATA.equals(action)) {
             if (Mode.BATCH.equals(mode)) {

@@ -14,20 +14,24 @@ import java.util.List;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.hive.jdbc.HiveStatement;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 
 
 public class HiveRunner extends AbstractTaskRunner {
 
-  private static final Logger LOG = LoggerFactory.getLogger(HiveRunner.class);
-  private static final Logger RUNNER_LOG = LoggerFactory.getLogger("RunnerLogger");
+  private static final Logger LOG = LogManager.getLogger(HiveRunner.class);
+  private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
   private static String DRIVER_NAME = "org.apache.hive.jdbc.HiveDriver";
   private static String EXTRA_SETTINGS_INI = "extra_settings_jdbc.ini";
-  private static int LOG_INTERVAL = 1000;
 
-  private static Connection con;
+//  private static Connection con;
+
+  private static String jdbcAddress;
+  private static String user;
+  private static String password;
 
   public HiveRunner(String jdbcAddress, String user, String password) {
     try{
@@ -37,13 +41,17 @@ public class HiveRunner extends AbstractTaskRunner {
       throw new RuntimeException("Create HiveRunner failed.");
     }
 
-    try {
-      con = DriverManager.getConnection(jdbcAddress, user, password);
-      LOG.info("Create HiveRunner succeeded.");
-    } catch (SQLException e) {
-      e.printStackTrace();
-      throw new RuntimeException("Create connection to JDBC failed. ");
-    }
+    this.jdbcAddress = jdbcAddress;
+    this.user = user;
+    this.password = password;
+
+//    try {
+//      con = DriverManager.getConnection(jdbcAddress, user, password);
+//      LOG.info("Create HiveRunner succeeded.");
+//    } catch (SQLException e) {
+//      e.printStackTrace();
+//      throw new RuntimeException("Create connection to JDBC failed. ");
+//    }
 
     loadExtraSettings();
   }
@@ -92,13 +100,14 @@ public class HiveRunner extends AbstractTaskRunner {
     public void run() {
       try {
         LOG.info("HiveSqlExecutor execute task {}, {}, {}", task, action, sql);
+        Connection con = DriverManager.getConnection(jdbcAddress, user, password);
         Statement statement = con.createStatement();
         HiveStatement hiveStatement = (HiveStatement) statement;
         HiveExecutionInfo hiveExecutionInfo = null;
         if (task != null) {
          hiveExecutionInfo = (HiveExecutionInfo) task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
         }
-        statement.setQueryTimeout(24 * 60 * 60);
+        //statement.setQueryTimeout(24 * 60 * 60);
         if (hiveExecutionInfo != null) {
           ResultSet resultSet = statement.executeQuery(sql);
           while(resultSet.next()) {
@@ -125,6 +134,7 @@ public class HiveRunner extends AbstractTaskRunner {
           statement.execute(sql);
         }
         statement.close();
+        con.close();
       } catch (SQLException e) {
         LOG.error("Run HIVE Sql failed, " +
             "sql: \n" + sql +
@@ -157,11 +167,5 @@ public class HiveRunner extends AbstractTaskRunner {
 
   public void shutdown() {
     super.shutdown();
-    try {
-      con.close();
-    } catch (SQLException e) {
-      e.printStackTrace();
-      LOG.error("Close connection failed.");
-    }
   }
 }

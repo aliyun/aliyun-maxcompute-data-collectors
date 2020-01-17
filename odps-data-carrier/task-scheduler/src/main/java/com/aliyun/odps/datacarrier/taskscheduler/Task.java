@@ -2,9 +2,13 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 
 class Task {
 
+  private static final Logger LOG = LogManager.getLogger(Task.class);
   protected String project;
   protected String tableName;
   protected long updateTime;
@@ -31,7 +35,7 @@ class Task {
   protected void addExecutionInfo(Action action, String executionTaskName, AbstractExecutionInfo executionInfo) {
     ActionInfo actionInfo = actionInfoMap.computeIfAbsent(action, k -> new ActionInfo());
     if (actionInfo.executionInfoMap.containsKey(executionTaskName)) {
-      System.out.print("Execution task already exists, create failed, " +
+      LOG.warn("Execution task already exists, create failed, " +
           "Action: " + action.name() +
           "TaskName: " + executionTaskName);
       return;

@@ -39,5 +39,9 @@
         <logger name="RunnerLogger" level="all" additivity="false">
             <AppenderRef ref="RunnerLoggerAppender"/>
         </logger>
+        <logger name="org.apache.thrift.transport.TSaslTransport" additivity="false">
+            <level value="INFO" />
+            <AppenderRef ref="LogFile"/>
+        </logger>
     </Loggers>
 </Configuration>

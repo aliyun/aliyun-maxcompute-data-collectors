@@ -1,6 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.metaprocessor.report.ReportBuilder;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -9,10 +8,22 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,11 +52,9 @@ public class TaskScheduler {
   private static final String JDBC_ADDRESS = "jdbc-address";
   private static final String USER = "user";
   private static final String PASSWORD = "password";
-
-
   private static final String HELP = "help";
+  private static final String FAILOVER_OUTPUT = "failover.out";
 
-  private ReportBuilder reportBuilder;
   private TaskManager taskManager;
   private DataValidator dataValidator;
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
@@ -58,31 +67,39 @@ public class TaskScheduler {
   private volatile Throwable savedException;
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<Task> tasks;
+  protected Set<String> finishedTasks;
+  private static Path failoverFilePath;
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
     this.keepRunning = true;
-    this.reportBuilder = new ReportBuilder();
     this.dataValidator = new DataValidator();
     this.actionScheduleInfoMap = new ConcurrentHashMap<>();
     this.actions = new TreeSet<>(new ActionComparator());
     this.heartbeatIntervalMs = new AtomicInteger(HEARTBEAT_INTERVAL_MS);
     this.tasks = new LinkedList<>();
+    this.finishedTasks = new HashSet<>();
   }
 
   private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
                    String jdbcAddress, String user, String password) {
+    this.failoverFilePath = Paths.get(System.getProperty("user.dir"), FAILOVER_OUTPUT);
+    loadFailoverFile();
     this.dataSource = dataSource;
-    generateActions(dataSource);
+    generateActions(this.dataSource);
     this.tableMappingFilePath = tableMappingFilePath;
-    this.taskManager = new ScriptTaskManager(inputPath, actions, mode, jdbcAddress, user, password);
-    tasks.addAll(this.taskManager.generateTasks(actions, mode));
+    this.taskManager = new ScriptTaskManager(this.finishedTasks, inputPath, actions, mode, jdbcAddress, user, password);
+    this.tasks.addAll(this.taskManager.generateTasks(actions, mode));
+    if (this.tasks.isEmpty()) {
+      LOG.info("None tasks to be scheduled.");
+      return;
+    }
     //Add data validator
     if (DataSource.Hive.equals(dataSource)) {
       this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks);
     }
     updateConcurrencyThreshold();
-    heartbeatThread.start();
+    this.heartbeatThread.start();
   }
 
   private void generateActions(DataSource dataSource) {
@@ -175,15 +192,15 @@ public class TaskScheduler {
           LOG.error("Heartbeat interrupted "+ ex.getMessage());
         }
       }
-      if (DataSource.Hive.equals(dataSource)) {
-        LOG.info("Start validating data...");
-        boolean result = dataValidator.validateAllTasksCountResult(tasks);
-        LOG.info("Validate: [{}]", result ? "PASS" : "FAIL");
-      }
+      LOG.info("Finish all tasks.");
     }
   }
 
   private boolean isAllTasksFinished() {
+    if (tasks.isEmpty()) {
+      LOG.info("None tasks to be scheduled.");
+      return true;
+    }
     for (Task task : tasks) {
       StringBuilder csb = new StringBuilder(task.toString());
       StringBuilder sb = new StringBuilder(task.toString());
@@ -229,6 +246,12 @@ public class TaskScheduler {
       if (Action.VALIDATION.equals(action)) {
         if (dataValidator.validateTaskCountResult(task)) {
           task.changeActionProgress(action, Progress.SUCCEEDED);
+
+          // tasks done, write to failover file.
+          if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
+            writeToFailoverFile(task.getTableNameWithProject());
+          }
+
         } else {
           task.changeActionProgress(action, Progress.FAILED);
         }
@@ -250,6 +273,34 @@ public class TaskScheduler {
     }
   }
 
+  private static void writeToFailoverFile(String taskName) {
+    OutputStream os = null;
+    try {
+      os = new FileOutputStream(new File(failoverFilePath.toString()));
+      os.write(taskName.getBytes(), 0, taskName.length());
+    } catch (IOException e) {
+      e.printStackTrace();
+    }finally{
+      try {
+        os.close();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  private void loadFailoverFile() {
+    if (Files.notExists(this.failoverFilePath)) {
+      LOG.info("Failover file is not found, skip failover.");
+      return;
+    }
+    try {
+      List<String> taskNames = Files.readAllLines(this.failoverFilePath);
+      finishedTasks.addAll(taskNames);
+    } catch (Exception e) {
+      LOG.error("Read failover file failed.");
+    }
+  }
 
   private static class ActionComparator implements Comparator<Action> {
     @Override

@@ -224,14 +224,16 @@ class MigrationRunner:
 
     def _schedule_tasks(self):
         if self._jdbc_address is None or self._user is None or self._password is None:
-            print_utils.print_yellow("sh %s -i %s -d %s -m %s \n" % (self._task_scheduler_path,
-                                                                     self._meta_processor_output_dir,
-                                                                     self._datasource,
-                                                                     self._mode))
-            self._execute_command("sh %s -i %s -d %s -m %s \n" % (self._task_scheduler_path,
-                                                                  self._meta_processor_output_dir,
-                                                                  self._datasource,
-                                                                  self._mode))
+            print_utils.print_yellow("sh %s -i %s -d %s -m %s -tm %s\n" % (self._task_scheduler_path,
+                                                                           self._meta_processor_output_dir,
+                                                                           self._datasource,
+                                                                           self._mode,
+                                                                           self._table_mapping_file_path))
+            self._execute_command("sh %s -i %s -d %s -m %s -tm %s\n" % (self._task_scheduler_path,
+                                                                        self._meta_processor_output_dir,
+                                                                        self._datasource,
+                                                                        self._mode,
+                                                                        self._table_mapping_file_path))
         else:
             print_utils.print_yellow(
                 "sh %s -i %s -d %s -m %s -tm %s -ja %s -u %s -p %s \n" % (self._task_scheduler_path,

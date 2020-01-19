@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,6 +23,7 @@ class ScriptTaskManager implements TaskManager {
 
   private static final Logger LOG = LogManager.getLogger(ScriptTaskManager.class);
 
+  private Set<String> finishedTasks;
   protected Map<RunnerType, TaskRunner> taskRunnerMap;
   private String inputPath;
   private IntermediateDataManager intermediateDataManager;
@@ -29,7 +31,9 @@ class ScriptTaskManager implements TaskManager {
   private String user;
   private String password;
 
-  public ScriptTaskManager(String inputPath, SortedSet<Action> actions, Mode mode, String jdbcAddress, String user, String password) {
+  public ScriptTaskManager(Set<String> finishedTasks, String inputPath, SortedSet<Action> actions, Mode mode,
+                           String jdbcAddress, String user, String password) {
+    this.finishedTasks = finishedTasks;
     this.taskRunnerMap = new ConcurrentHashMap<>();
     this.inputPath = inputPath;
     this.jdbcAddress = jdbcAddress;
@@ -66,6 +70,12 @@ class ScriptTaskManager implements TaskManager {
       for (String tableName : intermediateDataManager.listTables(dataBase)) {
         LOG.info("Start generating tasks for [{}.{}]", dataBase, tableName);
         Task task = new Task(dataBase, tableName);
+
+        if (finishedTasks.contains(task.getTableNameWithProject())) {
+          LOG.info("Task {} already finished, skip generate task", task.toString());
+          continue;
+        }
+
         Path tableDir = Paths.get(this.inputPath, dataBase, tableName);
 
         for (String sqlScriptDir : DirUtils.listDirs(tableDir)) {

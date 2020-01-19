@@ -107,22 +107,23 @@ class MigrationRunner:
         self._num_hive_jobs_lock = threading.Lock()
 
     def _execute_command(self, cmd):
-        try:
-            if self._verbose:
-                print_utils.print_yellow("Executing %s\n" % cmd)
-            sp = subprocess.Popen(cmd,
-                                  shell=True,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  encoding='utf-8')
-            stdout, stderr = sp.communicate()
-            if sp.returncode != 0:
-                raise Exception(
-                    "Execute %s failed, stdout: %s, stderr %s\n" % (cmd, stdout, stderr))
-            return stdout, stderr
-        except Exception as e:
-            print_utils.print_red(traceback.format_exc())
-            raise e
+        # try:
+        if self._verbose:
+            print_utils.print_yellow("Executing %s\n" % cmd)
+        sp = subprocess.Popen(cmd,
+                              shell=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              encoding='utf-8')
+        stdout, stderr = sp.communicate()
+        if sp.returncode != 0:
+            # raise Exception(
+            #     "Execute %s failed, stdout: %s, stderr %s\n" % (cmd, stdout, stderr))
+            print_utils.print_red("Execute %s failed, stdout: %s, stderr %s\n" % (cmd, stdout, stderr))
+        return stdout, stderr
+        # except Exception as e:
+        #     print_utils.print_red(traceback.format_exc())
+        #     raise e
 
     def _gather_metadata(self):
         print_utils.print_yellow("[Gathering metadata]\n")

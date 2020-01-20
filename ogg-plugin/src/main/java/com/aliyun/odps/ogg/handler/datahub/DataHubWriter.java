@@ -76,7 +76,8 @@ public class DataHubWriter {
                 }
             }
             if (!flag) {
-                logger.warn("Invalid DataHub compressType {}, default no compress.", configure.getCompressType());
+                logger.warn("DataHubWriter, invalid DataHub compressType, deploy no compress, compressType: {}",
+                        configure.getCompressType());
             }
         }
 
@@ -146,7 +147,8 @@ public class DataHubWriter {
 
         Field field = recordSchema.getField(columnName);
         if (field == null) {
-            throw new IllegalArgumentException("Topic[" + topicName + "] Field[" + columnName + "] is not exist.");
+            logger.error("CheckSchema failed, the field is not exist in DataHub, topic: {}, fieldName: {}", topicName, columnName);
+            throw new IllegalArgumentException("the field is not exist in DataHub");
         }
 
         if (types != null) {
@@ -158,7 +160,9 @@ public class DataHubWriter {
                 }
             }
             if (!flag) {
-                throw new IllegalArgumentException("Topic[" + topicName + "] Field[" + columnName + "] type is invalid.");
+                logger.error("CheckSchema failed, the oracle column corresponding field type is invalid in DataHub," +
+                        " column: {}, filedType: {}", columnName, field.getType().name());
+                throw new IllegalArgumentException("the oracle column corresponding field type is invalid in DataHub");
             }
         }
     }
@@ -227,13 +231,13 @@ public class DataHubWriter {
             try {
                 putRecordsResult = client.putRecords(tableMapping.getProjectName(), tableMapping.getTopicName(), recordEntries);
             } catch (DatahubClientException e) {
-                logger.error("oracle table[{}] put {} records to topic[{}] failed. ",
-                        oracleFullTableName, recordEntries.size(), tableMapping.getTopicName(), e);
+                logger.error("DataHubWriter failed, put records to DataHub failed. table: {}, topic: {}, recordNum: {}",
+                        oracleFullTableName, tableMapping.getTopicName(), recordEntries.size(), e);
                 errorMessage = e.getErrorMessage();
             }
 
             if (putRecordsResult != null && putRecordsResult.getFailedRecordCount() == 0) {
-                logger.info("oracle table[{}] put {} records to topic[{}] successful.",
+                logger.info("DataHubWriter Success, put records to DataHub Success, table: {}, topic: {}, recordNum: {}",
                         oracleFullTableName, recordEntries.size(), tableMapping.getTopicName());
 
                 // save checkpoints
@@ -245,9 +249,10 @@ public class DataHubWriter {
 
             if (configure.getRetryTimes() < 0 || retryCount < configure.getRetryTimes()) {
                 if (putRecordsResult != null && putRecordsResult.getFailedRecordCount() > 0) {
-                    logger.error("oracle table[{}] put {} records to topic[{}] failed. ErrorCode : {}, Message : {}",
-                            oracleFullTableName, putRecordsResult.getFailedRecordCount(),
-                            tableMapping.getTopicName(), putRecordsResult.getPutErrorEntries().get(0).getErrorcode(),
+                    logger.error("DataHubWriter failed, put records to DataHub failed," +
+                                    " table: {}, topic: {}, failedNum: {}, ErrorCode: {}, Message : {}",
+                            oracleFullTableName, tableMapping.getTopicName(), putRecordsResult.getFailedRecordCount(),
+                            putRecordsResult.getPutErrorEntries().get(0).getErrorcode(),
                             putRecordsResult.getPutErrorEntries().get(0).getMessage());
                     recordEntries.clear();
                     List<RecordEntry> failedRecords = putRecordsResult.getFailedRecords();
@@ -264,9 +269,10 @@ public class DataHubWriter {
                                         configure.getDirtyDataFile(),
                                         configure.getDirtyDataFileMaxSize(), errorEntry.getMessage());
                             } else {
-                                throw new RuntimeException(
-                                        "oracle table [" + oracleFullTableName + "] put record to topic["
-                                                + tableMapping.getTopicName() + "] failed. Found dirty data." + JsonHelper.beanToJson(entry));
+                                logger.error("DataHubWriter failed, put records to DataHub failed, found dirty data, " +
+                                                "table: {}, topic: {}, record: {}",
+                                        oracleFullTableName, tableMapping.getTopicName(), JsonHelper.beanToJson(entry));
+                                throw new RuntimeException("put records to DataHub failed, found dirty data");
                             }
                         }
 
@@ -282,8 +288,8 @@ public class DataHubWriter {
                         recordEntries.add(entry);
                     }
                 }
-                logger.warn("oracle table[{}] put record to topic[{}] failed, will retry after {} ms",
-                        oracleFullTableName, tableMapping.getTopicName(), configure.getRetryInterval());
+                logger.warn("DataHubWriter, put records to DataHub failed, will retry after {} ms, table: {}, topic: {}",
+                        configure.getRetryInterval(), oracleFullTableName, tableMapping.getTopicName());
                 try {
                     Thread.sleep(configure.getRetryInterval());
                 } catch (InterruptedException e1) {
@@ -291,7 +297,7 @@ public class DataHubWriter {
                 }
             } else { // no retry or retry count exceed.
 
-                logger.error("oracle table[{}] put record to topic[{}] failed.",
+                logger.error("DataHubWriter failed, put records to DataHub failed, table: {}, topic: {}",
                         oracleFullTableName, tableMapping.getTopicName());
 
                 if (configure.isDirtyDataContinue()) {
@@ -315,9 +321,7 @@ public class DataHubWriter {
                         errorMessage = putRecordsResult.getPutErrorEntries().get(0).getMessage();
                     }
 
-                    throw new RuntimeException(
-                            "oracle table[" + oracleFullTableName + "] put record to topic["
-                                    + tableMapping.getTopicName() + "] failed. " + errorMessage);
+                    throw new RuntimeException("put records to DataHub failed, " + errorMessage);
                 }
                 this.recordCache.get(oracleFullTableName).clear();
                 break;

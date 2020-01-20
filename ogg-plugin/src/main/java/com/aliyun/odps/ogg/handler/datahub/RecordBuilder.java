@@ -73,7 +73,7 @@ public class RecordBuilder {
     public RecordEntry buildRecord(Op op, String opType, TableMapping tableMapping) throws ParseException {
         RecordEntry recordEntry = new RecordEntry();
 
-        logger.debug("oracle table[{}] record [{}]", tableMapping.getOracleFullTableName(), op.getRecord().toString());
+        logger.debug("BuildRecord, oracle table: {}, record: {}", tableMapping.getOracleFullTableName(), op.getRecord().toString());
 
         if (tableMapping.getRecordSchema() == null) {
             // blob topic
@@ -110,10 +110,9 @@ public class RecordBuilder {
         if (StringUtils.isNotBlank(rowIdColumn)) {
             DsToken token = op.getRecord().getUserToken(Constant.ROWID_TOKEN);
             if (!token.isSet()) {
-                logger.error("oracle table[{}] token TKN-ROWID is not set, can not get oracle rowid",
+                logger.error("BuildRecord failed, oracle table token TKN-ROWID is not set, can not get oracle rowid, table: {}",
                         tableMapping.getOracleFullTableName());
-                throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
-                        + "] token TKN-ROWID is not set, can not get oracle rowid");
+                throw new RuntimeException("oracle table token TKN-ROWID is not set, can not get oracle rowid");
             }
             recordData.setField(rowIdColumn, token.getValue());
         }
@@ -130,7 +129,9 @@ public class RecordBuilder {
             } else if (recordSchema.getField(ctime).getType() == FieldType.TIMESTAMP) {
                 recordData.setField(ctime, convertStrToMicroseconds(op.getTimestamp()));
             } else {
-                throw new RuntimeException("DataHub topic[{}] filed[{}] type must be string or timestamp");
+                logger.error("BuildRecord failed, cTimeColumn type must be string or timestamp in DataHub, type: {}",
+                        recordSchema.getField(ctime).getType().name());
+                throw new RuntimeException("cTimeColumn type must be string or timestamp in DataHub");
             }
         }
 
@@ -154,8 +155,8 @@ public class RecordBuilder {
             String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
             ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
             if (columnMapping == null) {
-                logger.debug("oracle table[{}] column[{}] is not configured.", op.getTableMeta().getTableName().getFullName(), columnName);
-
+                logger.debug("BuildRecord, oracle table column is not configured, table: {}, column: {}",
+                        op.getTableMeta().getTableName().getFullName(), columnName);
                 continue;
             }
 
@@ -196,10 +197,10 @@ public class RecordBuilder {
     private void buildBlobRecord(Op op, String opType, TableMapping tableMapping, RecordEntry recordEntry) {
         List<DsColumn> columns = op.getColumns();
         if (tableMapping.getColumnMappings().size() != 1) {
-            logger.error("oracle table[{}] must have only one column for blob topic[{}], but found {} column",
+            logger.error("BuildRecord failed, oracle table must have only one column for blob topic, " +
+                            "oracle table: {}, DataHub topic: {}, column num: {}",
                     tableMapping.getOracleFullTableName(), tableMapping.getTopicName(), op.getNumColumns());
-            throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
-                    + "] must have only one column for blob topic[" + tableMapping.getTopicName() + "]");
+            throw new RuntimeException("oracle table must have only one column for blob topic");
         }
 
         for (int i = 0; i < columns.size(); i++) {
@@ -257,7 +258,8 @@ public class RecordBuilder {
                 recordData.setField(field.getName(), new BigDecimal(val));
                 break;
             default:
-                throw new RuntimeException("Unknown column type: " + field.getType().name() + " ,value is: " + val);
+                logger.error("BuildRecord failed, unknown DataHub filed type, type: {}", field.getType().name());
+                throw new RuntimeException("unknown DataHub filed type " + field.getType().name());
         }
     }
 
@@ -269,6 +271,10 @@ public class RecordBuilder {
 
         // convert yyyy-mm-dd:hh:mm:ss to yyyy-mm-dd hh:mm:ss
         StringBuilder sb = new StringBuilder(timeStr);
+        if (sb.length() < 11) {
+            logger.error("BuildRecord failed, convert timeStr to timestamp failed, invalid timeStr, timeStr: {}", timeStr);
+            throw new RuntimeException("convert timeStr to timestamp failed, invalid timeStr, timeStr: " + timeStr);
+        }
         sb.setCharAt(10, ' ');
         timeStr = sb.toString();
 

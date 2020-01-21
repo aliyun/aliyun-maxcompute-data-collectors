@@ -219,6 +219,11 @@ if __name__ == '__main__':
         required=False,
         type=str,
         help="Specify JDBC password in version=2.")
+    parser.add_argument(
+        "--where",
+        required=False,
+        type=str,
+        help="Specify where condition when migrating data from Hive to MaxCompute.")
 
 
 # optional arguments
@@ -252,7 +257,8 @@ if __name__ == '__main__':
                                        args.jdbc_address,
                                        args.user,
                                        args.password,
-                                       args.table_mapping)
+                                       args.table_mapping,
+                                       args.where)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

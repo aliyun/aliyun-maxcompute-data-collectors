@@ -53,6 +53,7 @@ public class TaskScheduler {
   private static final String USER = "user";
   private static final String PASSWORD = "password";
   private static final String HELP = "help";
+  private static final String WHERE = "where";
   private static final String FAILOVER_OUTPUT = "failover.out";
 
   private TaskManager taskManager;
@@ -82,7 +83,7 @@ public class TaskScheduler {
   }
 
   private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
-                   String jdbcAddress, String user, String password) {
+                   String jdbcAddress, String user, String password, String where) {
     this.failoverFilePath = Paths.get(System.getProperty("user.dir"), FAILOVER_OUTPUT);
     loadFailoverFile();
     this.dataSource = dataSource;
@@ -96,7 +97,7 @@ public class TaskScheduler {
     }
     //Add data validator
     if (DataSource.Hive.equals(dataSource)) {
-      this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks);
+      this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks, where);
     }
     updateConcurrencyThreshold();
     this.heartbeatThread.start();
@@ -249,7 +250,7 @@ public class TaskScheduler {
 
           // tasks done, write to failover file.
           if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
-            writeToFailoverFile(task.getTableNameWithProject());
+            writeToFailoverFile(task.getTableNameWithProject() + "\n");
           }
 
         } else {
@@ -276,7 +277,7 @@ public class TaskScheduler {
   private static void writeToFailoverFile(String taskName) {
     OutputStream os = null;
     try {
-      os = new FileOutputStream(new File(failoverFilePath.toString()));
+      os = new FileOutputStream(new File(failoverFilePath.toString()), true);
       os.write(taskName.getBytes(), 0, taskName.length());
     } catch (IOException e) {
       e.printStackTrace();
@@ -363,6 +364,13 @@ public class TaskScheduler {
         .hasArg()
         .desc("JDBC Password, default value as \"\"")
         .build();
+    Option where = Option
+        .builder("w")
+        .longOpt(WHERE)
+        .argName(WHERE)
+        .hasArg()
+        .desc("where condition")
+        .build();
 
     Option help = Option
         .builder("h")
@@ -379,6 +387,7 @@ public class TaskScheduler {
         .addOption(jdbcAddress)
         .addOption(user)
         .addOption(password)
+        .addOption(where)
         .addOption(help);
 
     CommandLineParser parser = new DefaultParser();
@@ -401,6 +410,7 @@ public class TaskScheduler {
       String cmdJdbcAddress = "jdbc:hive2://127.0.0.1:10000/default";
       String cmdUser = "hive";
       String cmdPassword = "";
+      String whereStr = "";
       if (!cmd.hasOption(JDBC_ADDRESS) || !cmd.hasOption(USER) || !cmd.hasOption(PASSWORD)) {
         System.out.print("Has not set JDBC Info(include jdbc-address, user and password), run TaskScheduler as TEST!\n");
       }
@@ -413,8 +423,11 @@ public class TaskScheduler {
       if (cmd.hasOption(PASSWORD) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(PASSWORD))) {
         cmdPassword = cmd.getOptionValue(PASSWORD);
       }
+      if (cmd.hasOption(WHERE) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(WHERE))) {
+        whereStr = cmd.getOptionValue(WHERE);
+      }
       scheduler.run(cmd.getOptionValue(INPUT_DIR), cmdDataSource, cmdMode, cmd.getOptionValue(TABLE_MAPPING),
-          cmdJdbcAddress, cmdUser, cmdPassword);
+          cmdJdbcAddress, cmdUser, cmdPassword, whereStr);
     } else {
       logHelp(options);
     }

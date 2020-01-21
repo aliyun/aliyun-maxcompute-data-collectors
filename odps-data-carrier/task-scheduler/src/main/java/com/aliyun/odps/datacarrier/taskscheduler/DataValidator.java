@@ -25,7 +25,7 @@ public class DataValidator {
   // hive.database -> (hive.database.tablename -> odps.database.tablename)
   private Map<String, Map<String, String>> tableMap = new HashMap<>();
 
-  public void generateValidateActions(String tableMappingFilePath, List<Task> tasks) {
+  public void generateValidateActions(String tableMappingFilePath, List<Task> tasks, String where) {
     getTableMapping(tableMappingFilePath);
     for (Task task : tasks) {
       String hiveDB = task.getProject();
@@ -34,7 +34,7 @@ public class DataValidator {
         continue;
       }
       task.addExecutionInfo(Action.HIVE_VALIDATE, COUNT_VALIDATION_TASK, new HiveExecutionInfo(
-          createCountValidationSqlStatement(Action.HIVE_VALIDATE, hiveDB, task.getTableName())));
+          createCountValidationSqlStatement(Action.HIVE_VALIDATE, hiveDB, task.getTableName(), where)));
       LOG.info("Add ExecutionInfo for {}, {}", Action.HIVE_VALIDATE, task.toString());
       String odpsProject = projectMap.get(hiveDB);
       if (StringUtils.isNullOrEmpty(odpsProject)) {
@@ -52,7 +52,7 @@ public class DataValidator {
       }
 
       task.addExecutionInfo(Action.ODPS_VALIDATE, COUNT_VALIDATION_TASK, new OdpsExecutionInfo(
-          createCountValidationSqlStatement(Action.ODPS_VALIDATE, odpsProject, odpsTable)));
+          createCountValidationSqlStatement(Action.ODPS_VALIDATE, odpsProject, odpsTable, where)));
       LOG.info("Add ExecutionInfo for {}, {}", Action.ODPS_VALIDATE, task.toString());
       task.addActionInfo(Action.VALIDATION);
       LOG.info("Add ExecutionInfo for {}, {}", Action.VALIDATION, task.toString());
@@ -85,9 +85,10 @@ public class DataValidator {
     }
   }
 
-  private String createCountValidationSqlStatement(Action action, String project, String table) {
+  private String createCountValidationSqlStatement(Action action, String project, String table, String where) {
     StringBuilder sb = new StringBuilder("SELECT count(1) FROM ");
     sb.append(project).append(".`").append(table).append("`");
+    sb.append("\nWHERE " + where + "\n");
     if (Action.ODPS_VALIDATE.equals(action)) {
       sb.append(";");
     }

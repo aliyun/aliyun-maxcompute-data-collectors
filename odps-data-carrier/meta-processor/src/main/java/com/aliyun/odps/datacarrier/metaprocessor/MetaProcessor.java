@@ -472,7 +472,8 @@ public class MetaProcessor {
   private String getMultiPartitionHiveUdtfSql(DatabaseMetaModel databaseMeta,
                                               TableMetaModel tableMeta,
                                               TablePartitionMetaModel tablePartitionMeta,
-                                              int version) {
+                                              int version,
+                                              String where) {
     StringBuilder hiveUdtfSqlBuilder = new StringBuilder();
 
     List<String> hiveColumnNames = new ArrayList<>();
@@ -504,18 +505,23 @@ public class MetaProcessor {
     hiveUdtfSqlBuilder.append("FROM ")
         .append(databaseName).append(".`").append(tableName).append("`").append("\n");
 
-    if (tablePartitionMeta != null &&
-        tablePartitionMeta.partitions != null &&
-        !tablePartitionMeta.partitions.isEmpty() &&
-        tablePartitionMeta.userSpecified) {
+    if (!StringUtils.isNullOrEmpty(where)) {
       hiveUdtfSqlBuilder.append("WHERE\n");
-      for (int i = 0; i < tablePartitionMeta.partitions.size(); i++) {
-        PartitionMetaModel partitionMetaModel = tablePartitionMeta.partitions.get(i);
-        String hivePartitionSpec = getHivePartitionSpecForQuery(tableMeta.partitionColumns,
-            partitionMetaModel.partitionSpec);
-        hiveUdtfSqlBuilder.append(hivePartitionSpec);
-        if (i != tablePartitionMeta.partitions.size() - 1) {
-          hiveUdtfSqlBuilder.append(" OR\n");
+      hiveUdtfSqlBuilder.append(where);
+    } else {
+      if (tablePartitionMeta != null &&
+          tablePartitionMeta.partitions != null &&
+          !tablePartitionMeta.partitions.isEmpty() &&
+          tablePartitionMeta.userSpecified) {
+        hiveUdtfSqlBuilder.append("WHERE\n");
+        for (int i = 0; i < tablePartitionMeta.partitions.size(); i++) {
+          PartitionMetaModel partitionMetaModel = tablePartitionMeta.partitions.get(i);
+          String hivePartitionSpec = getHivePartitionSpecForQuery(tableMeta.partitionColumns,
+              partitionMetaModel.partitionSpec);
+          hiveUdtfSqlBuilder.append(hivePartitionSpec);
+          if (i != tablePartitionMeta.partitions.size() - 1) {
+            hiveUdtfSqlBuilder.append(" OR\n");
+          }
         }
       }
     }
@@ -530,7 +536,9 @@ public class MetaProcessor {
 
   private String getMultiPartitionHiveVerifySql(DatabaseMetaModel databaseMetaModel,
                                                 TableMetaModel tableMetaModel,
-                                                TablePartitionMetaModel tablePartitionMetaModel) {
+                                                TablePartitionMetaModel tablePartitionMetaModel,
+                                                int version,
+                                                String where) {
     StringBuilder hiveVerifySqlBuilder = new StringBuilder();
     hiveVerifySqlBuilder.append("SELECT ");
 
@@ -548,23 +556,31 @@ public class MetaProcessor {
     hiveVerifySqlBuilder.append(databaseMetaModel.databaseName)
             .append(".`").append(tableMetaModel.tableName).append("`\n");
 
-    if (tablePartitionMetaModel != null &&
-        tablePartitionMetaModel.partitions != null &&
-        !tablePartitionMetaModel.partitions.isEmpty() &&
-        tablePartitionMetaModel.userSpecified) {
+    if (!StringUtils.isNullOrEmpty(where)) {
       hiveVerifySqlBuilder.append("WHERE\n");
-      for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
-        PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
-        String hivePartitionSpec = getHivePartitionSpecForQuery(tableMetaModel.partitionColumns,
-                                                                partitionMetaModel.partitionSpec);
-        hiveVerifySqlBuilder.append(hivePartitionSpec);
-        if (i != tablePartitionMetaModel.partitions.size() - 1) {
-          hiveVerifySqlBuilder.append(" OR\n");
+      hiveVerifySqlBuilder.append(where);
+    } else {
+      if (tablePartitionMetaModel != null &&
+          tablePartitionMetaModel.partitions != null &&
+          !tablePartitionMetaModel.partitions.isEmpty() &&
+          tablePartitionMetaModel.userSpecified) {
+        hiveVerifySqlBuilder.append("WHERE\n");
+        for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
+          PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
+          String hivePartitionSpec = getHivePartitionSpecForQuery(tableMetaModel.partitionColumns,
+              partitionMetaModel.partitionSpec);
+          hiveVerifySqlBuilder.append(hivePartitionSpec);
+          if (i != tablePartitionMetaModel.partitions.size() - 1) {
+            hiveVerifySqlBuilder.append(" OR\n");
+          }
         }
       }
     }
-    hiveVerifySqlBuilder.append(";");
 
+    //Use Hive JDBC, sql statements cannot end with ';'
+    if (version == 1) {
+      hiveVerifySqlBuilder.append(";\n");
+    }
     return hiveVerifySqlBuilder.toString();
   }
 
@@ -707,7 +723,7 @@ public class MetaProcessor {
     return filenameBuilder.toString();
   }
 
-  private void run(String inputPath, String outputPath, int version) throws Exception {
+  private void run(String inputPath, String outputPath, int version, String where) throws Exception {
     MetaManager metaManager = new MetaManager(inputPath);
 
     IntermediateDataManager intermediateDataDirManager =
@@ -734,13 +750,14 @@ public class MetaProcessor {
           // Generate Hive UDTF SQL statement
           String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSql(databaseMeta,
               tableMeta,
-              null
-              ,version);
+              null,
+              version,
+              where);
           intermediateDataDirManager.setHiveUdtfSqlMultiPartition(
               databaseName, tableName, multiPartitionHiveUdtfSql);
 
           String multiPartitionHiveVerifySql = getMultiPartitionHiveVerifySql(databaseMeta,
-              tableMeta, null);
+              tableMeta, null, version, where);
           intermediateDataDirManager.setHiveVerifySqlMultiPartition(databaseName, tableName,
               multiPartitionHiveVerifySql);
 
@@ -773,16 +790,17 @@ public class MetaProcessor {
 
           // Generate Hive UDTF SQL statement, Overwrite
           String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSql(databaseMeta,
-                  tableMeta,
-                  tablePartitionMeta,
-                  version);
+              tableMeta,
+              tablePartitionMeta,
+              version,
+              where);
           intermediateDataDirManager.setHiveUdtfSqlMultiPartition(databaseName,
                   partitionTableName,
                   multiPartitionHiveUdtfSql);
 
           // Overwrite
           String multiPartitionHiveVerifySql = getMultiPartitionHiveVerifySql(databaseMeta,
-                  tableMeta, tablePartitionMeta);
+                  tableMeta, tablePartitionMeta, version, where);
           intermediateDataDirManager.setHiveVerifySqlMultiPartition(databaseName, partitionTableName,
                   multiPartitionHiveVerifySql);
 
@@ -849,6 +867,13 @@ public class MetaProcessor {
         .hasArg()
         .desc("Migration task version, 1: ODPS Cmd / Hive Cli; 2: ODPS SDK / Hive JDBC")
         .build();
+    Option where = Option
+        .builder("w")
+        .longOpt("where")
+        .argName("where")
+        .hasArg()
+        .desc("Where condition")
+        .build();
     Option help = Option
         .builder("h")
         .longOpt("help")
@@ -860,6 +885,7 @@ public class MetaProcessor {
     options.addOption(meta);
     options.addOption(outputDir);
     options.addOption(version);
+    options.addOption(where);
     options.addOption(help);
 
     CommandLineParser parser = new DefaultParser();
@@ -868,14 +894,16 @@ public class MetaProcessor {
     if (cmd.hasOption("input-dir") && cmd.hasOption("output-dir") && cmd.hasOption("version")
         && !cmd.hasOption("help")) {
       MetaProcessor metaProcessor = new MetaProcessor();
+      String whereStr = cmd.getOptionValue("where");
       metaProcessor.run(cmd.getOptionValue("input-dir"),
           cmd.getOptionValue("output-dir"),
-          Integer.valueOf(cmd.getOptionValue("version")));
+          Integer.valueOf(cmd.getOptionValue("version")),
+          whereStr);
     } else {
-        HelpFormatter formatter = new HelpFormatter();
-        String cmdLineSyntax =
-            "meta-processor -i <metadata directory> -o <output directory> -m mode [Hive|ExternalTable]";
-        formatter.printHelp(cmdLineSyntax, options);
+      HelpFormatter formatter = new HelpFormatter();
+      String cmdLineSyntax =
+          "meta-processor -i <metadata directory> -o <output directory> -m mode [Hive|ExternalTable]";
+      formatter.printHelp(cmdLineSyntax, options);
     }
   }
 }

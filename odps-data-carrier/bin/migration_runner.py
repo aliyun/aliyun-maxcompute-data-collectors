@@ -476,7 +476,7 @@ class MigrationRunner:
         self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._increase_num_hive_jobs()
         self._transfer_data_from_hive(hive_db, hive_tbl, odps_pjt, odps_tbl)
-        self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        # self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._decrease_num_hive_jobs()
 
 
@@ -487,7 +487,7 @@ class MigrationRunner:
         self._add_partition(hive_db, hive_tbl, odps_pjt, odps_tbl, None)
         self._increase_num_hive_jobs()
         self._transfer_data_from_hive_with_table_split(hive_db, hive_tbl, odps_pjt, odps_tbl)
-        self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        # self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._decrease_num_hive_jobs()
 
 

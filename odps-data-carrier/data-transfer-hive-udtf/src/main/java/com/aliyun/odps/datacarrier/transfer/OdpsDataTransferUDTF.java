@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -205,7 +206,8 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
     return partitionSpecBuilder.toString();
   }
 
-  private void resetUploadSession(String partitionSpec) throws TunnelException, IOException {
+  private void resetUploadSession(String partitionSpec)
+      throws TunnelException, IOException, HiveException {
     // Close current record writer
     if (currentUploadSession != null) {
       recordWriter.close();
@@ -217,21 +219,43 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
     currentOdpsPartitionSpec = partitionSpec;
   }
 
-  private UploadSession getOrCreateUploadSession(String partitionSpec) throws TunnelException {
+  private UploadSession getOrCreateUploadSession(String partitionSpec)
+      throws HiveException {
     UploadSession uploadSession = partitionSpecToUploadSession.get(partitionSpec);
 
     if (uploadSession == null) {
-      if (partitionSpec.isEmpty()) {
-        System.out.println("[Data-carrier] creating record worker");
-        uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
-                                                   odpsTableName);
-        System.out.println("[Data-carrier] creating record worker done");
-      } else {
-        System.out.println("[Data-carrier] creating record worker for " + partitionSpec);
-        uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
-                                                   odpsTableName,
-                                                   new PartitionSpec(partitionSpec));
-        System.out.println("[Data-carrier] creating record worker for " + partitionSpec + " done");
+      int retry = 0;
+      long sleep = 2000;
+      while (true) {
+        try {
+          if (partitionSpec.isEmpty()) {
+            System.out.println("[Data-carrier] creating record worker");
+            uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
+                                                       odpsTableName);
+            System.out.println("[Data-carrier] creating record worker done");
+          } else {
+            System.out.println("[Data-carrier] creating record worker for " + partitionSpec);
+            uploadSession = tunnel.createUploadSession(odps.getDefaultProject(),
+                                                       odpsTableName,
+                                                       new PartitionSpec(partitionSpec));
+            System.out
+                .println("[Data-carrier] creating record worker for " + partitionSpec + " done");
+          }
+          break;
+        } catch (TunnelException e) {
+          System.out.println("[Data-carrier] create session failed, retry: " + retry);
+          e.printStackTrace(System.out);
+          retry++;
+          if (retry > 5) {
+            throw new HiveException(e);
+          }
+          try {
+            Thread.sleep(sleep + ThreadLocalRandom.current().nextLong(3000));
+          } catch (InterruptedException ex) {
+            ex.printStackTrace();
+          }
+          sleep = sleep * 2;
+        }
       }
       partitionSpecToUploadSession.put(partitionSpec, uploadSession);
     }

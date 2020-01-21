@@ -51,7 +51,7 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
-
+import com.aliyun.odps.datacarrier.metacarrier.MetaCarrierConfiguration.MetaCarrierTableConfiguration;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;
 import me.tongfei.progressbar.ProgressBarStyle;
@@ -139,13 +139,14 @@ public class HiveMetaCarrier {
 
   private TablePartitionMetaModel getTablePartitionMeta(String databaseName,
                                                         String tableName,
+                                                        int numOfPartitions,
                                                         List<Map<String, String>> partitionSpecs)
       throws TException {
 
     List<Partition> partitions = new LinkedList<>();
     TablePartitionMetaModel tablePartitionMeta = new TablePartitionMetaModel();
-
-    if (partitionSpecs != null) {
+    tablePartitionMeta.numOfPartitions = numOfPartitions;
+    if (partitionSpecs != null && !partitionSpecs.isEmpty()) {
       tablePartitionMeta.userSpecified = true;
       for (Map<String, String> spec : partitionSpecs) {
         List<String> partVals = new LinkedList<>(spec.values());
@@ -217,12 +218,13 @@ public class HiveMetaCarrier {
             TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
             metaManager.setTableMeta(databaseName, tableMeta);
             // Handle partition meta
-            List<Map<String, String>> partitionSpecs = configuration
+            MetaCarrierTableConfiguration tableConfiguration = configuration
                 .getPartitionsToCarry(databaseName,
                     tableName);
             TablePartitionMetaModel tablePartitionMeta = getTablePartitionMeta(databaseName,
                 tableName,
-                partitionSpecs);
+                tableConfiguration.getNumOfPartitions(),
+                tableConfiguration.getPartitionSpec());
             if (tablePartitionMeta != null) {
               metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
             }
@@ -301,6 +303,13 @@ public class HiveMetaCarrier {
         .hasArgs()
         .desc("Optional, specify tables to migrate. The format should be: <hive db>.<hive table>")
         .build();
+    Option numOfPartitionsOpt = Option
+        .builder("np")
+        .longOpt("num-of-partitions")
+        .argName("num-of-partitions")
+        .hasArgs()
+        .desc("Optional, specify number of partitions to split table.")
+        .build();
     Option configPath = Option
         .builder()
         .longOpt("config")
@@ -344,6 +353,7 @@ public class HiveMetaCarrier {
     options.addOption(help);
     options.addOption(databases);
     options.addOption(tables);
+    options.addOption(numOfPartitionsOpt);
     options.addOption(configPath);
     options.addOption(principal);
     options.addOption(keyTab);
@@ -375,7 +385,10 @@ public class HiveMetaCarrier {
                                                           systemPropertiesValue);
 
     MetaCarrierConfiguration config = new MetaCarrierConfiguration();
-
+    if (options.hasOption("num-of-partitions")) {
+      int numOfPartitions = Integer.valueOf(commandLine.getOptionValue("num-of-partitions"));
+      config.setDefaultNumOfPartitions(numOfPartitions);
+    }
     if (configPathValue != null) {
       config.load(configPathValue);
     }

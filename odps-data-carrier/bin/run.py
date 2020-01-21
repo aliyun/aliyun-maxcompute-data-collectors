@@ -38,32 +38,39 @@ def parse_table_mapping(table_mapping_path):
         hive_db, hive_tbl = hive[: dot_idx].strip(), hive[dot_idx + 1:].strip()
 
         # parse partition spec
-        hive_part_spec = None
+        hive_part_spec = ""
         m = re.search(r'.*\((.*)\)', hive_tbl)
         if m is not None:
             hive_part_spec = m.group(1)
+            print_utils.print_red("hive_part_spec: " + hive_part_spec + "\n")
             hive_tbl = hive_tbl[: -len(hive_part_spec) - 2]
+
+        # parse table config
+        table_config = ""
+        table_macher = re.search(r'.*\{(.*)\}', hive_tbl)
+        if table_macher is not None:
+            table_config = table_macher.group(1)
+            print_utils.print_red("table_config: " + table_config + "\n")
+            hive_tbl = hive_tbl[: -len(table_config) - 2]
 
         try:
             dot_idx = mc.index(".")
         except ValueError as e:
             raise Exception("Cannot parse line: " + line)
         mc_pjt, mc_tbl = mc[: dot_idx].strip(), mc[dot_idx + 1:].strip()
-        return hive_db, hive_tbl, hive_part_spec, mc_pjt, mc_tbl
+        return hive_db, hive_tbl, hive_part_spec, table_config, mc_pjt, mc_tbl
 
     table_mapping = {}
     db_mapping = {}
     with open(table_mapping_path, "r") as fd:
         for line in fd.readlines():
-            (hive_db, hive_tbl, hive_part_spec,
-             mc_pjt, mc_tbl) = parse_line(line)
-            if (hive_db, hive_tbl, hive_part_spec) in table_mapping:
+            (hive_db, hive_tbl, hive_part_spec, table_config, mc_pjt, mc_tbl) = parse_line(line)
+            if (hive_db, hive_tbl, hive_part_spec, table_config) in table_mapping:
                 raise Exception("Duplicated table mapping: " + line)
             if hive_db in db_mapping and db_mapping[hive_db] != mc_pjt:
                 raise Exception("A Hive database is mapped to "
                                 "multiple MaxCompute project: " + line)
-            table_mapping[(hive_db, hive_tbl, hive_part_spec)] = (mc_pjt,
-                                                                  mc_tbl)
+            table_mapping[(hive_db, hive_tbl, hive_part_spec, table_config)] = (mc_pjt, mc_tbl)
             db_mapping[hive_db] = mc_pjt
     return table_mapping
 
@@ -197,6 +204,11 @@ if __name__ == '__main__':
         action="store_const",
         default=False,
         help="Instead of overwrite table, append to it")
+    parser.add_argument(
+        "--num_of_partitions",
+        required=False,
+        type=str,
+        help="""The partitions number of partitioned table split from Hive to MaxCompute in BATCH mode. """)
 
     # optional arguments
     parser.add_argument(
@@ -219,11 +231,15 @@ if __name__ == '__main__':
     else:
         table_mapping = parse_table_mapping(args.table_mapping)
 
+    num_of_partitions = 0
+    if (args.num_of_partitions is not None):
+        num_of_partitions = args.num_of_partitions
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
                                        args.hms_thrift_addr,
                                        args.datasource,
-                                       args.verbose)
+                                       args.verbose,
+                                       num_of_partitions)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

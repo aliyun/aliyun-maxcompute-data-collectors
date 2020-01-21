@@ -217,6 +217,28 @@ public class IntermediateDataManager {
     DirUtils.writeFile(filePath, content);
   }
 
+  public void setHiveUdtfSqlMultiPartitionWithSeq(String databaseName, String tableName, String seq, String content)
+      throws IOException {
+    Path filePath = Paths.get(this.root,
+        databaseName,
+        tableName,
+        HIVE_UDTF_DIR,
+        MULTI_PARTITION_DIR,
+        tableName + "_" + seq + SQL_SUFFIX);
+    DirUtils.writeFile(filePath, content);
+  }
+
+
+  public void deleteHiveUdtfSql(String databaseName, String tableName) throws IOException {
+    Path filePath = Paths.get(this.root,
+        databaseName,
+        tableName,
+        HIVE_UDTF_DIR,
+        MULTI_PARTITION_DIR,
+        tableName + SQL_SUFFIX);
+    Files.delete(filePath);
+  }
+
   public void setOdpsOssTransferSql(String databaseName, String tableName, String content)
       throws IOException {
     Path filePath = Paths.get(this.root,

@@ -33,7 +33,8 @@ class MigrationRunner:
                  table_mapping,
                  hms_thrift_addr,
                  datasource,
-                 verbose):
+                 verbose,
+                 num_of_partitions):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
@@ -42,6 +43,7 @@ class MigrationRunner:
         self._verbose = verbose
         self._validate_only = False
         self._append = False
+        self._num_of_partitions = num_of_partitions
 
         # scheduling properties
         self._dynamic_scheduling = False
@@ -129,23 +131,33 @@ class MigrationRunner:
         print_utils.print_yellow("[Gathering metadata]\n")
         tables = []
         new_table_mapping = {}
-        for hive_db, hive_tbl, hive_part_spec in self._table_mapping:
-            if hive_part_spec is not None:
+        for hive_db, hive_tbl, hive_part_spec, table_config in self._table_mapping:
+            if hive_part_spec is not None and hive_part_spec != "" and table_config is not None and table_config != "":
+                tables.append("%s.%s(%s){%s}" % (hive_db, hive_tbl, hive_part_spec, table_config))
+            elif hive_part_spec is not None and hive_part_spec != "":
                 tables.append("%s.%s(%s)" % (hive_db, hive_tbl, hive_part_spec))
+            elif table_config is not None and table_config != "":
+                tables.append("%s.%s{%s}" % (hive_db, hive_tbl, table_config))
             else:
                 tables.append("%s.%s" % (hive_db, hive_tbl))
 
             # HACK here
-            mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl, hive_part_spec)]
+            mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl, hive_part_spec, table_config)]
             new_table_mapping[(hive_db, hive_tbl)] = (mc_pjt, mc_tbl)
         # replace multiple
         with open(self._meta_carrier_input_path, "w") as fd:
             fd.write("\n".join(tables))
 
-        self._execute_command("sh %s -u %s -config %s -o %s" % (self._meta_carrier_path,
-                                                                self._hms_thrift_addr,
-                                                                self._meta_carrier_input_path,
-                                                                self._meta_carrier_output_dir))
+        print_utils.print_yellow("sh %s -u %s -config %s -o %s -np %s\n" % (self._meta_carrier_path,
+                                                                          self._hms_thrift_addr,
+                                                                          self._meta_carrier_input_path,
+                                                                          self._meta_carrier_output_dir,
+                                                                          self._num_of_partitions))
+        self._execute_command("sh %s -u %s -config %s -o %s -np %s" % (self._meta_carrier_path,
+                                                                       self._hms_thrift_addr,
+                                                                       self._meta_carrier_input_path,
+                                                                       self._meta_carrier_output_dir,
+                                                                       self._num_of_partitions))
         os.unlink(self._meta_carrier_input_path)
         self._table_mapping = new_table_mapping
         print_utils.print_green("[Gathering metadata Done]\n")
@@ -209,6 +221,9 @@ class MigrationRunner:
 
     def _process_metadata(self):
         print_utils.print_yellow("[Processing metadata]\n")
+        print_utils.print_yellow("sh %s -i %s -o %s\n" % (self._meta_processor_path,
+                                                        self._meta_carrier_output_dir,
+                                                        self._meta_processor_output_dir))
         self._execute_command("sh %s -i %s -o %s" % (self._meta_processor_path,
                                                      self._meta_carrier_output_dir,
                                                      self._meta_processor_output_dir))
@@ -233,6 +248,58 @@ class MigrationRunner:
             # wait for success
             create_table_future.result()
 
+            # add partitions
+            add_partition_futures = []
+            scripts = os.listdir(odps_ddl_dir)
+            for script in scripts:
+                if "create_table.sql" == script:
+                    continue
+                script_path = os.path.join(odps_ddl_dir, script)
+                add_partition_futures.append(odps_sql_runner.execute_script(hive_db,
+                                                                            hive_tbl,
+                                                                            script_path,
+                                                                            odps_log_dir,
+                                                                            True))
+            # wait for success
+            for future in add_partition_futures:
+                future.result()
+        except Exception as e:
+            raise e
+        finally:
+            odps_sql_runner.stop()
+
+    def _create_table_only(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        # parallelism set to 1 to avoid OTS conflicts
+        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 1, self._verbose)
+        try:
+            odps_ddl_dir = os.path.join(self._meta_processor_output_dir,
+                                        hive_db,
+                                        hive_tbl,
+                                        "odps_ddl")
+            odps_log_dir = os.path.join(self._odps_log_root_dir, hive_db, hive_tbl)
+            # create table
+            script_path = os.path.join(odps_ddl_dir, "create_table.sql")
+            create_table_future = odps_sql_runner.execute_script(hive_db,
+                                                                 hive_tbl,
+                                                                 script_path,
+                                                                 odps_log_dir,
+                                                                 True)
+            # wait for success
+            create_table_future.result()
+        except Exception as e:
+            raise e
+        finally:
+            odps_sql_runner.stop()
+
+    def _add_partition(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        # parallelism set to 1 to avoid OTS conflicts
+        odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 1, self._verbose)
+        try:
+            odps_ddl_dir = os.path.join(self._meta_processor_output_dir,
+                                        hive_db,
+                                        hive_tbl,
+                                        "odps_ddl")
+            odps_log_dir = os.path.join(self._odps_log_root_dir, hive_db, hive_tbl)
             # add partitions
             add_partition_futures = []
             scripts = os.listdir(odps_ddl_dir)
@@ -308,6 +375,25 @@ class MigrationRunner:
         except Exception as e:
             raise e
 
+    def _transfer_data_from_hive_with_table_split(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        try:
+            hive_sql_dir = os.path.join(self._meta_processor_output_dir,
+                                        hive_db,
+                                        hive_tbl,
+                                        "hive_udtf_sql",
+                                        "multi_partition")
+            scripts = os.listdir(hive_sql_dir)
+            for script in scripts:
+                hive_sql_script_path = os.path.join(hive_sql_dir, script)
+                hive_log_dir = os.path.join(self._hive_log_root_dir, hive_db, hive_tbl)
+                self._global_hive_sql_runner.execute_script(hive_db,
+                                                            hive_tbl,
+                                                            hive_sql_script_path,
+                                                            hive_log_dir,
+                                                            True).result()
+        except Exception as e:
+            raise e
+
     def _transfer_data_from_oss(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
             transfer_sql_dir = os.path.join(self._meta_processor_output_dir,
@@ -369,6 +455,18 @@ class MigrationRunner:
         self._transfer_data_from_hive(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
         self._decrease_num_hive_jobs()
+
+
+    def _migrate_from_hive_with_table_split(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        # failover, mode
+        self._create_table_only(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        # full table, none-failover mode
+        self._add_partition(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._increase_num_hive_jobs()
+        self._transfer_data_from_hive_with_table_split(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._decrease_num_hive_jobs()
+
 
     def _migrate_from_oss(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         self._build_table(hive_db, hive_tbl, odps_pjt, odps_tbl)
@@ -504,7 +602,10 @@ class MigrationRunner:
                 if self._validate_only:
                     migrate = self._validate
                 elif self._datasource == "Hive":
-                    migrate = self._migrate_from_hive
+                    if int(self._num_of_partitions) > 0:
+                        migrate = self._migrate_from_hive_with_table_split
+                    else:
+                        migrate = self._migrate_from_hive
                 elif self._datasource == "OSS":
                     migrate = self._migrate_from_oss
                 else:

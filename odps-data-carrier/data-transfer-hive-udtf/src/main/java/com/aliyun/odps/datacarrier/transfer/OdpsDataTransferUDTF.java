@@ -109,7 +109,12 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
         odps.setEndpoint(odpsConfig.getOdpsEndpoint());
         tunnel = new TableTunnel(odps);
         if (odpsConfig.getTunnelEndpoint() != null) {
-          tunnel.setEndpoint(odpsConfig.getTunnelEndpoint());
+          if (odpsConfig.getTunnelEndpoint2() != null) {
+            tunnel.setEndpoint(ThreadLocalRandom.current().nextBoolean() ?
+                               odpsConfig.getTunnelEndpoint() : odpsConfig.getTunnelEndpoint2());
+          } else {
+            tunnel.setEndpoint(odpsConfig.getTunnelEndpoint());
+          }
         }
       }
 

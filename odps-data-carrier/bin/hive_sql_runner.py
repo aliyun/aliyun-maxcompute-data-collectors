@@ -132,9 +132,11 @@ class HiveSQLRunner:
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
+
         sql = self._get_runnable_hive_sql_from_file(sql_script_path, is_udtf_sql)
         temp_script_path = self._create_temp_sql_script(database_name, table_name, sql)
-        command = "hive -f %s" % temp_script_path
+        # command = "hive -f %s" % temp_script_path
+        command = "export MMA_OPTS=-Xmx5120m; hive -f %s" % temp_script_path
         return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def execute(self,

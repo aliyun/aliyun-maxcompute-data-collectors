@@ -209,6 +209,11 @@ if __name__ == '__main__':
         required=False,
         type=str,
         help="""The partitions number of partitioned table split from Hive to MaxCompute in BATCH mode. """)
+    parser.add_argument(
+        "--failover_file",
+        required=False,
+        type=str,
+        help="""Rerun the failed tables list in failover_file. """)
 
     # optional arguments
     parser.add_argument(
@@ -234,12 +239,17 @@ if __name__ == '__main__':
     num_of_partitions = 0
     if (args.num_of_partitions is not None):
         num_of_partitions = args.num_of_partitions
+
+    failover_file = None
+    if (args.failover_file is not None):
+        failover_file = args.failover_file
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
                                        args.hms_thrift_addr,
                                        args.datasource,
                                        args.verbose,
-                                       num_of_partitions)
+                                       num_of_partitions,
+                                       failover_file)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

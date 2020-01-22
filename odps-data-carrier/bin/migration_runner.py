@@ -752,9 +752,6 @@ class MigrationRunner:
                             future = executor.submit(self._transfer_data_from_hive_with_table_split_file,
                                                      hive_db, hive_tbl, odps_pjt, odps_tbl, hive_sql_dir, script)
                             self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, script, future))
-                            while True:
-                                if future.done():
-                                    break
 
                         # all scripts are executed and done,
                         self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "transfer_data", future))

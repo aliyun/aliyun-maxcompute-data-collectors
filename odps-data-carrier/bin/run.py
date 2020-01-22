@@ -42,7 +42,6 @@ def parse_table_mapping(table_mapping_path):
         m = re.search(r'.*\((.*)\)', hive_tbl)
         if m is not None:
             hive_part_spec = m.group(1)
-            print_utils.print_red("hive_part_spec: " + hive_part_spec + "\n")
             hive_tbl = hive_tbl[: -len(hive_part_spec) - 2]
 
         # parse table config
@@ -50,7 +49,6 @@ def parse_table_mapping(table_mapping_path):
         table_macher = re.search(r'.*\{(.*)\}', hive_tbl)
         if table_macher is not None:
             table_config = table_macher.group(1)
-            print_utils.print_red("table_config: " + table_config + "\n")
             hive_tbl = hive_tbl[: -len(table_config) - 2]
 
         try:
@@ -210,7 +208,12 @@ if __name__ == '__main__':
         type=str,
         help="""The partitions number of partitioned table split from Hive to MaxCompute in BATCH mode. """)
     parser.add_argument(
-        "--failover_file",
+        "--failover_failed_file",
+        required=False,
+        type=str,
+        help="""Rerun the failed tables list in failover_file. """)
+    parser.add_argument(
+        "--failover_success_file",
         required=False,
         type=str,
         help="""Rerun the failed tables list in failover_file. """)
@@ -240,16 +243,25 @@ if __name__ == '__main__':
     if (args.num_of_partitions is not None):
         num_of_partitions = args.num_of_partitions
 
-    failover_file = None
-    if (args.failover_file is not None):
-        failover_file = args.failover_file
+    failover_failed_file = None
+    failover_success_file = None
+    if args.failover_failed_file is not None and args.failover_success_file is not None:
+        print_utils.print_red("Only support one failover file! Check failover_failed_file and " +
+                              "failover_success_file can not both be specified.")
+        sys.exit(1)
+    elif args.failover_failed_file is not None:
+        failover_failed_file = args.failover_failed_file
+    elif args.failover_success_file is not None:
+        failover_success_file = args.failover_success_file
+
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
                                        args.hms_thrift_addr,
                                        args.datasource,
                                        args.verbose,
                                        num_of_partitions,
-                                       failover_file)
+                                       failover_failed_file,
+                                       failover_success_file)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

@@ -158,6 +158,9 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
 
       // Get partition spec
       String partitionSpec = getPartitionSpec();
+      if (partitionSpec.contains("__HIVE_DEFAULT_PARTITION__")) {
+        return;
+      }
 
       // Create new tunnel upload session & record writer or reuse the current ones
       if (currentOdpsPartitionSpec == null || !currentOdpsPartitionSpec.equals(partitionSpec)) {

@@ -730,11 +730,11 @@ class MigrationRunner:
                                     break
 
                         # step4. validate data
-                        future = executor.submit(self._validate_data, hive_db, hive_tbl, odps_pjt, odps_tbl)
-                        self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "validate_data", future))
-                        while True:
-                            if future.done():
-                                break
+                        # future = executor.submit(self._validate_data, hive_db, hive_tbl, odps_pjt, odps_tbl)
+                        # self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "validate_data", future))
+                        # while True:
+                        #     if future.done():
+                        #         break
 
                         self._decrease_num_hive_jobs()
 

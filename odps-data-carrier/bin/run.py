@@ -235,7 +235,7 @@ if __name__ == '__main__':
 
     table_mapping = {}
     if args.mode == "SINGLE":
-        table_mapping = {(args.hive_db, args.hive_table): (args.mc_project, args.mc_table)}
+        table_mapping = {(args.hive_db, args.hive_table, "", ""): (args.mc_project, args.mc_table)}
     else:
         table_mapping = parse_table_mapping(args.table_mapping)
 

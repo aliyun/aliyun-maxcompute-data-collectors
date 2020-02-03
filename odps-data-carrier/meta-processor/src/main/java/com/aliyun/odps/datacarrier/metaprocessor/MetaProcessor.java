@@ -616,15 +616,15 @@ public class MetaProcessor {
     StringBuilder hiveVerifySqlBuilder = new StringBuilder();
     hiveVerifySqlBuilder.append("SELECT ");
 
-//    if (tablePartitionMetaModel != null &&
-//        tablePartitionMetaModel.partitions != null &&
-//        !tablePartitionMetaModel.partitions.isEmpty()) {
-//      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
-//        ColumnMetaModel columnMetaModel = tableMetaModel.partitionColumns.get(i);
-//        hiveVerifySqlBuilder.append(columnMetaModel.columnName);
-//        hiveVerifySqlBuilder.append(", ");
-//      }
-//    }
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        hiveVerifySqlBuilder.append("`").append(c.columnName).append("`");
+        hiveVerifySqlBuilder.append(", ");
+      }
+    }
 
     hiveVerifySqlBuilder.append("COUNT(1) FROM\n");
     hiveVerifySqlBuilder.append(databaseMetaModel.databaseName)
@@ -632,16 +632,39 @@ public class MetaProcessor {
 
     if (tablePartitionMetaModel != null &&
         tablePartitionMetaModel.partitions != null &&
-        !tablePartitionMetaModel.partitions.isEmpty() &&
-        (tablePartitionMetaModel.userSpecified || withPartition)) {
-      hiveVerifySqlBuilder.append("WHERE\n");
-      for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
-        PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
-        String hivePartitionSpec = getHivePartitionSpecForQuery(tableMetaModel.partitionColumns,
-                                                                partitionMetaModel.partitionSpec);
-        hiveVerifySqlBuilder.append(hivePartitionSpec);
-        if (i != tablePartitionMetaModel.partitions.size() - 1) {
-          hiveVerifySqlBuilder.append(" OR\n");
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+
+      // Add where condition only when:
+      //   1. the partitions is specified by user
+      //   2. under partition aggregation mode
+      if (tablePartitionMetaModel.userSpecified || withPartition) {
+        hiveVerifySqlBuilder.append("WHERE\n");
+        for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
+          PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
+          String hivePartitionSpec = getHivePartitionSpecForQuery(tableMetaModel.partitionColumns,
+                                                                  partitionMetaModel.partitionSpec);
+          hiveVerifySqlBuilder.append(hivePartitionSpec);
+          if (i != tablePartitionMetaModel.partitions.size() - 1) {
+            hiveVerifySqlBuilder.append(" OR\n");
+          }
+        }
+      }
+
+      hiveVerifySqlBuilder.append("\nGROUP BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        hiveVerifySqlBuilder.append("`").append(c.columnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          hiveVerifySqlBuilder.append(", ");
+        }
+      }
+
+      hiveVerifySqlBuilder.append("\nORDER BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        hiveVerifySqlBuilder.append("`").append(c.columnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          hiveVerifySqlBuilder.append(", ");
         }
       }
     }
@@ -654,40 +677,68 @@ public class MetaProcessor {
                                                 TableMetaModel tableMetaModel,
                                                 TablePartitionMetaModel tablePartitionMetaModel,
                                                 boolean withPartition) {
-    StringBuilder hiveVerifySqlBuilder = new StringBuilder("SET odps.sql.allow.fullscan=true;\n");
-    hiveVerifySqlBuilder.append("SELECT ");
+    StringBuilder odpsVerifySqlBuilder = new StringBuilder("SET odps.sql.allow.fullscan=true;\n");
+    odpsVerifySqlBuilder.append("SELECT ");
 
-//    if (tablePartitionMetaModel != null &&
-//        tablePartitionMetaModel.partitions != null &&
-//        !tablePartitionMetaModel.partitions.isEmpty()) {
-//      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
-//        ColumnMetaModel columnMetaModel = tableMetaModel.partitionColumns.get(i);
-//        hiveVerifySqlBuilder.append(columnMetaModel.columnName);
-//        hiveVerifySqlBuilder.append(", ");
-//      }
-//    }
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel columnMetaModel = tableMetaModel.partitionColumns.get(i);
+        odpsVerifySqlBuilder.append("`").append(columnMetaModel.odpsColumnName).append("`");
+        odpsVerifySqlBuilder.append(", ");
+      }
+    }
 
-    hiveVerifySqlBuilder.append("COUNT(1) FROM\n");
-    hiveVerifySqlBuilder.append(databaseMetaModel.odpsProjectName)
+    odpsVerifySqlBuilder.append("COUNT(1) FROM\n");
+    odpsVerifySqlBuilder.append(databaseMetaModel.odpsProjectName)
             .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
     if (tablePartitionMetaModel != null &&
         tablePartitionMetaModel.partitions != null &&
-        !tablePartitionMetaModel.partitions.isEmpty() &&
-        (tablePartitionMetaModel.userSpecified || withPartition)) {
-      hiveVerifySqlBuilder.append("WHERE\n");
-      for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
-        PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
-        String hivePartitionSpec = getOdpsPartitionSpecForQuery(tableMetaModel.partitionColumns,
-                partitionMetaModel.partitionSpec);
-        hiveVerifySqlBuilder.append(hivePartitionSpec);
-        if (i != tablePartitionMetaModel.partitions.size() - 1) {
-          hiveVerifySqlBuilder.append(" OR\n");
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+
+      // Add where condition only when:
+      //   1. the partitions is specified by user
+      //   2. under partition aggregation mode
+      if (tablePartitionMetaModel.userSpecified || withPartition) {
+        odpsVerifySqlBuilder.append("WHERE\n");
+        for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
+          PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
+          String hivePartitionSpec = getOdpsPartitionSpecForQuery(tableMetaModel.partitionColumns,
+                                                                  partitionMetaModel.partitionSpec);
+          odpsVerifySqlBuilder.append(hivePartitionSpec);
+          if (i != tablePartitionMetaModel.partitions.size() - 1) {
+            odpsVerifySqlBuilder.append(" OR\n");
+          }
         }
       }
-    }
-    hiveVerifySqlBuilder.append(";");
 
-    return hiveVerifySqlBuilder.toString();
+      odpsVerifySqlBuilder.append("\nGROUP BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        odpsVerifySqlBuilder.append("`").append(c.odpsColumnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          odpsVerifySqlBuilder.append(", ");
+        }
+      }
+
+      odpsVerifySqlBuilder.append("\nORDER BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        odpsVerifySqlBuilder.append("`").append(c.odpsColumnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          odpsVerifySqlBuilder.append(", ");
+        }
+      }
+
+      odpsVerifySqlBuilder
+          .append("\nLIMIT")
+          .append(" ")
+          .append(tablePartitionMetaModel.partitions.size());
+    }
+    odpsVerifySqlBuilder.append(";");
+
+    return odpsVerifySqlBuilder.toString();
   }
 
 
@@ -895,6 +946,7 @@ public class MetaProcessor {
                 partitionTableName,
                 addPartitionStatements);
 
+            // TODO: pass startPartitionIndex and endPartitionIndex to getMultiPartitionHiveVerifySql
             // Overwrite
             String multiPartitionHiveVerifySql = getMultiPartitionHiveVerifySql(databaseMeta,
                 tableMeta, tablePartitionMeta, true);
@@ -918,8 +970,7 @@ public class MetaProcessor {
 
             // Generate ODPS add partition statements
             List<String> addPartitionStatements = getAddPartitionStatements(databaseMeta,
-                tableMeta,
-                tablePartitionMeta, 1000, false);
+                tableMeta, tablePartitionMeta, 1000, true);
 
             // Each add partition statement file contains less than 1000 ODPS DDLs
             intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName,
@@ -936,7 +987,6 @@ public class MetaProcessor {
                 tableMeta, tablePartitionMeta, false);
             intermediateDataDirManager.setOdpsVerifySqlMultiPartition(databaseName, partitionTableName,
                 multiPartitionOdpsVerifySql);
-
           }
 
           // Generate ODPS add external partition statements & data transfer SQL

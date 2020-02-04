@@ -96,6 +96,8 @@ class MigrationRunner:
                                                    "succeed_%s.txt" % self._timestamp)
         self._failed_job_list_path = os.path.join(self._odps_data_carrier_dir,
                                                   "failed_%s.txt" % self._timestamp)
+        self._validate_failed_job_list_path = os.path.join(
+            self._odps_data_carrier_dir, "validate_failed_%s.txt" % self._timestamp)
 
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,
@@ -463,25 +465,38 @@ class MigrationRunner:
 
     def _validate_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
-            hive_verify_sql_path = os.path.join(self._meta_processor_output_dir,
+            hive_verify_sql_dir = os.path.join(self._meta_processor_output_dir,
                                                 hive_db,
                                                 hive_tbl,
-                                                "hive_verify_sql",
-                                                hive_tbl + ".sql")
+                                                "hive_verify_sql")
+            hive_verify_sql_scripts = os.listdir(hive_verify_sql_dir)
 
-            odps_verify_sql_path = os.path.join(self._meta_processor_output_dir,
-                                                hive_db,
-                                                hive_tbl,
-                                                "odps_verify_sql",
-                                                hive_tbl + ".sql")
-
-            if not self._data_validator.verify(hive_db,
+            odps_verify_sql_dir = os.path.join(self._meta_processor_output_dir,
+                                               hive_db,
                                                hive_tbl,
-                                               odps_pjt,
-                                               odps_tbl,
-                                               hive_verify_sql_path,
-                                               odps_verify_sql_path,
-                                               self._verify_log_root_dir):
+                                               "odps_verify_sql")
+            odps_verify_sql_scripts = os.listdir(odps_verify_sql_dir)
+
+            if len(hive_verify_sql_scripts) != len(odps_verify_sql_scripts):
+                raise Exception("Validation failed due to different sql count")
+
+            validation_succeed = True
+            # TODO: parallel execution here?
+            for i in range(0, len(hive_verify_sql_scripts)):
+                hive_verify_sql_path = os.path.join(hive_verify_sql_dir,
+                                                    hive_verify_sql_scripts[i])
+                odps_verify_sql_path = os.path.join(odps_verify_sql_dir,
+                                                    odps_verify_sql_scripts[i])
+                if not self._data_validator.verify(hive_db,
+                                                   hive_tbl,
+                                                   odps_pjt,
+                                                   odps_tbl,
+                                                   hive_verify_sql_path,
+                                                   odps_verify_sql_path,
+                                                   self._verify_log_root_dir):
+                    validation_succeed = False
+
+            if not validation_succeed:
                 raise Exception("Data validation failed")
         except Exception as e:
             raise e
@@ -650,20 +665,21 @@ class MigrationRunner:
                 split_idx = mc_tbl_file.index("|")
             except ValueError as e:
                 raise Exception("Cannot parse line: " + line)
-            mc_tbl, sqlFile = mc_tbl_file[: split_idx].strip(), mc_tbl_file[split_idx + 1:].strip()
-            return hive_db, hive_tbl, mc_pjt, mc_tbl, sqlFile
+            mc_tbl, sql_file = mc_tbl_file[: split_idx].strip(), mc_tbl_file[split_idx + 1:].strip()
+            return hive_db, hive_tbl, mc_pjt, mc_tbl, sql_file
 
         filter_table_mapping = {}
         with open(failover_file_path, "r") as fd:
             for line in fd.readlines():
                 if line[0] == "#":
                     continue
-                (hive_db, hive_tbl, mc_pjt, mc_tbl, sqlFile) = parse_line(line)
-            fileIndex = self.parse_file_index(sqlFile)
-            if (hive_db, hive_tbl) not in filter_table_mapping.keys():
-                filter_table_mapping[(hive_db, hive_tbl)] = {fileIndex}
-            else:
-                filter_table_mapping[(hive_db, hive_tbl)].add(fileIndex)
+                hive_db, hive_tbl, mc_pjt, mc_tbl, sql_file = parse_line(line)
+                file_index = self.parse_file_index(sql_file)
+                if (hive_db, hive_tbl) not in filter_table_mapping.keys():
+                    filter_table_mapping[(hive_db, hive_tbl)] = {file_index}
+                else:
+                    filter_table_mapping[(hive_db, hive_tbl)].add(file_index)
+        print(filter_table_mapping)
         return filter_table_mapping
 
     def parse_file_index(self, fileName):
@@ -710,7 +726,6 @@ class MigrationRunner:
                             filter_table_mapping = self.parse_failover_file(self._failover_failed_file)
                         if self._failover_mode == "Success":
                             filter_table_mapping = self.parse_failover_file(self._failover_success_file)
-
 
                         ## split _migrate_from_hive_with_table_split into 4 steps.
                         # migrate = self._migrate_from_hive_with_table_split
@@ -773,20 +788,20 @@ class MigrationRunner:
                                            future))
 
                         # step4. validate data
-                        future = executor.submit(self._validate_data,
-                                                 hive_db,
-                                                 hive_tbl,
-                                                 odps_pjt,
-                                                 odps_tbl)
-                        self._jobs.append((hive_db,
-                                           hive_tbl,
-                                           odps_pjt,
-                                           odps_tbl,
-                                           "validate_data",
-                                           future))
-                        while True:
-                            if future.done():
-                                break
+                        # future = executor.submit(self._validate_data,
+                        #                          hive_db,
+                        #                          hive_tbl,
+                        #                          odps_pjt,
+                        #                          odps_tbl)
+                        # self._jobs.append((hive_db,
+                        #                    hive_tbl,
+                        #                    odps_pjt,
+                        #                    odps_tbl,
+                        #                    "validate_data",
+                        #                    future))
+                        # while True:
+                        #     if future.done():
+                        #         break
 
                         self._decrease_num_hive_jobs()
 
@@ -797,7 +812,7 @@ class MigrationRunner:
                 else:
                     raise Exception("Unsupported datasource")
 
-                if int(self._num_of_partitions) == 0:
+                if int(self._num_of_partitions) == 0 or self._validate_only:
                     future = executor.submit(migrate,
                                              hive_db,
                                              hive_tbl,
@@ -810,8 +825,10 @@ class MigrationRunner:
         except Exception as e:
             traceback.print_exc()
             print_utils.print_red("[Migration failed]" + str(e) + "\n")
-        # finally:
-        #     executor.shutdown()
+        finally:
+            self._global_hive_sql_runner.stop()
+            self._data_validator.stop()
+            executor.shutdown()
         print_utils.print_green("[Migration done]\n")
 
     def stop(self):

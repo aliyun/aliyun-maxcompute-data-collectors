@@ -133,7 +133,7 @@ public class IntermediateDataManager {
   }
 
   public List<String> getHiveUdtfSqlSinglePartition(String databaseName,
-                                               String tableName) throws IOException {
+                                                    String tableName) throws IOException {
     List<String> hiveUdtfSqlSinglePartition = new ArrayList<>();
     Path hiveSinglePartitionUdtfSqlDir = Paths.get(this.root,
                                                    databaseName,
@@ -220,34 +220,34 @@ public class IntermediateDataManager {
   public void setHiveUdtfSqlMultiPartitionWithSeq(String databaseName, String tableName, String seq, String content)
       throws IOException {
     Path filePath = Paths.get(this.root,
-        databaseName,
-        tableName,
-        HIVE_UDTF_DIR,
-        MULTI_PARTITION_DIR,
-        tableName + "_" + seq + SQL_SUFFIX);
+                              databaseName,
+                              tableName,
+                              HIVE_UDTF_DIR,
+                              MULTI_PARTITION_DIR,
+                              tableName + "_" + seq + SQL_SUFFIX);
     DirUtils.writeFile(filePath, content);
   }
 
 
   public void deleteSqlOfFullScanTable(String databaseName, String tableName) throws IOException {
     Path filePath = Paths.get(this.root,
-        databaseName,
-        tableName,
-        HIVE_UDTF_DIR,
-        MULTI_PARTITION_DIR,
-        tableName + SQL_SUFFIX);
+                              databaseName,
+                              tableName,
+                              HIVE_UDTF_DIR,
+                              MULTI_PARTITION_DIR,
+                              tableName + SQL_SUFFIX);
     Files.delete(filePath);
     filePath = Paths.get(this.root,
-        databaseName,
-        tableName,
-        HIVE_VERIFY_DIR,
-        tableName + SQL_SUFFIX);
+                         databaseName,
+                         tableName,
+                         HIVE_VERIFY_DIR,
+                         tableName + SQL_SUFFIX);
     Files.delete(filePath);
     filePath = Paths.get(this.root,
-        databaseName,
-        tableName,
-        ODPS_VERIFY_DIR,
-        tableName + SQL_SUFFIX);
+                         databaseName,
+                         tableName,
+                         ODPS_VERIFY_DIR,
+                         tableName + SQL_SUFFIX);
     Files.delete(filePath);
   }
 
@@ -301,10 +301,10 @@ public class IntermediateDataManager {
   public void setHiveVerifySqlMultiPartitionWithSeq(String databaseName, String tableName, String seq, String content)
       throws IOException {
     Path filePath = Paths.get(this.root,
-        databaseName,
-        tableName,
-        HIVE_VERIFY_DIR,
-        tableName + "_" + seq + SQL_SUFFIX);
+                              databaseName,
+                              tableName,
+                              HIVE_VERIFY_DIR,
+                              tableName + "_" + seq + SQL_SUFFIX);
     DirUtils.writeFile(filePath, content);
   }
 
@@ -321,10 +321,10 @@ public class IntermediateDataManager {
   public void setOdpsVerifySqlMultiPartitionWithSeq(String databaseName, String tableName, String seq, String content)
       throws IOException {
     Path filePath = Paths.get(this.root,
-        databaseName,
-        tableName,
-        ODPS_VERIFY_DIR,
-        tableName + "_" + seq + SQL_SUFFIX);
+                              databaseName,
+                              tableName,
+                              ODPS_VERIFY_DIR,
+                              tableName + "_" + seq + SQL_SUFFIX);
     DirUtils.writeFile(filePath, content);
   }
 

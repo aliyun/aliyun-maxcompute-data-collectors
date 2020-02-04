@@ -49,7 +49,6 @@ class MigrationRunner:
         self._failover_failed_file = failover_failed_file
         self._failover_success_file = failover_success_file
 
-        self._tables_validate_result = {}
         self._failover_mode = None
         if self._failover_failed_file is not None:
             self._failover_mode = "Failed"
@@ -97,8 +96,8 @@ class MigrationRunner:
                                                    "succeed_%s.txt" % self._timestamp)
         self._failed_job_list_path = os.path.join(self._odps_data_carrier_dir,
                                                   "failed_%s.txt" % self._timestamp)
-        self._validate_failed_job_list_path = os.path.join(self._odps_data_carrier_dir,
-                                                  "validate_failed_%s.txt" % self._timestamp)
+        self._validate_failed_job_list_path = os.path.join(
+            self._odps_data_carrier_dir, "validate_failed_%s.txt" % self._timestamp)
 
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,
@@ -466,24 +465,38 @@ class MigrationRunner:
 
     def _validate_data(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         try:
-            hive_verify_sql_path = os.path.join(self._meta_processor_output_dir,
+            hive_verify_sql_dir = os.path.join(self._meta_processor_output_dir,
                                                 hive_db,
                                                 hive_tbl,
-                                                "hive_verify_sql",
-                                                hive_tbl + ".sql")
+                                                "hive_verify_sql")
+            hive_verify_sql_scripts = os.listdir(hive_verify_sql_dir)
 
-            odps_verify_sql_path = os.path.join(self._meta_processor_output_dir,
-                                                hive_db,
-                                                hive_tbl,
-                                                "odps_verify_sql",
-                                                hive_tbl + ".sql")
-            if not self._data_validator.verify(hive_db,
+            odps_verify_sql_dir = os.path.join(self._meta_processor_output_dir,
+                                               hive_db,
                                                hive_tbl,
-                                               odps_pjt,
-                                               odps_tbl,
-                                               hive_verify_sql_path,
-                                               odps_verify_sql_path,
-                                               self._verify_log_root_dir):
+                                               "odps_verify_sql")
+            odps_verify_sql_scripts = os.listdir(odps_verify_sql_dir)
+
+            if len(hive_verify_sql_scripts) != len(odps_verify_sql_scripts):
+                raise Exception("Validation failed due to different sql count")
+
+            validation_succeed = True
+            # TODO: parallel execution here?
+            for i in range(0, len(hive_verify_sql_scripts)):
+                hive_verify_sql_path = os.path.join(hive_verify_sql_dir,
+                                                    hive_verify_sql_scripts[i])
+                odps_verify_sql_path = os.path.join(odps_verify_sql_dir,
+                                                    odps_verify_sql_scripts[i])
+                if not self._data_validator.verify(hive_db,
+                                                   hive_tbl,
+                                                   odps_pjt,
+                                                   odps_tbl,
+                                                   hive_verify_sql_path,
+                                                   odps_verify_sql_path,
+                                                   self._verify_log_root_dir):
+                    validation_succeed = False
+
+            if not validation_succeed:
                 raise Exception("Data validation failed")
         except Exception as e:
             raise e
@@ -513,7 +526,9 @@ class MigrationRunner:
         self._transfer_data_from_oss(hive_db, hive_tbl, odps_pjt, odps_tbl)
 
     def _validate(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
+        self._increase_num_hive_jobs()
         self._validate_data(hive_db, hive_tbl, odps_pjt, odps_tbl)
+        self._decrease_num_hive_jobs()
 
     def _increase_num_hive_jobs(self):
         with self._num_hive_jobs_lock:
@@ -566,80 +581,38 @@ class MigrationRunner:
         num_succeed_job = 0
         num_failed_job = 0
         for job in self._jobs:
-            is_sub_validate_sql = False
             hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName, future = job
-            if re.match("validate_data\|", sqlName) is not None:
-                is_sub_validate_sql = True
-            if is_sub_validate_sql or re.match("transfer_data\|", sqlName) is not None:
-                sqlName = sqlName[sqlName.index("|") + 1:].strip()
             mc_pjt, mc_tbl = self._table_mapping[(hive_db, hive_tbl)]
             if future.done():
                 self._jobs.remove(job)
-                if is_sub_validate_sql:
-                    sub_validate_result = True
-                    try:
-                        sub_validate_result = future.result()
-                    except Exception as e:
-                        sub_validate_result = False
-                    if not sub_validate_result:
-                        self._tables_validate_result[(hive_db, hive_tbl)] = False
-                        with open(self._validate_failed_job_list_path, 'a') as fd:
-                            print_utils.print_red("[FAILED] Validate: %s.%s -> %s.%s | %s\n" % (hive_db,
-                                                                                                hive_tbl,
-                                                                                                mc_pjt,
-                                                                                                mc_tbl,
-                                                                                                sqlName))
-                            fd.write("%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
-                else:
-                    try:
-                        future.result()
-                        validate_result = True
-                        if self._validate_only and sqlName == "validate_data":
-                            validate_result = self._tables_validate_result[(hive_db, hive_tbl)]
-                        if validate_result:
-                            with open(self._succeed_job_list_path, 'a') as fd:
-                                if sqlName == "transfer_data" or sqlName == "migrate" :
-                                    num_succeed_job += 1
-                                    print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
-                                                                                            hive_tbl,
-                                                                                            mc_pjt,
-                                                                                            mc_tbl))
-                                    fd.write("#%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-                                elif sqlName == "create_table" or sqlName == "add_partition":
-                                    fd.write("#%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
-                                elif sqlName == "validate_data":
-                                    if self._validate_only:
-                                        num_succeed_job += 1
-                                        print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
-                                                                                                hive_tbl,
-                                                                                                mc_pjt,
-                                                                                                mc_tbl))
-                                    fd.write("#%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-                                else:
-                                    fd.write("%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
+                try:
+                    future.result()
+                    with open(self._succeed_job_list_path, 'a') as fd:
+                        if sqlName == "transfer_data" or sqlName == "migrate":
+                            num_succeed_job += 1
+                            print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
+                                                                                    hive_tbl,
+                                                                                    mc_pjt,
+                                                                                    mc_tbl))
+                            fd.write("#%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
+                        elif sqlName == "create_table" or sqlName == "add_partition" or sqlName == "validate_data":
+                            fd.write("#%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
                         else:
-                            num_failed_job += 1
-                            print_utils.print_red("[FAILED] Validate: %s.%s -> %s.%s\n" % (hive_db,
-                                                                                           hive_tbl,
-                                                                                           mc_pjt,
-                                                                                           mc_tbl))
-                            with open(self._failed_job_list_path, 'a') as fd:
-                                fd.write("#%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
-                    except Exception as e:
-                        num_failed_job += 1
-                        print_utils.print_red("[FAILED] %s.%s -> %s.%s\n" % (hive_db,
-                                                                             hive_tbl,
-                                                                             mc_pjt,
-                                                                             mc_tbl))
-                        print_utils.print_red(traceback.format_exc())
-                        with open(self._failed_job_list_path, 'a') as fd:
-                            if sqlName == "migrate":
-                                fd.write("#%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
-                            elif sqlName == "create_table" or sqlName == "add_partition" or sqlName == "validate_data":
-                                fd.write("#%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
-                            else:
-                                fd.write("%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
-
+                            fd.write("%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
+                except Exception as e:
+                    num_failed_job += 1
+                    print_utils.print_red("[FAILED] %s.%s -> %s.%s\n" % (hive_db,
+                                                                         hive_tbl,
+                                                                         mc_pjt,
+                                                                         mc_tbl))
+                    print_utils.print_red(traceback.format_exc())
+                    with open(self._failed_job_list_path, 'a') as fd:
+                        if sqlName == "migrate":
+                            fd.write("#%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
+                        elif sqlName == "create_table" or sqlName == "add_partition" or sqlName == "validate_data":
+                            fd.write("#%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
+                        else:
+                            fd.write("%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
         return num_succeed_job, num_failed_job
 
     def set_dynamic_scheduling(self):
@@ -692,20 +665,20 @@ class MigrationRunner:
                 split_idx = mc_tbl_file.index("|")
             except ValueError as e:
                 raise Exception("Cannot parse line: " + line)
-            mc_tbl, sqlFile = mc_tbl_file[: split_idx].strip(), mc_tbl_file[split_idx + 1:].strip()
-            return hive_db, hive_tbl, mc_pjt, mc_tbl, sqlFile
+            mc_tbl, sql_file = mc_tbl_file[: split_idx].strip(), mc_tbl_file[split_idx + 1:].strip()
+            return hive_db, hive_tbl, mc_pjt, mc_tbl, sql_file
 
         filter_table_mapping = {}
         with open(failover_file_path, "r") as fd:
             for line in fd.readlines():
                 if line[0] == "#":
                     continue
-                (hive_db, hive_tbl, mc_pjt, mc_tbl, sqlFile) = parse_line(line)
-            fileIndex = self.parse_file_index(sqlFile)
-            if (hive_db, hive_tbl) not in filter_table_mapping.keys():
-                filter_table_mapping[(hive_db, hive_tbl)] = {fileIndex}
-            else:
-                filter_table_mapping[(hive_db, hive_tbl)].add(fileIndex)
+                hive_db, hive_tbl, mc_pjt, mc_tbl, sql_file = parse_line(line)
+                file_index = self.parse_file_index(sql_file)
+                if (hive_db, hive_tbl) not in filter_table_mapping.keys():
+                    filter_table_mapping[(hive_db, hive_tbl)] = {file_index}
+                else:
+                    filter_table_mapping[(hive_db, hive_tbl)].add(file_index)
         return filter_table_mapping
 
     def parse_file_index(self, fileName):
@@ -714,7 +687,7 @@ class MigrationRunner:
         try:
             dot_idx = fileName.index(".")
         except ValueError as e:
-            raise Exception("Cannot parse line: " + line)
+            raise Exception("Cannot parse line: " + fileName)
         name, type = fileName[: dot_idx].strip(), fileName[dot_idx + 1:].strip()
         fileIndex = name[(name.rindex("_") + 1):]
         return fileIndex
@@ -728,7 +701,6 @@ class MigrationRunner:
 
         self._num_jobs = len(self._table_mapping)
 
-        # if not self._validate_only:
         self._apply_oss_config()
         self._apply_table_mapping()
         self._process_metadata()
@@ -745,44 +717,14 @@ class MigrationRunner:
                 self._wait(self._can_submit)
 
                 if self._validate_only:
-                    if int(self._num_of_partitions) > 0:
-                        self._tables_validate_result[(hive_db, hive_tbl)] = True
-                        hive_sql_dir = os.path.join(self._meta_processor_output_dir,
-                                                    hive_db,
-                                                    hive_tbl,
-                                                    "hive_verify_sql")
-                        hive_scripts = os.listdir(hive_sql_dir)
-
-                        odps_sql_dir = os.path.join(self._meta_processor_output_dir,
-                                                    hive_db,
-                                                    hive_tbl,
-                                                    "odps_verify_sql")
-                        odps_scripts = os.listdir(odps_sql_dir)
-                        if len(hive_scripts) != len(odps_scripts):
-                            raise Exception("Validation failed due to different sql count.")
-
-                        for index in range(0, len(hive_scripts)):
-                            future = executor.submit(self._data_validator.verify,
-                                                     hive_db,
-                                                     hive_tbl,
-                                                     odps_pjt,
-                                                     odps_tbl,
-                                                     os.path.join(hive_sql_dir, hive_scripts[index]),
-                                                     os.path.join(odps_sql_dir, odps_scripts[index]),
-                                                     self._verify_log_root_dir)
-                            self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "validate_data|" + hive_scripts[index], future))
-                        self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "validate_data", future))
-                    else:
-                        migrate = self._validate
+                    migrate = self._validate
                 elif self._datasource == "Hive":
                     if int(self._num_of_partitions) > 0:
-
                         filter_table_mapping = {}
                         if self._failover_mode == "Failed":
                             filter_table_mapping = self.parse_failover_file(self._failover_failed_file)
                         if self._failover_mode == "Success":
                             filter_table_mapping = self.parse_failover_file(self._failover_success_file)
-
 
                         ## split _migrate_from_hive_with_table_split into 4 steps.
                         # migrate = self._migrate_from_hive_with_table_split
@@ -811,7 +753,7 @@ class MigrationRunner:
                                                     "hive_udtf_sql",
                                                     "multi_partition")
                         scripts = os.listdir(hive_sql_dir)
-
+                        futures = []
                         for script in scripts:
                             if self._failover_mode is not None:
                                 fileIndex = self.parse_file_index(script)
@@ -824,15 +766,38 @@ class MigrationRunner:
 
                             future = executor.submit(self._transfer_data_from_hive_with_table_split_file,
                                                      hive_db, hive_tbl, odps_pjt, odps_tbl, hive_sql_dir, script)
-                            self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "transfer_data|" + script, future))
+                            self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, script, future))
+                            futures.append(future)
 
                         # all scripts are executed and done,
-                        self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "transfer_data", future))
+                        while True:
+                            all_done = True
+                            for f in futures:
+                                if not f.done():
+                                    all_done = False
 
+                            if all_done:
+                                break
+
+                        self._jobs.append((hive_db,
+                                           hive_tbl,
+                                           odps_pjt,
+                                           odps_tbl,
+                                           "transfer_data",
+                                           future))
 
                         # step4. validate data
-                        # future = executor.submit(self._validate_data, hive_db, hive_tbl, odps_pjt, odps_tbl)
-                        # self._jobs.append((hive_db, hive_tbl, odps_pjt, odps_tbl, "validate_data", future))
+                        # future = executor.submit(self._validate_data,
+                        #                          hive_db,
+                        #                          hive_tbl,
+                        #                          odps_pjt,
+                        #                          odps_tbl)
+                        # self._jobs.append((hive_db,
+                        #                    hive_tbl,
+                        #                    odps_pjt,
+                        #                    odps_tbl,
+                        #                    "validate_data",
+                        #                    future))
                         # while True:
                         #     if future.done():
                         #         break
@@ -846,7 +811,7 @@ class MigrationRunner:
                 else:
                     raise Exception("Unsupported datasource")
 
-                if int(self._num_of_partitions) == 0:
+                if int(self._num_of_partitions) == 0 or self._validate_only:
                     future = executor.submit(migrate,
                                              hive_db,
                                              hive_tbl,
@@ -858,9 +823,11 @@ class MigrationRunner:
             progress_reporter.join()
         except Exception as e:
             traceback.print_exc()
-            print_utils.print_red("[Migration failed]" + e + "\n")
-        # finally:
-        #     executor.shutdown()
+            print_utils.print_red("[Migration failed]" + str(e) + "\n")
+        finally:
+            self._global_hive_sql_runner.stop()
+            self._data_validator.stop()
+            executor.shutdown()
         print_utils.print_green("[Migration done]\n")
 
     def stop(self):

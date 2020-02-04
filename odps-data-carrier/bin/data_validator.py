@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from hive_sql_runner import HiveSQLRunner
 from odps_sql_runner import OdpsSQLRunner
-
+from utils import print_utils
 
 class DataValidator:
     def __init__(self,odps_data_carrier_dir, parallelism, verbose):

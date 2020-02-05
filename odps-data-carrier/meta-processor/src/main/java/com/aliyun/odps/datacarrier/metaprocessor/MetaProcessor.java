@@ -557,12 +557,11 @@ public class MetaProcessor {
     }
 
     // For non-partitioned tables
-    return getMultiPartitionHiveUdtfSqlAsSpec(
-        databaseMeta,
-        tableMeta,
-        tablePartitionMeta,
-        0,
-        0);
+    return getMultiPartitionHiveUdtfSqlAsSpec(databaseMeta,
+                                              tableMeta,
+                                              tablePartitionMeta,
+                                              -1,
+                                              -1);
   }
 
   private String getMultiPartitionHiveUdtfSqlAsSpec(DatabaseMetaModel databaseMeta,
@@ -602,9 +601,9 @@ public class MetaProcessor {
         .append(databaseName).append(".`").append(tableName).append("`").append("\n");
 
     String whereCondition = getHiveWhereCondition(tableMeta,
-                                              tablePartitionMeta,
-                                              startPartitionIndex,
-                                              endPartitionIndex);
+                                                  tablePartitionMeta,
+                                                  startPartitionIndex,
+                                                  endPartitionIndex);
     hiveUdtfSqlBuilder.append(whereCondition);
     hiveUdtfSqlBuilder.append(";");
     return hiveUdtfSqlBuilder.toString();
@@ -637,8 +636,8 @@ public class MetaProcessor {
     return getMultiPartitionHiveVerifySqlAsSpec(databaseMetaModel,
                                                 tableMetaModel,
                                                 tablePartitionMetaModel,
-                                                0,
-                                                0);
+                                                -1,
+                                                -1);
   }
 
   private String getMultiPartitionHiveVerifySqlAsSpec(DatabaseMetaModel databaseMetaModel,
@@ -713,8 +712,8 @@ public class MetaProcessor {
     return getMultiPartitionOdpsVerifySqlAsSpec(databaseMetaModel,
                                                 tableMetaModel,
                                                 tablePartitionMetaModel,
-                                                0,
-                                                0);
+                                                -1,
+                                                -1);
   }
 
   private String getMultiPartitionOdpsVerifySqlAsSpec(DatabaseMetaModel databaseMetaModel,
@@ -865,7 +864,7 @@ public class MetaProcessor {
     // Return empty string under the following two cases:
     //   1. non-partitioned table
     //   2. the partition aggregation feature is disabled
-    if (startPartitionIndex == endPartitionIndex && startPartitionIndex == 0) {
+    if (startPartitionIndex == endPartitionIndex && startPartitionIndex == -1) {
       return whereConditionBuilder.toString();
     } else if (startPartitionIndex <= endPartitionIndex) {
       whereConditionBuilder.append("WHERE\n");
@@ -891,7 +890,7 @@ public class MetaProcessor {
     // Return empty string under the following two cases:
     //   1. non-partitioned table
     //   2. the partition aggregation feature is disabled
-    if (startPartitionIndex == endPartitionIndex && startPartitionIndex == 0) {
+    if (startPartitionIndex == endPartitionIndex && startPartitionIndex == -1) {
       return whereConditionBuilder.toString();
     } else if (startPartitionIndex <= endPartitionIndex) {
       whereConditionBuilder.append("WHERE\n");
@@ -1061,9 +1060,8 @@ public class MetaProcessor {
                 addPartitionStatements);
           } else {
             // Generate Hive UDTF SQL statement, Overwrite
-            String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSql(databaseMeta,
-                tableMeta,
-                tablePartitionMeta);
+            String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSql(
+                databaseMeta, tableMeta, tablePartitionMeta);
             intermediateDataDirManager.setHiveUdtfSqlMultiPartition(databaseName,
                 partitionTableName,
                 multiPartitionHiveUdtfSql);

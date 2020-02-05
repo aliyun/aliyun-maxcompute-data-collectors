@@ -98,6 +98,8 @@ class MigrationRunner:
                                                   "failed_%s.txt" % self._timestamp)
         self._validate_failed_job_list_path = os.path.join(
             self._odps_data_carrier_dir, "validate_failed_%s.txt" % self._timestamp)
+        self._validate_failed_partition_list_path = os.path.join(
+            self._odps_data_carrier_dir, "validate_failed_partition_%s.txt" % self._timestamp)
 
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,
@@ -493,7 +495,8 @@ class MigrationRunner:
                                                    odps_tbl,
                                                    hive_verify_sql_path,
                                                    odps_verify_sql_path,
-                                                   self._verify_log_root_dir):
+                                                   self._verify_log_root_dir,
+                                                   self._validate_failed_partition_list_path):
                     with open(self._validate_failed_job_list_path, 'a') as fd:
                         fd.write("%s.%s:%s.%s|%s\n" % (hive_db,
                                                        hive_tbl,

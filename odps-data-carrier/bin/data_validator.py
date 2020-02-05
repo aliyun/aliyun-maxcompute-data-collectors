@@ -105,8 +105,15 @@ class DataValidator:
             cleared_lines.append(line)
         return "\n".join(cleared_lines)
 
-    def verify(self, hive_db, hive_tbl, mc_pjt, mc_tbl, hive_verify_sql_path, odps_verify_sql_path,
-               log_root_dir):
+    def verify(self,
+               hive_db,
+               hive_tbl,
+               mc_pjt,
+               mc_tbl,
+               hive_verify_sql_path,
+               odps_verify_sql_path,
+               log_root_dir,
+               validate_failed_partition_list_path):
         log_dir = os.path.join(log_root_dir, hive_db, hive_tbl)
         # TODO: support more validation methods
 
@@ -128,8 +135,7 @@ class DataValidator:
 
         if self._is_partitioned_table(odps_stdout):
             ret = True
-            bad_partition_list_path = os.path.join(log_dir, "bad_partitions.txt")
-            fd = open(bad_partition_list_path, 'a')
+            fd = open(validate_failed_partition_list_path, 'a')
             odps_partition_spec_to_record_count = self._parse_odps_partitioned_table_result(
                 odps_stdout)
             hive_partition_spec_to_record_count = self._parse_hive_partitioned_table_result(

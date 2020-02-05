@@ -494,6 +494,12 @@ class MigrationRunner:
                                                    hive_verify_sql_path,
                                                    odps_verify_sql_path,
                                                    self._verify_log_root_dir):
+                    with open(self._validate_failed_job_list_path, 'a') as fd:
+                        fd.write("%s.%s:%s.%s|%s\n" % (hive_db,
+                                                       hive_tbl,
+                                                       odps_pjt,
+                                                       odps_tbl,
+                                                       hive_verify_sql_scripts[i]))
                     validation_succeed = False
 
             if not validation_succeed:

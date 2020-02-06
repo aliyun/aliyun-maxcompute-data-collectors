@@ -548,12 +548,11 @@ class MigrationRunner:
             self._num_hive_jobs -= 1
 
     def _report_progress(self):
-        progress_format = ("[Progress][%.2f%%] waiting: %d, running: %d, (sub)running: %d, "
-                           "succeed: %d, failed: %d, total: %d\n")
-        while not (self._num_succeed_jobs + self._num_failed_jobs == self._num_jobs):
+        def print_progress_detail():
+            progress_format = ("[Progress][%.2f%%] waiting: %d, running: %d, (sub)running: %d, "
+                               "succeed: %d, failed: %d, total: %d\n")
             progress = ((self._num_succeed_jobs + self._num_failed_jobs) / self._num_jobs) * 100
-            num_waiting_jobs = (self._num_jobs - self._num_hive_jobs - self._num_succeed_jobs
-                                - self._num_failed_jobs)
+            num_waiting_jobs = (self._num_jobs - self._num_hive_jobs - self._num_succeed_jobs - self._num_failed_jobs)
             print_utils.print_yellow(progress_format % (progress,
                                                         num_waiting_jobs,
                                                         self._num_hive_jobs,
@@ -561,7 +560,10 @@ class MigrationRunner:
                                                         self._num_succeed_jobs,
                                                         self._num_failed_jobs,
                                                         self._num_jobs))
+        while not (self._num_succeed_jobs + self._num_failed_jobs == self._num_jobs):
+            print_progress_detail()
             time.sleep(10)
+        print_progress_detail()
 
     def _wait(self, decider):
         while not decider():
@@ -599,6 +601,7 @@ class MigrationRunner:
                     with open(self._succeed_job_list_path, 'a') as fd:
                         if sqlName == "transfer_data" or sqlName == "migrate":
                             num_succeed_job += 1
+                            self._decrease_num_hive_jobs()
                             print_utils.print_green("[SUCCEED] %s.%s -> %s.%s\n" % (hive_db,
                                                                                     hive_tbl,
                                                                                     mc_pjt,
@@ -609,14 +612,15 @@ class MigrationRunner:
                         else:
                             fd.write("%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
                 except Exception as e:
-                    num_failed_job += 1
                     print_utils.print_red("[FAILED] %s.%s -> %s.%s\n" % (hive_db,
                                                                          hive_tbl,
                                                                          mc_pjt,
                                                                          mc_tbl))
                     print_utils.print_red(traceback.format_exc())
                     with open(self._failed_job_list_path, 'a') as fd:
-                        if sqlName == "migrate":
+                        if sqlName == "transfer_data" or sqlName == "migrate":
+                            num_failed_job += 1
+                            self._decrease_num_hive_jobs()
                             fd.write("#%s.%s:%s.%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl))
                         elif sqlName == "create_table" or sqlName == "add_partition" or sqlName == "validate_data":
                             fd.write("#%s.%s:%s.%s|%s\n" % (hive_db, hive_tbl, odps_pjt, odps_tbl, sqlName))
@@ -779,14 +783,14 @@ class MigrationRunner:
                             futures.append(future)
 
                         # all scripts are executed and done,
-                        while True:
-                            all_done = True
-                            for f in futures:
-                                if not f.done():
-                                    all_done = False
-
-                            if all_done:
-                                break
+                        # while True:
+                        #     all_done = True
+                        #     for f in futures:
+                        #         if not f.done():
+                        #             all_done = False
+                        #
+                        #     if all_done:
+                        #         break
 
                         self._jobs.append((hive_db,
                                            hive_tbl,
@@ -811,7 +815,7 @@ class MigrationRunner:
                         #     if future.done():
                         #         break
 
-                        self._decrease_num_hive_jobs()
+                        #self._decrease_num_hive_jobs()
 
                     else:
                         migrate = self._migrate_from_hive

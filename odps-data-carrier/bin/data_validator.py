@@ -84,7 +84,7 @@ class DataValidator:
         for line in lines:
             if "Partition Information" in line:
                 is_partition_column = True
-            if line is None or len(line) == 0 or line.startswith("#"):
+            if line is None or len(line.strip()) == 0 or line.startswith("#"):
                 continue
             if is_partition_column:
                 partition_columns.append(line.split()[0].strip())

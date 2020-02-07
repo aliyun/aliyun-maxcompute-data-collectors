@@ -82,7 +82,6 @@ class HiveSQLRunner:
     def _get_runnable_hive_sql(self, hive_sql: str, is_udtf_sql) -> str:
         lines = copy.deepcopy(self._settings)
         hive_sql = hive_sql.replace("\n", " ")
-        hive_sql = hive_sql.replace("`", "")
         if is_udtf_sql:
             lines.append("add jar %s;" % self._udtf_jar_path)
             lines.append("add file %s;" % self._odps_config_path)

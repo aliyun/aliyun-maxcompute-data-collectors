@@ -47,6 +47,8 @@ class DataValidator:
                                           odps_partition_columns))
 
         for line in lines[1:]:
+            if line is None or len(line) == 0:
+                continue
             splits = line.strip().split(",")
             # get rid of quotation marks and white chars
             splits = list(map(lambda x: x.strip("\"").strip("'").strip(), splits))
@@ -63,6 +65,8 @@ class DataValidator:
         hive_partition_columns = self._get_hive_partition_columns(hive_db, hive_tbl, log_dir)
 
         for line in lines:
+            if line is None or len(line) == 0:
+                continue
             splits = line.split()
             # get rid of quotation marks and white chars
             splits = list(map(lambda x: x.strip("\"").strip("'").strip(), splits))

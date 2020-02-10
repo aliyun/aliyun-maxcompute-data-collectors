@@ -63,7 +63,7 @@ public class MetaCarrierConfiguration {
 
     String line;
     while((line = reader.readLine()) != null) {
-      parseLine(line.toUpperCase());
+      parseLine(line.toLowerCase());
     }
   }
 
@@ -161,7 +161,7 @@ public class MetaCarrierConfiguration {
   public void addDatabases(String[] databases) {
     if (databases != null) {
       for (String database : databases) {
-        this.databases.add(database.toUpperCase());
+        this.databases.add(database.toLowerCase());
       }
     }
   }
@@ -169,7 +169,7 @@ public class MetaCarrierConfiguration {
   public void addTables(String[] tables) {
     if (tables != null) {
       for (String table : tables) {
-        parseLine(table.toUpperCase());
+        parseLine(table.toLowerCase());
       }
     }
   }
@@ -183,8 +183,8 @@ public class MetaCarrierConfiguration {
       throw new IllegalArgumentException("Argument \'database\' or \'table\' cannot be null");
     }
 
-    database = database.toUpperCase();
-    table = table.toUpperCase();
+    database = database.toLowerCase();
+    table = table.toLowerCase();
 
     if (databases.contains(database)) {
       return true;
@@ -201,7 +201,7 @@ public class MetaCarrierConfiguration {
       throw new IllegalArgumentException("Argument \'database\' cannot be null");
     }
 
-    database = database.toUpperCase();
+    database = database.toLowerCase();
 
     if (databases.contains(database) || tables.containsKey(database)) {
       System.out.println("returned true");

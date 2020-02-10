@@ -68,6 +68,14 @@ def parse_table_mapping(table_mapping_path):
             if hive_db in db_mapping and db_mapping[hive_db] != mc_pjt:
                 raise Exception("A Hive database is mapped to "
                                 "multiple MaxCompute project: " + line)
+
+            # database and table names are all in lower case in MMA
+            hive_db = hive_db.lower()
+            hive_tbl = hive_db.lower()
+            # TODO: partition column in partition spec could be in upper case
+            mc_pjt = mc_pjt.lower()
+            mc_tbl = mc_tbl.lower()
+
             table_mapping[(hive_db, hive_tbl, hive_part_spec, table_config)] = (mc_pjt, mc_tbl)
             db_mapping[hive_db] = mc_pjt
     return table_mapping
@@ -235,7 +243,8 @@ if __name__ == '__main__':
 
     table_mapping = {}
     if args.mode == "SINGLE":
-        table_mapping = {(args.hive_db, args.hive_table, "", ""): (args.mc_project, args.mc_table)}
+        table_mapping = {(args.hive_db.lower(), args.hive_table.lower(), "", ""):
+                         (args.mc_project.lower(), args.mc_table.lower())}
     else:
         table_mapping = parse_table_mapping(args.table_mapping)
 

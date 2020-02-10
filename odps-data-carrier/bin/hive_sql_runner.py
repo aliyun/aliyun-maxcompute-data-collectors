@@ -79,8 +79,11 @@ class HiveSQLRunner:
 
         return self._get_runnable_hive_sql(hive_sql=hive_sql, is_udtf_sql=is_udtf_sql)
 
-    def _get_runnable_hive_sql(self, hive_sql: str, is_udtf_sql) -> str:
-        lines = copy.deepcopy(self._settings)
+    def _get_runnable_hive_sql(self, hive_sql: str, is_udtf_sql: bool) -> str:
+        if is_udtf_sql:
+            lines = copy.deepcopy(self._settings)
+        else:
+            lines = []
         hive_sql = hive_sql.replace("\n", " ")
         if is_udtf_sql:
             lines.append("add jar %s;" % self._udtf_jar_path)

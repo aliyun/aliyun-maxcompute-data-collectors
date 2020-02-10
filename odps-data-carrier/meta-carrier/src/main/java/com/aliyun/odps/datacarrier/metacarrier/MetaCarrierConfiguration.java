@@ -23,7 +23,7 @@ public class MetaCarrierConfiguration {
   private static final String NUM_OF_PARTITIONS = "numOfPartitions";
   //test_db.test_table(pc1=pv1,pc2=pv2){setting1=value1,setting2=value2}:odps_data_carrier_test.test_table
   private static final Pattern TABLE_NAME_PATTERN = Pattern.compile(".*\\((.*)\\)");
-  private static final Pattern TABLE_CONF_PATTERN = Pattern.compile(".*\\{(.*)\\}");
+  private static final Pattern TABLE_CONF_PATTERN = Pattern.compile(".*\\{(.*)}");
 
   private Set<String> databases = new HashSet<>();
   // Database name -> table name -> list of partition spec
@@ -79,23 +79,20 @@ public class MetaCarrierConfiguration {
       String database = line.substring(0, idx);
       String table = line.substring(idx + 1);
       Map<String, String> partitionSpec = null;
-      System.out.print("### table : " + table + "\n");
+      System.out.println("### table : " + table);
       Matcher m = TABLE_NAME_PATTERN.matcher(table);
       if (m.matches() && !StringUtils.isBlank(m.group(1))) {
         partitionSpec = parsePartitionSpec(m.group(1));
         table = table.substring(0, table.length() - m.group(1).length() - 2);
-        System.out.print("### table01 : " + table + "\n");
+        System.out.println("### has partition : " + table + "(" + partitionSpec + ")");
       }
 
       Map<String, String> tableConf = new HashMap<>();
       Matcher confMatcher = TABLE_CONF_PATTERN.matcher(table);
-      System.out.print("### table1 : " + table + "\n");
       if (confMatcher.matches()) {
         parseTableConfSpec(confMatcher.group(1), tableConf);
-        System.out.print("### tableConf : " + tableConf.toString() + "\n");
         table = table.substring(0, table.length() - confMatcher.group(1).length() - 2);
-
-        System.out.print("### table2 : " + table + "\n");
+        System.out.println("### has conf : " + table + "{" + tableConf.toString() + "}");
       }
 
       if (!tables.containsKey(database)) {

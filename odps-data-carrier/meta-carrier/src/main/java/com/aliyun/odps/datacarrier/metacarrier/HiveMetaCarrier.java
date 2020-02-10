@@ -386,7 +386,7 @@ public class HiveMetaCarrier {
 
     MetaCarrierConfiguration config = new MetaCarrierConfiguration();
     if (options.hasOption("num-of-partitions")) {
-      int numOfPartitions = Integer.valueOf(commandLine.getOptionValue("num-of-partitions"));
+      int numOfPartitions = Integer.parseInt(commandLine.getOptionValue("num-of-partitions"));
       config.setDefaultNumOfPartitions(numOfPartitions);
     }
     if (configPathValue != null) {

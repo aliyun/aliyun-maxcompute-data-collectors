@@ -173,7 +173,6 @@ class MigrationRunner:
                                                                        self._meta_carrier_input_path,
                                                                        self._meta_carrier_output_dir,
                                                                        self._num_of_partitions))
-        os.unlink(self._meta_carrier_input_path)
         self._table_mapping = new_table_mapping
         print_utils.print_green("[Gathering metadata Done]\n")
 
@@ -482,28 +481,61 @@ class MigrationRunner:
             if len(hive_verify_sql_scripts) != len(odps_verify_sql_scripts):
                 raise Exception("Validation failed due to different sql count")
 
-            validation_succeed = True
-            # TODO: parallel execution here?
+            executor = ThreadPoolExecutor(self._parallelism)
+            hive_script_to_futures = {}
+            finished_hive_script = set()
+
             for i in range(0, len(hive_verify_sql_scripts)):
                 hive_verify_sql_path = os.path.join(hive_verify_sql_dir,
                                                     hive_verify_sql_scripts[i])
                 odps_verify_sql_path = os.path.join(odps_verify_sql_dir,
                                                     odps_verify_sql_scripts[i])
-                if not self._data_validator.verify(hive_db,
-                                                   hive_tbl,
-                                                   odps_pjt,
-                                                   odps_tbl,
-                                                   hive_verify_sql_path,
-                                                   odps_verify_sql_path,
-                                                   self._verify_log_root_dir,
-                                                   self._validate_failed_partition_list_path):
+                future = executor.submit(self._data_validator.verify,
+                                         hive_db,
+                                         hive_tbl,
+                                         odps_pjt,
+                                         odps_tbl,
+                                         hive_verify_sql_path,
+                                         odps_verify_sql_path,
+                                         self._verify_log_root_dir,
+                                         self._validate_failed_partition_list_path)
+                hive_script_to_futures[hive_verify_sql_path] = future
+
+            validation_succeed = True
+            for script in hive_script_to_futures.keys():
+                f = hive_script_to_futures[script]
+                if not f.result():
+                    validation_succeed = False
                     with open(self._validate_failed_job_list_path, 'a') as fd:
                         fd.write("%s.%s:%s.%s|%s\n" % (hive_db,
                                                        hive_tbl,
                                                        odps_pjt,
                                                        odps_tbl,
-                                                       hive_verify_sql_scripts[i]))
-                    validation_succeed = False
+                                                       script))
+            # validation_succeed = True
+            # while True:
+            #     if len(finished_hive_script) == len(hive_script_to_futures):
+            #         break
+            #     for script in hive_script_to_futures.keys():
+            #         f = hive_script_to_futures[script]
+            #         if f.done():
+            #
+            #
+            #     if not self._data_validator.verify(hive_db,
+            #                                        hive_tbl,
+            #                                        odps_pjt,
+            #                                        odps_tbl,
+            #                                        hive_verify_sql_path,
+            #                                        odps_verify_sql_path,
+            #                                        self._verify_log_root_dir,
+            #                                        self._validate_failed_partition_list_path):
+            #         with open(self._validate_failed_job_list_path, 'a') as fd:
+            #             fd.write("%s.%s:%s.%s|%s\n" % (hive_db,
+            #                                            hive_tbl,
+            #                                            odps_pjt,
+            #                                            odps_tbl,
+            #                                            hive_verify_sql_scripts[i]))
+            #         validation_succeed = False
 
             if not validation_succeed:
                 raise Exception("Data validation failed")

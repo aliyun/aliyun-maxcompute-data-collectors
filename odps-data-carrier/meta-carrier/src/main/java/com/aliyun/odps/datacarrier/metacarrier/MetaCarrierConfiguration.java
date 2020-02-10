@@ -63,7 +63,7 @@ public class MetaCarrierConfiguration {
 
     String line;
     while((line = reader.readLine()) != null) {
-      parseLine(line);
+      parseLine(line.toUpperCase());
     }
   }
 
@@ -113,10 +113,10 @@ public class MetaCarrierConfiguration {
         tableConfiguration.setNumOfPartitions(defaultNumOfPartitions);
       }
       if (tableConf.containsKey(NUM_OF_PARTITIONS)) {
-        int tableConfNumsOfPartitions = Integer.valueOf(tableConf.get(NUM_OF_PARTITIONS));
+        int tableConfNumsOfPartitions = Integer.parseInt(tableConf.get(NUM_OF_PARTITIONS));
         System.out.print("### tableConfNumsOfPartitions : " + tableConfNumsOfPartitions + "\n");
         if (tableConfNumsOfPartitions > 0) {
-          tableConfiguration.setNumOfPartitions(Integer.valueOf(tableConf.get(NUM_OF_PARTITIONS)));
+          tableConfiguration.setNumOfPartitions(Integer.parseInt(tableConf.get(NUM_OF_PARTITIONS)));
         }
       }
 
@@ -160,14 +160,16 @@ public class MetaCarrierConfiguration {
 
   public void addDatabases(String[] databases) {
     if (databases != null) {
-      this.databases.addAll(Arrays.asList(databases));
+      for (String database : databases) {
+        this.databases.add(database.toUpperCase());
+      }
     }
   }
 
   public void addTables(String[] tables) {
     if (tables != null) {
       for (String table : tables) {
-        parseLine(table);
+        parseLine(table.toUpperCase());
       }
     }
   }
@@ -180,6 +182,9 @@ public class MetaCarrierConfiguration {
     if (database == null || table == null) {
       throw new IllegalArgumentException("Argument \'database\' or \'table\' cannot be null");
     }
+
+    database = database.toUpperCase();
+    table = table.toUpperCase();
 
     if (databases.contains(database)) {
       return true;
@@ -196,10 +201,14 @@ public class MetaCarrierConfiguration {
       throw new IllegalArgumentException("Argument \'database\' cannot be null");
     }
 
+    database = database.toUpperCase();
+
     if (databases.contains(database) || tables.containsKey(database)) {
+      System.out.println("returned true");
       return true;
     }
 
+    System.out.println("returned false");
     return false;
   }
 

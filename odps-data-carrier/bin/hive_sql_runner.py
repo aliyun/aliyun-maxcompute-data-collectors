@@ -54,7 +54,6 @@ class HiveSQLRunner:
         self._odps_config_path = os.path.join(odps_data_carrier_dir, "odps_config.ini")
 
         # init hadoop & hive settings
-
         extra_settings_path = os.path.join(odps_data_carrier_dir, "extra_settings.ini")
         self._settings = []
         self._load_settings(extra_settings_path)
@@ -80,10 +79,12 @@ class HiveSQLRunner:
 
         return self._get_runnable_hive_sql(hive_sql=hive_sql, is_udtf_sql=is_udtf_sql)
 
-    def _get_runnable_hive_sql(self, hive_sql: str, is_udtf_sql) -> str:
-        lines = copy.deepcopy(self._settings)
+    def _get_runnable_hive_sql(self, hive_sql: str, is_udtf_sql: bool) -> str:
+        if is_udtf_sql:
+            lines = copy.deepcopy(self._settings)
+        else:
+            lines = []
         hive_sql = hive_sql.replace("\n", " ")
-        hive_sql = hive_sql.replace("`", "")
         if is_udtf_sql:
             lines.append("add jar %s;" % self._udtf_jar_path)
             lines.append("add file %s;" % self._odps_config_path)
@@ -133,9 +134,11 @@ class HiveSQLRunner:
                    "on_success_callback": on_success_callback,
                    "on_stderr_output_callback": on_stderr_output_callback}
 
+
         sql = self._get_runnable_hive_sql_from_file(sql_script_path, is_udtf_sql)
         temp_script_path = self._create_temp_sql_script(database_name, table_name, sql)
-        command = "hive -f %s" % temp_script_path
+        # command = "hive -f %s" % temp_script_path
+        command = "export MMA_OPTS=-Xmx5120m; hive -f %s" % temp_script_path
         return self._pool.submit(command=command, log_dir=log_dir, context=context)
 
     def execute(self,

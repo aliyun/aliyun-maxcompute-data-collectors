@@ -19,7 +19,12 @@
 
 package com.aliyun.odps.datacarrier.metacarrier;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +51,7 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.GlobalMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.commons.MetaManager.TablePartitionMetaModel;
-
+import com.aliyun.odps.datacarrier.metacarrier.MetaCarrierConfiguration.MetaCarrierTableConfiguration;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;
 import me.tongfei.progressbar.ProgressBarStyle;
@@ -55,9 +60,11 @@ import me.tongfei.progressbar.ProgressBarStyle;
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
  */
 public class HiveMetaCarrier {
+  private static final String HIVE_META_FAILED_OUTPUT = "hiveMetaFailed.out";
 
   private HiveMetaStoreClient metaStoreClient;
   private MetaManager metaManager;
+  private static Path hiveMetaFailedOutputFile;
 
   public HiveMetaCarrier(String metastoreAddress, String outputPath, String principal,
                          String keyTab, String[] systemProperties) throws MetaException {
@@ -83,6 +90,7 @@ public class HiveMetaCarrier {
 
     this.metaStoreClient = new HiveMetaStoreClient(hiveConf);
     this.metaManager = new MetaManager(outputPath);
+    this.hiveMetaFailedOutputFile = Paths.get(System.getProperty("user.dir"), HIVE_META_FAILED_OUTPUT);
   }
 
   private GlobalMetaModel getGlobalMeta() {
@@ -131,13 +139,14 @@ public class HiveMetaCarrier {
 
   private TablePartitionMetaModel getTablePartitionMeta(String databaseName,
                                                         String tableName,
+                                                        int numOfPartitions,
                                                         List<Map<String, String>> partitionSpecs)
       throws TException {
 
     List<Partition> partitions = new LinkedList<>();
     TablePartitionMetaModel tablePartitionMeta = new TablePartitionMetaModel();
-
-    if (partitionSpecs != null) {
+    tablePartitionMeta.numOfPartitions = numOfPartitions;
+    if (partitionSpecs != null && !partitionSpecs.isEmpty()) {
       tablePartitionMeta.userSpecified = true;
       for (Map<String, String> spec : partitionSpecs) {
         List<String> partVals = new LinkedList<>(spec.values());
@@ -205,23 +214,45 @@ public class HiveMetaCarrier {
           if (!configuration.shouldCarry(databaseName, tableName)) {
             continue;
           }
-
-          TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
-          metaManager.setTableMeta(databaseName, tableMeta);
-
-          // Handle partition meta
-          List<Map<String, String>> partitionSpecs = configuration
-              .getPartitionsToCarry(databaseName,
-                                    tableName);
-          TablePartitionMetaModel tablePartitionMeta = getTablePartitionMeta(databaseName,
-                                                                             tableName,
-                                                                             partitionSpecs);
-          if (tablePartitionMeta != null) {
-            metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
+          try {
+            TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
+            metaManager.setTableMeta(databaseName, tableMeta);
+            // Handle partition meta
+            MetaCarrierTableConfiguration tableConfiguration = configuration
+                .getPartitionsToCarry(databaseName,
+                    tableName);
+            TablePartitionMetaModel tablePartitionMeta = getTablePartitionMeta(databaseName,
+                tableName,
+                tableConfiguration.getNumOfPartitions(),
+                tableConfiguration.getPartitionSpec());
+            if (tablePartitionMeta != null) {
+              metaManager.setTablePartitionMeta(databaseName, tablePartitionMeta);
+            }
+          } catch (Exception e) {
+            System.err.println("Get table meta failed, databaseName=" + databaseName + ", tableName" + tableName);
+            e.printStackTrace();
+            writeToFile(databaseName + "." + tableName + "\n");
+            continue;
           }
         }
       } finally {
         progressBar.close();
+      }
+    }
+  }
+
+  private static void writeToFile(String tableName) {
+    OutputStream os = null;
+    try {
+      os = new FileOutputStream(new File(hiveMetaFailedOutputFile.toString()), true);
+      os.write(tableName.getBytes(), 0, tableName.length());
+    } catch (IOException e) {
+      e.printStackTrace();
+    }finally{
+      try {
+        os.close();
+      } catch (IOException e) {
+        e.printStackTrace();
       }
     }
   }
@@ -272,6 +303,13 @@ public class HiveMetaCarrier {
         .hasArgs()
         .desc("Optional, specify tables to migrate. The format should be: <hive db>.<hive table>")
         .build();
+    Option numOfPartitionsOpt = Option
+        .builder("np")
+        .longOpt("num-of-partitions")
+        .argName("num-of-partitions")
+        .hasArgs()
+        .desc("Optional, specify number of partitions to split table.")
+        .build();
     Option configPath = Option
         .builder()
         .longOpt("config")
@@ -315,6 +353,7 @@ public class HiveMetaCarrier {
     options.addOption(help);
     options.addOption(databases);
     options.addOption(tables);
+    options.addOption(numOfPartitionsOpt);
     options.addOption(configPath);
     options.addOption(principal);
     options.addOption(keyTab);
@@ -346,7 +385,10 @@ public class HiveMetaCarrier {
                                                           systemPropertiesValue);
 
     MetaCarrierConfiguration config = new MetaCarrierConfiguration();
-
+    if (options.hasOption("num-of-partitions")) {
+      int numOfPartitions = Integer.parseInt(commandLine.getOptionValue("num-of-partitions"));
+      config.setDefaultNumOfPartitions(numOfPartitions);
+    }
     if (configPathValue != null) {
       config.load(configPathValue);
     }

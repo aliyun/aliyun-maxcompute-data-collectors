@@ -37,6 +37,7 @@ public class OdpsConfig {
   private static final String ACCESS_KEY = "access_key";
   private static final String ODPS_ENDPOINT = "end_point";
   private static final String TUNNEL_ENDPOINT = "tunnel_endpoint";
+  private static final String TUNNEL_ENDPOINT_2 = "tunnel_endpoint_2";
   private static final String PROJECT_NAME = "project_name";
 
   private Properties properties;
@@ -68,6 +69,10 @@ public class OdpsConfig {
 
   public String getTunnelEndpoint() {
     return this.properties.getProperty(TUNNEL_ENDPOINT);
+  }
+
+  public String getTunnelEndpoint2() {
+    return this.properties.getProperty(TUNNEL_ENDPOINT_2);
   }
 
   public String getProjectName() {

@@ -20,11 +20,33 @@ import com.aliyun.odps.datacarrier.commons.DirUtils;
 
 public class MetaCarrierConfiguration {
   private static final String DB_TABLE_NAME_SEPARATOR = ".";
+  private static final String NUM_OF_PARTITIONS = "numOfPartitions";
+  //test_db.test_table(pc1=pv1,pc2=pv2){setting1=value1,setting2=value2}:odps_data_carrier_test.test_table
   private static final Pattern TABLE_NAME_PATTERN = Pattern.compile(".*\\((.*)\\)");
+  private static final Pattern TABLE_CONF_PATTERN = Pattern.compile(".*\\{(.*)}");
 
   private Set<String> databases = new HashSet<>();
   // Database name -> table name -> list of partition spec
-  private Map<String, Map<String, List<Map<String, String>>>> tables = new HashMap<>();
+  private Map<String, Map<String, MetaCarrierTableConfiguration>> tables = new HashMap<>();
+  private int defaultNumOfPartitions = 0;
+
+  public class MetaCarrierTableConfiguration {
+    private int numOfPartitions = 0;
+    private List<Map<String, String>> partitionSpec = new LinkedList<>();
+
+    public List<Map<String, String>> getPartitionSpec() {
+      return partitionSpec;
+    }
+
+    public int getNumOfPartitions() {
+      return numOfPartitions;
+    }
+
+    public void setNumOfPartitions(int numOfPartitions) {
+      this.numOfPartitions = numOfPartitions;
+    }
+  }
+
 
   public MetaCarrierConfiguration() {
   }
@@ -41,7 +63,7 @@ public class MetaCarrierConfiguration {
 
     String line;
     while((line = reader.readLine()) != null) {
-      parseLine(line);
+      parseLine(line.toLowerCase());
     }
   }
 
@@ -57,23 +79,40 @@ public class MetaCarrierConfiguration {
       String database = line.substring(0, idx);
       String table = line.substring(idx + 1);
       Map<String, String> partitionSpec = null;
-
       Matcher m = TABLE_NAME_PATTERN.matcher(table);
-      if (m.matches()) {
+      if (m.matches() && !StringUtils.isBlank(m.group(1))) {
         partitionSpec = parsePartitionSpec(m.group(1));
         table = table.substring(0, table.length() - m.group(1).length() - 2);
+      }
+
+      Map<String, String> tableConf = new HashMap<>();
+      Matcher confMatcher = TABLE_CONF_PATTERN.matcher(table);
+      if (confMatcher.matches()) {
+        parseTableConfSpec(confMatcher.group(1), tableConf);
+        table = table.substring(0, table.length() - confMatcher.group(1).length() - 2);
       }
 
       if (!tables.containsKey(database)) {
         tables.put(database, new HashMap<>());
       }
+
+      if (!tables.get(database).containsKey(table)) {
+        tables.get(database).put(table, new MetaCarrierTableConfiguration());
+      }
+
+      MetaCarrierTableConfiguration tableConfiguration = tables.get(database).get(table);
+
       if (partitionSpec != null) {
-        if (!tables.get(database).containsKey(table)) {
-          tables.get(database).put(table, new LinkedList<>());
+        tableConfiguration.getPartitionSpec().add(partitionSpec);
+      }
+      if (defaultNumOfPartitions > 0) {
+        tableConfiguration.setNumOfPartitions(defaultNumOfPartitions);
+      }
+      if (tableConf.containsKey(NUM_OF_PARTITIONS)) {
+        int tableConfNumsOfPartitions = Integer.parseInt(tableConf.get(NUM_OF_PARTITIONS));
+        if (tableConfNumsOfPartitions > 0) {
+          tableConfiguration.setNumOfPartitions(Integer.parseInt(tableConf.get(NUM_OF_PARTITIONS)));
         }
-        tables.get(database).get(table).add(partitionSpec);
-      } else {
-        tables.get(database).put(table, null);
       }
     } else {
       throw new IllegalArgumentException(
@@ -99,24 +138,47 @@ public class MetaCarrierConfiguration {
     return ps;
   }
 
+  private void parseTableConfSpec(String tableConfSpec, Map<String, String> tableConf) {
+    if (StringUtils.isBlank(tableConfSpec)) {
+      return;
+    }
+    String[] confs = tableConfSpec.split(",");
+    for(String conf : confs) {
+      String[] kv = conf.trim().split("=");
+      if (kv.length != 2) {
+        continue;
+      }
+      tableConf.putIfAbsent(kv[0].trim(), kv[1].trim());
+    }
+  }
+
   public void addDatabases(String[] databases) {
     if (databases != null) {
-      this.databases.addAll(Arrays.asList(databases));
+      for (String database : databases) {
+        this.databases.add(database.toLowerCase());
+      }
     }
   }
 
   public void addTables(String[] tables) {
     if (tables != null) {
       for (String table : tables) {
-        parseLine(table);
+        parseLine(table.toLowerCase());
       }
     }
+  }
+
+  public void setDefaultNumOfPartitions(int defaultNumOfPartitions) {
+    this.defaultNumOfPartitions = defaultNumOfPartitions;
   }
 
   public boolean shouldCarry(String database, String table) {
     if (database == null || table == null) {
       throw new IllegalArgumentException("Argument \'database\' or \'table\' cannot be null");
     }
+
+    database = database.toLowerCase();
+    table = table.toLowerCase();
 
     if (databases.contains(database)) {
       return true;
@@ -133,14 +195,19 @@ public class MetaCarrierConfiguration {
       throw new IllegalArgumentException("Argument \'database\' cannot be null");
     }
 
+    database = database.toLowerCase();
+
     if (databases.contains(database) || tables.containsKey(database)) {
+      System.out.println("returned true");
       return true;
     }
 
+    System.out.println("returned false");
     return false;
   }
 
-  public List<Map<String, String>> getPartitionsToCarry(String database, String table) {
+
+  public MetaCarrierTableConfiguration getPartitionsToCarry(String database, String table) {
     if (!database.contains(database) &&
         !(tables.containsKey(database) && tables.get(database).containsKey(table))) {
       throw new IllegalArgumentException("Should not carry this table: " + database + "." + table);
@@ -148,8 +215,7 @@ public class MetaCarrierConfiguration {
 
     if (tables.containsKey(database) && tables.get(database).containsKey(table)) {
       return tables.get(database).get(table);
-    } else {
-      return null;
     }
+    return null;
   }
 }

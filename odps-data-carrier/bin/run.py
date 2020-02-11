@@ -44,26 +44,39 @@ def parse_table_mapping(table_mapping_path):
             hive_part_spec = m.group(1)
             hive_tbl = hive_tbl[: -len(hive_part_spec) - 2]
 
+        # parse table config
+        table_config = ""
+        table_macher = re.search(r'.*\{(.*)\}', hive_tbl)
+        if table_macher is not None:
+            table_config = table_macher.group(1)
+            hive_tbl = hive_tbl[: -len(table_config) - 2]
+
         try:
             dot_idx = mc.index(".")
         except ValueError as e:
             raise Exception("Cannot parse line: " + line)
         mc_pjt, mc_tbl = mc[: dot_idx].strip(), mc[dot_idx + 1:].strip()
-        return hive_db, hive_tbl, hive_part_spec, mc_pjt, mc_tbl
+        return hive_db, hive_tbl, hive_part_spec, table_config, mc_pjt, mc_tbl
 
     table_mapping = {}
     db_mapping = {}
     with open(table_mapping_path, "r") as fd:
         for line in fd.readlines():
-            (hive_db, hive_tbl, hive_part_spec,
-             mc_pjt, mc_tbl) = parse_line(line)
-            if (hive_db, hive_tbl, hive_part_spec) in table_mapping:
+            (hive_db, hive_tbl, hive_part_spec, table_config, mc_pjt, mc_tbl) = parse_line(line)
+            if (hive_db, hive_tbl, hive_part_spec, table_config) in table_mapping:
                 raise Exception("Duplicated table mapping: " + line)
             if hive_db in db_mapping and db_mapping[hive_db] != mc_pjt:
                 raise Exception("A Hive database is mapped to "
                                 "multiple MaxCompute project: " + line)
-            table_mapping[(hive_db, hive_tbl, hive_part_spec)] = (mc_pjt,
-                                                                  mc_tbl)
+
+            # database and table names are all in lower case in MMA
+            hive_db = hive_db.lower()
+            hive_tbl = hive_db.lower()
+            # TODO: partition column in partition spec could be in upper case
+            mc_pjt = mc_pjt.lower()
+            mc_tbl = mc_tbl.lower()
+
+            table_mapping[(hive_db, hive_tbl, hive_part_spec, table_config)] = (mc_pjt, mc_tbl)
             db_mapping[hive_db] = mc_pjt
     return table_mapping
 
@@ -225,8 +238,23 @@ if __name__ == '__main__':
         type=str,
         help="Specify where condition when migrating data from Hive to MaxCompute.")
 
+    parser.add_argument(
+        "--num_of_partitions",
+        required=False,
+        type=str,
+        help="""The partitions number of partitioned table split from Hive to MaxCompute in BATCH mode. """)
+    parser.add_argument(
+        "--failover_failed_file",
+        required=False,
+        type=str,
+        help="""Rerun the failed tables list in failover_file. """)
+    parser.add_argument(
+        "--failover_success_file",
+        required=False,
+        type=str,
+        help="""Rerun the failed tables list in failover_file. """)
 
-# optional arguments
+    # optional arguments
     parser.add_argument(
         "--verbose",
         required=False,
@@ -243,9 +271,25 @@ if __name__ == '__main__':
 
     table_mapping = {}
     if args.mode == "SINGLE":
-        table_mapping = {(args.hive_db, args.hive_table): (args.mc_project, args.mc_table)}
+        table_mapping = {(args.hive_db.lower(), args.hive_table.lower(), "", ""):
+                         (args.mc_project.lower(), args.mc_table.lower())}
     else:
         table_mapping = parse_table_mapping(args.table_mapping)
+
+    num_of_partitions = 0
+    if (args.num_of_partitions is not None):
+        num_of_partitions = args.num_of_partitions
+
+    failover_failed_file = None
+    failover_success_file = None
+    if args.failover_failed_file is not None and args.failover_success_file is not None:
+        print_utils.print_red("Only support one failover file! Check failover_failed_file and " +
+                              "failover_success_file can not both be specified.")
+        sys.exit(1)
+    elif args.failover_failed_file is not None:
+        failover_failed_file = args.failover_failed_file
+    elif args.failover_success_file is not None:
+        failover_success_file = args.failover_success_file
 
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
@@ -258,7 +302,10 @@ if __name__ == '__main__':
                                        args.user,
                                        args.password,
                                        args.table_mapping,
-                                       args.where)
+                                       args.where,
+                                       num_of_partitions,
+                                       failover_failed_file,
+                                       failover_success_file)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

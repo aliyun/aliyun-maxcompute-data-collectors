@@ -220,6 +220,77 @@ public class MetaProcessor {
     return addPartitionStatements;
   }
 
+
+  private List<String> getAddPartitionStatements(DatabaseMetaModel databaseMeta,
+                                                 TableMetaModel tableMeta,
+                                                 TablePartitionMetaModel tablePartitionMeta,
+                                                 int numOfPartitions,
+                                                 boolean dropPartition) {
+    String odpsProjectName = databaseMeta.odpsProjectName;
+    String odpsTableName = tableMeta.odpsTableName;
+
+    List<String> addPartitionStatements = new LinkedList<>();
+
+    if (dropPartition) {
+      int numOfAllPartitions = tablePartitionMeta.partitions.size();
+      if (numOfAllPartitions == 0) {
+        return addPartitionStatements;
+      }
+      StringBuilder ddlBuilder = new StringBuilder();;
+      StringBuilder addPartitionBuilder = new StringBuilder();
+      for (int i = 0; i < numOfAllPartitions; i ++) {
+        if (i % numOfPartitions == 0) {
+          ddlBuilder.delete(0, ddlBuilder.length());
+          addPartitionBuilder.delete(0, addPartitionBuilder.length());
+          ddlBuilder.append("SET odps.sql.type.system.odps2=true;\n");
+          ddlBuilder.append("ALTER TABLE\n");
+          ddlBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("`\n");
+          ddlBuilder.append("DROP IF EXISTS");
+          addPartitionBuilder.append("ALTER TABLE\n");
+          addPartitionBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("`\n");
+          addPartitionBuilder.append("ADD IF NOT EXISTS");
+        } else {
+          ddlBuilder.append(",");
+        }
+
+        PartitionMetaModel partitionMeta = tablePartitionMeta.partitions.get(i);
+        String odpsPartitionSpec = getOdpsPartitionSpec(tableMeta.partitionColumns,
+            partitionMeta.partitionSpec, false);
+        ddlBuilder.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+        addPartitionBuilder.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+        if ((i + 1) % numOfPartitions == 0 || i == (numOfAllPartitions - 1)) {
+          ddlBuilder.append(";\n");
+          addPartitionBuilder.append(";\n");
+          addPartitionStatements.add(ddlBuilder.append(addPartitionBuilder).toString());
+        }
+      }
+    } else {
+      Iterator<PartitionMetaModel> iterator = tablePartitionMeta.partitions.iterator();
+      while (iterator.hasNext()) {
+        StringBuilder ddlBuilder = new StringBuilder();
+        ddlBuilder.append("SET odps.sql.type.system.odps2=true;\n");
+        ddlBuilder.append("ALTER TABLE\n");
+        ddlBuilder.append(odpsProjectName).append(".`").append(odpsTableName).append("`\n");
+        ddlBuilder.append("ADD IF NOT EXISTS");
+
+        for (int i = 0; i < 1000; i++) {
+          if (iterator.hasNext()) {
+            PartitionMetaModel partitionMeta = iterator.next();
+            String odpsPartitionSpec = getOdpsPartitionSpec(tableMeta.partitionColumns,
+                partitionMeta.partitionSpec,
+                false);
+            ddlBuilder.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+          } else {
+            break;
+          }
+        }
+        ddlBuilder.append(";\n");
+        addPartitionStatements.add(ddlBuilder.toString());
+      }
+    }
+    return addPartitionStatements;
+  }
+
   private String getOdpsCreateOssExternalTableStatement(GlobalMetaModel globalMeta,
                                                         DatabaseMetaModel databaseMeta,
                                                         TableMetaModel tableMeta) {
@@ -469,13 +540,36 @@ public class MetaProcessor {
     return transferSqls;
   }
 
-  private String getMultiPartitionHiveUdtfSql(DatabaseMetaModel databaseMeta,
-                                              TableMetaModel tableMeta,
+  private String getMultiPartitionHiveUdtfSql(DatabaseMetaModel databaseMeta, TableMetaModel tableMeta,
                                               TablePartitionMetaModel tablePartitionMeta,
-                                              int version,
-                                              String where) {
-    StringBuilder hiveUdtfSqlBuilder = new StringBuilder();
+                                              int version, String where) {
+    // For partitioned tables
+    if (tablePartitionMeta != null &&
+        tablePartitionMeta.partitions != null &&
+        !tablePartitionMeta.partitions.isEmpty() &&
+        tablePartitionMeta.userSpecified) {
+      return getMultiPartitionHiveUdtfSqlAsSpec(
+          databaseMeta,
+          tableMeta,
+          tablePartitionMeta, version, where,
+          0,
+          tablePartitionMeta.partitions.size() - 1);
+    }
 
+    // For non-partitioned tables
+    return getMultiPartitionHiveUdtfSqlAsSpec(databaseMeta,
+        tableMeta,
+        tablePartitionMeta, version, where,
+        -1,
+        -1);
+  }
+
+  private String getMultiPartitionHiveUdtfSqlAsSpec(DatabaseMetaModel databaseMeta,
+                                                    TableMetaModel tableMeta,
+                                                    TablePartitionMetaModel tablePartitionMeta,
+                                                    int version, String where,
+                                                    int startPartitionIndex, int endPartitionIndex) {
+    StringBuilder hiveUdtfSqlBuilder = new StringBuilder();
     List<String> hiveColumnNames = new ArrayList<>();
     List<String> odpsColumnNames = new ArrayList<>();
     for (ColumnMetaModel columnMeta : tableMeta.columns) {
@@ -488,10 +582,10 @@ public class MetaProcessor {
       hiveColumnNames.add(columnMeta.columnName);
     }
     hiveUdtfSqlBuilder.append("SELECT odps_data_dump_multi(\n")
-        .append("\'").append(databaseMeta.odpsProjectName).append("\',\n")
-        .append("\'").append(tableMeta.odpsTableName).append("\',\n")
-        .append("\'").append(String.join(",", odpsColumnNames)).append("\',\n")
-        .append("\'").append(String.join(",", odpsPartitionColumnNames)).append("\',\n");
+        .append("'").append(databaseMeta.odpsProjectName).append("',\n")
+        .append("'").append(tableMeta.odpsTableName).append("',\n")
+        .append("'").append(String.join(",", odpsColumnNames)).append("',\n")
+        .append("'").append(String.join(",", odpsPartitionColumnNames)).append("',\n");
     for (int i = 0; i < hiveColumnNames.size(); i++) {
       hiveUdtfSqlBuilder.append("`").append(hiveColumnNames.get(i)).append("`");
       if (i != hiveColumnNames.size() - 1) {
@@ -504,79 +598,103 @@ public class MetaProcessor {
     String tableName = tableMeta.tableName;
     hiveUdtfSqlBuilder.append("FROM ")
         .append(databaseName).append(".`").append(tableName).append("`").append("\n");
-
-    if (!StringUtils.isNullOrEmpty(where)) {
-      hiveUdtfSqlBuilder.append("WHERE\n");
-      hiveUdtfSqlBuilder.append(where);
-    } else {
-      if (tablePartitionMeta != null &&
-          tablePartitionMeta.partitions != null &&
-          !tablePartitionMeta.partitions.isEmpty() &&
-          tablePartitionMeta.userSpecified) {
-        hiveUdtfSqlBuilder.append("WHERE\n");
-        for (int i = 0; i < tablePartitionMeta.partitions.size(); i++) {
-          PartitionMetaModel partitionMetaModel = tablePartitionMeta.partitions.get(i);
-          String hivePartitionSpec = getHivePartitionSpecForQuery(tableMeta.partitionColumns,
-              partitionMetaModel.partitionSpec);
-          hiveUdtfSqlBuilder.append(hivePartitionSpec);
-          if (i != tablePartitionMeta.partitions.size() - 1) {
-            hiveUdtfSqlBuilder.append(" OR\n");
-          }
-        }
-      }
-    }
-
+    String whereCondition = getHiveWhereCondition(tableMeta,
+        tablePartitionMeta,
+        where, startPartitionIndex,
+        endPartitionIndex);
+    hiveUdtfSqlBuilder.append(whereCondition);
     //Use Hive JDBC, sql statements cannot end with ';'
     if (version == 1) {
       hiveUdtfSqlBuilder.append(";\n");
     }
-
     return hiveUdtfSqlBuilder.toString();
   }
+
+//  private String getHiveVerifySqlForNonPartitionedTable(DatabaseMetaModel databaseMetaModel,
+//                                                        TableMetaModel tableMetaModel) {
+//
+//  }
+//
+//  private String getHiveVerifySqlForPartitionedTable(DatabaseMetaModel databaseMetaModel,
+//                                                     TableMetaModel tableMetaModel,
+//                                                     TablePartitionMetaModel tablePartitionMetaModel) {
+//
+//  }
 
   private String getMultiPartitionHiveVerifySql(DatabaseMetaModel databaseMetaModel,
                                                 TableMetaModel tableMetaModel,
                                                 TablePartitionMetaModel tablePartitionMetaModel,
-                                                int version,
-                                                String where) {
+                                                int version, String where) {
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty() &&
+        tablePartitionMetaModel.userSpecified) {
+      return getMultiPartitionHiveVerifySqlAsSpec(databaseMetaModel,
+                                                  tableMetaModel,
+                                                  tablePartitionMetaModel, version, where,
+                                                  0,
+                                                  tablePartitionMetaModel.partitions.size() - 1);
+    }
+    return getMultiPartitionHiveVerifySqlAsSpec(databaseMetaModel,
+                                                tableMetaModel,
+                                                tablePartitionMetaModel, version, where,
+                                                -1,
+                                                -1);
+  }
+
+  private String getMultiPartitionHiveVerifySqlAsSpec(DatabaseMetaModel databaseMetaModel,
+                                                      TableMetaModel tableMetaModel,
+                                                      TablePartitionMetaModel tablePartitionMetaModel,
+                                                      int version, String where,
+                                                      int startPartitionIndex,
+                                                      int endPartitionIndex) {
     StringBuilder hiveVerifySqlBuilder = new StringBuilder();
     hiveVerifySqlBuilder.append("SELECT ");
 
-//    if (tablePartitionMetaModel != null &&
-//        tablePartitionMetaModel.partitions != null &&
-//        !tablePartitionMetaModel.partitions.isEmpty()) {
-//      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
-//        ColumnMetaModel columnMetaModel = tableMetaModel.partitionColumns.get(i);
-//        hiveVerifySqlBuilder.append(columnMetaModel.columnName);
-//        hiveVerifySqlBuilder.append(", ");
-//      }
-//    }
-
-    hiveVerifySqlBuilder.append("COUNT(1) FROM\n");
-    hiveVerifySqlBuilder.append(databaseMetaModel.databaseName)
-            .append(".`").append(tableMetaModel.tableName).append("`\n");
-
-    if (!StringUtils.isNullOrEmpty(where)) {
-      hiveVerifySqlBuilder.append("WHERE\n");
-      hiveVerifySqlBuilder.append(where);
-    } else {
-      if (tablePartitionMetaModel != null &&
-          tablePartitionMetaModel.partitions != null &&
-          !tablePartitionMetaModel.partitions.isEmpty() &&
-          tablePartitionMetaModel.userSpecified) {
-        hiveVerifySqlBuilder.append("WHERE\n");
-        for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
-          PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
-          String hivePartitionSpec = getHivePartitionSpecForQuery(tableMetaModel.partitionColumns,
-              partitionMetaModel.partitionSpec);
-          hiveVerifySqlBuilder.append(hivePartitionSpec);
-          if (i != tablePartitionMetaModel.partitions.size() - 1) {
-            hiveVerifySqlBuilder.append(" OR\n");
-          }
-        }
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        hiveVerifySqlBuilder.append("`").append(c.columnName).append("`");
+        hiveVerifySqlBuilder.append(", ");
       }
     }
 
+    hiveVerifySqlBuilder.append("COUNT(1) FROM\n");
+    hiveVerifySqlBuilder.append(databaseMetaModel.databaseName)
+        .append(".`").append(tableMetaModel.tableName).append("`\n");
+
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+
+      // Add where condition
+      String whereCondition = getHiveWhereCondition(tableMetaModel,
+                                                    tablePartitionMetaModel,
+                                                    where,
+                                                    startPartitionIndex,
+                                                    endPartitionIndex);
+      hiveVerifySqlBuilder.append(whereCondition);
+
+      hiveVerifySqlBuilder.append("\nGROUP BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        hiveVerifySqlBuilder.append("`").append(c.columnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          hiveVerifySqlBuilder.append(", ");
+        }
+      }
+
+      hiveVerifySqlBuilder.append("\nORDER BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        hiveVerifySqlBuilder.append("`").append(c.columnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          hiveVerifySqlBuilder.append(", ");
+        }
+      }
+    }
     //Use Hive JDBC, sql statements cannot end with ';'
     if (version == 1) {
       hiveVerifySqlBuilder.append(";\n");
@@ -586,42 +704,84 @@ public class MetaProcessor {
 
   private String getMultiPartitionOdpsVerifySql(DatabaseMetaModel databaseMetaModel,
                                                 TableMetaModel tableMetaModel,
-                                                TablePartitionMetaModel tablePartitionMetaModel) {
-    StringBuilder hiveVerifySqlBuilder = new StringBuilder("SET odps.sql.allow.fullscan=true;\n");
-    hiveVerifySqlBuilder.append("SELECT ");
-
-//    if (tablePartitionMetaModel != null &&
-//        tablePartitionMetaModel.partitions != null &&
-//        !tablePartitionMetaModel.partitions.isEmpty()) {
-//      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
-//        ColumnMetaModel columnMetaModel = tableMetaModel.partitionColumns.get(i);
-//        hiveVerifySqlBuilder.append(columnMetaModel.columnName);
-//        hiveVerifySqlBuilder.append(", ");
-//      }
-//    }
-
-    hiveVerifySqlBuilder.append("COUNT(1) FROM\n");
-    hiveVerifySqlBuilder.append(databaseMetaModel.odpsProjectName)
-            .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+                                                TablePartitionMetaModel tablePartitionMetaModel,
+                                                String where) {
     if (tablePartitionMetaModel != null &&
-            tablePartitionMetaModel.partitions != null &&
-            !tablePartitionMetaModel.partitions.isEmpty()) {
-      hiveVerifySqlBuilder.append("WHERE\n");
-      for (int i = 0; i < tablePartitionMetaModel.partitions.size(); i++) {
-        PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
-        String hivePartitionSpec = getOdpsPartitionSpecForQuery(tableMetaModel.partitionColumns,
-                partitionMetaModel.partitionSpec);
-        hiveVerifySqlBuilder.append(hivePartitionSpec);
-        if (i != tablePartitionMetaModel.partitions.size() - 1) {
-          hiveVerifySqlBuilder.append(" OR\n");
-        }
-      }
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty() &&
+        tablePartitionMetaModel.userSpecified) {
+      return getMultiPartitionOdpsVerifySqlAsSpec(databaseMetaModel,
+                                                  tableMetaModel,
+                                                  tablePartitionMetaModel, where,
+                                                  0,
+                                                  tablePartitionMetaModel.partitions.size() - 1);
     }
-    hiveVerifySqlBuilder.append(";");
-
-    return hiveVerifySqlBuilder.toString();
+    return getMultiPartitionOdpsVerifySqlAsSpec(databaseMetaModel,
+                                                tableMetaModel,
+                                                tablePartitionMetaModel, where,
+                                                -1,
+                                                -1);
   }
 
+  private String getMultiPartitionOdpsVerifySqlAsSpec(DatabaseMetaModel databaseMetaModel,
+                                                      TableMetaModel tableMetaModel,
+                                                      TablePartitionMetaModel tablePartitionMetaModel, String where,
+                                                      int startPartitionIndex,
+                                                      int endPartitionIndex) {
+    StringBuilder odpsVerifySqlBuilder = new StringBuilder("SET odps.sql.allow.fullscan=true;\n");
+    odpsVerifySqlBuilder.append("SELECT ");
+
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel columnMetaModel = tableMetaModel.partitionColumns.get(i);
+        odpsVerifySqlBuilder.append("`").append(columnMetaModel.odpsColumnName).append("`");
+        odpsVerifySqlBuilder.append(", ");
+      }
+    }
+
+    odpsVerifySqlBuilder.append("COUNT(1) FROM\n");
+    odpsVerifySqlBuilder.append(databaseMetaModel.odpsProjectName)
+            .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+    if (tablePartitionMetaModel != null &&
+        tablePartitionMetaModel.partitions != null &&
+        !tablePartitionMetaModel.partitions.isEmpty()) {
+
+      String whereCondition = getOdpsWhereCondition(tableMetaModel,
+                                                    tablePartitionMetaModel,
+                                                    where,
+                                                    startPartitionIndex,
+                                                    endPartitionIndex);
+      odpsVerifySqlBuilder.append(whereCondition);
+
+      odpsVerifySqlBuilder.append("\nGROUP BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        odpsVerifySqlBuilder.append("`").append(c.odpsColumnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          odpsVerifySqlBuilder.append(", ");
+        }
+      }
+
+      odpsVerifySqlBuilder.append("\nORDER BY ");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        odpsVerifySqlBuilder.append("`").append(c.odpsColumnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          odpsVerifySqlBuilder.append(", ");
+        }
+      }
+
+      odpsVerifySqlBuilder
+          .append("\nLIMIT")
+          .append(" ")
+          .append(tablePartitionMetaModel.partitions.size());
+    }
+    odpsVerifySqlBuilder.append(";");
+
+    return odpsVerifySqlBuilder.toString();
+  }
 
   private String getOdpsPartitionSpec(List<ColumnMetaModel> partitionColumns,
                                       Map<String, String> hivePartitionSpec,
@@ -669,7 +829,7 @@ public class MetaProcessor {
 
       odpsPartitionSpecBuilder.append(partitionColumn.odpsColumnName).append("=");
       if ("STRING".equalsIgnoreCase(partitionColumn.type)) {
-        odpsPartitionSpecBuilder.append("\'").append(partitionValue).append("\'");
+        odpsPartitionSpecBuilder.append("'").append(partitionValue).append("'");
       } else {
         odpsPartitionSpecBuilder.append(partitionValue);
       }
@@ -701,6 +861,83 @@ public class MetaProcessor {
     }
 
     return hivePartitionSpecBuilder.toString();
+  }
+
+  private String getHiveWhereCondition(TableMetaModel tableMetaModel,
+                                       TablePartitionMetaModel tablePartitionMetaModel,
+                                       String where,
+                                       int startPartitionIndex,
+                                       int endPartitionIndex) {
+    StringBuilder whereConditionBuilder = new StringBuilder();
+
+    // Return empty string under the following two cases:
+    //   1. non-partitioned table
+    //   2. the partition aggregation feature is disabled
+    if (startPartitionIndex == endPartitionIndex && startPartitionIndex == -1 && StringUtils.isNullOrEmpty(where)) {
+      return whereConditionBuilder.toString();
+    } else {
+      whereConditionBuilder.append("WHERE\n");
+      if (!StringUtils.isNullOrEmpty(where)) {
+        whereConditionBuilder.append("(").append(where).append(")\n");
+      }
+      if (startPartitionIndex <= endPartitionIndex) {
+        if (!StringUtils.isNullOrEmpty(where)) {
+          whereConditionBuilder.append(" AND (");
+        }
+        for (int i = startPartitionIndex; i <= endPartitionIndex; i++) {
+          PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
+          String hivePartitionSpec = getHivePartitionSpecForQuery(tableMetaModel.partitionColumns,
+              partitionMetaModel.partitionSpec);
+          whereConditionBuilder.append(hivePartitionSpec);
+          if (i != endPartitionIndex) {
+            whereConditionBuilder.append(" OR\n");
+          }
+        }
+        if (!StringUtils.isNullOrEmpty(where)) {
+          whereConditionBuilder.append(")\n");
+        }
+      }
+    }
+    return whereConditionBuilder.toString();
+  }
+
+  private String getOdpsWhereCondition(TableMetaModel tableMetaModel,
+                                       TablePartitionMetaModel tablePartitionMetaModel,
+                                       String where,
+                                       int startPartitionIndex,
+                                       int endPartitionIndex) {
+    StringBuilder whereConditionBuilder = new StringBuilder();
+
+    // Return empty string under the following two cases:
+    //   1. non-partitioned table
+    //   2. the partition aggregation feature is disabled
+    if (startPartitionIndex == endPartitionIndex && startPartitionIndex == -1 && StringUtils.isNullOrEmpty(where)) {
+      return whereConditionBuilder.toString();
+    } else {
+      whereConditionBuilder.append("WHERE\n");
+      whereConditionBuilder.append("WHERE\n");
+      if (!StringUtils.isNullOrEmpty(where)) {
+        whereConditionBuilder.append("(").append(where).append(")\n");
+      }
+      if (startPartitionIndex <= endPartitionIndex) {
+        if (!StringUtils.isNullOrEmpty(where)) {
+          whereConditionBuilder.append(" AND (");
+        }
+        for (int i = startPartitionIndex; i <= endPartitionIndex; i++) {
+          PartitionMetaModel partitionMetaModel = tablePartitionMetaModel.partitions.get(i);
+          String odpsPartitionSpec = getOdpsPartitionSpecForQuery(tableMetaModel.partitionColumns,
+              partitionMetaModel.partitionSpec);
+          whereConditionBuilder.append(odpsPartitionSpec);
+          if (i != endPartitionIndex) {
+            whereConditionBuilder.append(" OR\n");
+          }
+        }
+        if (!StringUtils.isNullOrEmpty(where)) {
+          whereConditionBuilder.append(")\n");
+        }
+      }
+    }
+    return whereConditionBuilder.toString();
   }
 
   private String getPartitionSpecAsFilename(List<ColumnMetaModel> partitionColumns,
@@ -762,7 +999,7 @@ public class MetaProcessor {
               multiPartitionHiveVerifySql);
 
           String multiPartitionOdpsVerifySql = getMultiPartitionOdpsVerifySql(databaseMeta,
-              tableMeta, null);
+              tableMeta, null, where);
           intermediateDataDirManager.setOdpsVerifySqlMultiPartition(databaseName, tableName,
               multiPartitionOdpsVerifySql);
 
@@ -786,55 +1023,124 @@ public class MetaProcessor {
         try {
           TableMetaModel tableMeta = metaManager.getTableMeta(databaseName, partitionTableName);
           TablePartitionMetaModel tablePartitionMeta =
-                  metaManager.getTablePartitionMeta(databaseName, partitionTableName);
+              metaManager.getTablePartitionMeta(databaseName, partitionTableName);
 
-          // Generate Hive UDTF SQL statement, Overwrite
-          String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSql(databaseMeta,
-              tableMeta,
-              tablePartitionMeta,
-              version,
-              where);
-          intermediateDataDirManager.setHiveUdtfSqlMultiPartition(databaseName,
+          //split table into multiple partition set.
+          if (tablePartitionMeta.numOfPartitions > 0) {
+
+            // Overwrite, delete tableName.sql file.
+            intermediateDataDirManager.deleteSqlOfFullScanTable(databaseName, partitionTableName);
+
+            int numOfAllPartitions = tablePartitionMeta.partitions.size(); //5
+            int numOfSplitSet =
+                (numOfAllPartitions + tablePartitionMeta.numOfPartitions - 1) / tablePartitionMeta.numOfPartitions;
+            // 5 + 2 - 1 / 2 = 3
+            int numPartitionsPerSet = (numOfAllPartitions + numOfSplitSet - 1) / numOfSplitSet;
+            // 5 + 3 - 1 / 3 = 2
+            for (int i = 0; i < numOfSplitSet; i++) {
+              // generate sqls for every partitions set
+              int startPartitionIndex = i * numPartitionsPerSet; // 0, 2, 4,
+              int endPartitionIndex = (i + 1) * numPartitionsPerSet - 1; //1, 3, 5,
+              if (endPartitionIndex > numOfAllPartitions - 1) {
+                endPartitionIndex = numOfAllPartitions - 1;
+              }
+
+              // Generate Hive UDTF SQL statement
+              String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSqlAsSpec(
+                  databaseMeta,
+                  tableMeta,
+                  tablePartitionMeta,
+                  version, where,
+                  startPartitionIndex,
+                  endPartitionIndex);
+              intermediateDataDirManager.setHiveUdtfSqlMultiPartitionWithSeq(
+                  databaseName,
                   partitionTableName,
+                  String.valueOf(i),
                   multiPartitionHiveUdtfSql);
 
-          // Overwrite
-          String multiPartitionHiveVerifySql = getMultiPartitionHiveVerifySql(databaseMeta,
-                  tableMeta, tablePartitionMeta, version, where);
-          intermediateDataDirManager.setHiveVerifySqlMultiPartition(databaseName, partitionTableName,
+              // Generate Hive verify SQL statement
+              String multiPartitionHiveVerifySql = getMultiPartitionHiveVerifySqlAsSpec(
+                  databaseMeta,
+                  tableMeta,
+                  tablePartitionMeta,
+                  version, where,
+                  startPartitionIndex,
+                  endPartitionIndex);
+              intermediateDataDirManager.setHiveVerifySqlMultiPartitionWithSeq(
+                  databaseName,
+                  partitionTableName,
+                  String.valueOf(i),
                   multiPartitionHiveVerifySql);
 
-          String multiPartitionOdpsVerifySql = getMultiPartitionOdpsVerifySql(databaseMeta,
-                  tableMeta, tablePartitionMeta);
-          intermediateDataDirManager.setOdpsVerifySqlMultiPartition(databaseName, partitionTableName,
-                  multiPartitionOdpsVerifySql);
-
-          // Generate ODPS add partition statements
-          List<String> addPartitionStatements = getAddPartitionStatements(databaseMeta,
+              // Generate Odps verify SQL statement
+              String multiPartitionOdpsVerifySql = getMultiPartitionOdpsVerifySqlAsSpec(
+                  databaseMeta,
                   tableMeta,
-                  tablePartitionMeta);
-
-          // Each add partition statement file contains less than 1000 ODPS DDLs
-          intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName,
+                  tablePartitionMeta,
+                  where,
+                  startPartitionIndex,
+                  endPartitionIndex);
+              intermediateDataDirManager.setOdpsVerifySqlMultiPartitionWithSeq(
+                  databaseName,
                   partitionTableName,
-                  addPartitionStatements);
+                  String.valueOf(i),
+                  multiPartitionOdpsVerifySql);
+            }
+            // Generate ODPS add partition statements
+            List<String> addPartitionStatements = getAddPartitionStatements(databaseMeta,
+                tableMeta,
+                tablePartitionMeta, numPartitionsPerSet, true);
+
+            // Each add partition statement file contains less than 1000 ODPS DDLs
+            intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName,
+                partitionTableName,
+                addPartitionStatements);
+          } else {
+            // Generate Hive UDTF SQL statement, Overwrite
+            String multiPartitionHiveUdtfSql = getMultiPartitionHiveUdtfSql(
+                databaseMeta, tableMeta, tablePartitionMeta, version, where);
+            intermediateDataDirManager.setHiveUdtfSqlMultiPartition(databaseName,
+                partitionTableName,
+                multiPartitionHiveUdtfSql);
+
+            // Generate ODPS add partition statements
+            List<String> addPartitionStatements = getAddPartitionStatements(databaseMeta,
+                tableMeta, tablePartitionMeta, 1000, true);
+
+            // Each add partition statement file contains less than 1000 ODPS DDLs
+            intermediateDataDirManager.setOdpsAddPartitionStatement(databaseName,
+                partitionTableName,
+                addPartitionStatements);
+
+            // Overwrite
+            String multiPartitionHiveVerifySql = getMultiPartitionHiveVerifySql(databaseMeta,
+                tableMeta, tablePartitionMeta, version, where);
+            intermediateDataDirManager.setHiveVerifySqlMultiPartition(databaseName, partitionTableName,
+                multiPartitionHiveVerifySql);
+
+            String multiPartitionOdpsVerifySql = getMultiPartitionOdpsVerifySql(databaseMeta,
+                tableMeta, tablePartitionMeta, where);
+            intermediateDataDirManager.setOdpsVerifySqlMultiPartition(databaseName, partitionTableName,
+                multiPartitionOdpsVerifySql);
+          }
 
           // Generate ODPS add external partition statements & data transfer SQL
           List<String> addExternalPartitionStatements =
-                  getOdpsAddOssExternalPartitionStatements(globalMeta,
-                          databaseMeta,
-                          tableMeta,
-                          tablePartitionMeta);
-          intermediateDataDirManager.setOdpsAddExternalPartitionStatement(databaseName,
-                  partitionTableName,
-                  addExternalPartitionStatements);
-
-          List<String> odpsOssTransferSqls = getOdpsOssTransferSqls(databaseMeta,
+              getOdpsAddOssExternalPartitionStatements(globalMeta,
+                  databaseMeta,
                   tableMeta,
                   tablePartitionMeta);
+          intermediateDataDirManager.setOdpsAddExternalPartitionStatement(databaseName,
+              partitionTableName,
+              addExternalPartitionStatements);
+
+          List<String> odpsOssTransferSqls = getOdpsOssTransferSqls(databaseMeta,
+              tableMeta,
+              tablePartitionMeta);
           intermediateDataDirManager.setOdpsOssTransferSqlSinglePartition(databaseName,
-                  partitionTableName,
-                  odpsOssTransferSqls);
+              partitionTableName,
+              odpsOssTransferSqls);
         } catch (Exception e) {
           throw new Exception("Error happened when processing " + databaseName + ":" + partitionTableName, e);
         }

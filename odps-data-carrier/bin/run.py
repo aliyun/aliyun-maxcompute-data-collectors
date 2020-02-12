@@ -56,25 +56,26 @@ def parse_table_mapping(table_mapping_path):
         except ValueError as e:
             raise Exception("Cannot parse line: " + line)
         mc_pjt, mc_tbl = mc[: dot_idx].strip(), mc[dot_idx + 1:].strip()
-        return hive_db, hive_tbl, hive_part_spec, table_config, mc_pjt, mc_tbl
+
+        # TODO: partition column in partition spec could be in upper case
+        return (hive_db.lower(),
+                hive_tbl.lower(),
+                hive_part_spec,
+                table_config,
+                mc_pjt.lower(),
+                mc_tbl.lower())
 
     table_mapping = {}
     db_mapping = {}
     with open(table_mapping_path, "r") as fd:
         for line in fd.readlines():
             (hive_db, hive_tbl, hive_part_spec, table_config, mc_pjt, mc_tbl) = parse_line(line)
+
             if (hive_db, hive_tbl, hive_part_spec, table_config) in table_mapping:
                 raise Exception("Duplicated table mapping: " + line)
             if hive_db in db_mapping and db_mapping[hive_db] != mc_pjt:
                 raise Exception("A Hive database is mapped to "
                                 "multiple MaxCompute project: " + line)
-
-            # database and table names are all in lower case in MMA
-            hive_db = hive_db.lower()
-            hive_tbl = hive_db.lower()
-            # TODO: partition column in partition spec could be in upper case
-            mc_pjt = mc_pjt.lower()
-            mc_tbl = mc_tbl.lower()
 
             table_mapping[(hive_db, hive_tbl, hive_part_spec, table_config)] = (mc_pjt, mc_tbl)
             db_mapping[hive_db] = mc_pjt

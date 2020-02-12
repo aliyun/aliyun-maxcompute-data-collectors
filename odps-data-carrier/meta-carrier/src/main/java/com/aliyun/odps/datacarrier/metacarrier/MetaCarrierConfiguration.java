@@ -3,7 +3,6 @@ package com.aliyun.odps.datacarrier.metacarrier;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -63,7 +62,7 @@ public class MetaCarrierConfiguration {
 
     String line;
     while((line = reader.readLine()) != null) {
-      parseLine(line.toLowerCase());
+      parseLine(line);
     }
   }
 
@@ -92,15 +91,16 @@ public class MetaCarrierConfiguration {
       if (confMatcher.matches()) {
         parseTableConfSpec(confMatcher.group(1), tableConf);
         table = table.substring(0, table.length() - confMatcher.group(1).length() - 2);
-        System.out.println("### has conf : " + table + "{" + tableConf.toString() + "}");
+        System.out.println("### has conf : " + table + tableConf.toString());
       }
 
       if (!tables.containsKey(database)) {
-        tables.put(database, new HashMap<>());
+        tables.put(database.toLowerCase(), new HashMap<>());
       }
 
       if (!tables.get(database).containsKey(table)) {
-        tables.get(database).put(table, new MetaCarrierTableConfiguration());
+        tables.get(database.toLowerCase()).put(table.toLowerCase(),
+                                               new MetaCarrierTableConfiguration());
       }
 
       MetaCarrierTableConfiguration tableConfiguration = tables.get(database).get(table);
@@ -169,7 +169,7 @@ public class MetaCarrierConfiguration {
   public void addTables(String[] tables) {
     if (tables != null) {
       for (String table : tables) {
-        parseLine(table.toLowerCase());
+        parseLine(table);
       }
     }
   }
@@ -204,11 +204,9 @@ public class MetaCarrierConfiguration {
     database = database.toLowerCase();
 
     if (databases.contains(database) || tables.containsKey(database)) {
-      System.out.println("returned true");
       return true;
     }
 
-    System.out.println("returned false");
     return false;
   }
 

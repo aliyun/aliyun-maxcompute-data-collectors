@@ -17,6 +17,7 @@ import argparse
 import os
 import re
 import sys
+import time
 
 from utils import print_utils
 from migration_runner import MigrationRunner
@@ -226,6 +227,12 @@ if __name__ == '__main__':
         required=False,
         type=str,
         help="""Rerun the failed tables list in failover_file. """)
+    parser.add_argument(
+        "--name",
+        required=False,
+        type=str,
+        help="""name of this migration job, by default is a timestamp"""
+    )
 
     # optional arguments
     parser.add_argument(
@@ -264,6 +271,9 @@ if __name__ == '__main__':
     elif args.failover_success_file is not None:
         failover_success_file = args.failover_success_file
 
+    name = str(int(time.time()))
+    if args.name is not None:
+        name = args.name
     migration_runner = MigrationRunner(odps_data_carrier_dir,
                                        table_mapping,
                                        args.hms_thrift_addr,
@@ -271,7 +281,8 @@ if __name__ == '__main__':
                                        args.verbose,
                                        num_of_partitions,
                                        failover_failed_file,
-                                       failover_success_file)
+                                       failover_success_file,
+                                       name)
     if args.dynamic_scheduling:
         migration_runner.set_dynamic_scheduling()
         migration_runner.set_threshold(args.threshold)

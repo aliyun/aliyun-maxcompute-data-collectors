@@ -218,10 +218,10 @@ public class HiveMetaCarrier {
             TableMetaModel tableMeta = getTableMeta(databaseName, tableName);
             metaManager.setTableMeta(databaseName, tableMeta);
             // Handle partition meta
-            MetaCarrierTableConfiguration tableConfiguration = configuration
-                .getPartitionsToCarry(databaseName,
-                    tableName);
-            TablePartitionMetaModel tablePartitionMeta = getTablePartitionMeta(databaseName,
+            MetaCarrierTableConfiguration tableConfiguration =
+                configuration.getPartitionsToCarry(databaseName, tableName);
+            TablePartitionMetaModel tablePartitionMeta = getTablePartitionMeta(
+                databaseName,
                 tableName,
                 tableConfiguration.getNumOfPartitions(),
                 tableConfiguration.getPartitionSpec());

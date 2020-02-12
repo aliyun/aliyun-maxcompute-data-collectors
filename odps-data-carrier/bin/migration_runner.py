@@ -36,7 +36,8 @@ class MigrationRunner:
                  verbose,
                  num_of_partitions,
                  failover_failed_file,
-                 failover_success_file):
+                 failover_success_file,
+                 name):
         self._odps_data_carrier_dir = odps_data_carrier_dir
         self._table_mapping = table_mapping
         self._hms_thrift_addr = hms_thrift_addr
@@ -62,44 +63,44 @@ class MigrationRunner:
         self._parallelism = 20
 
         # dir and paths
-        self._timestamp = str(int(time.time()))
+        self._name = name
         self._meta_carrier_path = os.path.join(self._odps_data_carrier_dir, "bin", "meta-carrier")
         self._meta_carrier_input_path = os.path.join(self._odps_data_carrier_dir,
                                                      "tmp",
-                                                     "meta_carrier_input_" + self._timestamp)
+                                                     "meta_carrier_input_" + self._name)
         self._meta_carrier_output_dir = os.path.join(self._odps_data_carrier_dir,
                                                      "tmp",
-                                                     "meta_carrier_output_" + self._timestamp)
+                                                     "meta_carrier_output_" + self._name)
         self._meta_processor_path = os.path.join(self._odps_data_carrier_dir,
                                                  "bin",
                                                  "meta-processor")
         self._meta_processor_output_dir = os.path.join(self._odps_data_carrier_dir,
                                                        "tmp",
-                                                       "meta_processor_output_" + self._timestamp)
+                                                       "meta_processor_output_" + self._name)
         self._odps_log_root_dir = os.path.join(self._odps_data_carrier_dir,
                                                "log",
-                                               self._timestamp,
+                                               self._name,
                                                "odps")
         self._hive_log_root_dir = os.path.join(self._odps_data_carrier_dir,
                                                "log",
-                                               self._timestamp,
+                                               self._name,
                                                "hive")
         self._oss_log_root_dir = os.path.join(self._odps_data_carrier_dir,
                                               "log",
-                                              self._timestamp,
+                                              self._name,
                                               "oss")
         self._verify_log_root_dir = os.path.join(self._odps_data_carrier_dir,
                                                  "log",
-                                                 self._timestamp,
+                                                 self._name,
                                                  "verify")
         self._succeed_job_list_path = os.path.join(self._odps_data_carrier_dir,
-                                                   "succeed_%s.txt" % self._timestamp)
+                                                   "succeed_%s.txt" % self._name)
         self._failed_job_list_path = os.path.join(self._odps_data_carrier_dir,
-                                                  "failed_%s.txt" % self._timestamp)
+                                                  "failed_%s.txt" % self._name)
         self._validate_failed_job_list_path = os.path.join(
-            self._odps_data_carrier_dir, "validate_failed_%s.txt" % self._timestamp)
+            self._odps_data_carrier_dir, "validate_failed_%s.txt" % self._name)
         self._validate_failed_partition_list_path = os.path.join(
-            self._odps_data_carrier_dir, "validate_failed_partition_%s.txt" % self._timestamp)
+            self._odps_data_carrier_dir, "validate_failed_partition_%s.txt" % self._name)
 
         # global executors
         self._global_hive_sql_runner = HiveSQLRunner(self._odps_data_carrier_dir,

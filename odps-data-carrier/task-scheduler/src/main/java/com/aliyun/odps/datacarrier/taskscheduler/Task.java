@@ -15,7 +15,6 @@ class Task {
   private static final Logger LOG = LogManager.getLogger(Task.class);
   protected String project; //source project
   protected String tableName; //source table
-  protected List<MetaManager.PartitionMetaModel> partitions;
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;

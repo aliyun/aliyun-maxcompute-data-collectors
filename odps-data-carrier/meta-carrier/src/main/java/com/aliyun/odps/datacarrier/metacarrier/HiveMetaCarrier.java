@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -269,20 +270,23 @@ public class HiveMetaCarrier implements MetaCarrier {
   }
 
   @Override
-  public void generateMetaModelWithFailover(MetaCarrierConfiguration configuration, Configuration failoverConfig)
+  public List<TableMetaModel> generateMetaModelWithFailover(String tableMappingFilePath, List<TableMetaModel> succeededTables)
       throws IOException, TException {
     //TODO[MMA-V2] implement.
+    return Collections.emptyList();
   }
 
 
   @Override
   public TableMetaModel getTables(String databaseName) throws TException {
     //TODO[MMA-V2] implement.
+    return new TableMetaModel();
   }
 
   @Override
   public TablePartitionMetaModel getPartitionMeta(String databaseName, String tableName) throws TException {
     //TODO[MMA-V2] implement.
+    return new TablePartitionMetaModel();
   }
 
   private static void validateCommandLine(CommandLine commandLine, Options options) {

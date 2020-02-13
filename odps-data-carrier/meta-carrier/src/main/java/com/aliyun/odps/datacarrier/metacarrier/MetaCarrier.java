@@ -25,12 +25,12 @@ public interface MetaCarrier {
   /**
    * Generate TableMetaModel/TablePartitionMetaModel filtering out succeeded tables and partitions
    * according to failoverConfig.
-   * @param configuration
-   * @param failoverConfig
+   * @param tableMappingFilePath
+   * @param succeededTables
    * @throws IOException
    * @throws TException
    */
-  void generateMetaModelWithFailover(MetaCarrierConfiguration configuration, Configuration failoverConfig)
+  List<TableMetaModel> generateMetaModelWithFailover(String tableMappingFilePath, List<TableMetaModel> succeededTables)
       throws IOException, TException;
 
   /**

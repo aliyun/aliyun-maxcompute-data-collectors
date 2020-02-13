@@ -1,5 +1,6 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.metacarrier.HiveMetaCarrier;
 import com.aliyun.odps.datacarrier.metacarrier.MetaCarrier;
 import com.aliyun.odps.utils.StringUtils;
@@ -34,6 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.thrift.TException;
+
+import static com.aliyun.odps.datacarrier.taskscheduler.Constants.*;
 
 public class TaskScheduler {
 
@@ -47,20 +51,7 @@ public class TaskScheduler {
   private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
 
-  private static final String INPUT_DIR = "input-dir";
-  private static final String DATA_SOURCE = "datasource";
-  private static final String MODE = "mode";
-  private static final String TABLE_MAPPING = "table-mapping";
-  private static final String JDBC_ADDRESS = "jdbc-address";
-  private static final String USER = "user";
-  private static final String PASSWORD = "password";
-  private static final String HELP = "help";
-  private static final String WHERE = "where";
-  private static final String FAILOVER_OUTPUT = "failover.out";
-  private static final String HIVE_META_THRIFT_ADDRESS = "hive-meta-thrift-address";
-  private static final String HIVE_META_STORE_PRINCIPAL = "hive-meta-store-principal";
-  private static final String HIVE_META_STORE_KEY_TAB = "hive-meta-store-key-tab";
-  private static final String HIVE_META_STORE_SYSTEM = "hive-meta-store-system";
+
 
   private TaskManager taskManager;
   private DataValidator dataValidator;
@@ -75,10 +66,11 @@ public class TaskScheduler {
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<Task> tasks;
   protected Set<String> finishedTasks;
-  private static Path failoverFilePath;
+
 
   private MetaCarrier metaCarrier;
-  // metaProcessor
+
+  private TaskMetaManager taskMetaManager;
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
@@ -94,18 +86,18 @@ public class TaskScheduler {
 
   private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
                    String jdbcAddress, String user, String password, String where, String hmsThriftAddress,
-                   String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties) {
+                   String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties)
+      throws IOException, TException {
 
 
-    this.failoverFilePath = Paths.get(System.getProperty("user.dir"), FAILOVER_OUTPUT);
+    this.taskMetaManager = new TaskMetaManager();
 
-    succeededTables = mmaMetaManager.loadFailoverFile();
+//    succeededTables = mmaMetaManager.loadFailoverFile();
 
-
-    this.metaCarrier = new HiveMetaCarrier();
     if (DataSource.Hive.equals(dataSource)) {
-      this.metaCarrier = new HiveMetaCarrier();
-      List<Model> tables = this.metaCarrier.generateMetaModelWithFailover(configuration, mmaMetaManager.getFailoverConfig());
+      this.metaCarrier = new HiveMetaCarrier(hmsThriftAddress, null, hmsPrincipal, hmsKeyTab, hmsSystemProperties);
+      List<TableMetaModel> tables = this.metaCarrier.generateMetaModelWithFailover(tableMappingFilePath,
+          this.taskMetaManager.getSucceededTableMeta());
     }
 
 
@@ -275,8 +267,7 @@ public class TaskScheduler {
 
           // tasks done, write to failover file.
           if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
-            writeToFailoverFile(task.getTableNameWithProject() + "\n");
-
+            taskMetaManager.writeToFailoverFile(task.getTableNameWithProject() + "\n");
           }
 
         } else {
@@ -300,34 +291,6 @@ public class TaskScheduler {
     }
   }
 
-  private static void writeToFailoverFile(String taskName) {
-    OutputStream os = null;
-    try {
-      os = new FileOutputStream(new File(failoverFilePath.toString()), true);
-      os.write(taskName.getBytes(), 0, taskName.length());
-    } catch (IOException e) {
-      e.printStackTrace();
-    }finally{
-      try {
-        os.close();
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
-    }
-  }
-
-  private void loadFailoverFile() {
-    if (Files.notExists(this.failoverFilePath)) {
-      LOG.info("Failover file is not found, skip failover.");
-      return;
-    }
-    try {
-      List<String> taskNames = Files.readAllLines(this.failoverFilePath);
-      finishedTasks.addAll(taskNames);
-    } catch (Exception e) {
-      LOG.error("Read failover file failed.");
-    }
-  }
 
   private static class ActionComparator implements Comparator<Action> {
     @Override

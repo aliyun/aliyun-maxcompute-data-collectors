@@ -35,6 +35,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -56,10 +57,12 @@ import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;
 import me.tongfei.progressbar.ProgressBarStyle;
 
+import javax.security.auth.login.Configuration;
+
 /**
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
  */
-public class HiveMetaCarrier {
+public class HiveMetaCarrier implements MetaCarrier {
   private static final String HIVE_META_FAILED_OUTPUT = "hiveMetaFailed.out";
 
   private HiveMetaStoreClient metaStoreClient;
@@ -89,7 +92,12 @@ public class HiveMetaCarrier {
     }
 
     this.metaStoreClient = new HiveMetaStoreClient(hiveConf);
-    this.metaManager = new MetaManager(outputPath);
+    if (StringUtils.isNotEmpty(outputPath)) {
+      this.metaManager = new MetaManager(outputPath);
+    } else {
+      //TODO[MMA-V2] init MetaManager without outputPath,
+      this.metaManager = new MetaManager();
+    }
     this.hiveMetaFailedOutputFile = Paths.get(System.getProperty("user.dir"), HIVE_META_FAILED_OUTPUT);
   }
 
@@ -106,7 +114,8 @@ public class HiveMetaCarrier {
     return databaseMeta;
   }
 
-  private TableMetaModel getTableMeta(String databaseName, String tableName) throws TException {
+  @Override
+  public TableMetaModel getTableMeta(String databaseName, String tableName) throws TException {
     Table table = metaStoreClient.getTable(databaseName, tableName);
     TableMetaModel tableMeta = new TableMetaModel();
     tableMeta.tableName = tableName;
@@ -137,7 +146,8 @@ public class HiveMetaCarrier {
     return tableMeta;
   }
 
-  private TablePartitionMetaModel getTablePartitionMeta(String databaseName,
+  @Override
+  public TablePartitionMetaModel getTablePartitionMeta(String databaseName,
                                                         String tableName,
                                                         int numOfPartitions,
                                                         List<Map<String, String>> partitionSpecs)
@@ -188,6 +198,7 @@ public class HiveMetaCarrier {
     return progressBarBuilder.build();
   }
 
+  @Override
   public void carry(MetaCarrierConfiguration configuration) throws IOException, TException {
     GlobalMetaModel globalMeta = getGlobalMeta();
     metaManager.setGlobalMeta(globalMeta);
@@ -255,6 +266,23 @@ public class HiveMetaCarrier {
         e.printStackTrace();
       }
     }
+  }
+
+  @Override
+  public void generateMetaModelWithFailover(MetaCarrierConfiguration configuration, Configuration failoverConfig)
+      throws IOException, TException {
+    //TODO[MMA-V2] implement.
+  }
+
+
+  @Override
+  public TableMetaModel getTables(String databaseName) throws TException {
+    //TODO[MMA-V2] implement.
+  }
+
+  @Override
+  public TablePartitionMetaModel getPartitionMeta(String databaseName, String tableName) throws TException {
+    //TODO[MMA-V2] implement.
   }
 
   private static void validateCommandLine(CommandLine commandLine, Options options) {

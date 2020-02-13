@@ -49,17 +49,34 @@ class ScriptTaskManager implements TaskManager {
   }
 
   /**
-   * ├── catalog_sales
-   * │   ├── hive_udtf_sql
-   * │   │   └── multi_partition
-   * │   │       └── catalog_sales.sql
-   * │   ├── odps_ddl
-   * │   │   └── create_table.sql
-   * │   ├── odps_external_ddl
-   * │   │   └── create_table.sql
-   * │   └── odps_oss_transfer_sql
-   * │       └── multi_partition
-   * │           └── catalog_sales.sql
+   * inventory/
+   * ├── hive_udtf_sql
+   * │   └── multi_partition
+   * │       ├── inventory_0.sql
+   * │       ├── inventory_1.sql
+   * │       └── inventory_2.sql
+   * ├── hive_verify_sql
+   * │   ├── inventory_0.sql
+   * │   ├── inventory_1.sql
+   * │   └── inventory_2.sql
+   * ├── odps_ddl
+   * │   ├── create_partition_0.sql
+   * │   ├── create_partition_1.sql
+   * │   ├── create_partition_2.sql
+   * │   └── create_table.sql
+   * ├── odps_external_ddl
+   * │   ├── create_partition_0.sql
+   * │   └── create_table.sql
+   * ├── odps_oss_transfer_sql
+   * │   ├── multi_partition
+   * │   │   └── inventory.sql
+   * │   └── single_partition
+   * │       └── multi_insert_0.sql
+   * └── odps_verify_sql
+   * ├── inventory_0.sql
+   * ├── inventory_1.sql
+   * └── inventory_2.sql
+   *
    * @param actions
    * @param mode
    */
@@ -84,7 +101,7 @@ class ScriptTaskManager implements TaskManager {
           Action action = CommonUtils.getSqlActionFromDir(sqlScriptDir);
 
           if (action.equals(Action.HIVE_VALIDATE) || action.equals(Action.ODPS_VALIDATE)) {
-            LOG.info("Generate validate tasks by DataValidator, ignorint these files {}.", sqlScriptDirPath);
+            LOG.info("Generate validate tasks by DataValidator, ignore these files {}.", sqlScriptDirPath);
             continue;
           }
 

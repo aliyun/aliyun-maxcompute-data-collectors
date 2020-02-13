@@ -25,6 +25,12 @@ public class DataValidator {
   // hive.database -> (hive.database.tablename -> odps.database.tablename)
   private Map<String, Map<String, String>> tableMap = new HashMap<>();
 
+  /**
+   * Generate validate tasks according to task mapping.
+   * @param tableMappingFilePath
+   * @param tasks
+   * @param where
+   */
   public void generateValidateActions(String tableMappingFilePath, List<Task> tasks, String where) {
     getTableMapping(tableMappingFilePath);
     for (Task task : tasks) {

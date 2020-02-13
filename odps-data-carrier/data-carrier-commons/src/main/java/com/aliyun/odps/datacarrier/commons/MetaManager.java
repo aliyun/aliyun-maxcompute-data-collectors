@@ -165,6 +165,12 @@ public class MetaManager {
     }
   }
 
+  //TODO[MMA-V2] MetaManager in ServiceMode(maybe int another switch type) could create TableMetaModel /
+  // ColumnMetaModel / PartitionMetaModel without wrote any file.
+  public MetaManager() {
+
+  }
+
   public GlobalMetaModel getGlobalMeta() throws IOException {
     Path filePath = Paths.get(this.root, GLOBAL + JSON_SUFFIX);
     String jsonString = DirUtils.readFile(filePath);

@@ -1,5 +1,7 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import com.aliyun.odps.datacarrier.metacarrier.HiveMetaCarrier;
+import com.aliyun.odps.datacarrier.metacarrier.MetaCarrier;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -55,6 +57,10 @@ public class TaskScheduler {
   private static final String HELP = "help";
   private static final String WHERE = "where";
   private static final String FAILOVER_OUTPUT = "failover.out";
+  private static final String HIVE_META_THRIFT_ADDRESS = "hive-meta-thrift-address";
+  private static final String HIVE_META_STORE_PRINCIPAL = "hive-meta-store-principal";
+  private static final String HIVE_META_STORE_KEY_TAB = "hive-meta-store-key-tab";
+  private static final String HIVE_META_STORE_SYSTEM = "hive-meta-store-system";
 
   private TaskManager taskManager;
   private DataValidator dataValidator;
@@ -71,6 +77,8 @@ public class TaskScheduler {
   protected Set<String> finishedTasks;
   private static Path failoverFilePath;
 
+  private MetaCarrier metaCarrier;
+
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
     this.keepRunning = true;
@@ -83,19 +91,25 @@ public class TaskScheduler {
   }
 
   private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
-                   String jdbcAddress, String user, String password, String where) {
+                   String jdbcAddress, String user, String password, String where, String hmsThriftAddress,
+                   String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties) {
     this.failoverFilePath = Paths.get(System.getProperty("user.dir"), FAILOVER_OUTPUT);
     loadFailoverFile();
     this.dataSource = dataSource;
+    if (DataSource.Hive.equals(dataSource)) {
+      this.metaCarrier = new HiveMetaCarrier();
+
+    }
     generateActions(this.dataSource);
     this.tableMappingFilePath = tableMappingFilePath;
+
     this.taskManager = new ScriptTaskManager(this.finishedTasks, inputPath, actions, mode, jdbcAddress, user, password);
+
     this.tasks.addAll(this.taskManager.generateTasks(actions, mode));
     if (this.tasks.isEmpty()) {
       LOG.info("None tasks to be scheduled.");
       return;
     }
-    //Add data validator
     if (DataSource.Hive.equals(dataSource)) {
       this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks, where);
     }
@@ -342,6 +356,7 @@ public class TaskScheduler {
         .desc("The path of table mapping from Hive to MaxCompute in BATCH mode.")
         .build();
 
+    // for hive JDBC
     Option jdbcAddress = Option
         .builder("ja")
         .longOpt(JDBC_ADDRESS)
@@ -372,6 +387,37 @@ public class TaskScheduler {
         .desc("where condition")
         .build();
 
+    // for hive metastore
+    Option uri = Option
+        .builder("u")
+        .longOpt(HIVE_META_THRIFT_ADDRESS)
+        .argName(HIVE_META_THRIFT_ADDRESS)
+        .hasArg()
+        .desc("Required, hive metastore thrift uri, e.g. thrift://127.0.0.1:9083")
+        .build();
+    Option principal = Option
+        .builder()
+        .longOpt(HIVE_META_STORE_PRINCIPAL)
+        .argName(HIVE_META_STORE_PRINCIPAL)
+        .hasArg()
+        .desc("Optional, hive metastore's Kerberos principal")
+        .build();
+    Option keyTab = Option
+        .builder()
+        .longOpt(HIVE_META_STORE_KEY_TAB)
+        .argName(HIVE_META_STORE_KEY_TAB)
+        .hasArg()
+        .desc("Optional, hive metastore's Kerberos keyTab")
+        .build();
+    Option systemProperties = Option
+        .builder()
+        .longOpt(HIVE_META_STORE_SYSTEM)
+        .argName(HIVE_META_STORE_SYSTEM)
+        .hasArg()
+        .numberOfArgs(Option.UNLIMITED_VALUES)
+        .desc("system properties")
+        .build();
+
     Option help = Option
         .builder("h")
         .longOpt(HELP)
@@ -388,6 +434,7 @@ public class TaskScheduler {
         .addOption(user)
         .addOption(password)
         .addOption(where)
+        .addOption(uri)
         .addOption(help);
 
     CommandLineParser parser = new DefaultParser();
@@ -397,6 +444,7 @@ public class TaskScheduler {
         && cmd.hasOption(DATA_SOURCE)
         && cmd.hasOption(MODE)
         && cmd.hasOption(TABLE_MAPPING)
+        && cmd.hasOption(HIVE_META_THRIFT_ADDRESS)
         && !cmd.hasOption(HELP)) {
       TaskScheduler scheduler = new TaskScheduler();
       DataSource cmdDataSource = DataSource.Hive;
@@ -426,8 +474,12 @@ public class TaskScheduler {
       if (cmd.hasOption(WHERE) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(WHERE))) {
         whereStr = cmd.getOptionValue(WHERE);
       }
+      String principalVal = cmd.getOptionValue(HIVE_META_STORE_PRINCIPAL);
+      String keyTabVal = cmd.getOptionValue(HIVE_META_STORE_KEY_TAB);
+      String[] systemPropertiesValue = cmd.getOptionValues(HIVE_META_STORE_SYSTEM);
       scheduler.run(cmd.getOptionValue(INPUT_DIR), cmdDataSource, cmdMode, cmd.getOptionValue(TABLE_MAPPING),
-          cmdJdbcAddress, cmdUser, cmdPassword, whereStr);
+          cmdJdbcAddress, cmdUser, cmdPassword, whereStr, cmd.getOptionValue(HIVE_META_THRIFT_ADDRESS), principalVal,
+          keyTabVal, systemPropertiesValue);
     } else {
       logHelp(options);
     }

@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.commons;
 
+import javafx.scene.layout.Priority;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -125,6 +127,9 @@ public class MetaManager {
     public Map<String, String> serDeProperties = new LinkedHashMap<>();
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
+    public TablePartitionMetaModel tablePartitionMetaModel;
+    public List<PartitionMetaModel> partitions = new ArrayList<>();
+    //TODO getPriority;
   }
 
   public static class ColumnMetaModel {
@@ -138,6 +143,7 @@ public class MetaManager {
     public Map<String, String> partitionSpec = new LinkedHashMap<>();
     public String location;
     public String createTime;
+
   }
 
   public static class TablePartitionMetaModel {

@@ -78,6 +78,7 @@ public class TaskScheduler {
   private static Path failoverFilePath;
 
   private MetaCarrier metaCarrier;
+  // metaProcessor
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
@@ -90,21 +91,31 @@ public class TaskScheduler {
     this.finishedTasks = new HashSet<>();
   }
 
+
   private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
                    String jdbcAddress, String user, String password, String where, String hmsThriftAddress,
                    String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties) {
+
+
     this.failoverFilePath = Paths.get(System.getProperty("user.dir"), FAILOVER_OUTPUT);
-    loadFailoverFile();
-    this.dataSource = dataSource;
+
+    succeededTables = mmaMetaManager.loadFailoverFile();
+
+
+    this.metaCarrier = new HiveMetaCarrier();
     if (DataSource.Hive.equals(dataSource)) {
       this.metaCarrier = new HiveMetaCarrier();
-
+      List<Model> tables = this.metaCarrier.generateMetaModelWithFailover(configuration, mmaMetaManager.getFailoverConfig());
     }
+
+
+    this.dataSource = dataSource;
+
     generateActions(this.dataSource);
     this.tableMappingFilePath = tableMappingFilePath;
 
-    this.taskManager = new ScriptTaskManager(this.finishedTasks, inputPath, actions, mode, jdbcAddress, user, password);
-
+    //this.taskManager = new ScriptTaskManager(this.finishedTasks, inputPath, actions, mode, jdbcAddress, user,password);
+    //
     this.tasks.addAll(this.taskManager.generateTasks(actions, mode));
     if (this.tasks.isEmpty()) {
       LOG.info("None tasks to be scheduled.");
@@ -265,6 +276,7 @@ public class TaskScheduler {
           // tasks done, write to failover file.
           if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
             writeToFailoverFile(task.getTableNameWithProject() + "\n");
+
           }
 
         } else {

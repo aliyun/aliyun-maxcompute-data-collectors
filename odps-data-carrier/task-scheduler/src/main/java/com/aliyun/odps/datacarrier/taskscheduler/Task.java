@@ -1,7 +1,11 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.aliyun.odps.datacarrier.commons.MetaManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -9,12 +13,13 @@ import org.apache.logging.log4j.Logger;
 class Task {
 
   private static final Logger LOG = LogManager.getLogger(Task.class);
-  protected String project;
-  protected String tableName;
+  protected String project; //source project
+  protected String tableName; //source table
+  protected List<MetaManager.PartitionMetaModel> partitions;
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
-
+  public List<MetaManager.PartitionMetaModel> partitions = new ArrayList<>();
   public Task(String project, String tableName) {
     this.project = project;
     this.tableName = tableName;
@@ -162,6 +167,8 @@ class Task {
     sb.append(".").append(tableName);
     return sb.toString();
   }
+
+
 
   public String getProject() {
     return project;

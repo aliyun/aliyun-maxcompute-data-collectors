@@ -168,6 +168,64 @@ class DataValidator:
         else:
             return self._parse_odps_result(odps_stdout) == self._parse_hive_result(hive_stdout)
 
+    def _get_partition_values_to_count(self, result: str):
+        lines = result.strip().split("\n")
+        partition_values_to_count = {}
+
+        for line in lines[1:]:
+            if line is None or len(line) == 0:
+                continue
+            splits = line.strip().split(",")
+            # get rid of quotation marks and white chars
+            partition_values = list(map(lambda x: x.strip("\"").strip("'").strip(), splits[: -1]))
+            record_count = int(splits[-1])
+            partition_values_to_count["/".join(partition_values)] = record_count
+        return partition_values_to_count
+
+    def verify_with_hive_meta(self,
+                              hive_db,
+                              hive_tbl,
+                              mc_pjt,
+                              mc_tbl,
+                              odps_verify_sql_path,
+                              hive_meta_partitioned,
+                              hive_meta_non_partitioned,
+                              log_root_dir,
+                              validate_failed_partition_list_path):
+        if ("%s.%s" % (hive_db, hive_tbl) not in hive_meta_partitioned and
+                "%s.%s" % (hive_db, hive_tbl) not in hive_meta_non_partitioned):
+            raise Exception("Hive metadata doesn't contain %s.%s" % (hive_db, hive_tbl))
+
+        log_dir = os.path.join(log_root_dir, hive_db, hive_tbl)
+        odps_verify_sql_future = self._odps_sql_runner.execute_script(hive_db,
+                                                                      hive_tbl,
+                                                                      odps_verify_sql_path,
+                                                                      os.path.join(log_dir, "odps"),
+                                                                      False)
+        odps_stdout, _ = odps_verify_sql_future.result()
+        if self._is_partitioned_table(odps_stdout):
+            partition_values_to_count = self._get_partition_values_to_count(odps_stdout)
+            ret = True
+            fd = open(validate_failed_partition_list_path, 'a')
+            for partition_values in partition_values_to_count.keys():
+                count = partition_values_to_count[partition_values]
+                if partition_values not in hive_meta_partitioned["%s.%s" % (hive_db, hive_tbl)]:
+                    raise Exception("Hive meta doesn't contains %s.%s(%s)" % (hive_db,
+                                                                              hive_tbl,
+                                                                              partition_values))
+                if hive_meta_partitioned["%s.%s" % (hive_db, hive_tbl)][partition_values] != count:
+                    ret = False
+                    fd.write("%s.%s(%s):%s.%s\n" % (hive_db,
+                                                    hive_tbl,
+                                                    partition_values,
+                                                    mc_pjt,
+                                                    mc_tbl))
+            fd.close()
+            return ret
+        else:
+            count = hive_meta_non_partitioned["%s.%s" % (hive_db, hive_tbl)]
+            return self._parse_odps_result(odps_stdout) == count
+
     def stop(self):
         self._hive_sql_runner.stop()
         self._odps_sql_runner.stop()

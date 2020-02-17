@@ -14,6 +14,7 @@
 
 
 import argparse
+import csv
 import os
 import re
 import sys
@@ -81,6 +82,52 @@ def parse_table_mapping(table_mapping_path):
             table_mapping[(hive_db, hive_tbl, hive_part_spec, table_config)] = (mc_pjt, mc_tbl)
             db_mapping[hive_db] = mc_pjt
     return table_mapping
+
+
+def parse_hive_row_count_file(hive_row_count_file_path):
+    def _get_partition_values(partition_spec: str):
+        res = []
+        entries = partition_spec.split("/")
+        for entry in entries:
+            kv = entry.split("=")
+            res.append(kv[1])
+        return "/".join(res)
+
+    def _parse_row(row):
+        if row is None or row == '':
+            return
+
+        db = row[0].strip().lower()
+        tbl = row[1].strip().lower()
+        if row[3] == '':
+            count = row[2]
+            hive_row_count_data_non_partitioned["%s.%s" % (db, tbl)] = int(count)
+        else:
+            partition_spec = row[3]
+            partition_values = _get_partition_values(partition_spec)
+            count = row[5]
+            if "%s.%s" % (db, tbl) not in hive_row_count_data_partitioned:
+                hive_row_count_data_partitioned["%s.%s" % (db, tbl)] = {}
+            hive_row_count_data_partitioned["%s.%s" % (db, tbl)][partition_values] = int(count)
+
+    if not os.path.isfile(hive_row_count_file_path):
+        raise Exception("Hive row count file path is invalid")
+
+    # for partitioned tables: {db.table -> {partition spec -> count}}
+    # for non-partitioned tables: {db.table -> count}
+    hive_row_count_data_non_partitioned = {}
+    hive_row_count_data_partitioned = {}
+
+    with open(hive_row_count_file_path, 'r', newline='') as fd:
+        reader = csv.reader(fd)
+
+        # skip header
+        reader.__next__()
+
+        for row in reader:
+            _parse_row(row)
+
+    return hive_row_count_data_non_partitioned, hive_row_count_data_partitioned
 
 
 def validate_arguments(args):
@@ -233,6 +280,11 @@ if __name__ == '__main__':
         type=str,
         help="""name of this migration job, by default is a timestamp"""
     )
+    parser.add_argument(
+        "--hive_meta_file",
+        required=False,
+        type=str
+    )
 
     # optional arguments
     parser.add_argument(
@@ -292,6 +344,11 @@ if __name__ == '__main__':
         migration_runner.set_validate_only()
     if args.append:
         migration_runner.set_append()
+    if args.hive_meta_file is not None:
+        hive_meta_non_partitioned, hive_meta_partitioned = parse_hive_row_count_file(
+            args.hive_meta_file)
+        migration_runner.set_hive_meta_non_partitioned(hive_meta_non_partitioned)
+        migration_runner.set_hive_meta_partitioned(hive_meta_partitioned)
     migration_runner.set_parallelism(args.parallelism)
 
     try:

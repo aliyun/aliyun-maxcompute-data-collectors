@@ -49,6 +49,8 @@ class MigrationRunner:
         self._num_of_partitions = num_of_partitions
         self._failover_failed_file = failover_failed_file
         self._failover_success_file = failover_success_file
+        self._hive_meta_non_partitioned = None
+        self._hive_meta_partitioned = None
 
         self._failover_mode = None
         if self._failover_failed_file is not None:
@@ -491,15 +493,27 @@ class MigrationRunner:
                                                     hive_verify_sql_scripts[i])
                 odps_verify_sql_path = os.path.join(odps_verify_sql_dir,
                                                     odps_verify_sql_scripts[i])
-                future = executor.submit(self._data_validator.verify,
-                                         hive_db,
-                                         hive_tbl,
-                                         odps_pjt,
-                                         odps_tbl,
-                                         hive_verify_sql_path,
-                                         odps_verify_sql_path,
-                                         self._verify_log_root_dir,
-                                         self._validate_failed_partition_list_path)
+                if self._hive_meta_non_partitioned is not None:
+                    future = executor.submit(self._data_validator.verify_with_hive_meta,
+                                             hive_db,
+                                             hive_tbl,
+                                             odps_pjt,
+                                             odps_tbl,
+                                             odps_verify_sql_path,
+                                             self._hive_meta_partitioned,
+                                             self._hive_meta_non_partitioned,
+                                             self._verify_log_root_dir,
+                                             self._validate_failed_partition_list_path)
+                else:
+                    future = executor.submit(self._data_validator.verify,
+                                             hive_db,
+                                             hive_tbl,
+                                             odps_pjt,
+                                             odps_tbl,
+                                             hive_verify_sql_path,
+                                             odps_verify_sql_path,
+                                             self._verify_log_root_dir,
+                                             self._validate_failed_partition_list_path)
                 hive_script_to_futures[hive_verify_sql_path] = future
 
             validation_succeed = True
@@ -684,6 +698,12 @@ class MigrationRunner:
 
     def set_append(self):
         self._append = True
+
+    def set_hive_meta_non_partitioned(self, hive_meta_non_partitioned):
+        self._hive_meta_non_partitioned = hive_meta_non_partitioned
+
+    def set_hive_meta_partitioned(self, hive_meta_partitioned):
+        self._hive_meta_partitioned = hive_meta_partitioned
 
     def parse_failover_file(self, failover_file_path):
         #dma_demo.inventory:ODPS_DATA_CARRIER_TEST.inventory|inventory_0.sql

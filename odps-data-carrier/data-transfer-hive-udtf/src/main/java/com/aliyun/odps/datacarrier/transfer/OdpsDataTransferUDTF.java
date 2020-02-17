@@ -31,6 +31,8 @@ import com.aliyun.odps.tunnel.TableTunnel.UploadSession;
 import com.aliyun.odps.tunnel.TunnelException;
 import com.aliyun.odps.tunnel.io.TunnelBufferedWriter;
 import com.aliyun.odps.type.TypeInfo;
+import com.aliyun.odps.utils.StringUtils;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,8 +110,8 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
         odps = new Odps(account);
         odps.setEndpoint(odpsConfig.getOdpsEndpoint());
         tunnel = new TableTunnel(odps);
-        if (odpsConfig.getTunnelEndpoint() != null) {
-          if (odpsConfig.getTunnelEndpoint2() != null) {
+        if (StringUtils.isNullOrEmpty(odpsConfig.getTunnelEndpoint())) {
+          if (StringUtils.isNullOrEmpty(odpsConfig.getTunnelEndpoint2())) {
             tunnel.setEndpoint(ThreadLocalRandom.current().nextBoolean() ?
                                odpsConfig.getTunnelEndpoint() : odpsConfig.getTunnelEndpoint2());
           } else {

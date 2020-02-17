@@ -41,6 +41,35 @@ abstract class AbstractTaskRunner implements TaskRunner {
     }
   }
 
+
+  private String generateSqlStatement(Task task, Action action) {
+    switch (action) {
+      case ODPS_CREATE_TABLE:
+        if (task.isPartitionTable) {
+          //TODO odps create partitioned table sql without drop table
+          //MetaProcessor.getCreateTableStatement();
+          return "";
+        } else {
+          //odps create non-partitioned table sql with drop table
+          //MetaProcessor.getCreateTableStatement();
+          return "";
+        }
+      case ODPS_ADD_PARTITION:
+        return "";
+      case HIVE_LOAD_DATA:
+        //MetaProcessor.getMultiPartitionHiveUdtfSqlAsSpec();
+        return "";
+      case HIVE_VALIDATE:
+        //MetaProcessor.getMultiPartitionHiveVerifySqlAsSpec();
+        return "";
+      case ODPS_VALIDATE:
+        //MetaProcessor.getMultiPartitionOdpsVerifySqlAsSpec();
+        return "";
+      default:
+        return "";
+    }
+  }
+
   public void submitExecutionTask(Task task, Action action, String executionTaskName) {
     AbstractExecutionInfo executionInfo = task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
     Path sqlPath = executionInfo.getSqlPath();
@@ -55,8 +84,10 @@ abstract class AbstractTaskRunner implements TaskRunner {
         task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
         return;
       }
-    } else {
+    } else if (StringUtils.isNullOrEmpty(executionInfo.getSqlStatements())) {
       sqlStr = executionInfo.getSqlStatements();
+    } else {
+      sqlStr = generateSqlStatement(task, action);
     }
     if (StringUtils.isNullOrEmpty(sqlStr)) {
       task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);

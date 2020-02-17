@@ -4,6 +4,7 @@ import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
 import com.aliyun.odps.datacarrier.metacarrier.HiveMetaCarrier;
 import com.aliyun.odps.datacarrier.metacarrier.MetaCarrier;
 import com.aliyun.odps.utils.StringUtils;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -11,16 +12,7 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -51,12 +43,11 @@ public class TaskScheduler {
   private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
 
-
-
   private TaskManager taskManager;
   private DataValidator dataValidator;
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
+  protected Map<RunnerType, TaskRunner> taskRunnerMap;
   private DataSource dataSource;
   private String tableMappingFilePath;
 
@@ -64,9 +55,14 @@ public class TaskScheduler {
   private volatile boolean keepRunning;
   private volatile Throwable savedException;
   protected final AtomicInteger heartbeatIntervalMs;
+  protected List<TableMetaModel> tables;
   protected List<Task> tasks;
   protected Set<String> finishedTasks;
 
+  //for HiveRunner.
+  private String jdbcAddress;
+  private String user;
+  private String password;
 
   private MetaCarrier metaCarrier;
 
@@ -78,6 +74,7 @@ public class TaskScheduler {
     this.dataValidator = new DataValidator();
     this.actionScheduleInfoMap = new ConcurrentHashMap<>();
     this.actions = new TreeSet<>(new ActionComparator());
+    this.taskRunnerMap = new ConcurrentHashMap<>();
     this.heartbeatIntervalMs = new AtomicInteger(HEARTBEAT_INTERVAL_MS);
     this.tasks = new LinkedList<>();
     this.finishedTasks = new HashSet<>();
@@ -86,48 +83,50 @@ public class TaskScheduler {
 
   private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
                    String jdbcAddress, String user, String password, String where, String hmsThriftAddress,
-                   String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties)
+                   String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties,
+                   String numOfPartitions, String retryTimeThreshold)
       throws IOException, TException {
 
-
+    this.dataSource = dataSource;
+    this.jdbcAddress = jdbcAddress;
+    this.user = user;
+    this.password = password;
     this.taskMetaManager = new TaskMetaManager();
 
-//    succeededTables = mmaMetaManager.loadFailoverFile();
+    int retryTimes = 0;
+    while (retryTimes < Integer.valueOf(retryTimeThreshold)) {
+      LOG.info("Start to migrate data for the [{}] round. ", retryTimes);
+      initActions(this.dataSource);
+      initTaskRunner();
+      updateConcurrencyThreshold();
+      if (DataSource.Hive.equals(dataSource)) {
+        this.metaCarrier = new HiveMetaCarrier(hmsThriftAddress, null, hmsPrincipal, hmsKeyTab, hmsSystemProperties);
+        this.tables = this.metaCarrier.generateMetaModelWithFailover(tableMappingFilePath, this.taskMetaManager.getSucceededTableMeta());
+      }
+      this.taskManager = new TableSplitter(this.tables, Integer.valueOf(numOfPartitions));
+      this.tasks.clear();
+      this.tasks.addAll(this.taskManager.generateTasks(actions, mode));
 
-    if (DataSource.Hive.equals(dataSource)) {
-      this.metaCarrier = new HiveMetaCarrier(hmsThriftAddress, null, hmsPrincipal, hmsKeyTab, hmsSystemProperties);
-      List<TableMetaModel> tables = this.metaCarrier.generateMetaModelWithFailover(tableMappingFilePath,
-          this.taskMetaManager.getSucceededTableMeta());
+      if (this.tasks.isEmpty()) {
+        LOG.info("None tasks to be scheduled， migration done.");
+        return;
+      } else {
+        LOG.info("Add {} tasks in the [{}] round.", tasks.size(), retryTimes);
+      }
+      this.heartbeatThread.start();
+      retryTimes++;
     }
-
-
-    this.dataSource = dataSource;
-
-    generateActions(this.dataSource);
-    this.tableMappingFilePath = tableMappingFilePath;
-
-    //this.taskManager = new ScriptTaskManager(this.finishedTasks, inputPath, actions, mode, jdbcAddress, user,password);
-    //
-    this.tasks.addAll(this.taskManager.generateTasks(actions, mode));
-    if (this.tasks.isEmpty()) {
-      LOG.info("None tasks to be scheduled.");
-      return;
-    }
-    if (DataSource.Hive.equals(dataSource)) {
-      this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks, where);
-    }
-    updateConcurrencyThreshold();
-    this.heartbeatThread.start();
   }
 
-  private void generateActions(DataSource dataSource) {
+  @VisibleForTesting
+  public void initActions(DataSource dataSource) {
     if (DataSource.Hive.equals(dataSource)) {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
       actions.add(Action.HIVE_LOAD_DATA);
       actions.add(Action.HIVE_VALIDATE);
       actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION);
+      actions.add(Action.VALIDATION_BY_PARTITION);
     } else if (DataSource.OSS.equals(dataSource)) {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
@@ -137,6 +136,35 @@ public class TaskScheduler {
       actions.add(Action.ODPS_VALIDATE);
       actions.add(Action.VALIDATION);
     }
+  }
+
+  @VisibleForTesting
+  public SortedSet<Action> getActions() {
+    return actions;
+  }
+
+  private void initTaskRunner() {
+    for (Action action : this.actions) {
+      //Create task runner.
+      RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+      if (!taskRunnerMap.containsKey(runnerType)) {
+        taskRunnerMap.put(runnerType, createTaskRunner(runnerType));
+        LOG.info("Find runnerType = {}, Add Runner: {}", runnerType, taskRunnerMap.get(runnerType).getClass());
+      }
+    }
+  }
+
+  private TaskRunner createTaskRunner(RunnerType runnerType) {
+    if (RunnerType.HIVE.equals(runnerType)) {
+      return new HiveRunner(this.jdbcAddress, this.user, this.password);
+    } else if (RunnerType.ODPS.equals(runnerType)) {
+      return new OdpsRunner();
+    }
+    throw new RuntimeException("Unknown runner type: " + runnerType.name());
+  }
+
+  private TaskRunner getTaskRunner(RunnerType runnerType) {
+    return taskRunnerMap.get(runnerType);
   }
 
   private void updateConcurrencyThreshold() {
@@ -188,7 +216,6 @@ public class TaskScheduler {
           if (isAllTasksFinished()) {
             LOG.info("All tasks finished, heartbeat will stop.");
             keepRunning = false;
-            taskManager.shutdown();
             break;
           }
 
@@ -210,6 +237,7 @@ public class TaskScheduler {
           LOG.error("Heartbeat interrupted "+ ex.getMessage());
         }
       }
+      shutdown();
       LOG.info("Finish all tasks.");
     }
   }
@@ -261,17 +289,23 @@ public class TaskScheduler {
         continue;
       }
       LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
-      if (Action.VALIDATION.equals(action)) {
-        if (dataValidator.validateTaskCountResult(task)) {
+      if (Action.VALIDATION.equals(action) || Action.VALIDATION_BY_PARTITION.equals(action)) {
+        //TODO validateTaskCountResult per partition.
+        if ((Action.VALIDATION.equals(action) && dataValidator.validateTaskCountResult(task))
+          || (Action.VALIDATION_BY_PARTITION.equals(action) && dataValidator.validateTaskCountResultByPartition(task).isEmpty())) {
           task.changeActionProgress(action, Progress.SUCCEEDED);
 
           // tasks done, write to failover file.
           if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
+            // TODO, update validation succeeded partitions.
             taskMetaManager.writeToFailoverFile(task.getTableNameWithProject() + "\n");
           }
-
         } else {
           task.changeActionProgress(action, Progress.FAILED);
+          if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+            // TODO, update validation succeeded partitions.
+            // mmaMetaManager.updateTaskInfo();
+          }
         }
       } else {
         for (Map.Entry<String, AbstractExecutionInfo> entry :
@@ -283,11 +317,17 @@ public class TaskScheduler {
           task.changeExecutionProgress(action, executionTaskName, Progress.RUNNING);
           LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
               task.toString(), action.name(), executionTaskName);
-          taskManager.getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
-              .submitExecutionTask(task, action, executionTaskName);
+          getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action, executionTaskName);
           actionScheduleInfo.concurrency++;
         }
       }
+    }
+  }
+
+  private void shutdown() {
+    LOG.info("Shutdown task runners.");
+    for (TaskRunner runner : taskRunnerMap.values()) {
+      runner.shutdown();
     }
   }
 
@@ -393,6 +433,22 @@ public class TaskScheduler {
         .desc("system properties")
         .build();
 
+    Option numOfPartitionsOpt = Option
+        .builder("np")
+        .longOpt(NUM_OF_PARTITIONS)
+        .argName(NUM_OF_PARTITIONS)
+        .hasArgs()
+        .desc("Optional, specify number of partitions to split table.")
+        .build();
+
+    Option retryTimeThresholdOpt = Option
+        .builder("rtt")
+        .longOpt(RETRY_TIME_THRESHOLD)
+        .argName(RETRY_TIME_THRESHOLD)
+        .hasArgs()
+        .desc("Optional, specify upper limit of retry times for failed tables")
+        .build();
+
     Option help = Option
         .builder("h")
         .longOpt(HELP)
@@ -410,6 +466,11 @@ public class TaskScheduler {
         .addOption(password)
         .addOption(where)
         .addOption(uri)
+        .addOption(principal)
+        .addOption(keyTab)
+        .addOption(systemProperties)
+        .addOption(numOfPartitionsOpt)
+        .addOption(retryTimeThresholdOpt)
         .addOption(help);
 
     CommandLineParser parser = new DefaultParser();
@@ -454,7 +515,7 @@ public class TaskScheduler {
       String[] systemPropertiesValue = cmd.getOptionValues(HIVE_META_STORE_SYSTEM);
       scheduler.run(cmd.getOptionValue(INPUT_DIR), cmdDataSource, cmdMode, cmd.getOptionValue(TABLE_MAPPING),
           cmdJdbcAddress, cmdUser, cmdPassword, whereStr, cmd.getOptionValue(HIVE_META_THRIFT_ADDRESS), principalVal,
-          keyTabVal, systemPropertiesValue);
+          keyTabVal, systemPropertiesValue, cmd.getOptionValue(NUM_OF_PARTITIONS), cmd.getOptionValue(RETRY_TIME_THRESHOLD));
     } else {
       logHelp(options);
     }

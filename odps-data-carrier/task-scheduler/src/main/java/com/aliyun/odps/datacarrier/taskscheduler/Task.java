@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.aliyun.odps.datacarrier.commons.MetaManager;
+import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,13 +18,26 @@ class Task {
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
-  public List<MetaManager.PartitionMetaModel> partitions = new ArrayList<>();
+
+  //TODO: non-partition table need to drop table in ODPS_CREATE_TABLE, partition table only need create table without
+  // drop it at first.
+  protected boolean isPartitionTable;
+  public List<PartitionMetaModel> partitions = new ArrayList<>();
+
   public Task(String project, String tableName) {
     this.project = project;
     this.tableName = tableName;
     this.updateTime = System.currentTimeMillis();
     this.actionInfoMap = new ConcurrentHashMap<>();
     this.progress = Progress.NEW;
+  }
+
+  public void setPartitionTable(boolean partitionTable) {
+    isPartitionTable = partitionTable;
+  }
+
+  public void addPartition(PartitionMetaModel partitionMetaModel) {
+    this.partitions.add(partitionMetaModel);
   }
 
   class ActionInfo {
@@ -45,6 +58,22 @@ class Task {
       return;
     }
     actionInfo.executionInfoMap.put(executionTaskName, executionInfo);
+  }
+
+  protected void addExecutionInfo(Action action, String executionTaskName) {
+    ActionInfo actionInfo = actionInfoMap.computeIfAbsent(action, k -> new ActionInfo());
+    if (actionInfo.executionInfoMap.containsKey(executionTaskName)) {
+      LOG.warn("Execution task already exists, create failed, " +
+          "Action: " + action.name() +
+          "TaskName: " + executionTaskName);
+      return;
+    }
+    RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+    if (RunnerType.ODPS.equals(runnerType)) {
+      actionInfo.executionInfoMap.put(executionTaskName, new OdpsExecutionInfo());
+    } else if (RunnerType.HIVE.equals(runnerType)) {
+      actionInfo.executionInfoMap.put(executionTaskName, new HiveExecutionInfo());
+    }
   }
 
   protected void changeExecutionProgress(Action action, String executionTaskName, Progress newProgress) {

@@ -12,6 +12,7 @@ import java.sql.Statement;
 import java.util.List;
 
 import com.aliyun.odps.utils.StringUtils;
+import com.google.common.collect.Lists;
 import org.apache.hive.jdbc.HiveStatement;
 
 import org.apache.logging.log4j.LogManager;
@@ -122,8 +123,14 @@ public class HiveRunner extends AbstractTaskRunner {
               LOG.error("Query log failed. ");
             }
             // -- getQueryLog --
-            LOG.info("executeQuery result: {}", resultSet.getString(1));
-            hiveExecutionInfo.setResult(resultSet.getString(1));
+            if (Action.VALIDATION.equals(action)) {
+              LOG.info("executeQuery result: {}", resultSet.getString(1));
+              hiveExecutionInfo.setResult(resultSet.getString(1));
+            } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+              LOG.info("executeQuery result: {}", resultSet.getString(1));
+              List<String> multiResultStr = Lists.newArrayList(resultSet.getString(1).split("\n"));
+              hiveExecutionInfo.setMultiRecordResult(multiResultStr);
+            }
             break;
           }
           resultSet.close();

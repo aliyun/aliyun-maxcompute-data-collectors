@@ -16,4 +16,6 @@ public class Constants {
   public static final String HIVE_META_STORE_PRINCIPAL = "hive-meta-store-principal";
   public static final String HIVE_META_STORE_KEY_TAB = "hive-meta-store-key-tab";
   public static final String HIVE_META_STORE_SYSTEM = "hive-meta-store-system";
+  public static final String NUM_OF_PARTITIONS = "num-of-partitions";
+  public static final String RETRY_TIME_THRESHOLD = "retry-time-threshold";
 }

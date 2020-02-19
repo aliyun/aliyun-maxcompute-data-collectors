@@ -27,6 +27,10 @@ public class HiveCharObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     // TODO: support hive.compatible (return a Char object)
     HiveCharObjectInspector hiveCharObjectInspector =
         (HiveCharObjectInspector) objectInspector;

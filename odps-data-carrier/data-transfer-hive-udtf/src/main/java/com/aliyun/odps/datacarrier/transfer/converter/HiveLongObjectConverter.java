@@ -30,6 +30,10 @@ public class HiveLongObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     Long longValue = ((LongObjectInspector) objectInspector).get(o);
     if (OdpsType.DECIMAL.equals(odpsTypeInfo.getOdpsType())) {
       return BigDecimal.valueOf(longValue);

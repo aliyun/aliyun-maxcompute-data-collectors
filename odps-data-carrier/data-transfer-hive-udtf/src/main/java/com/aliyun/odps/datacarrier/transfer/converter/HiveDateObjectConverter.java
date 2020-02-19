@@ -28,6 +28,10 @@ public class HiveDateObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     DateObjectInspector dateObjectInspector = (DateObjectInspector) objectInspector;
     java.sql.Date value = dateObjectInspector.getPrimitiveJavaObject(o);
     if (OdpsType.STRING.equals(odpsTypeInfo.getOdpsType())) {

@@ -30,6 +30,10 @@ public class HiveStringObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     StringObjectInspector stringObjectInspector = (StringObjectInspector) objectInspector;
     String value = stringObjectInspector.getPrimitiveJavaObject(o);
 

@@ -27,6 +27,10 @@ public class HiveShortObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     return ((ShortObjectInspector) objectInspector).get(o);
   }
 }

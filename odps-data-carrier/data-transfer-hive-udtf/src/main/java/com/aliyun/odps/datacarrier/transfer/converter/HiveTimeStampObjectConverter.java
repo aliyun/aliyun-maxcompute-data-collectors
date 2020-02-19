@@ -27,6 +27,10 @@ public class HiveTimeStampObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     TimestampObjectInspector timestampObjectInspector = (TimestampObjectInspector) objectInspector;
     return timestampObjectInspector.getPrimitiveJavaObject(o);
   }

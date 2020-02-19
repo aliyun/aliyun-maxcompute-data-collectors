@@ -27,6 +27,10 @@ public class HiveBooleanObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     return ((BooleanObjectInspector) objectInspector).get(o);
   }
 }

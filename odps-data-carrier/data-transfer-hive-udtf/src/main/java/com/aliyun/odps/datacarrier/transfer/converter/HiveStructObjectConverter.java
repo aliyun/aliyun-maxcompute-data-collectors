@@ -32,6 +32,10 @@ public class HiveStructObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     StructObjectInspector structObjectInspector = (StructObjectInspector) objectInspector;
     StructTypeInfo structTypeInfo = (StructTypeInfo) odpsTypeInfo;
 

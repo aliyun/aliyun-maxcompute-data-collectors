@@ -28,6 +28,10 @@ public class HiveVarCharObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     HiveVarcharObjectInspector hiveVarcharObjectInspector =
         (HiveVarcharObjectInspector) objectInspector;
     String varcharValue = hiveVarcharObjectInspector.getPrimitiveJavaObject(o).getValue();

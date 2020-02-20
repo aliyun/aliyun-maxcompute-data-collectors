@@ -28,6 +28,7 @@ import java.nio.file.Path;
 
 import org.apache.commons.io.FileUtils;
 
+// TODO: check null
 public class DirUtils {
   /**
    * Write to a file specified by filePath, create its parent directories if they doesn't exist.
@@ -72,6 +73,40 @@ public class DirUtils {
       throw new IllegalArgumentException(dir.toString() + " is not a valid directory.");
     }
     return items;
+  }
+
+  public static boolean removeDir(Path path) {
+    if (path == null) {
+      throw new IllegalArgumentException("'dir' cannot be null");
+    }
+
+    File[] files = path.toFile().listFiles();
+    boolean ret = true;
+
+    // Remove files and subdirs
+    for (File f : files) {
+      if (f.isDirectory()) {
+        ret = ret & removeDir(f.toPath());
+      } else {
+        ret = ret & remove(f.toPath());
+      }
+    }
+    // Remove itself
+    ret = ret & path.toFile().delete();
+
+    return ret;
+  }
+
+  public static boolean remove(Path path) {
+    if (path == null) {
+      throw new IllegalArgumentException("'path' cannot be null");
+    }
+
+    if (!path.toFile().isFile()) {
+      throw new IllegalArgumentException("'path' cannot be a directory");
+    }
+
+    return path.toFile().delete();
   }
 
   public static String[] listFiles(Path dir) {

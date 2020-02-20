@@ -7,7 +7,7 @@ import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
  */
 public class TableMigrationConfig {
   public int getFailOverTimesLimit() {
-    return 3;
+    return 1;
   }
 
   public void applyRules(MetaSource.TableMetaModel tableMetaModel) {

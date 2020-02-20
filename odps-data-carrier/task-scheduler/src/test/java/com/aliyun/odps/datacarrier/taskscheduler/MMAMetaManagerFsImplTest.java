@@ -48,7 +48,7 @@ public class MMAMetaManagerFsImplTest {
       assertTrue(dir.toFile().exists());
 
       // Make sure the table metadata file exists
-      Path metadataPath = Paths.get(dir.toString(), "metadata_" + table);
+      Path metadataPath = Paths.get(dir.toString(), "metadata");
       assertTrue(metadataPath.toFile().exists());
 
       // Make sure the content of table metadata file is expected
@@ -61,12 +61,11 @@ public class MMAMetaManagerFsImplTest {
 
       // Make sure the partition metadata file exists and its content is expected
       if (tableMetaModel.partitionColumns.size() > 0) {
-        Path partitionMetadataPath = Paths.get(dir.toString(), "metadata_pt_hello_world");
+        Path partitionMetadataPath = Paths.get(dir.toString(), "partitions_all");
         assertTrue(partitionMetadataPath.toFile().exists());
 
         String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0),
-                     partitionMetadata);
+        assertEquals("hello_world\n", partitionMetadata);
       }
     }
   }
@@ -74,119 +73,94 @@ public class MMAMetaManagerFsImplTest {
   @Test
   public void testGetStatus() throws Exception {
     for (String table : metaSource.listTables(DEFAULT_DB)) {
-      MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(DEFAULT_DB, table);
-
       Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, table);
-      Path metadataPath = Paths.get(dir.toString(), "metadata_" + table);
+      Path metadataPath = Paths.get(dir.toString(), "metadata");
 
       // Make sure the content of table metadata file is expected
       String metadata = DirUtils.readFile(metadataPath);
       assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
       assertEquals(MMAMetaManager.MigrationStatus.PENDING,
                    metaManager.getStatus(DEFAULT_DB, table));
-
-      // Make sure the partition metadata file exists and its content is expected
-      if (tableMetaModel.partitionColumns.size() > 0) {
-        Path partitionMetadataPath = Paths.get(dir.toString(), "metadata_pt_hello_world");
-        String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0),
-                     partitionMetadata);
-
-        List<String> partitionValues = tableMetaModel.partitions.get(0).partitionValues;
-        assertEquals(MMAMetaManager.MigrationStatus.PENDING,
-                     metaManager.getStatus(DEFAULT_DB, table, partitionValues));
-      }
     }
   }
 
   @Test
-  public void testUpdateStatus() throws Exception {
+  public void testUpdateTableStatusToFailed() throws Exception {
     for (String table : metaSource.listTables(DEFAULT_DB)) {
       MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(DEFAULT_DB, table);
 
       Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, table);
-      Path metadataPath = Paths.get(dir.toString(), "metadata_" + table);
+      Path metadataPath = Paths.get(dir.toString(), "metadata");
 
+      // Should be PENDING at beginning
       String metadata = DirUtils.readFile(metadataPath);
       assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+
+      // Change to RUNNING
       metaManager.updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.RUNNING);
       metadata = DirUtils.readFile(metadataPath);
       assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.RUNNING, 0), metadata);
 
-
-      // Make sure the partition metadata file exists and its content is expected
       if (tableMetaModel.partitionColumns.size() > 0) {
-        Path partitionMetadataPath = Paths.get(dir.toString(), "metadata_pt_hello_world");
-        String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0),
-                     partitionMetadata);
-
-        List<String> partitionValues = tableMetaModel.partitions.get(0).partitionValues;
         List<List<String>> partitionValuesList = new LinkedList<>();
-        partitionValuesList.add(partitionValues);
+        partitionValuesList.add(tableMetaModel.partitions.get(0).partitionValues);
         metaManager.updateStatus(DEFAULT_DB, table, partitionValuesList,
-                                 MMAMetaManager.MigrationStatus.RUNNING);
-        partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.RUNNING, 0),
-                     partitionMetadata);
+                                 MMAMetaManager.MigrationStatus.FAILED);
+
+        Path succeededPartitionsPath = Paths.get(dir.toString(), "partitions_failed");
+        String succeededPartitions = DirUtils.readFile(succeededPartitionsPath);
+        assertEquals("hello_world\n", succeededPartitions);
       }
-    }
-  }
 
-  @Test
-  public void testGetFailedTimes() throws Exception {
-    for (String table : metaSource.listTables(DEFAULT_DB)) {
-      MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(DEFAULT_DB, table);
-
-      Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, table);
-      Path metadataPath = Paths.get(dir.toString(), "metadata_" + table);
-
-      String metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
-      assertEquals(0, metaManager.getFailedTimes(DEFAULT_DB, table));
-
-
-      // Make sure the partition metadata file exists and its content is expected
-      if (tableMetaModel.partitionColumns.size() > 0) {
-        Path partitionMetadataPath = Paths.get(dir.toString(), "metadata_pt_hello_world");
-        String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0),
-                     partitionMetadata);
-
-        List<String> partitionValues = tableMetaModel.partitions.get(0).partitionValues;
-        assertEquals(0, metaManager.getFailedTimes(DEFAULT_DB, table, partitionValues));
-      }
-    }
-  }
-
-  @Test
-  public void testIncreaseFailedTimes() throws Exception {
-    for (String table : metaSource.listTables(DEFAULT_DB)) {
-      MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(DEFAULT_DB, table);
-
-      Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, table);
-      Path metadataPath = Paths.get(dir.toString(), "metadata_" + table);
-
-      String metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
-      metaManager.increaseFailedTimes(DEFAULT_DB, table);
+      // Change to FAILED, but since retry limit is 1, the status should be set to PENDING
+      metaManager.updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.FAILED);
       metadata = DirUtils.readFile(metadataPath);
       assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 1), metadata);
 
+      // Change to FAILED, this time should be FAILED
+      metaManager.updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.FAILED);
+      metadata = DirUtils.readFile(metadataPath);
+      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.FAILED, 2), metadata);
+    }
+  }
 
-      // Make sure the partition metadata file exists and its content is expected
+  @Test
+  public void testUpdateTableStatusToSucceeded() throws Exception {
+    for (String table : metaSource.listTables(DEFAULT_DB)) {
+      MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(DEFAULT_DB, table);
+
+      Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, table);
+      Path metadataPath = Paths.get(dir.toString(), "metadata");
+
+      // Should be PENDING at beginning
+      String metadata = DirUtils.readFile(metadataPath);
+      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+
+      // Change to RUNNING
+      metaManager.updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.RUNNING);
+      metadata = DirUtils.readFile(metadataPath);
+      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.RUNNING, 0), metadata);
+
+      // Change to FAILED, but since retry limit is 1, the status should be set to PENDING
+      metaManager.updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.FAILED);
+      metadata = DirUtils.readFile(metadataPath);
+      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 1), metadata);
+
       if (tableMetaModel.partitionColumns.size() > 0) {
-        Path partitionMetadataPath = Paths.get(dir.toString(), "metadata_pt_hello_world");
-        String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0),
-                     partitionMetadata);
+        List<List<String>> partitionValuesList = new LinkedList<>();
+        partitionValuesList.add(tableMetaModel.partitions.get(0).partitionValues);
+        metaManager.updateStatus(DEFAULT_DB, table, partitionValuesList,
+                                 MMAMetaManager.MigrationStatus.SUCCEEDED);
 
-        List<String> partitionValues = tableMetaModel.partitions.get(0).partitionValues;
-        metaManager.increaseFailedTimes(DEFAULT_DB, table, partitionValues);
-        partitionMetadata = DirUtils.readFile(partitionMetadataPath);
-        assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 1),
-                     partitionMetadata);
+        Path succeededPartitionsPath = Paths.get(dir.toString(), "partitions_succeeded");
+        String succeededPartitions = DirUtils.readFile(succeededPartitionsPath);
+        assertEquals("hello_world\n", succeededPartitions);
       }
+
+      // Change to SUCCEED, this time should be SUCCEED
+      metaManager.updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.SUCCEEDED);
+      metadata = DirUtils.readFile(metadataPath);
+      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.SUCCEEDED, 1), metadata);
     }
   }
 
@@ -222,7 +196,7 @@ public class MMAMetaManagerFsImplTest {
   @Test
   public void testGetPendingTablesAfterUpdateTableStatus() {
     metaManager.updateStatus(DEFAULT_DB, "test_non_partitioned",
-                             MMAMetaManager.MigrationStatus.RUNNING);
+                             MMAMetaManager.MigrationStatus.SUCCEEDED);
 
     List<MetaSource.TableMetaModel> pendingTables = metaManager.getPendingTables();
     assertEquals(1, pendingTables.size());
@@ -247,7 +221,7 @@ public class MMAMetaManagerFsImplTest {
     List<List<String>> partitionValuesList = new LinkedList<>();
     partitionValuesList.add(partitionValues);
     metaManager.updateStatus(DEFAULT_DB, "test_partitioned", partitionValuesList,
-                             MMAMetaManager.MigrationStatus.RUNNING);
+                             MMAMetaManager.MigrationStatus.SUCCEEDED);
 
     List<MetaSource.TableMetaModel> pendingTables = metaManager.getPendingTables();
     assertEquals(2, pendingTables.size());

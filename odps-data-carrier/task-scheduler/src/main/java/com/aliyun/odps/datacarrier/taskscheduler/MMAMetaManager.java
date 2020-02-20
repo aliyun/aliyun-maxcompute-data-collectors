@@ -32,7 +32,8 @@ public interface MMAMetaManager {
                      TableMigrationConfig config);
 
   /**
-   * Update migration status of given table
+   * Update migration status of given table. If the status is FAILED, but the failed times is less
+   * than the retry limitation, the status will be changed to PENDING.
    * @param db database name
    * @param tbl table name
    * @param status migration status
@@ -69,14 +70,6 @@ public interface MMAMetaManager {
 
 
   TableMigrationConfig getConfig(String db, String tbl);
-
-  int getFailedTimes(String db, String tbl);
-
-  int getFailedTimes(String db, String tbl, List<String> partitionValues);
-
-  void increaseFailedTimes(String db, String tbl);
-
-  void increaseFailedTimes(String db, String tbl, List<String> partitionValues);
 
   List<MetaSource.TableMetaModel> getPendingTables();
 

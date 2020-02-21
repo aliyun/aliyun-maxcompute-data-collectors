@@ -30,6 +30,10 @@ public class HiveListObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     ListObjectInspector listObjectInspector = (ListObjectInspector) objectInspector;
     ObjectInspector elementInspector = listObjectInspector.getListElementObjectInspector();
     TypeInfo elementTypeInfo = ((ArrayTypeInfo) odpsTypeInfo).getElementTypeInfo();

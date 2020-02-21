@@ -27,6 +27,10 @@ public class HiveDecimalObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     HiveDecimalObjectInspector hiveDecimalObjectInspector =
         (HiveDecimalObjectInspector) objectInspector;
     return hiveDecimalObjectInspector.getPrimitiveJavaObject(o).bigDecimalValue();

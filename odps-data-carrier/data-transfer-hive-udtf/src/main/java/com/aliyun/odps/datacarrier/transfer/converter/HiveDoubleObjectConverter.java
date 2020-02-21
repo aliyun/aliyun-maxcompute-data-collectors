@@ -27,6 +27,10 @@ public class HiveDoubleObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     return ((DoubleObjectInspector) objectInspector).get(o);
   }
 }

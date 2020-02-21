@@ -30,6 +30,10 @@ public class HiveMapObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     MapObjectInspector mapObjectInspector = (MapObjectInspector) objectInspector;
     ObjectInspector mapKeyObjectInspector = mapObjectInspector.getMapKeyObjectInspector();
     ObjectInspector mapValueObjectInspector = mapObjectInspector.getMapValueObjectInspector();

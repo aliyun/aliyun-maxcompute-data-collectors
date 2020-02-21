@@ -28,6 +28,10 @@ public class HiveBinaryObjectConverter extends AbstractHiveObjectConverter {
 
   @Override
   public Object convert(ObjectInspector objectInspector, Object o, TypeInfo odpsTypeInfo) {
+    if (o == null) {
+      return null;
+    }
+
     BinaryObjectInspector binaryObjectInspector = (BinaryObjectInspector) objectInspector;
     return new Binary(binaryObjectInspector.getPrimitiveJavaObject(o));
   }

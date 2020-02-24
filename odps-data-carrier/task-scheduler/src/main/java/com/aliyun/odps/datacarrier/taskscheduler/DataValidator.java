@@ -1,15 +1,15 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-
-import com.aliyun.odps.datacarrier.commons.DirUtils;
+import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,5 +165,51 @@ public class DataValidator {
     } else {
       return true;
     }
+  }
+
+  /**
+   * hive result:
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   *
+   * odps result:
+   * _c0
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   * @param task
+   * @return
+   */
+  public List<PartitionMetaModel> validateTaskCountResultByPartition(Task task) {
+    if (task.actionInfoMap.containsKey(Action.HIVE_VALIDATE) &&
+        task.actionInfoMap.containsKey(Action.ODPS_VALIDATE)) {
+      List<String> hiveResults =
+          task.actionInfoMap.get(Action.HIVE_VALIDATE).executionInfoMap.get(task.getTableNameWithProject()).getMultiRecordResult();
+      List<String> odpsResults =
+          task.actionInfoMap.get(Action.ODPS_VALIDATE).executionInfoMap.get(task.getTableNameWithProject()).getMultiRecordResult();
+      if (hiveResults.size() != odpsResults.size()) {
+        LOG.warn("{} Validate ERROR! --> HivePartitionCount: {}, OdpsPartitionCount: {}.",
+            task, hiveResults.size(), odpsResults.size());
+      }
+      List<PartitionMetaModel> validatedFailedPartition = new ArrayList<>();
+      for (int partitionIndex = 0; partitionIndex < hiveResults.size(); partitionIndex++) {
+        if (!StringUtils.equals(hiveResults.get(partitionIndex).trim(), odpsResults.get(partitionIndex).trim())) {
+          validatedFailedPartition.add(task.partitions.get(partitionIndex));
+        }
+      }
+      if (!validatedFailedPartition.isEmpty()) {
+        return validatedFailedPartition;
+      }
+    }
+    return Collections.emptyList();
   }
 }

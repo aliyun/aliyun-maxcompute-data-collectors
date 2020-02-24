@@ -24,28 +24,14 @@ class ScriptTaskManager implements TaskManager {
   private static final Logger LOG = LogManager.getLogger(ScriptTaskManager.class);
 
   private Set<String> finishedTasks;
-  protected Map<RunnerType, TaskRunner> taskRunnerMap;
   private String inputPath;
   private IntermediateDataManager intermediateDataManager;
-  private String jdbcAddress;
-  private String user;
-  private String password;
 
-  public ScriptTaskManager(Set<String> finishedTasks, String inputPath, SortedSet<Action> actions, Mode mode,
-                           String jdbcAddress, String user, String password) {
+  public ScriptTaskManager(Set<String> finishedTasks, String inputPath, SortedSet<Action> actions, Mode mode) {
     this.finishedTasks = finishedTasks;
-    this.taskRunnerMap = new ConcurrentHashMap<>();
     this.inputPath = inputPath;
-    this.jdbcAddress = jdbcAddress;
-    this.user = user;
-    this.password = password;
     this.intermediateDataManager = new IntermediateDataManager(inputPath);
     generateTasks(actions, mode);
-  }
-
-  @Override
-  public TaskRunner getTaskRunner(RunnerType runnerType) {
-    return taskRunnerMap.get(runnerType);
   }
 
   /**
@@ -143,11 +129,6 @@ class ScriptTaskManager implements TaskManager {
 
             //Create task runner.
             RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
-            if (!taskRunnerMap.containsKey(runnerType)) {
-              taskRunnerMap.put(runnerType, createTaskRunner(runnerType));
-              LOG.info("Find runnerType = {}, Add Runner: {}", runnerType, taskRunnerMap.get(runnerType).getClass());
-            }
-
             if (RunnerType.ODPS.equals(runnerType)) {
               task.addExecutionInfo(action, sqlScript, new OdpsExecutionInfo(sqlPath));
             } else if (RunnerType.HIVE.equals(runnerType)) {
@@ -159,20 +140,5 @@ class ScriptTaskManager implements TaskManager {
       }
     }
     return tasks;
-  }
-
-  private TaskRunner createTaskRunner(RunnerType runnerType) {
-    if (RunnerType.HIVE.equals(runnerType)) {
-      return new HiveRunner(this.jdbcAddress, this.user, this.password);
-    } else if (RunnerType.ODPS.equals(runnerType)) {
-      return new OdpsRunner();
-    }
-    throw new RuntimeException("Unknown runner type: " + runnerType.name());
-  }
-
-  public void shutdown() {
-    for (TaskRunner runner : taskRunnerMap.values()) {
-      runner.shutdown();
-    }
   }
 }

@@ -15,6 +15,10 @@ public class HiveExecutionInfo extends AbstractExecutionInfo {
     super(sql);
   }
 
+  public HiveExecutionInfo() {
+
+  }
+
   public void setJobId(String jobId) {
     this.jobId = jobId;
   }

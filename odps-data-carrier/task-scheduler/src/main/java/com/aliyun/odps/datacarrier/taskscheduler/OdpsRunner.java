@@ -6,6 +6,7 @@ import com.aliyun.odps.OdpsException;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.odps.data.Record;
 import com.aliyun.odps.task.SQLTask;
+import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -136,9 +137,14 @@ public class OdpsRunner extends AbstractTaskRunner {
       if (!odpsExecutionInfo.isScriptMode()) {
         try {
           List<Record> records = SQLTask.getResult(i);
-          // hacky: get result for count(1), only 1 record and 1 column.
-          String result = records.get(0).get(0).toString();
-          odpsExecutionInfo.setResult(result);
+          if (Action.VALIDATION.equals(action)) {
+            // hacky: get result for count(1), only 1 record and 1 column.
+            String result = records.get(0).get(0).toString();
+            odpsExecutionInfo.setResult(result);
+          } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+            List<String> multiResultsStr = Lists.newArrayList(records.get(0).toString().split("\n"));
+            odpsExecutionInfo.setMultiRecordResult(multiResultsStr);
+          }
         } catch (OdpsException e) {
           LOG.error("Get ODPS Sql result failed, task: " + task +
               ", executionTaskName: " + executionTaskName +

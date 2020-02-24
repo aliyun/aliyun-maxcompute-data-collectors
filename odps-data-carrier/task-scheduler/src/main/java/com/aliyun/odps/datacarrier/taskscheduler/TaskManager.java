@@ -5,9 +5,6 @@ import java.util.SortedSet;
 
 public interface TaskManager {
 
-  TaskRunner getTaskRunner(RunnerType runnerType);
-
   List<Task> generateTasks(SortedSet<Action> actions, Mode mode);
 
-  void shutdown();
 }

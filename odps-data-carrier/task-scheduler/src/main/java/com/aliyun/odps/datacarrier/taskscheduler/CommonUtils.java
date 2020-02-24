@@ -16,9 +16,12 @@ public class CommonUtils {
       case HIVE_LOAD_DATA:
       case HIVE_VALIDATE:
         return RunnerType.HIVE;
+      case VALIDATION:
+      case VALIDATION_BY_PARTITION:
+        return RunnerType.LOCAL;
       case UNKNOWN:
       default:
-        throw new RuntimeException("unknown action" + action.name());
+        throw new RuntimeException("Unknown action: " + action.name());
     }
   }
 

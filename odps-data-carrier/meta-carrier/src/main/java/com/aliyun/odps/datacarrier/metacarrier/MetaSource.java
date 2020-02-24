@@ -7,7 +7,7 @@ import java.util.Map;
 
 public interface MetaSource {
 
-  public static class TableMetaModel {
+  class TableMetaModel {
     public String databaseName;
     public String odpsProjectName;
     public String tableName;
@@ -29,7 +29,7 @@ public interface MetaSource {
     public Boolean dropIfExists = true;
   }
 
-  public static class ColumnMetaModel {
+  class ColumnMetaModel {
     public String columnName;
     public String odpsColumnName;
     public String type;
@@ -37,18 +37,18 @@ public interface MetaSource {
     public String comment;
   }
 
-  public static class PartitionMetaModel {
+  class PartitionMetaModel {
     public List<String> partitionValues = new ArrayList<>();
     public String location;
     public Integer createTime;
   }
 
-  public TableMetaModel getTableMeta(String databaseName, String tableName) throws Exception;
+  TableMetaModel getTableMeta(String databaseName, String tableName) throws Exception;
 
-  public TableMetaModel getTableMetaWithoutPartitionMeta(String databaseName,
+  TableMetaModel getTableMetaWithoutPartitionMeta(String databaseName,
                                                          String tableName) throws Exception;
 
-  public PartitionMetaModel getPartitionMeta(String databaseName,
+  PartitionMetaModel getPartitionMeta(String databaseName,
                                              String tableName,
                                              List<String> partitionValues) throws Exception;
 
@@ -58,7 +58,7 @@ public interface MetaSource {
    * @return Non-partition tables need to migrate data.
    * @throws Exception
    */
-  public List<String> listTables(String databaseName) throws Exception;
+  List<String> listTables(String databaseName) throws Exception;
 
   /**
    * Get partition values list of given table
@@ -67,9 +67,9 @@ public interface MetaSource {
    * @return Partition table left partitions need to migrate data.
    * @throws Exception
    */
-   public List<List<String>> listPartitions(String databaseName,
+   List<List<String>> listPartitions(String databaseName,
                                             String tableName) throws Exception;
 
-   public List<String> listDatabases() throws Exception;
+   List<String> listDatabases() throws Exception;
 
 }

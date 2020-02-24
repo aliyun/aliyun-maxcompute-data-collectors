@@ -124,7 +124,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     }
 
     // Init partition metadata file
-    if (partitionValuesList != null && !partitionValuesList.isEmpty()) {
+    if (partitionValuesList != null) {
       Path allPartitionListPath = getAllPartitionListPath(db, tbl);
       try {
         FileOutputStream fos = new FileOutputStream(allPartitionListPath.toFile());

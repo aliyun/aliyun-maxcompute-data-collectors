@@ -202,7 +202,7 @@ public class DataValidator {
         return null;
       }
       ValidationResult validationResult = new ValidationResult();
-      for (PartitionMetaModel partitionMetaModel : task.partitions) {
+      for (PartitionMetaModel partitionMetaModel : task.tableMetaModel.partitions) {
         //TODO[mingyou] need to support multiple partition key.
         String partitionValue = partitionMetaModel.partitionValues.get(0);
         if (!hiveResults.containsKey(partitionValue) || !odpsResults.containsKey(partitionValue)

@@ -6,7 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.aliyun.odps.datacarrier.commons.Constants;
-import com.aliyun.odps.datacarrier.commons.Risk;
+import com.aliyun.odps.datacarrier.commons.risk.Risk;
 import com.aliyun.odps.datacarrier.metaprocessor.TypeTransformResult;
 
 public class HiveTypeTransformer implements TypeTransformer {

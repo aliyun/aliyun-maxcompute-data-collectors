@@ -43,28 +43,27 @@ abstract class AbstractTaskRunner implements TaskRunner {
 
 
   private String generateSqlStatement(Task task, Action action) {
+    StringBuilder sb = new StringBuilder();
     switch (action) {
       case ODPS_CREATE_TABLE:
-        if (task.isPartitionTable) {
-          //TODO odps create partitioned table sql without drop table
-          //MetaProcessor.getCreateTableStatement();
-          return "";
-        } else {
-          //odps create non-partitioned table sql with drop table
-          //MetaProcessor.getCreateTableStatement();
-          return "";
+        if (task.tableMetaModel.partitions.isEmpty()) {
+          //Non-partition table should drop table at first.
+          sb.append(OdpsSqlUtils.getDropTableStatement(task.tableMetaModel));
         }
+        sb.append(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel));
+        return sb.toString();
       case ODPS_ADD_PARTITION:
-        return "";
+        sb.append(OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel));
+        return sb.toString();
       case HIVE_LOAD_DATA:
-        //MetaProcessor.getMultiPartitionHiveUdtfSqlAsSpec();
-        return "";
+        sb.append(HiveSqlUtils.getUdtfSql(task.tableMetaModel));
+        return sb.toString();
       case HIVE_VALIDATE:
-        //MetaProcessor.getMultiPartitionHiveVerifySqlAsSpec();
-        return "";
+        sb.append(HiveSqlUtils.getVerifySql(task.tableMetaModel));
+        return sb.toString();
       case ODPS_VALIDATE:
-        //MetaProcessor.getMultiPartitionOdpsVerifySqlAsSpec();
-        return "";
+        sb.append(OdpsSqlUtils.getVerifySql(task.tableMetaModel));
+        return sb.toString();
       default:
         return "";
     }

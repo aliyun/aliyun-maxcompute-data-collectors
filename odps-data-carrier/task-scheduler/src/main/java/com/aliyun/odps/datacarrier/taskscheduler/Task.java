@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel;
 import com.aliyun.odps.datacarrier.metacarrier.MetaSource.PartitionMetaModel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,26 +19,17 @@ class Task {
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
+  TableMetaModel tableMetaModel;
+  MetaConfiguration.Config tableConfig;
 
-  //TODO: non-partition table need to drop table in ODPS_CREATE_TABLE, partition table only need create table without
-  // drop it at first.
-  protected boolean isPartitionTable;
-  public List<PartitionMetaModel> partitions = new ArrayList<>();
-
-  public Task(String project, String tableName) {
+  public Task(String project, String tableName, TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
     this.project = project;
     this.tableName = tableName;
+    this.tableMetaModel = tableMetaModel;
+    this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
     this.actionInfoMap = new ConcurrentHashMap<>();
     this.progress = Progress.NEW;
-  }
-
-  public void setPartitionTable(boolean partitionTable) {
-    isPartitionTable = partitionTable;
-  }
-
-  public void addPartition(PartitionMetaModel partitionMetaModel) {
-    this.partitions.add(partitionMetaModel);
   }
 
   class ActionInfo {

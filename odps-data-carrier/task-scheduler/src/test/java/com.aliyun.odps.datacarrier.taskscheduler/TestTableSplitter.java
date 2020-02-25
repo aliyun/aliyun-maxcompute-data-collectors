@@ -34,7 +34,7 @@ public class TestTableSplitter {
     List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
 
     assertEquals(tasks.size(), 2);
-    assertTrue(tasks.stream().allMatch(t -> !t.isPartitionTable && t.partitions.isEmpty()));
+    assertTrue(tasks.stream().allMatch(t -> t.tableMetaModel.partitions.isEmpty()));
   }
 
   @Test(timeout = 5000)
@@ -43,12 +43,12 @@ public class TestTableSplitter {
     List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
 
     assertEquals(tasks.size(), 5);
-    assertTrue(tasks.stream().allMatch(t -> t.isPartitionTable));
-    assertTrue(tasks.get(0).partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(tasks.get(1).partitions.get(0).partitionValues.get(0).equals("20200219"));
-    assertTrue(tasks.get(2).partitions.get(0).partitionValues.get(0).equals("20200220"));
-    assertTrue(tasks.get(3).partitions.get(0).partitionValues.get(0).equals("20200221"));
-    assertTrue(tasks.get(4).partitions.get(0).partitionValues.get(0).equals("20200222"));
+    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
+    assertTrue(tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
+    assertTrue(tasks.get(1).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200219"));
+    assertTrue(tasks.get(2).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200220"));
+    assertTrue(tasks.get(3).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200221"));
+    assertTrue(tasks.get(4).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200222"));
   }
 
   @Test(timeout = 5000)
@@ -57,12 +57,12 @@ public class TestTableSplitter {
     List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
 
     assertEquals(tasks.size(), 1);
-    assertTrue(tasks.stream().allMatch(t -> t.isPartitionTable));
-    assertTrue(tasks.get(0).partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(tasks.get(0).partitions.get(1).partitionValues.get(0).equals("20200219"));
-    assertTrue(tasks.get(0).partitions.get(2).partitionValues.get(0).equals("20200220"));
-    assertTrue(tasks.get(0).partitions.get(3).partitionValues.get(0).equals("20200221"));
-    assertTrue(tasks.get(0).partitions.get(4).partitionValues.get(0).equals("20200222"));
+    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
+    assertTrue(tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
+    assertTrue(tasks.get(0).tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200219"));
+    assertTrue(tasks.get(0).tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200220"));
+    assertTrue(tasks.get(0).tableMetaModel.partitions.get(3).partitionValues.get(0).equals("20200221"));
+    assertTrue(tasks.get(0).tableMetaModel.partitions.get(4).partitionValues.get(0).equals("20200222"));
   }
 
   @Test(timeout = 5000)
@@ -71,15 +71,15 @@ public class TestTableSplitter {
     List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
 
     assertEquals(tasks.size(), 2);
-    assertTrue(tasks.stream().allMatch(t -> t.isPartitionTable));
+    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
     Task task0 = tasks.get(0);
-    assertTrue(task0.partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(task0.partitions.get(1).partitionValues.get(0).equals("20200219"));
-    assertTrue(task0.partitions.get(2).partitionValues.get(0).equals("20200220"));
+    assertTrue(task0.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
+    assertTrue(task0.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200219"));
+    assertTrue(task0.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200220"));
 
     Task task1 = tasks.get(1);
-    assertTrue(task1.partitions.get(0).partitionValues.get(0).equals("20200221"));
-    assertTrue(task1.partitions.get(1).partitionValues.get(0).equals("20200222"));
+    assertTrue(task1.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200221"));
+    assertTrue(task1.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200222"));
   }
 
   @Test(timeout = 5000)
@@ -88,17 +88,17 @@ public class TestTableSplitter {
     List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
 
     assertEquals(tasks.size(), 2);
-    assertTrue(tasks.stream().allMatch(t -> t.isPartitionTable));
+    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
     Task task0 = tasks.get(0);
-    assertTrue(task0.partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(task0.partitions.get(1).partitionValues.get(0).equals("20200219"));
-    assertTrue(task0.partitions.get(2).partitionValues.get(0).equals("20200220"));
-    assertTrue(task0.partitions.get(3).partitionValues.get(0).equals("20200221"));
+    assertTrue(task0.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
+    assertTrue(task0.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200219"));
+    assertTrue(task0.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200220"));
+    assertTrue(task0.tableMetaModel.partitions.get(3).partitionValues.get(0).equals("20200221"));
 
     Task task1 = tasks.get(1);
-    assertTrue(task1.partitions.get(0).partitionValues.get(0).equals("20200222"));
-    assertTrue(task1.partitions.get(1).partitionValues.get(0).equals("20200223"));
-    assertTrue(task1.partitions.get(2).partitionValues.get(0).equals("20200224"));
+    assertTrue(task1.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200222"));
+    assertTrue(task1.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200223"));
+    assertTrue(task1.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200224"));
   }
 
   public List<TableMetaModel> updateMetaConfigAndCreateTables(int tableNum, int partitionsNum, int numOfPartitions) {

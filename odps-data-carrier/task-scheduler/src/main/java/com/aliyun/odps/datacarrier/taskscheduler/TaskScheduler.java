@@ -13,7 +13,6 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -291,7 +290,7 @@ public class TaskScheduler {
           mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.FAILED);
         }
       } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
-        DataValidator.ValidationResult validationResult = dataValidator.failedValidationPartitions(task);
+        DataValidator.ValidationResult validationResult = dataValidator.validationPartitions(task);
         if (!validationResult.failedPartitions.isEmpty()) {
           task.changeActionProgress(action, Progress.FAILED);
           mmaMetaManager.updateStatus(task.project, task.tableName,

@@ -189,7 +189,7 @@ public class DataValidator {
    * @param task
    * @return
    */
-  public ValidationResult failedValidationPartitions(Task task) {
+  public ValidationResult validationPartitions(Task task) {
     if (task.actionInfoMap.containsKey(Action.HIVE_VALIDATE) &&
         task.actionInfoMap.containsKey(Action.ODPS_VALIDATE)) {
       Map<String, String> hiveResults =

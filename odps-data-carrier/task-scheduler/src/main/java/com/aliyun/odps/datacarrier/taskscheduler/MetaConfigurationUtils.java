@@ -24,7 +24,7 @@ public class MetaConfigurationUtils {
     return GsonUtils.getFullConfigGson().fromJson(content, MetaConfiguration.class);
   }
 
-  public static String generateSampleMetaConfiguration() {
+  public static MetaConfiguration generateSampleMetaConfiguration() {
     MetaConfiguration metaConfiguration = new MetaConfiguration("Jerry", "TestMigrationJob", DataSource.Hive);
 
     HiveConfiguration hiveConfiguration = new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default",
@@ -49,7 +49,11 @@ public class MetaConfigurationUtils {
     metaConfiguration.setTablesGroupList(tablesGroupList);
     metaConfiguration.setGlobalTableConfig(tableConfig);
 
-    return GsonUtils.getFullConfigGson().toJson(metaConfiguration, MetaConfiguration.class);
+    return metaConfiguration;
+  }
+
+  public static String getSampleMetaConfigurationStr() {
+    return GsonUtils.getFullConfigGson().toJson(generateSampleMetaConfiguration(), MetaConfiguration.class);
   }
 
   public static File getDefaultConfigFile() {
@@ -62,7 +66,7 @@ public class MetaConfigurationUtils {
     Files.deleteIfExists(configFile.toPath());
     configFile.createNewFile();
     FileOutputStream outputStream = new FileOutputStream(configFile);
-    outputStream.write(generateSampleMetaConfiguration().getBytes());
+    outputStream.write(getSampleMetaConfigurationStr().getBytes());
     outputStream.close();
   }
 

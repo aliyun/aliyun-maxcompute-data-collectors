@@ -131,6 +131,9 @@ public class HiveMetaCarrier {
       columnMetaModel.columnName = partitionColumn.getName();
       columnMetaModel.odpsColumnName = partitionColumn.getName();
       columnMetaModel.type = partitionColumn.getType();
+      if ("date".equalsIgnoreCase(columnMetaModel.type)) {
+        columnMetaModel.odpsType = "STRING";
+      }
       columnMetaModel.comment = partitionColumn.getComment();
       tableMeta.partitionColumns.add(columnMetaModel);
     }

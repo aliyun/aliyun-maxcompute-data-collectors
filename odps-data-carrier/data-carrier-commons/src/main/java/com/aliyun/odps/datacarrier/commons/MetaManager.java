@@ -131,6 +131,7 @@ public class MetaManager {
     public String columnName;
     public String odpsColumnName;
     public String type;
+    public String odpsType;
     public String comment;
   }
 

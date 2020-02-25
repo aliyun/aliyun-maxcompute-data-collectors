@@ -137,13 +137,18 @@ public class MetaProcessor {
       for (int i = 0; i < partitionColumns.size(); i++) {
         ColumnMetaModel partitionColumnMeta = partitionColumns.get(i);
 
-        // Transform hive type to odps hive, and note down any incompatibility
-        TypeTransformResult typeTransformResult =
-            TypeTransformer.toOdpsType(globalMeta, partitionColumnMeta);
-        generatedStatement.setRisk(typeTransformResult.getRisk());
-        String odpsType = typeTransformResult.getTransformedType();
+        if ("date".equalsIgnoreCase(partitionColumnMeta.type)) {
+          partitionColumnMeta.odpsType = "STRING";
+        } else {
+          // Transform hive type to odps hive, and note down any incompatibility
+          TypeTransformResult typeTransformResult =
+              TypeTransformer.toOdpsType(globalMeta, partitionColumnMeta);
+          generatedStatement.setRisk(typeTransformResult.getRisk());
+          partitionColumnMeta.odpsType = typeTransformResult.getTransformedType();
+        }
+
         String odpsPartitionColumnName = partitionColumnMeta.odpsColumnName;
-        ddlBuilder.append("    `").append(odpsPartitionColumnName).append("` ").append(odpsType);
+        ddlBuilder.append("    `").append(odpsPartitionColumnName).append("` ").append(partitionColumnMeta.odpsType);
 
         String columnComment = partitionColumnMeta.comment;
         if (columnComment != null) {
@@ -787,7 +792,7 @@ public class MetaProcessor {
       odpsPartitionSpecBuilder
           .append(partitionColumn.odpsColumnName)
           .append("=");
-      if ("STRING".equalsIgnoreCase(partitionColumn.type)) {
+      if ("STRING".equalsIgnoreCase(partitionColumn.odpsType)) {
         if (escape) {
           odpsPartitionSpecBuilder.append("\\\'").append(partitionValue).append("\\\'");
         } else {

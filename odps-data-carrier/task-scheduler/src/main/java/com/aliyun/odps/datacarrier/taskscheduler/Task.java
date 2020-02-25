@@ -163,7 +163,7 @@ class Task {
       return false;
     }
 
-    if (Action.VALIDATION.equals(action)) {
+    if (Action.VALIDATION_BY_TABLE.equals(action)) {
       if (!Progress.NEW.equals(actionInfoMap.get(action).progress)) {
         return false;
       }

@@ -19,8 +19,8 @@ public class MetaConfiguration {
 
   //basic environment configuration
   private DataSource dataSource;
-  private OssDataSource ossDataSource;
-  private HiveMetaSource hiveMetaSource;
+  private OssConfiguration ossConfiguration;
+  private HiveConfiguration hiveConfiguration;
   private OdpsConfiguration odpsConfiguration;
   private List<TablesGroup> tablesGroupList;
 
@@ -70,20 +70,20 @@ public class MetaConfiguration {
     this.dataSource = dataSource;
   }
 
-  public OssDataSource getOssDataSource() {
-    return ossDataSource;
+  public OssConfiguration getOssConfiguration() {
+    return ossConfiguration;
   }
 
-  public void setOssDataSource(OssDataSource ossDataSource) {
-    this.ossDataSource = ossDataSource;
+  public void setOssConfiguration(OssConfiguration ossConfiguration) {
+    this.ossConfiguration = ossConfiguration;
   }
 
-  public HiveMetaSource getHiveMetaSource() {
-    return hiveMetaSource;
+  public HiveConfiguration getHiveConfiguration() {
+    return hiveConfiguration;
   }
 
-  public void setHiveMetaSource(HiveMetaSource hiveMetaSource) {
-    this.hiveMetaSource = hiveMetaSource;
+  public void setHiveConfiguration(HiveConfiguration hiveConfiguration) {
+    this.hiveConfiguration = hiveConfiguration;
   }
 
   public OdpsConfiguration getOdpsConfiguration() {
@@ -110,11 +110,11 @@ public class MetaConfiguration {
     this.globalTableConfig = globalTableConfig;
   }
 
-  public static class OssDataSource {
+  public static class OssConfiguration {
     private String ossEndpoint;
     private String ossBucket;
 
-    public OssDataSource(String ossEndpoint, String ossBucket) {
+    public OssConfiguration(String ossEndpoint, String ossBucket) {
       this.ossEndpoint = ossEndpoint;
       this.ossBucket = ossBucket;
     }
@@ -134,18 +134,18 @@ public class MetaConfiguration {
     }
   }
 
-  public static class HiveMetaSource {
+  public static class HiveConfiguration {
     private String hiveJdbcAddress;
     private String thriftAddr;
     private String krbPrincipal;
     private String keyTab;
     private String[] krbSystemProperties;
 
-    public HiveMetaSource(String hiveJdbcAddress,
-                          String thriftAddr,
-                          String krbPrincipal,
-                          String keyTab,
-                          String[] krbSystemProperties) {
+    public HiveConfiguration(String hiveJdbcAddress,
+                             String thriftAddr,
+                             String krbPrincipal,
+                             String keyTab,
+                             String[] krbSystemProperties) {
       this.hiveJdbcAddress = hiveJdbcAddress;
       this.thriftAddr = thriftAddr;
       this.krbPrincipal = krbPrincipal;
@@ -214,8 +214,7 @@ public class MetaConfiguration {
       return (!StringUtils.isNullOrEmpty(accessId) &&
           !StringUtils.isNullOrEmpty(accessKey) &&
           !StringUtils.isNullOrEmpty(endpoint) &&
-          !StringUtils.isNullOrEmpty(projectName) &&
-          !StringUtils.isNullOrEmpty(tunnelEndpoint));
+          !StringUtils.isNullOrEmpty(projectName));
     }
 
     @Override
@@ -331,15 +330,15 @@ public class MetaConfiguration {
     boolean validated = true;
     switch (this.dataSource) {
       case Hive:
-        if (!this.hiveMetaSource.validate()) {
+        if (!this.hiveConfiguration.validate()) {
           validated = false;
-          LOG.error("Validate MetaConfiguration failed due to {}", this.hiveMetaSource);
+          LOG.error("Validate MetaConfiguration failed due to {}", this.hiveConfiguration);
         }
         break;
       case OSS:
-        if (!this.ossDataSource.validate()) {
+        if (!this.ossConfiguration.validate()) {
           validated = false;
-          LOG.error("Validate MetaConfiguration failed due to {}", this.ossDataSource);
+          LOG.error("Validate MetaConfiguration failed due to {}", this.ossConfiguration);
         }
         break;
     }

@@ -27,9 +27,9 @@ public class MetaConfigurationUtils {
   public static String generateSampleMetaConfiguration() {
     MetaConfiguration metaConfiguration = new MetaConfiguration("Jerry", "TestMigrationJob", DataSource.Hive);
 
-    HiveMetaSource hiveMetaSource = new HiveMetaSource("jdbc:hive2://127.0.0.1:10000/default",
+    HiveConfiguration hiveConfiguration = new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default",
         "thrift://127.0.0.1:9083", "", "", new String[]{""});
-    metaConfiguration.setHiveMetaSource(hiveMetaSource);
+    metaConfiguration.setHiveConfiguration(hiveConfiguration);
 
     OdpsConfiguration odpsConfiguration = new OdpsConfiguration("", "", "", "", "");
     metaConfiguration.setOdpsConfiguration(odpsConfiguration);

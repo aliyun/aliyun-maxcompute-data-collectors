@@ -2,6 +2,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 abstract class AbstractExecutionInfo {
   protected Progress progress = Progress.NEW;
@@ -12,7 +13,7 @@ abstract class AbstractExecutionInfo {
   private Path sqlPath;
   private String sqlStatements;
   private String result;
-  private List<String> multiRecordResult;
+  private Map<String, String> multiRecordResult;
 
   public AbstractExecutionInfo(Path sqlPath) {
     this.scriptMode = true;
@@ -44,11 +45,11 @@ abstract class AbstractExecutionInfo {
     this.result = result;
   }
 
-  public List<String> getMultiRecordResult() {
+  public Map<String, String> getMultiRecordResult() {
     return multiRecordResult;
   }
 
-  public void setMultiRecordResult(List<String> multiRecordResult) {
+  public void setMultiRecordResult(Map<String, String> multiRecordResult) {
     this.multiRecordResult = multiRecordResult;
   }
 

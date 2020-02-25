@@ -10,7 +10,7 @@ import java.util.SortedSet;
 
 public class TableSplitter implements TaskManager {
 
-  private static final Logger LOG = LogManager.getLogger(ScriptTaskManager.class);
+  private static final Logger LOG = LogManager.getLogger(TableSplitter.class);
   private List<TableMetaModel> tables;
   private List<Task> tasks = new LinkedList<>();
   private MetaConfiguration metaConfiguration;

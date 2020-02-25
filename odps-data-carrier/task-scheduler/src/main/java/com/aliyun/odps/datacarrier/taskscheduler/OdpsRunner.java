@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,13 +138,23 @@ public class OdpsRunner extends AbstractTaskRunner {
       if (!odpsExecutionInfo.isScriptMode()) {
         try {
           List<Record> records = SQLTask.getResult(i);
-          if (Action.VALIDATION.equals(action)) {
+          if (Action.VALIDATION_BY_TABLE.equals(action)) {
             // hacky: get result for count(1), only 1 record and 1 column.
             String result = records.get(0).get(0).toString();
             odpsExecutionInfo.setResult(result);
           } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
-            List<String> multiResultsStr = Lists.newArrayList(records.get(0).toString().split("\n"));
-            odpsExecutionInfo.setMultiRecordResult(multiResultsStr);
+            //TODO[mingyou] need to support multiple partition key.
+            List<String> partitionValues = Lists.newArrayList(records.get(0).toString().split("\n"));
+            List<String> counts = Lists.newArrayList(records.get(1).toString().split("\n"));
+            if(partitionValues.size() != counts.size()) {
+              odpsExecutionInfo.setMultiRecordResult(Collections.emptyMap());
+            } else {
+              Map<String, String> result = new HashMap<>();
+              for (int index = 0; index < partitionValues.size(); index++) {
+                result.put(partitionValues.get(index), counts.get(index));
+              }
+              odpsExecutionInfo.setMultiRecordResult(result);
+            }
           }
         } catch (OdpsException e) {
           LOG.error("Get ODPS Sql result failed, task: " + task +

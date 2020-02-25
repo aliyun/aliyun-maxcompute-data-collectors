@@ -16,7 +16,7 @@ public class CommonUtils {
       case HIVE_LOAD_DATA:
       case HIVE_VALIDATE:
         return RunnerType.HIVE;
-      case VALIDATION:
+      case VALIDATION_BY_TABLE:
       case VALIDATION_BY_PARTITION:
         return RunnerType.LOCAL;
       case UNKNOWN:

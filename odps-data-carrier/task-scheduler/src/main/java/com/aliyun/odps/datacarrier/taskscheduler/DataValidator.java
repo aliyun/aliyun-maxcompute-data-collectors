@@ -1,6 +1,6 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.commons.MetaManager.PartitionMetaModel;
+import com.aliyun.odps.datacarrier.metacarrier.MetaSource.PartitionMetaModel;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,8 +60,8 @@ public class DataValidator {
       task.addExecutionInfo(Action.ODPS_VALIDATE, COUNT_VALIDATION_TASK, new OdpsExecutionInfo(
           createCountValidationSqlStatement(Action.ODPS_VALIDATE, odpsProject, odpsTable, where)));
       LOG.info("Add ExecutionInfo for {}, {}", Action.ODPS_VALIDATE, task.toString());
-      task.addActionInfo(Action.VALIDATION);
-      LOG.info("Add ExecutionInfo for {}, {}", Action.VALIDATION, task.toString());
+      task.addActionInfo(Action.VALIDATION_BY_TABLE);
+      LOG.info("Add ExecutionInfo for {}, {}", Action.VALIDATION_BY_TABLE, task.toString());
     }
   }
 
@@ -189,27 +189,36 @@ public class DataValidator {
    * @param task
    * @return
    */
-  public List<PartitionMetaModel> validateTaskCountResultByPartition(Task task) {
+  public ValidationResult failedValidationPartitions(Task task) {
     if (task.actionInfoMap.containsKey(Action.HIVE_VALIDATE) &&
         task.actionInfoMap.containsKey(Action.ODPS_VALIDATE)) {
-      List<String> hiveResults =
+      Map<String, String> hiveResults =
           task.actionInfoMap.get(Action.HIVE_VALIDATE).executionInfoMap.get(task.getTableNameWithProject()).getMultiRecordResult();
-      List<String> odpsResults =
+      Map<String, String> odpsResults =
           task.actionInfoMap.get(Action.ODPS_VALIDATE).executionInfoMap.get(task.getTableNameWithProject()).getMultiRecordResult();
       if (hiveResults.size() != odpsResults.size()) {
         LOG.warn("{} Validate ERROR! --> HivePartitionCount: {}, OdpsPartitionCount: {}.",
             task, hiveResults.size(), odpsResults.size());
+        return null;
       }
-      List<PartitionMetaModel> validatedFailedPartition = new ArrayList<>();
-      for (int partitionIndex = 0; partitionIndex < hiveResults.size(); partitionIndex++) {
-        if (!StringUtils.equals(hiveResults.get(partitionIndex).trim(), odpsResults.get(partitionIndex).trim())) {
-          validatedFailedPartition.add(task.partitions.get(partitionIndex));
+      ValidationResult validationResult = new ValidationResult();
+      for (PartitionMetaModel partitionMetaModel : task.partitions) {
+        //TODO[mingyou] need to support multiple partition key.
+        String partitionValue = partitionMetaModel.partitionValues.get(0);
+        if (!hiveResults.containsKey(partitionValue) || !odpsResults.containsKey(partitionValue)
+        || !hiveResults.get(partitionValue).equals(odpsResults.get(partitionValue))) {
+          validationResult.failedPartitions.add(partitionMetaModel.partitionValues);
+        } else {
+          validationResult.succeededPartitions.add(partitionMetaModel.partitionValues);
         }
       }
-      if (!validatedFailedPartition.isEmpty()) {
-        return validatedFailedPartition;
-      }
+      return validationResult;
     }
-    return Collections.emptyList();
+    return null;
+  }
+
+  public class ValidationResult {
+    List<List<String>> succeededPartitions = new ArrayList<>();
+    List<List<String>> failedPartitions = new ArrayList<>();
   }
 }

@@ -13,13 +13,11 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
 import java.io.File;
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,16 +55,14 @@ public class TaskScheduler {
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<TableMetaModel> tables;
   protected List<Task> tasks;
-  protected Set<String> finishedTasks;
+  private MetaConfiguration metaConfig;
 
   //for HiveRunner.
-  private String jdbcAddress;
   private String user;
   private String password;
 
   private MMAMetaManager mmaMetaManager;
   private MetaSource metaSource;
-  private TaskMetaManager taskMetaManager;
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
@@ -77,16 +73,14 @@ public class TaskScheduler {
     this.taskRunnerMap = new ConcurrentHashMap<>();
     this.heartbeatIntervalMs = new AtomicInteger(HEARTBEAT_INTERVAL_MS);
     this.tasks = new LinkedList<>();
-    this.finishedTasks = new HashSet<>();
   }
 
 
   private void run(MetaConfiguration metaConfiguration, String user, String password) throws TException {
+    this.metaConfig = metaConfiguration;
     this.dataSource = metaConfiguration.getDataSource();
-    this.jdbcAddress = metaConfiguration.getHiveMetaSource().getHiveJdbcAddress();
     this.user = user;
     this.password = password;
-    this.taskMetaManager = new TaskMetaManager();
 
     int retryTimes = 1;
     while (true) {
@@ -95,11 +89,11 @@ public class TaskScheduler {
       initTaskRunner();
       updateConcurrencyThreshold();
       if (DataSource.Hive.equals(dataSource)) {
-        MetaConfiguration.HiveMetaSource hiveMetaSourceConfig = metaConfiguration.getHiveMetaSource();
-        this.metaSource = new HiveMetaSource(hiveMetaSourceConfig.getThriftAddr(),
-            hiveMetaSourceConfig.getKrbPrincipal(),
-            hiveMetaSourceConfig.getKeyTab(),
-            hiveMetaSourceConfig.getKrbSystemProperties());
+        MetaConfiguration.HiveConfiguration hiveConfigurationConfig = metaConfiguration.getHiveConfiguration();
+        this.metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
+            hiveConfigurationConfig.getKrbPrincipal(),
+            hiveConfigurationConfig.getKeyTab(),
+            hiveConfigurationConfig.getKrbSystemProperties());
         this.mmaMetaManager = new MMAMetaManagerFsImpl(null, this.metaSource);
       }
       this.tables = this.mmaMetaManager.getPendingTables();
@@ -134,7 +128,7 @@ public class TaskScheduler {
       actions.add(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION);
       actions.add(Action.ODPS_LOAD_DATA);
       actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION);
+      actions.add(Action.VALIDATION_BY_TABLE);
     }
   }
 
@@ -156,7 +150,7 @@ public class TaskScheduler {
 
   private TaskRunner createTaskRunner(RunnerType runnerType) {
     if (RunnerType.HIVE.equals(runnerType)) {
-      return new HiveRunner(this.jdbcAddress, this.user, this.password);
+      return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(), this.user, this.password);
     } else if (RunnerType.ODPS.equals(runnerType)) {
       return new OdpsRunner();
     }
@@ -266,6 +260,8 @@ public class TaskScheduler {
         || Progress.SUCCEEDED.equals(task.progress));
   }
 
+
+
   private void scheduleExecutionTask(Action action) {
     ActionScheduleInfo actionScheduleInfo = actionScheduleInfoMap.get(action);
     if (actionScheduleInfo != null) {
@@ -279,9 +275,6 @@ public class TaskScheduler {
       if (actionScheduleInfo.concurrency >= actionScheduleInfo.concurrencyLimit) {
         return;
       }
-    } else if (!Action.VALIDATION.equals(action)) {
-      LOG.error("Action {} scheduleInfo is not found.", action.name());
-      return;
     }
 
     for (Task task : tasks) {
@@ -289,23 +282,26 @@ public class TaskScheduler {
         continue;
       }
       LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
-      if (Action.VALIDATION.equals(action) || Action.VALIDATION_BY_PARTITION.equals(action)) {
-        //TODO validateTaskCountResult per partition.
-        if ((Action.VALIDATION.equals(action) && dataValidator.validateTaskCountResult(task))
-          || (Action.VALIDATION_BY_PARTITION.equals(action) && dataValidator.validateTaskCountResultByPartition(task).isEmpty())) {
+      if (Action.VALIDATION_BY_TABLE.equals(action)) {
+        if (dataValidator.validateTaskCountResult(task)) {
           task.changeActionProgress(action, Progress.SUCCEEDED);
-
-          // tasks done, write to failover file.
-          if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
-            // TODO, update validation succeeded partitions.
-            taskMetaManager.writeToFailoverFile(task.getTableNameWithProject() + "\n");
-          }
+          mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.SUCCEEDED);
         } else {
           task.changeActionProgress(action, Progress.FAILED);
-          if (Action.VALIDATION_BY_PARTITION.equals(action)) {
-            // TODO, update validation succeeded partitions.
-            // mmaMetaManager.updateTaskInfo();
-          }
+          mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.FAILED);
+        }
+      } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+        DataValidator.ValidationResult validationResult = dataValidator.failedValidationPartitions(task);
+        if (!validationResult.failedPartitions.isEmpty()) {
+          task.changeActionProgress(action, Progress.FAILED);
+          mmaMetaManager.updateStatus(task.project, task.tableName,
+              validationResult.failedPartitions, MMAMetaManager.MigrationStatus.FAILED);
+        } else {
+          task.changeActionProgress(action, Progress.SUCCEEDED);
+        }
+        if (!validationResult.succeededPartitions.isEmpty()) {
+          mmaMetaManager.updateStatus(task.project, task.tableName,
+              validationResult.succeededPartitions, MMAMetaManager.MigrationStatus.SUCCEEDED);
         }
       } else {
         for (Map.Entry<String, AbstractExecutionInfo> entry :

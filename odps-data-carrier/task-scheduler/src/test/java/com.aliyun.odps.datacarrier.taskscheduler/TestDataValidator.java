@@ -23,7 +23,7 @@ public class TestDataValidator {
         task.getTableNameWithProject()).setMultiRecordResult(multiRecordResult);
 
     DataValidator dataValidator = new DataValidator();
-    assertTrue(dataValidator.validateTaskCountResultByPartition(task).isEmpty());
+    assertTrue(dataValidator.failedValidationPartitions(task).isEmpty());
 
   }
 }

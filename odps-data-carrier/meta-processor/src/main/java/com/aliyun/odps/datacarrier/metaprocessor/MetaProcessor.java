@@ -1200,7 +1200,7 @@ public class MetaProcessor {
     if (cmd.hasOption("input-dir") && cmd.hasOption("output-dir") && cmd.hasOption("version")
         && !cmd.hasOption("help")) {
       MetaProcessor metaProcessor = new MetaProcessor();
-      String whereStr = cmd.getOptionValue("where");
+      String whereStr = cmd.hasOption("where") ? cmd.getOptionValue("where") : "";
       metaProcessor.run(cmd.getOptionValue("input-dir"),
           cmd.getOptionValue("output-dir"),
           Integer.valueOf(cmd.getOptionValue("version")),

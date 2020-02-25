@@ -59,7 +59,9 @@ class MigrationRunner:
         self._table_mapping_file_path = table_mapping_file_path
         self._validate_only = False
         self._append = False
-        self._where = where.replace("'", "\\'").replace("\"", "\\\"")
+        self._where = None
+        if where is not None:
+            self._where = where.replace("'", "\\'").replace("\"", "\\\"")
         self._num_of_partitions = num_of_partitions
         self._failover_failed_file = failover_failed_file
         self._failover_success_file = failover_success_file
@@ -253,53 +255,31 @@ class MigrationRunner:
 
     def _process_metadata(self):
         print_utils.print_yellow("[Processing metadata]\n")
-        print_utils.print_yellow("sh %s -i %s -o %s -v %s -w %s\n" % (self._meta_processor_path,
-                                                                      self._meta_carrier_output_dir,
-                                                                      self._meta_processor_output_dir,
-                                                                      self._version,
-                                                                      self._where))
-        self._execute_command("sh %s -i %s -o %s -v %s -w %s" % (self._meta_processor_path,
-                                                                   self._meta_carrier_output_dir,
-                                                                   self._meta_processor_output_dir,
-                                                                   self._version,
-                                                                   self._where))
+        cmd_str = ("sh %s -i %s -o %s -v %s " % (self._meta_processor_path,
+                                                 self._meta_carrier_output_dir,
+                                                 self._meta_processor_output_dir,
+                                                 self._version))
+        if (self._where is not None):
+            cmd_str = cmd_str + (" -w %s\n" % self._where)
+        cmd_str = cmd_str + "\n"
+        print_utils.print_yellow(cmd_str)
+        self._execute_command(cmd_str)
         print_utils.print_green("[Processing metadata done]\n")
 
     def _schedule_tasks(self):
-        if self._jdbc_address is None or self._user is None or self._password is None:
-            print_utils.print_yellow("sh %s -i %s -d %s -m %s -tm %s -w %s\n" % (self._task_scheduler_path,
-                                                                                 self._meta_processor_output_dir,
-                                                                                 self._datasource,
-                                                                                 self._mode,
-                                                                                 self._table_mapping_file_path,
-                                                                                 self._where))
-            self._execute_command("sh %s -i %s -d %s -m %s -tm %s -w %s\n" % (self._task_scheduler_path,
-                                                                              self._meta_processor_output_dir,
-                                                                              self._datasource,
-                                                                              self._mode,
-                                                                              self._table_mapping_file_path,
-                                                                              self._where))
-        else:
-            print_utils.print_yellow(
-                "sh %s -i %s -d %s -m %s -tm %s -ja %s -u %s -p %s -w %s\n" % (self._task_scheduler_path,
-                                                                               self._meta_processor_output_dir,
-                                                                               self._datasource,
-                                                                               self._mode,
-                                                                               self._table_mapping_file_path,
-                                                                               self._jdbc_address,
-                                                                               self._user,
-                                                                               self._password,
-                                                                               self._where))
-            self._execute_command(
-                "sh %s -i %s -d %s -m %s -tm %s -ja %s -u %s -p %s -w %s\n" % (self._task_scheduler_path,
-                                                                               self._meta_processor_output_dir,
-                                                                               self._datasource,
-                                                                               self._mode,
-                                                                               self._table_mapping_file_path,
-                                                                               self._jdbc_address,
-                                                                               self._user,
-                                                                               self._password,
-                                                                               self._where))
+        cmd_str = "sh %s -i %s -d %s -m %s -tm %s" % (self._task_scheduler_path,
+                                                      self._meta_processor_output_dir,
+                                                      self._datasource,
+                                                      self._mode,
+                                                      self._table_mapping_file_path)
+        if (self._where is not None):
+            cmd_str = cmd_str + (" -w %s" % self._where)
+        if self._jdbc_address is not None and  self._user is not None and self._password is not None:
+            cmd_str = cmd_str + (" -ja %s -u %s -p %s" % (self._jdbc_address, self._user, self._password))
+        cmd_str = cmd_str + "\n"
+        print_utils.print_yellow(cmd_str)
+        self._execute_command(cmd_str)
+
     def _build_table(self, hive_db, hive_tbl, odps_pjt, odps_tbl):
         # parallelism set to 1 to avoid OTS conflicts
         odps_sql_runner = OdpsSQLRunner(self._odps_data_carrier_dir, 1, self._verbose)

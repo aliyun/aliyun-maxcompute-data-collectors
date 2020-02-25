@@ -9,9 +9,13 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.aliyun.odps.utils.StringUtils;
+import com.google.common.collect.Lists;
 import org.apache.hive.jdbc.HiveStatement;
 
 import org.apache.logging.log4j.LogManager;
@@ -122,8 +126,24 @@ public class HiveRunner extends AbstractTaskRunner {
               LOG.error("Query log failed. ");
             }
             // -- getQueryLog --
-            LOG.info("executeQuery result: {}", resultSet.getString(1));
-            hiveExecutionInfo.setResult(resultSet.getString(1));
+            if (Action.VALIDATION_BY_TABLE.equals(action)) {
+              LOG.info("executeQuery result: {}", resultSet.getString(1));
+              hiveExecutionInfo.setResult(resultSet.getString(1));
+            } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+              LOG.info("executeQuery result: {}", resultSet.getString(1));
+              //TODO[mingyou] need to support multiple partition key.
+              List<String> partitionValues = Lists.newArrayList(resultSet.getString(1).split("\n"));
+              List<String> counts = Lists.newArrayList(resultSet.getString(2).split("\n"));
+              if(partitionValues.size() != counts.size()) {
+                hiveExecutionInfo.setMultiRecordResult(Collections.emptyMap());
+              } else {
+                Map<String, String> result = new HashMap<>();
+                for (int i = 0; i < partitionValues.size(); i++) {
+                  result.put(partitionValues.get(i), counts.get(i));
+                }
+                hiveExecutionInfo.setMultiRecordResult(result);
+              }
+            }
             break;
           }
           resultSet.close();

@@ -1,9 +1,10 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.commons.MetaManager.TableMetaModel;
-import com.aliyun.odps.datacarrier.metacarrier.HiveMetaCarrier;
-import com.aliyun.odps.datacarrier.metacarrier.MetaCarrier;
+import com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel;
+import com.aliyun.odps.datacarrier.metacarrier.HiveMetaSource;
+import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
 import com.aliyun.odps.utils.StringUtils;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -11,22 +12,11 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.*;
+import static com.aliyun.odps.datacarrier.taskscheduler.MetaConfigurationUtils.*;
 
 public class TaskScheduler {
 
@@ -51,26 +42,26 @@ public class TaskScheduler {
   private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
 
-
-
   private TaskManager taskManager;
   private DataValidator dataValidator;
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
+  protected Map<RunnerType, TaskRunner> taskRunnerMap;
   private DataSource dataSource;
-  private String tableMappingFilePath;
-
   private final SchedulerHeartbeatThread heartbeatThread;
   private volatile boolean keepRunning;
   private volatile Throwable savedException;
   protected final AtomicInteger heartbeatIntervalMs;
+  protected List<TableMetaModel> tables;
   protected List<Task> tasks;
-  protected Set<String> finishedTasks;
+  private MetaConfiguration metaConfig;
 
+  //for HiveRunner.
+  private String user;
+  private String password;
 
-  private MetaCarrier metaCarrier;
-
-  private TaskMetaManager taskMetaManager;
+  private MMAMetaManager mmaMetaManager;
+  private MetaSource metaSource;
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
@@ -78,56 +69,57 @@ public class TaskScheduler {
     this.dataValidator = new DataValidator();
     this.actionScheduleInfoMap = new ConcurrentHashMap<>();
     this.actions = new TreeSet<>(new ActionComparator());
+    this.taskRunnerMap = new ConcurrentHashMap<>();
     this.heartbeatIntervalMs = new AtomicInteger(HEARTBEAT_INTERVAL_MS);
     this.tasks = new LinkedList<>();
-    this.finishedTasks = new HashSet<>();
   }
 
 
-  private void run(String inputPath, DataSource dataSource, Mode mode, String tableMappingFilePath,
-                   String jdbcAddress, String user, String password, String where, String hmsThriftAddress,
-                   String hmsPrincipal, String hmsKeyTab, String[] hmsSystemProperties)
-      throws IOException, TException {
+  private void run(MetaConfiguration metaConfiguration, String user, String password) throws TException {
+    this.metaConfig = metaConfiguration;
+    this.dataSource = metaConfiguration.getDataSource();
+    this.user = user;
+    this.password = password;
 
+    int retryTimes = 1;
+    while (true) {
+      LOG.info("Start to migrate data for the [{}] round. ", retryTimes);
+      initActions(this.dataSource);
+      initTaskRunner();
+      updateConcurrencyThreshold();
+      if (DataSource.Hive.equals(dataSource)) {
+        MetaConfiguration.HiveConfiguration hiveConfigurationConfig = metaConfiguration.getHiveConfiguration();
+        this.metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
+            hiveConfigurationConfig.getKrbPrincipal(),
+            hiveConfigurationConfig.getKeyTab(),
+            hiveConfigurationConfig.getKrbSystemProperties());
+        this.mmaMetaManager = new MMAMetaManagerFsImpl(null, this.metaSource);
+      }
+      this.tables = this.mmaMetaManager.getPendingTables();
+      this.taskManager = new TableSplitter(this.tables, metaConfiguration);
+      this.tasks.clear();
+      this.tasks.addAll(this.taskManager.generateTasks(actions, null));
 
-    this.taskMetaManager = new TaskMetaManager();
-
-//    succeededTables = mmaMetaManager.loadFailoverFile();
-
-    if (DataSource.Hive.equals(dataSource)) {
-      this.metaCarrier = new HiveMetaCarrier(hmsThriftAddress, null, hmsPrincipal, hmsKeyTab, hmsSystemProperties);
-      List<TableMetaModel> tables = this.metaCarrier.generateMetaModelWithFailover(tableMappingFilePath,
-          this.taskMetaManager.getSucceededTableMeta());
+      if (this.tasks.isEmpty()) {
+        LOG.info("None tasks to be scheduled， migration done.");
+        return;
+      } else {
+        LOG.info("Add {} tasks in the [{}] round.", tasks.size(), retryTimes);
+      }
+      this.heartbeatThread.start();
+      retryTimes++;
     }
-
-
-    this.dataSource = dataSource;
-
-    generateActions(this.dataSource);
-    this.tableMappingFilePath = tableMappingFilePath;
-
-    //this.taskManager = new ScriptTaskManager(this.finishedTasks, inputPath, actions, mode, jdbcAddress, user,password);
-    //
-    this.tasks.addAll(this.taskManager.generateTasks(actions, mode));
-    if (this.tasks.isEmpty()) {
-      LOG.info("None tasks to be scheduled.");
-      return;
-    }
-    if (DataSource.Hive.equals(dataSource)) {
-      this.dataValidator.generateValidateActions(this.tableMappingFilePath, this.tasks, where);
-    }
-    updateConcurrencyThreshold();
-    this.heartbeatThread.start();
   }
 
-  private void generateActions(DataSource dataSource) {
+  @VisibleForTesting
+  public void initActions(DataSource dataSource) {
     if (DataSource.Hive.equals(dataSource)) {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
       actions.add(Action.HIVE_LOAD_DATA);
       actions.add(Action.HIVE_VALIDATE);
       actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION);
+      actions.add(Action.VALIDATION_BY_PARTITION);
     } else if (DataSource.OSS.equals(dataSource)) {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
@@ -135,8 +127,37 @@ public class TaskScheduler {
       actions.add(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION);
       actions.add(Action.ODPS_LOAD_DATA);
       actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION);
+      actions.add(Action.VALIDATION_BY_TABLE);
     }
+  }
+
+  @VisibleForTesting
+  public SortedSet<Action> getActions() {
+    return actions;
+  }
+
+  private void initTaskRunner() {
+    for (Action action : this.actions) {
+      //Create task runner.
+      RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+      if (!taskRunnerMap.containsKey(runnerType)) {
+        taskRunnerMap.put(runnerType, createTaskRunner(runnerType));
+        LOG.info("Find runnerType = {}, Add Runner: {}", runnerType, taskRunnerMap.get(runnerType).getClass());
+      }
+    }
+  }
+
+  private TaskRunner createTaskRunner(RunnerType runnerType) {
+    if (RunnerType.HIVE.equals(runnerType)) {
+      return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(), this.user, this.password);
+    } else if (RunnerType.ODPS.equals(runnerType)) {
+      return new OdpsRunner();
+    }
+    throw new RuntimeException("Unknown runner type: " + runnerType.name());
+  }
+
+  private TaskRunner getTaskRunner(RunnerType runnerType) {
+    return taskRunnerMap.get(runnerType);
   }
 
   private void updateConcurrencyThreshold() {
@@ -188,7 +209,6 @@ public class TaskScheduler {
           if (isAllTasksFinished()) {
             LOG.info("All tasks finished, heartbeat will stop.");
             keepRunning = false;
-            taskManager.shutdown();
             break;
           }
 
@@ -210,6 +230,7 @@ public class TaskScheduler {
           LOG.error("Heartbeat interrupted "+ ex.getMessage());
         }
       }
+      shutdown();
       LOG.info("Finish all tasks.");
     }
   }
@@ -238,6 +259,8 @@ public class TaskScheduler {
         || Progress.SUCCEEDED.equals(task.progress));
   }
 
+
+
   private void scheduleExecutionTask(Action action) {
     ActionScheduleInfo actionScheduleInfo = actionScheduleInfoMap.get(action);
     if (actionScheduleInfo != null) {
@@ -251,9 +274,6 @@ public class TaskScheduler {
       if (actionScheduleInfo.concurrency >= actionScheduleInfo.concurrencyLimit) {
         return;
       }
-    } else if (!Action.VALIDATION.equals(action)) {
-      LOG.error("Action {} scheduleInfo is not found.", action.name());
-      return;
     }
 
     for (Task task : tasks) {
@@ -261,17 +281,26 @@ public class TaskScheduler {
         continue;
       }
       LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
-      if (Action.VALIDATION.equals(action)) {
+      if (Action.VALIDATION_BY_TABLE.equals(action)) {
         if (dataValidator.validateTaskCountResult(task)) {
           task.changeActionProgress(action, Progress.SUCCEEDED);
-
-          // tasks done, write to failover file.
-          if (Progress.SUCCEEDED.equals(task.progress) && finishedTasks.add(task.getTableNameWithProject())) {
-            taskMetaManager.writeToFailoverFile(task.getTableNameWithProject() + "\n");
-          }
-
+          mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.SUCCEEDED);
         } else {
           task.changeActionProgress(action, Progress.FAILED);
+          mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.FAILED);
+        }
+      } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+        DataValidator.ValidationResult validationResult = dataValidator.validationPartitions(task);
+        if (!validationResult.failedPartitions.isEmpty()) {
+          task.changeActionProgress(action, Progress.FAILED);
+          mmaMetaManager.updateStatus(task.project, task.tableName,
+              validationResult.failedPartitions, MMAMetaManager.MigrationStatus.FAILED);
+        } else {
+          task.changeActionProgress(action, Progress.SUCCEEDED);
+        }
+        if (!validationResult.succeededPartitions.isEmpty()) {
+          mmaMetaManager.updateStatus(task.project, task.tableName,
+              validationResult.succeededPartitions, MMAMetaManager.MigrationStatus.SUCCEEDED);
         }
       } else {
         for (Map.Entry<String, AbstractExecutionInfo> entry :
@@ -283,11 +312,17 @@ public class TaskScheduler {
           task.changeExecutionProgress(action, executionTaskName, Progress.RUNNING);
           LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
               task.toString(), action.name(), executionTaskName);
-          taskManager.getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
-              .submitExecutionTask(task, action, executionTaskName);
+          getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action, executionTaskName);
           actionScheduleInfo.concurrency++;
         }
       }
+    }
+  }
+
+  private void shutdown() {
+    LOG.info("Shutdown task runners.");
+    for (TaskRunner runner : taskRunnerMap.values()) {
+      runner.shutdown();
     }
   }
 
@@ -301,44 +336,14 @@ public class TaskScheduler {
 
   public static void main(String[] args) throws Exception {
     BasicConfigurator.configure();
-    Option meta = Option
-        .builder("i")
-        .longOpt(INPUT_DIR)
-        .argName(INPUT_DIR)
+    Option config = Option
+        .builder("config")
+        .longOpt(META_CONFIG_FILE)
+        .argName(META_CONFIG_FILE)
         .hasArg()
-        .desc("Directory generated by meta processor")
+        .desc("Specify config.json, default: ./config.json")
         .build();
-    Option datasource = Option
-        .builder("d")
-        .longOpt(DATA_SOURCE)
-        .argName(DATA_SOURCE)
-        .hasArg()
-        .desc("Specify datasource, can be Hive or OSS")
-        .build();
-    Option mode = Option
-        .builder("m")
-        .longOpt(MODE)
-        .argName(MODE)
-        .hasArg()
-        .desc("Migration mode, SINGLE or BATCH.")
-        .build();
-
-    Option tableMapping = Option
-        .builder("tm")
-        .longOpt(TABLE_MAPPING)
-        .argName(TABLE_MAPPING)
-        .hasArg()
-        .desc("The path of table mapping from Hive to MaxCompute in BATCH mode.")
-        .build();
-
     // for hive JDBC
-    Option jdbcAddress = Option
-        .builder("ja")
-        .longOpt(JDBC_ADDRESS)
-        .argName(JDBC_ADDRESS)
-        .hasArg()
-        .desc("JDBC Address for Hive Runner, e.g. jdbc:hive2://127.0.0.1:10000/default")
-        .build();
     Option user = Option
         .builder("u")
         .longOpt(USER)
@@ -354,45 +359,6 @@ public class TaskScheduler {
         .hasArg()
         .desc("JDBC Password, default value as \"\"")
         .build();
-    Option where = Option
-        .builder("w")
-        .longOpt(WHERE)
-        .argName(WHERE)
-        .hasArg()
-        .desc("where condition")
-        .build();
-
-    // for hive metastore
-    Option uri = Option
-        .builder("u")
-        .longOpt(HIVE_META_THRIFT_ADDRESS)
-        .argName(HIVE_META_THRIFT_ADDRESS)
-        .hasArg()
-        .desc("Required, hive metastore thrift uri, e.g. thrift://127.0.0.1:9083")
-        .build();
-    Option principal = Option
-        .builder()
-        .longOpt(HIVE_META_STORE_PRINCIPAL)
-        .argName(HIVE_META_STORE_PRINCIPAL)
-        .hasArg()
-        .desc("Optional, hive metastore's Kerberos principal")
-        .build();
-    Option keyTab = Option
-        .builder()
-        .longOpt(HIVE_META_STORE_KEY_TAB)
-        .argName(HIVE_META_STORE_KEY_TAB)
-        .hasArg()
-        .desc("Optional, hive metastore's Kerberos keyTab")
-        .build();
-    Option systemProperties = Option
-        .builder()
-        .longOpt(HIVE_META_STORE_SYSTEM)
-        .argName(HIVE_META_STORE_SYSTEM)
-        .hasArg()
-        .numberOfArgs(Option.UNLIMITED_VALUES)
-        .desc("system properties")
-        .build();
-
     Option help = Option
         .builder("h")
         .longOpt(HELP)
@@ -401,60 +367,34 @@ public class TaskScheduler {
         .build();
 
     Options options = new Options()
-        .addOption(meta)
-        .addOption(datasource)
-        .addOption(mode)
-        .addOption(tableMapping)
-        .addOption(jdbcAddress)
+        .addOption(config)
         .addOption(user)
         .addOption(password)
-        .addOption(where)
-        .addOption(uri)
         .addOption(help);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    if (cmd.hasOption(INPUT_DIR)
-        && cmd.hasOption(DATA_SOURCE)
-        && cmd.hasOption(MODE)
-        && cmd.hasOption(TABLE_MAPPING)
-        && cmd.hasOption(HIVE_META_THRIFT_ADDRESS)
-        && !cmd.hasOption(HELP)) {
-      TaskScheduler scheduler = new TaskScheduler();
-      DataSource cmdDataSource = DataSource.Hive;
-      Mode cmdMode = Mode.BATCH;
-      try {
-        cmdDataSource = DataSource.valueOf(cmd.getOptionValue(DATA_SOURCE));
-        cmdMode = Mode.valueOf(cmd.getOptionValue(MODE));
-      } catch (IllegalArgumentException e) {
-        logHelp(options);
+    if (cmd.hasOption(USER) && cmd.hasOption(PASSWORD) && !cmd.hasOption(HELP)) {
+      File configFile = getDefaultConfigFile();
+      if (cmd.hasOption(META_CONFIG_FILE)) {
+        configFile = new File(cmd.getOptionValue(META_CONFIG_FILE));
       }
-      String cmdJdbcAddress = "jdbc:hive2://127.0.0.1:10000/default";
+      MetaConfiguration metaConfiguration = readConfigFile(configFile);
+      if (!metaConfiguration.validateAndInitConfig()) {
+        LOG.error("Init MetaConfiguration failed, please check {}", configFile.toString());
+        System.exit(1);
+      }
+      TaskScheduler scheduler = new TaskScheduler();
       String cmdUser = "hive";
       String cmdPassword = "";
-      String whereStr = "";
-      if (!cmd.hasOption(JDBC_ADDRESS) || !cmd.hasOption(USER) || !cmd.hasOption(PASSWORD)) {
-        System.out.print("Has not set JDBC Info(include jdbc-address, user and password), run TaskScheduler as TEST!\n");
-      }
-      if (cmd.hasOption(JDBC_ADDRESS) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(JDBC_ADDRESS))) {
-        cmdJdbcAddress = cmd.getOptionValue(JDBC_ADDRESS);
-      }
-      if (cmd.hasOption(USER) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(USER))) {
+      if (!StringUtils.isNullOrEmpty(cmd.getOptionValue(USER))) {
         cmdUser = cmd.getOptionValue(USER);
       }
-      if (cmd.hasOption(PASSWORD) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(PASSWORD))) {
+      if (!StringUtils.isNullOrEmpty(cmd.getOptionValue(PASSWORD))) {
         cmdPassword = cmd.getOptionValue(PASSWORD);
       }
-      if (cmd.hasOption(WHERE) && !StringUtils.isNullOrEmpty(cmd.getOptionValue(WHERE))) {
-        whereStr = cmd.getOptionValue(WHERE);
-      }
-      String principalVal = cmd.getOptionValue(HIVE_META_STORE_PRINCIPAL);
-      String keyTabVal = cmd.getOptionValue(HIVE_META_STORE_KEY_TAB);
-      String[] systemPropertiesValue = cmd.getOptionValues(HIVE_META_STORE_SYSTEM);
-      scheduler.run(cmd.getOptionValue(INPUT_DIR), cmdDataSource, cmdMode, cmd.getOptionValue(TABLE_MAPPING),
-          cmdJdbcAddress, cmdUser, cmdPassword, whereStr, cmd.getOptionValue(HIVE_META_THRIFT_ADDRESS), principalVal,
-          keyTabVal, systemPropertiesValue);
+      scheduler.run(metaConfiguration, cmdUser, cmdPassword);
     } else {
       logHelp(options);
     }

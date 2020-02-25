@@ -15,6 +15,10 @@ public class OdpsExecutionInfo extends AbstractExecutionInfo {
     super(sqlStatement);
   }
 
+  public OdpsExecutionInfo() {
+
+  }
+
   public void setInstanceId(String instanceId) {
     this.instanceId = instanceId;
   }

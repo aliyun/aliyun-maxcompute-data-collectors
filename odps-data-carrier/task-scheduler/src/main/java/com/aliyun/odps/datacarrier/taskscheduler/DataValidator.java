@@ -1,15 +1,15 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-
-import com.aliyun.odps.datacarrier.commons.DirUtils;
+import com.aliyun.odps.datacarrier.metacarrier.MetaSource.PartitionMetaModel;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,8 +60,8 @@ public class DataValidator {
       task.addExecutionInfo(Action.ODPS_VALIDATE, COUNT_VALIDATION_TASK, new OdpsExecutionInfo(
           createCountValidationSqlStatement(Action.ODPS_VALIDATE, odpsProject, odpsTable, where)));
       LOG.info("Add ExecutionInfo for {}, {}", Action.ODPS_VALIDATE, task.toString());
-      task.addActionInfo(Action.VALIDATION);
-      LOG.info("Add ExecutionInfo for {}, {}", Action.VALIDATION, task.toString());
+      task.addActionInfo(Action.VALIDATION_BY_TABLE);
+      LOG.info("Add ExecutionInfo for {}, {}", Action.VALIDATION_BY_TABLE, task.toString());
     }
   }
 
@@ -165,5 +165,60 @@ public class DataValidator {
     } else {
       return true;
     }
+  }
+
+  /**
+   * hive result:
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   *
+   * odps result:
+   * _c0
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   * 12273095
+   * 11852976
+   * 393394
+   * @param task
+   * @return
+   */
+  public ValidationResult validationPartitions(Task task) {
+    if (task.actionInfoMap.containsKey(Action.HIVE_VALIDATE) &&
+        task.actionInfoMap.containsKey(Action.ODPS_VALIDATE)) {
+      Map<String, String> hiveResults =
+          task.actionInfoMap.get(Action.HIVE_VALIDATE).executionInfoMap.get(task.getTableNameWithProject()).getMultiRecordResult();
+      Map<String, String> odpsResults =
+          task.actionInfoMap.get(Action.ODPS_VALIDATE).executionInfoMap.get(task.getTableNameWithProject()).getMultiRecordResult();
+      if (hiveResults.size() != odpsResults.size()) {
+        LOG.warn("{} Validate ERROR! --> HivePartitionCount: {}, OdpsPartitionCount: {}.",
+            task, hiveResults.size(), odpsResults.size());
+        return null;
+      }
+      ValidationResult validationResult = new ValidationResult();
+      for (PartitionMetaModel partitionMetaModel : task.partitions) {
+        //TODO[mingyou] need to support multiple partition key.
+        String partitionValue = partitionMetaModel.partitionValues.get(0);
+        if (!hiveResults.containsKey(partitionValue) || !odpsResults.containsKey(partitionValue)
+        || !hiveResults.get(partitionValue).equals(odpsResults.get(partitionValue))) {
+          validationResult.failedPartitions.add(partitionMetaModel.partitionValues);
+        } else {
+          validationResult.succeededPartitions.add(partitionMetaModel.partitionValues);
+        }
+      }
+      return validationResult;
+    }
+    return null;
+  }
+
+  public class ValidationResult {
+    List<List<String>> succeededPartitions = new ArrayList<>();
+    List<List<String>> failedPartitions = new ArrayList<>();
   }
 }

@@ -114,6 +114,8 @@ public class MetaManager {
   }
 
   public static class TableMetaModel {
+    // Source data base name, for taskScheduler.
+    public String databaseName;
     public String tableName;
     public String odpsTableName;
     public Integer lifeCycle;
@@ -127,9 +129,13 @@ public class MetaManager {
     public Map<String, String> serDeProperties = new LinkedHashMap<>();
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
-    public TablePartitionMetaModel tablePartitionMetaModel;
+    // If partitions is empty, means this table is non-partition table.
     public List<PartitionMetaModel> partitions = new ArrayList<>();
     //TODO getPriority;
+
+    // If partition table has partition migrated successfully, than enable incremental mode.
+    // Non-partition table is always not run with incrementalMode.
+    public Boolean incrementalMode = false;
   }
 
   public static class ColumnMetaModel {

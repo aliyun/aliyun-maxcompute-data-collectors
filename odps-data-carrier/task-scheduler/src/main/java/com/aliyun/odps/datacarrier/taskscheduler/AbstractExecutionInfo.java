@@ -1,6 +1,8 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 abstract class AbstractExecutionInfo {
   protected Progress progress = Progress.NEW;
@@ -11,6 +13,7 @@ abstract class AbstractExecutionInfo {
   private Path sqlPath;
   private String sqlStatements;
   private String result;
+  private Map<String, String> multiRecordResult;
 
   public AbstractExecutionInfo(Path sqlPath) {
     this.scriptMode = true;
@@ -20,6 +23,10 @@ abstract class AbstractExecutionInfo {
   public AbstractExecutionInfo(String sqlStatements) {
     this.scriptMode = false;
     this.sqlStatements = sqlStatements;
+  }
+
+  public AbstractExecutionInfo() {
+    this.scriptMode = false;
   }
 
   public Path getSqlPath() {
@@ -36,6 +43,14 @@ abstract class AbstractExecutionInfo {
 
   public void setResult(String result) {
     this.result = result;
+  }
+
+  public Map<String, String> getMultiRecordResult() {
+    return multiRecordResult;
+  }
+
+  public void setMultiRecordResult(Map<String, String> multiRecordResult) {
+    this.multiRecordResult = multiRecordResult;
   }
 
   public boolean isScriptMode() {

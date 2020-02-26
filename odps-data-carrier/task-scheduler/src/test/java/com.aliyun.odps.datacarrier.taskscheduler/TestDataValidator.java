@@ -1,6 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
 import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;

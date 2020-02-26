@@ -34,19 +34,19 @@ public class MetaConfigurationUtils {
     OdpsConfiguration odpsConfiguration = new OdpsConfiguration("", "", "", "", "");
     metaConfiguration.setOdpsConfiguration(odpsConfiguration);
 
-    List<TablesGroup> tablesGroupList = new ArrayList<>();
-    TablesGroup tablesGroup = new TablesGroup();
-    List<Table> tables = new ArrayList<>();
+    List<TableGroup> tablesGroupList = new ArrayList<>();
+    TableGroup tablesGroup = new TableGroup();
+    List<TableConfig> tables = new ArrayList<>();
 
     Config tableConfig = new Config(null, null, 10, 5, "");
-    Table table = new Table("SourceDataBase", "SourceTable", "DestProject", "DestTable", tableConfig);
+    TableConfig table = new TableConfig("SourceDataBase", "SourceTable", "DestProject", "DestTable", tableConfig);
     tables.add(table);
 
     tablesGroup.setTables(tables);
-    tablesGroup.setGroupTableConfig(tableConfig);
+    tablesGroup.setGroupConfig(tableConfig);
 
     tablesGroupList.add(tablesGroup);
-    metaConfiguration.setTablesGroupList(tablesGroupList);
+    metaConfiguration.setTableGroups(tablesGroupList);
     metaConfiguration.setGlobalTableConfig(tableConfig);
 
     return metaConfiguration;

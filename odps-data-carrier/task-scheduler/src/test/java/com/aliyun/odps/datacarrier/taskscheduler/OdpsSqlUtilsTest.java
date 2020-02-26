@@ -5,8 +5,6 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
-
 // TODO: use interfaces provided by odps sdk to create table and partitions
 public class OdpsSqlUtilsTest {
 

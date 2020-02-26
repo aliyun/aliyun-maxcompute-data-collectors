@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.metacarrier;
+package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -67,7 +67,7 @@ public class HiveMetaSource implements MetaSource {
   private TableMetaModel getTableMetaInternal(String databaseName,
                                               String tableName,
                                               boolean withoutPartitionMeta) throws Exception {
-    // Get metadata from hive HMS, ODPS related metadata are not set here
+    // Get metadata from hive HMS, notice that ODPS related metadata are not set here
     Table table = hmsClient.getTable(databaseName, tableName);
 
     TableMetaModel tableMetaModel = new TableMetaModel();
@@ -78,6 +78,7 @@ public class HiveMetaSource implements MetaSource {
     tableMetaModel.outputFormat = table.getSd().getOutputFormat();
     tableMetaModel.serDe = table.getSd().getSerdeInfo().getSerializationLib();
     tableMetaModel.serDeProperties = table.getSd().getSerdeInfo().getParameters();
+    // TODO: get size from hdfs
 
     List<FieldSchema> columns = hmsClient.getFields(databaseName, tableName);
     for (FieldSchema column : columns) {

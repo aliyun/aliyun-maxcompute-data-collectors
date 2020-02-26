@@ -3,8 +3,6 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
-
 public class HiveSqlUtilsTest {
 
   private static final String DEFAULT_DB = "test";

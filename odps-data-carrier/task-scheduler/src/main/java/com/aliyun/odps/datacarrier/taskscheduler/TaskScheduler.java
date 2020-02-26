@@ -1,16 +1,10 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel;
-import com.aliyun.odps.datacarrier.metacarrier.HiveMetaSource;
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
-import com.aliyun.odps.utils.StringUtils;
-import com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+
+import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
+import static com.aliyun.odps.datacarrier.taskscheduler.Constants.META_CONFIG_FILE;
+import static com.aliyun.odps.datacarrier.taskscheduler.Constants.PASSWORD;
+import static com.aliyun.odps.datacarrier.taskscheduler.Constants.USER;
 
 import java.io.File;
 import java.util.Comparator;
@@ -22,18 +16,25 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.*;
-import static com.aliyun.odps.datacarrier.taskscheduler.MetaConfigurationUtils.*;
+import com.aliyun.odps.utils.StringUtils;
+import com.google.common.annotations.VisibleForTesting;
 
 public class TaskScheduler {
 
   private static final Logger LOG = LogManager.getLogger(TaskScheduler.class);
 
+  private static final int GET_PENDING_TABLE_INTERVAL = 30000;
   private static final int HEARTBEAT_INTERVAL_MS = 3000;
   private static final int CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
@@ -52,7 +53,6 @@ public class TaskScheduler {
   private volatile boolean keepRunning;
   private volatile Throwable savedException;
   protected final AtomicInteger heartbeatIntervalMs;
-  protected List<TableMetaModel> tables;
   protected List<Task> tasks;
   private MetaConfiguration metaConfig;
 
@@ -61,7 +61,6 @@ public class TaskScheduler {
   private String password;
 
   private MMAMetaManager mmaMetaManager;
-  private MetaSource metaSource;
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
@@ -74,39 +73,59 @@ public class TaskScheduler {
     this.tasks = new LinkedList<>();
   }
 
-
   private void run(MetaConfiguration metaConfiguration, String user, String password) throws TException {
+
+    // TODO: check if datasource and metasource are valid
     this.metaConfig = metaConfiguration;
     this.dataSource = metaConfiguration.getDataSource();
+    MetaConfiguration.HiveConfiguration hiveConfigurationConfig = metaConfiguration.getHiveConfiguration();
+    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
+                                               hiveConfigurationConfig.getKrbPrincipal(),
+                                               hiveConfigurationConfig.getKeyTab(),
+                                               hiveConfigurationConfig.getKrbSystemProperties());
+    this.mmaMetaManager = new MMAMetaManagerFsImpl(null, metaSource);
+    for (MetaConfiguration.TableGroup tableGroup : metaConfiguration.getTableGroups()) {
+      for (MetaConfiguration.TableConfig tableConfig : tableGroup.getTableConfigs()) {
+        this.mmaMetaManager.initMigration(tableConfig);
+      }
+    }
+
+    initActions(this.dataSource);
+    initTaskRunner();
+    updateConcurrencyThreshold();
+    this.heartbeatThread.start();
+
+    // TODO: move user and password to config, or they can be seen with ps command
     this.user = user;
     this.password = password;
 
     int retryTimes = 1;
-    while (true) {
-      LOG.info("Start to migrate data for the [{}] round. ", retryTimes);
-      initActions(this.dataSource);
-      initTaskRunner();
-      updateConcurrencyThreshold();
-      if (DataSource.Hive.equals(dataSource)) {
-        MetaConfiguration.HiveConfiguration hiveConfigurationConfig = metaConfiguration.getHiveConfiguration();
-        this.metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
-            hiveConfigurationConfig.getKrbPrincipal(),
-            hiveConfigurationConfig.getKeyTab(),
-            hiveConfigurationConfig.getKrbSystemProperties());
-        this.mmaMetaManager = new MMAMetaManagerFsImpl(null, this.metaSource);
-      }
-      this.tables = this.mmaMetaManager.getPendingTables();
-      this.taskManager = new TableSplitter(this.tables, metaConfiguration);
+    while (keepRunning) {
+      LOG.info("Start to migrate data for the [{}] round", retryTimes);
+      List<MetaSource.TableMetaModel> pendingTables = this.mmaMetaManager.getPendingTables();
+      this.taskManager = new TableSplitter(pendingTables, metaConfiguration);
       this.tasks.clear();
       this.tasks.addAll(this.taskManager.generateTasks(actions, null));
 
       if (this.tasks.isEmpty()) {
-        LOG.info("None tasks to be scheduled， migration done.");
-        return;
+        LOG.info("No tasks to schedule");
+        try {
+          Thread.sleep(GET_PENDING_TABLE_INTERVAL);
+        } catch (InterruptedException e) {
+          // ignore
+        }
       } else {
-        LOG.info("Add {} tasks in the [{}] round.", tasks.size(), retryTimes);
+        LOG.info("Add {} tasks in the [{}] round", tasks.size(), retryTimes);
       }
-      this.heartbeatThread.start();
+
+      while (!isAllTasksFinished()) {
+        try {
+          Thread.sleep(HEARTBEAT_INTERVAL_MS);
+        } catch (InterruptedException e) {
+          // ignore
+        }
+      }
+      LOG.info("All tasks finished");
       retryTimes++;
     }
   }
@@ -142,14 +161,17 @@ public class TaskScheduler {
       RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
       if (!taskRunnerMap.containsKey(runnerType)) {
         taskRunnerMap.put(runnerType, createTaskRunner(runnerType));
-        LOG.info("Find runnerType = {}, Add Runner: {}", runnerType, taskRunnerMap.get(runnerType).getClass());
+        LOG.info("Find runnerType = {}, Add Runner: {}",
+                 runnerType,
+                 taskRunnerMap.get(runnerType).getClass());
       }
     }
   }
 
   private TaskRunner createTaskRunner(RunnerType runnerType) {
     if (RunnerType.HIVE.equals(runnerType)) {
-      return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(), this.user, this.password);
+      return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(),
+                            this.user, this.password);
     } else if (RunnerType.ODPS.equals(runnerType)) {
       return new OdpsRunner();
     }
@@ -179,10 +201,11 @@ public class TaskScheduler {
         new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
 
     for (Map.Entry<Action, ActionScheduleInfo> entry : actionScheduleInfoMap.entrySet()) {
-      LOG.info("Set concurrency limit for Action: {}, limit: {}", entry.getKey().name(), entry.getValue().concurrencyLimit);
+      LOG.info("Set concurrency limit for Action: {}, limit: {}",
+               entry.getKey().name(),
+               entry.getValue().concurrencyLimit);
     }
   }
-
 
   private class ActionScheduleInfo {
     int concurrency;
@@ -200,28 +223,18 @@ public class TaskScheduler {
     }
 
     public void run() {
-      LOG.info("Start scheduling tasks...");
-      while(true) {
-        if (!keepRunning) {
-          return;
-        }
+      LOG.info("Heartbeat thread starts");
+      while(keepRunning) {
         try {
-          if (isAllTasksFinished()) {
-            LOG.info("All tasks finished, heartbeat will stop.");
-            keepRunning = false;
-            break;
-          }
-
           for (Action action : actions) {
             scheduleExecutionTask(action);
           }
-
         } catch (Throwable ex) {
           LOG.error("Exception on heartbeat " + ex.getMessage());
           ex.printStackTrace();
           savedException = ex;
           // interrupt handler thread in case it waiting on the queue
-          return;
+          break;
         }
 
         try {
@@ -230,8 +243,8 @@ public class TaskScheduler {
           LOG.error("Heartbeat interrupted "+ ex.getMessage());
         }
       }
-      shutdown();
-      LOG.info("Finish all tasks.");
+
+      LOG.info("Heartbeat thread ends");
     }
   }
 
@@ -240,6 +253,8 @@ public class TaskScheduler {
       LOG.info("None tasks to be scheduled.");
       return true;
     }
+
+    // Print logs
     for (Task task : tasks) {
       StringBuilder csb = new StringBuilder(task.toString());
       StringBuilder sb = new StringBuilder(task.toString());
@@ -255,6 +270,7 @@ public class TaskScheduler {
       LOG.info(sb.toString());
       System.out.print(csb.toString() + "\n");
     }
+
     return tasks.stream().allMatch(task -> Progress.FAILED.equals(task.progress)
         || Progress.SUCCEEDED.equals(task.progress));
   }
@@ -264,6 +280,7 @@ public class TaskScheduler {
   private void scheduleExecutionTask(Action action) {
     ActionScheduleInfo actionScheduleInfo = actionScheduleInfoMap.get(action);
     if (actionScheduleInfo != null) {
+      // Get current concurrency
       actionScheduleInfo.concurrency = Math.toIntExact(tasks.stream()
           .filter(task -> task.actionInfoMap.containsKey(action)
               && Progress.RUNNING.equals(task.actionInfoMap.get(action).progress))
@@ -271,36 +288,56 @@ public class TaskScheduler {
 
       LOG.info("Action: {}, concurrency: {}, concurrencyLimit: {}",
           action.name(), actionScheduleInfo.concurrency, actionScheduleInfo.concurrencyLimit);
+
+      // If current concurrency exceeds limitation, do not schedule this time
       if (actionScheduleInfo.concurrency >= actionScheduleInfo.concurrencyLimit) {
         return;
       }
     }
 
+    // Iterate over tasks, start actions and update status
     for (Task task : tasks) {
       if (!task.isReadyAction(action)) {
         continue;
       }
       LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
+
       if (Action.VALIDATION_BY_TABLE.equals(action)) {
+        // Update action status and table migration status
         if (dataValidator.validateTaskCountResult(task)) {
           task.changeActionProgress(action, Progress.SUCCEEDED);
-          mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.SUCCEEDED);
+          mmaMetaManager.updateStatus(task.project,
+                                      task.tableName,
+                                      MMAMetaManager.MigrationStatus.SUCCEEDED);
         } else {
           task.changeActionProgress(action, Progress.FAILED);
-          mmaMetaManager.updateStatus(task.project, task.tableName, MMAMetaManager.MigrationStatus.FAILED);
+          mmaMetaManager.updateStatus(task.project,
+                                      task.tableName,
+                                      MMAMetaManager.MigrationStatus.FAILED);
         }
       } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
         DataValidator.ValidationResult validationResult = dataValidator.validationPartitions(task);
+        // Update partition migration status
+        mmaMetaManager.updateStatus(task.project,
+                                    task.tableName,
+                                    validationResult.failedPartitions,
+                                    MMAMetaManager.MigrationStatus.FAILED);
+        mmaMetaManager.updateStatus(task.project,
+                                    task.tableName,
+                                    validationResult.succeededPartitions,
+                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+
+        // Update action status and table migration status
         if (!validationResult.failedPartitions.isEmpty()) {
           task.changeActionProgress(action, Progress.FAILED);
-          mmaMetaManager.updateStatus(task.project, task.tableName,
-              validationResult.failedPartitions, MMAMetaManager.MigrationStatus.FAILED);
+          mmaMetaManager.updateStatus(task.project,
+                                      task.tableName,
+                                      MMAMetaManager.MigrationStatus.SUCCEEDED);
         } else {
           task.changeActionProgress(action, Progress.SUCCEEDED);
-        }
-        if (!validationResult.succeededPartitions.isEmpty()) {
-          mmaMetaManager.updateStatus(task.project, task.tableName,
-              validationResult.succeededPartitions, MMAMetaManager.MigrationStatus.SUCCEEDED);
+          mmaMetaManager.updateStatus(task.project,
+                                      task.tableName,
+                                      MMAMetaManager.MigrationStatus.FAILED);
         }
       } else {
         for (Map.Entry<String, AbstractExecutionInfo> entry :
@@ -321,6 +358,7 @@ public class TaskScheduler {
 
   private void shutdown() {
     LOG.info("Shutdown task runners.");
+
     for (TaskRunner runner : taskRunnerMap.values()) {
       runner.shutdown();
     }
@@ -376,11 +414,11 @@ public class TaskScheduler {
     CommandLine cmd = parser.parse(options, args);
 
     if (cmd.hasOption(USER) && cmd.hasOption(PASSWORD) && !cmd.hasOption(HELP)) {
-      File configFile = getDefaultConfigFile();
+      File configFile = MetaConfigurationUtils.getDefaultConfigFile();
       if (cmd.hasOption(META_CONFIG_FILE)) {
         configFile = new File(cmd.getOptionValue(META_CONFIG_FILE));
       }
-      MetaConfiguration metaConfiguration = readConfigFile(configFile);
+      MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
       if (!metaConfiguration.validateAndInitConfig()) {
         LOG.error("Init MetaConfiguration failed, please check {}", configFile.toString());
         System.exit(1);

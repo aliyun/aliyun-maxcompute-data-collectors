@@ -1,18 +1,17 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.PartitionMetaModel;
-import com.aliyun.odps.utils.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.aliyun.odps.utils.StringUtils;
 
 public class DataValidator {
 
@@ -202,7 +201,7 @@ public class DataValidator {
         return null;
       }
       ValidationResult validationResult = new ValidationResult();
-      for (PartitionMetaModel partitionMetaModel : task.tableMetaModel.partitions) {
+      for (MetaSource.PartitionMetaModel partitionMetaModel : task.tableMetaModel.partitions) {
         //TODO[mingyou] need to support multiple partition key.
         String partitionValue = partitionMetaModel.partitionValues.get(0);
         if (!hiveResults.containsKey(partitionValue) || !odpsResults.containsKey(partitionValue)
@@ -217,7 +216,7 @@ public class DataValidator {
     return null;
   }
 
-  public class ValidationResult {
+  public static class ValidationResult {
     List<List<String>> succeededPartitions = new ArrayList<>();
     List<List<String>> failedPartitions = new ArrayList<>();
   }

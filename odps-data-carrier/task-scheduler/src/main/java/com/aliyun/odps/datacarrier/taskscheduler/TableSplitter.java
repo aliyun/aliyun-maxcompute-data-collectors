@@ -1,6 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -12,18 +11,18 @@ import java.util.SortedSet;
 public class TableSplitter implements TaskManager {
 
   private static final Logger LOG = LogManager.getLogger(TableSplitter.class);
-  private List<TableMetaModel> tables;
+  private List<MetaSource.TableMetaModel> tables;
   private List<Task> tasks = new LinkedList<>();
   private MetaConfiguration metaConfiguration;
 
-  public TableSplitter(List<TableMetaModel> tables, MetaConfiguration metaConfig) {
+  public TableSplitter(List<MetaSource.TableMetaModel> tables, MetaConfiguration metaConfig) {
     this.tables = tables;
     this.metaConfiguration = metaConfig;
   }
 
   @Override
   public List<Task> generateTasks(SortedSet<Action> actions, Mode mode) {
-    for (TableMetaModel tableMetaModel : this.tables) {
+    for (MetaSource.TableMetaModel tableMetaModel : this.tables) {
       MetaConfiguration.Config tableConfig = metaConfiguration.getTableConfig(tableMetaModel.databaseName, tableMetaModel.tableName);
       // Empty partitions, means the table is non-partition table.
       if (tableMetaModel.partitions.isEmpty()) {
@@ -49,8 +48,12 @@ public class TableSplitter implements TaskManager {
           numPartitionsPerSet = (numOfAllPartitions + numOfSplitSet - 1) / numOfSplitSet;
         }
         for (int taskIndex = 0; taskIndex < numOfSplitSet; taskIndex++) {
-          Task task = new Task(tableMetaModel.databaseName, tableMetaModel.tableName,
-              tableMetaModel.createSubTableMetaModel(new ArrayList<>()), tableConfig);
+          MetaSource.TableMetaModel clone = tableMetaModel.clone();
+          clone.partitions = new LinkedList<>();
+          Task task = new Task(tableMetaModel.databaseName,
+                               tableMetaModel.tableName,
+                               clone,
+                               tableConfig);
           for (int partitionIndex = taskIndex * numPartitionsPerSet;
                partitionIndex < (taskIndex + 1) * numPartitionsPerSet && partitionIndex < numOfAllPartitions;
                partitionIndex++) {

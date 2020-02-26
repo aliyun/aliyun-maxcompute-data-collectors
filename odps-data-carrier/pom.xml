@@ -10,13 +10,13 @@
   <version>1.0-SNAPSHOT</version>
 
   <modules>
-    <module>meta-carrier</module>
+<!--    <module>meta-carrier</module>-->
     <module>data-carrier-commons</module>
-    <module>meta-processor</module>
+<!--    <module>meta-processor</module>-->
     <module>data-transfer-hive-udtf</module>
 <!--    <module>odps-sql-migration-tool-wrapper</module>-->
-    <module>network-measurement-tool</module>
-    <module>data-transfer-spark</module>
+<!--    <module>network-measurement-tool</module>-->
+<!--    <module>data-transfer-spark</module>-->
     <module>task-scheduler</module>
   </modules>
 

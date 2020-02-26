@@ -41,7 +41,6 @@ abstract class AbstractTaskRunner implements TaskRunner {
     }
   }
 
-
   private String generateSqlStatement(Task task, Action action) {
     StringBuilder sb = new StringBuilder();
     switch (action) {
@@ -70,33 +69,36 @@ abstract class AbstractTaskRunner implements TaskRunner {
   }
 
   public void submitExecutionTask(Task task, Action action, String executionTaskName) {
-    AbstractExecutionInfo executionInfo = task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
-    Path sqlPath = executionInfo.getSqlPath();
-    String sqlStr = "";
+    AbstractExecutionInfo executionInfo =
+        task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
+
+    String sqlStr;
     if (executionInfo.isScriptMode()) {
+      Path sqlPath = executionInfo.getSqlPath();
       try {
         sqlStr = new String(Files.readAllBytes(sqlPath));
       } catch (IOException e) {
-        LOG.error("Submit execution task failed, " +
-            "executionTaskName: " + executionTaskName +
-            "path: " + sqlPath.toString());
+        LOG.error("Submit execution task failed, " + "executionTaskName: " + executionTaskName +
+            ", path: " + sqlPath.toString());
         task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
         return;
       }
     } else if (StringUtils.isNullOrEmpty(executionInfo.getSqlStatements())) {
+      // TODO: deprecated
       sqlStr = executionInfo.getSqlStatements();
     } else {
       sqlStr = generateSqlStatement(task, action);
     }
     if (StringUtils.isNullOrEmpty(sqlStr)) {
       task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
-      LOG.error("Empty sqlStatement, mark done, "  +
-          "executionTaskName: " + executionTaskName);
+      LOG.error("Empty sqlStatement, mark done, executionTaskName: " + executionTaskName);
       return;
     }
     RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
     LOG.info("Submit {} task: {}, action: {}, executionTaskName: {}, taskProgress: {}",
         runnerType.name(), task, action.name(), executionTaskName, task.progress);
+    // TODO: this is not clear, HiveRunner and OdpsRunner should impl their own submitExecutionTask
+    //  method
     if (RunnerType.HIVE.equals(runnerType)) {
       this.runnerPool.execute(new HiveRunner.HiveSqlExecutor(sqlStr, task, action, executionTaskName));
     } else if (RunnerType.ODPS.equals(runnerType)) {

@@ -4,7 +4,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
 
 public class OdpsSqlUtils {
 
@@ -71,7 +70,7 @@ public class OdpsSqlUtils {
   /**
    * Get add partition statements
    *
-   * @param tableMetaModel {@link com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel}
+   * @param tableMetaModel {@link MetaSource.TableMetaModel}
    * @return List of add partition statements. Each could add at most 1000 partitions. If the input
    * does not contain any partition, an empty list will be returned.
    * @throws IllegalArgumentException when input represents a non partitioned table

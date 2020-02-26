@@ -1,12 +1,8 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel;
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.PartitionMetaModel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,10 +15,10 @@ class Task {
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
-  TableMetaModel tableMetaModel;
+  MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
 
-  public Task(String project, String tableName, TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
+  public Task(String project, String tableName, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
     this.project = project;
     this.tableName = tableName;
     this.tableMetaModel = tableMetaModel;

@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.aliyun.odps.datacarrier.commons.DirUtils;
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
 import com.csvreader.CsvReader;
 import com.csvreader.CsvWriter;
 
@@ -56,38 +55,27 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   }
 
   @Override
-  public synchronized void initMigration(String db, String tbl, TableMigrationConfig config) {
-    if (db == null || tbl == null || config == null) {
-      throw new IllegalArgumentException("'db' or 'tbl' or 'config' cannot be null");
+  public synchronized void initMigration(MetaConfiguration.TableConfig config) {
+    if (config == null) {
+      throw new IllegalArgumentException("'config' cannot be null");
     }
 
-    List<List<String>> partitionValuesList;
-    try {
-      partitionValuesList = metaSource.listPartitions(db, tbl);
-    } catch (Exception e) {
-      throw new IllegalStateException("Failed to get metadata, database: " + db + ", table: " +
-                                      tbl + ", stack trace: " + ExceptionUtils.getStackTrace(e));
+    String db = config.sourceDataBase;
+    String tbl = config.sourceTableName;
+
+    if (config.partitionValuesList == null || config.partitionValuesList.isEmpty()) {
+      // User doesn't specify any partition, get from HMS
+      try {
+        MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(db, tbl);
+        if (tableMetaModel.partitionColumns.size() > 0) {
+          config.partitionValuesList = metaSource.listPartitions(db, tbl);
+        }
+      } catch (Exception e) {
+        throw new IllegalStateException("Failed to get metadata, database: " + db + ", table: " +
+                                        tbl + ", stack trace: " + ExceptionUtils.getStackTrace(e));
+      }
     }
 
-    initMigrationInternal(db, tbl, partitionValuesList, config);
-  }
-
-  @Override
-  public synchronized void initMigration(String db,
-                                         String tbl,
-                                         List<List<String>> partitionValuesList,
-                                         TableMigrationConfig config) {
-    if (db == null || tbl == null || config == null) {
-      throw new IllegalArgumentException("'db' or 'tbl' or 'config' cannot be null");
-    }
-
-    initMigrationInternal(db, tbl, partitionValuesList, config);
-  }
-
-  private void initMigrationInternal(String db,
-                                     String tbl,
-                                     List<List<String>> partitionValuesList,
-                                     TableMigrationConfig config) {
     Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
     Path metadataPath = getMetadataPath(db, tbl);
     Path configPath = getConfigPath(db, tbl);
@@ -117,20 +105,20 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     }
 
     try {
-      DirUtils.writeFile(configPath, config.toString());
+      DirUtils.writeFile(configPath, MetaConfiguration.TableConfig.toJson(config));
     } catch (IOException e) {
       throw new IllegalStateException("Failed to init migration, write "
                                       + metadataPath.toString() + " failed");
     }
 
     // Init partition metadata file
-    if (partitionValuesList != null) {
+    if (config.partitionValuesList != null && !config.partitionValuesList.isEmpty()) {
       Path allPartitionListPath = getAllPartitionListPath(db, tbl);
       try {
         FileOutputStream fos = new FileOutputStream(allPartitionListPath.toFile());
         CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
-        for (List<String> partitionValues : partitionValuesList) {
-            csvWriter.writeRecord(partitionValues.toArray(new String[0]));
+        for (List<String> partitionValues : config.partitionValuesList) {
+          csvWriter.writeRecord(partitionValues.toArray(new String[0]));
         }
         csvWriter.close();
       } catch (IOException e) {
@@ -161,8 +149,8 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     // If the status is FAILED, set the status to PENDING if retry is allowed
     if (MigrationStatus.FAILED.equals(status)) {
       failedTimes += 1;
-      TableMigrationConfig config = getConfigInternal(getConfigPath(db, tbl));
-      if (failedTimes <= config.getFailOverTimesLimit()) {
+      MetaConfiguration.TableConfig config = getConfigInternal(getConfigPath(db, tbl));
+      if (failedTimes <= config.config.getRetryTimesLimit()) {
         status = MigrationStatus.PENDING;
       }
     }
@@ -243,7 +231,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   }
 
   @Override
-  public synchronized TableMigrationConfig getConfig(String db, String tbl) {
+  public synchronized MetaConfiguration.TableConfig getConfig(String db, String tbl) {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
@@ -252,7 +240,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     return getConfigInternal(configPath);
   }
 
-  private TableMigrationConfig getConfigInternal(Path configPath) {
+  private MetaConfiguration.TableConfig getConfigInternal(Path configPath) {
     if (!configPath.toFile().exists()) {
       throw new IllegalStateException("Failed to get config, file does not exist: "
                                       + configPath.toString());
@@ -265,7 +253,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
       throw new IllegalStateException("Failed to read file: " + configPath.toString());
     }
 
-    return TableMigrationConfig.fromString(content);
+    return MetaConfiguration.TableConfig.fromJson(content);
   }
 
   private int getFailedTimesInternal(Path metadataPath) {
@@ -330,8 +318,10 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
           }
 
           Path configPath = getConfigPath(db, tbl);
-          TableMigrationConfig config = getConfigInternal(configPath);
-          config.applyRules(tableMetaModel);
+          MetaConfiguration.TableConfig config = getConfigInternal(configPath);
+
+          config.apply(tableMetaModel);
+
           ret.add(tableMetaModel);
         } catch (Exception e) {
           LOG.error("Get metadata form metasource failed, database: " + db + ", " +

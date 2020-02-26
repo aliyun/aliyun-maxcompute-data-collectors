@@ -138,17 +138,23 @@ public class MetaConfiguration {
 
   public static class HiveConfiguration {
     private String hiveJdbcAddress;
+    private String user;
+    private String password;
     private String thriftAddr;
     private String krbPrincipal;
     private String keyTab;
     private String[] krbSystemProperties;
 
     public HiveConfiguration(String hiveJdbcAddress,
+                             String user,
+                             String password,
                              String thriftAddr,
                              String krbPrincipal,
                              String keyTab,
                              String[] krbSystemProperties) {
       this.hiveJdbcAddress = hiveJdbcAddress;
+      this.user = user;
+      this.password = password;
       this.thriftAddr = thriftAddr;
       this.krbPrincipal = krbPrincipal;
       this.keyTab = keyTab;
@@ -162,6 +168,14 @@ public class MetaConfiguration {
 
     public String getHiveJdbcAddress() {
       return hiveJdbcAddress;
+    }
+
+    public String getUser() {
+      return user;
+    }
+
+    public String getPassword() {
+      return password;
     }
 
     public String getThriftAddr() {
@@ -329,6 +343,9 @@ public class MetaConfiguration {
     private int retryTimesLimit;
     private String whereCondition;
 
+    public Config() {
+    }
+
     public Config(Map<String, String> typeCustomizedConversion,
                   Map<String, String> columnNameCustomizedConversion,
                   int numOfPartitions,
@@ -397,6 +414,7 @@ public class MetaConfiguration {
     }
 
     this.migrationJobId = createMigrationJobId();
+    this.tableConfigMap = new HashMap<>();
     for (TableGroup tableGroup : tableGroups) {
       for (TableConfig table : tableGroup.tableConfigs) {
         this.tableConfigMap.putIfAbsent(table.sourceDataBase, new HashMap<>());

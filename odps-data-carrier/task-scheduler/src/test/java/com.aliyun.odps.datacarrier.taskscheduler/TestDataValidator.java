@@ -1,5 +1,6 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
 import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
@@ -12,13 +13,13 @@ public class TestDataValidator {
   @Test(timeout = 5000)
   public void testValidateTaskCountResultByPartition() {
 
-    Task task = new Task("TestDataBase", "TestTable");
+    Task task = new Task("TestDataBase", "TestTable", new MetaSource.TableMetaModel(), null);
     task.addExecutionInfo(Action.HIVE_VALIDATE, task.getTableNameWithProject());
     task.addExecutionInfo(Action.ODPS_VALIDATE, task.getTableNameWithProject());
     int date = 20200218;
     int partitionNum = 5;
     int succeededPartitionNum = 2;
-    task.partitions.addAll(TestTableSplitter.createPartitions(date, partitionNum));
+    task.tableMetaModel.partitions.addAll(TestTableSplitter.createPartitions(date, partitionNum));
 
     Map<String, String> multiRecordResult = new HashMap<>();
     for (int i = 0; i < succeededPartitionNum; i++) {

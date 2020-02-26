@@ -27,6 +27,27 @@ public interface MetaSource {
     public Integer lifeCycle;
     public Boolean ifNotExists = true;
     public Boolean dropIfExists = true;
+
+    public TableMetaModel createSubTableMetaModel(List<PartitionMetaModel> partitions) {
+      TableMetaModel tableMetaModel = new TableMetaModel();
+      tableMetaModel.databaseName = this.databaseName;
+      tableMetaModel.odpsProjectName = this.odpsProjectName;
+      tableMetaModel.tableName = this.tableName;
+      tableMetaModel.odpsTableName = this.odpsTableName;
+      tableMetaModel.comment = this.comment;
+      tableMetaModel.size = this.size;
+      tableMetaModel.location = this.location;
+      tableMetaModel.inputFormat = this.inputFormat;
+      tableMetaModel.outputFormat = this.outputFormat;
+      tableMetaModel.serDeProperties = this.serDeProperties;
+      tableMetaModel.columns = this.columns;
+      tableMetaModel.partitionColumns = this.partitionColumns;
+      tableMetaModel.lifeCycle = this.lifeCycle;
+      tableMetaModel.ifNotExists = this.ifNotExists;
+      tableMetaModel.dropIfExists = this.dropIfExists;
+      tableMetaModel.partitions = partitions;
+      return tableMetaModel;
+    }
   }
 
   class ColumnMetaModel {

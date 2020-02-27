@@ -26,10 +26,6 @@ public class OdpsRunner extends AbstractTaskRunner {
   private static final Logger LOG = LogManager.getLogger(OdpsRunner.class);
   private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
-  public static final String PROJECT_NAME = "project_name";
-  public static final String ACCESS_ID = "access_id";
-  public static final String ACCESS_KEY = "access_key";
-  public static final String END_POINT = "end_point";
 
   private static final long TOKEN_EXPIRE_INTERVAL = 7 * 24; // hours
   private static final String ODPS_CONFIG_INI = "odps_config.ini";

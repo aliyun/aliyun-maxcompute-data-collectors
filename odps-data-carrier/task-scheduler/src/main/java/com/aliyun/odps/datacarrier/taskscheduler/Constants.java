@@ -6,6 +6,7 @@ public class Constants {
   public static final String DATA_SOURCE = "datasource";
   public static final String MODE = "mode";
   public static final String TABLE_MAPPING = "table-mapping";
+  public static final String ODPS_CONFIG = "odps-config";
   public static final String JDBC_ADDRESS = "jdbc-address";
   public static final String USER = "user";
   public static final String PASSWORD = "password";
@@ -20,4 +21,9 @@ public class Constants {
   public static final String RETRY_TIME_THRESHOLD = "retry-time-threshold";
   public static final String ODPS_DATA_CARRIER = "odps-data-carrier";
   public static final String META_CONFIG_FILE = "config.json";
+  public static final String PROJECT_NAME = "project_name";
+  public static final String ACCESS_ID = "access_id";
+  public static final String ACCESS_KEY = "access_key";
+  public static final String END_POINT = "end_point";
+  public static final String TUNNEL_ENDPOINT = "tunnel_endpoint";
 }

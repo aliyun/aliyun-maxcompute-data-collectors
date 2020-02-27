@@ -16,7 +16,7 @@ public class TestMetaConfiguration {
   public void testReadConfigFile() throws Exception {
     String currentDir = System.getProperty("user.dir");
     File configFile = new File(currentDir + "/src/test/resources/", META_CONFIG_FILE);
-    MetaConfigurationUtils.generateConfigFile(configFile, null);
+    MetaConfigurationUtils.generateConfigFile(configFile, null, null);
     MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
     assertTrue(metaConfiguration.validateAndInitConfig());
     configFile.delete();
@@ -27,7 +27,7 @@ public class TestMetaConfiguration {
     String currentDir = System.getProperty("user.dir");
     File configFile = new File(currentDir + "/src/test/resources/", META_CONFIG_FILE);
     String tableMappingFilePathStr = "/src/test/resources/dma_demo.txt";
-    MetaConfigurationUtils.generateConfigFile(configFile, tableMappingFilePathStr);
+    MetaConfigurationUtils.generateConfigFile(configFile, tableMappingFilePathStr, null);
     MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
     assertTrue(metaConfiguration.validateAndInitConfig());
     assertEquals(metaConfiguration.getTableGroups().size(), 4);

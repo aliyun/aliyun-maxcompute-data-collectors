@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import com.aliyun.odps.datacarrier.taskscheduler.MetaConfiguration.*;
 import com.aliyun.odps.utils.StringUtils;
@@ -22,7 +24,6 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.*;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
 
 public class MetaConfigurationUtils {
 
@@ -35,14 +36,30 @@ public class MetaConfigurationUtils {
     return GsonUtils.getFullConfigGson().fromJson(content, MetaConfiguration.class);
   }
 
-  public static MetaConfiguration generateSampleMetaConfiguration(String tableMappingFilePath) {
+  public static MetaConfiguration generateSampleMetaConfiguration(String tableMappingFilePath,
+                                                                  String odpsConfigFilePath) throws IOException {
     MetaConfiguration metaConfiguration = new MetaConfiguration("Jerry", "TestMigrationJob", DataSource.Hive);
     HiveConfiguration hiveConfiguration = new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default", "Hive", "",
         "thrift://127.0.0.1:9083", "", "", new String[]{""});
     metaConfiguration.setHiveConfiguration(hiveConfiguration);
 
-    OdpsConfiguration odpsConfiguration = new OdpsConfiguration("", "", "", "", "");
-    metaConfiguration.setOdpsConfiguration(odpsConfiguration);
+    if (StringUtils.isNullOrEmpty(odpsConfigFilePath)) {
+      OdpsConfiguration odpsConfiguration = new OdpsConfiguration("accessId", "accessKey", "endpoint", "projectName", "");
+      metaConfiguration.setOdpsConfiguration(odpsConfiguration);
+    } else {
+      String odpsConfigPath = System.getProperty("user.dir") + odpsConfigFilePath;
+      InputStream is = new FileInputStream(odpsConfigPath);
+      Properties properties = new Properties();
+      properties.load(is);
+      OdpsConfiguration odpsConfiguration = new OdpsConfiguration(
+          properties.getProperty(ACCESS_ID),
+          properties.getProperty(ACCESS_KEY),
+          properties.getProperty(END_POINT),
+          properties.getProperty(PROJECT_NAME),
+          properties.containsKey(TUNNEL_ENDPOINT) ? properties.getProperty(TUNNEL_ENDPOINT) : "");
+      metaConfiguration.setOdpsConfiguration(odpsConfiguration);
+    }
+
     Config defaultTableConfig = new Config(null, null, 10, 5, "");
 
     List<TableGroup> tablesGroupList = new ArrayList<>();
@@ -88,11 +105,13 @@ public class MetaConfigurationUtils {
     return new File(currentDir + "/" + ODPS_DATA_CARRIER, META_CONFIG_FILE);
   }
 
-  public static void generateConfigFile(File configFile, String tableMappingFilePath) throws Exception {
+  public static void generateConfigFile(File configFile, String tableMappingFilePath, String odpsConfigFilePath)
+      throws Exception {
     Files.deleteIfExists(configFile.toPath());
     configFile.createNewFile();
     FileOutputStream outputStream = new FileOutputStream(configFile);
-    outputStream.write(GsonUtils.getFullConfigGson().toJson(generateSampleMetaConfiguration(tableMappingFilePath),
+    outputStream.write(GsonUtils.getFullConfigGson().toJson(
+        generateSampleMetaConfiguration(tableMappingFilePath, odpsConfigFilePath),
         MetaConfiguration.class).getBytes());
     outputStream.close();
   }
@@ -133,6 +152,13 @@ public class MetaConfigurationUtils {
         .hasArg()
         .desc("generate config.json for tables specified in table mapping file.")
         .build();
+    Option odpsConfig = Option
+        .builder("odpsConfig")
+        .longOpt(ODPS_CONFIG)
+        .argName(ODPS_CONFIG)
+        .hasArg()
+        .desc("set OdpsConfiguration in config.json from odps_config.ini.")
+        .build();
     Option help = Option
         .builder("h")
         .longOpt(HELP)
@@ -141,6 +167,7 @@ public class MetaConfigurationUtils {
         .build();
     Options options = new Options()
         .addOption(input)
+        .addOption(odpsConfig)
         .addOption(help);
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
@@ -150,7 +177,7 @@ public class MetaConfigurationUtils {
       if (cmd.hasOption(TABLE_MAPPING)) {
         configFile = new File(System.getProperty("user.dir"), META_CONFIG_FILE);
       }
-      generateConfigFile(configFile, cmd.getOptionValue(TABLE_MAPPING));
+      generateConfigFile(configFile, cmd.getOptionValue(TABLE_MAPPING), cmd.getOptionValue(ODPS_CONFIG));
     } else {
       logHelp(options);
     }

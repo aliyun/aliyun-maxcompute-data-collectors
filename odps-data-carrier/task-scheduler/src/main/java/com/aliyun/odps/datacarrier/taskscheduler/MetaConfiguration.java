@@ -29,7 +29,7 @@ public class MetaConfiguration {
   //global config for all tables.
   private Config globalTableConfig;
 
-  private volatile Map<String, Map<String, TableConfig>> tableConfigMap = new HashMap<>();
+  private volatile Map<String, Map<String, TableConfig>> tableConfigMap;
 
   public MetaConfiguration(String user,
                            String migrationJobName,

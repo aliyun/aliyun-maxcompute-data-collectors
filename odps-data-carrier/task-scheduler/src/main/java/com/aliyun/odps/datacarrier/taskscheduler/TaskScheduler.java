@@ -429,7 +429,7 @@ public class TaskScheduler {
 
   private static void logHelp(Options options) {
     HelpFormatter formatter = new HelpFormatter();
-    String cmdLineSyntax = "task-scheduler -config <config.json>";
+    String cmdLineSyntax = "migrate -config <config.json>";
     formatter.printHelp(cmdLineSyntax, options);
   }
 }

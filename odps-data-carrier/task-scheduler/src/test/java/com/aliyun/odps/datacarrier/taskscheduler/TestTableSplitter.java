@@ -22,7 +22,7 @@ public class TestTableSplitter {
   public void setup() {
     taskScheduler = new TaskScheduler();
     taskScheduler.initActions(DataSource.Hive);
-    metaConfiguration = MetaConfigurationUtils.generateSampleMetaConfiguration();
+    metaConfiguration = MetaConfigurationUtils.generateSampleMetaConfiguration(null);
   }
 
   @Test(timeout = 5000)

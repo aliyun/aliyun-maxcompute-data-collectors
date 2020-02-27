@@ -87,24 +87,31 @@ public class OdpsSqlUtils {
 
     Iterator<MetaSource.PartitionMetaModel> iterator = tableMetaModel.partitions.iterator();
     while (iterator.hasNext()) {
-      StringBuilder sb = new StringBuilder();
-      sb.append("ALTER TABLE\n");
-      sb.append(tableMetaModel.odpsProjectName)
+      StringBuilder addPartitionBuilder = new StringBuilder();
+      StringBuilder dropPartitionBuilder = new StringBuilder();
+      dropPartitionBuilder.append("ALTER TABLE\n");
+      dropPartitionBuilder.append(tableMetaModel.odpsProjectName)
           .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
-      sb.append("ADD IF NOT EXISTS");
+      dropPartitionBuilder.append("DROP IF EXISTS");
+      addPartitionBuilder.append("ALTER TABLE\n");
+      addPartitionBuilder.append(tableMetaModel.odpsProjectName)
+          .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+      addPartitionBuilder.append("ADD IF NOT EXISTS");
 
       for (int i = 0; i < ADD_PARTITION_BATCH_SIZE; i++) {
         if (iterator.hasNext()) {
           MetaSource.PartitionMetaModel partitionMeta = iterator.next();
           String odpsPartitionSpec = getPartitionSpec(tableMetaModel.partitionColumns,
                                                       partitionMeta);
-          sb.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+          dropPartitionBuilder.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+          addPartitionBuilder.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
         } else {
           break;
         }
       }
-      sb.append(";\n");
-      addPartitionStatements.add(sb.toString());
+      dropPartitionBuilder.append(";\n");
+      addPartitionBuilder.append(";\n");
+      addPartitionStatements.add(dropPartitionBuilder.append(addPartitionBuilder).toString());
     }
 
     return addPartitionStatements;

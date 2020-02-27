@@ -52,7 +52,7 @@ abstract class AbstractTaskRunner implements TaskRunner {
         sb.append(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel));
         return sb.toString();
       case ODPS_ADD_PARTITION:
-        sb.append(OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel));
+        OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel).forEach(s -> sb.append(s));
         return sb.toString();
       case HIVE_LOAD_DATA:
         sb.append(HiveSqlUtils.getUdtfSql(task.tableMetaModel));

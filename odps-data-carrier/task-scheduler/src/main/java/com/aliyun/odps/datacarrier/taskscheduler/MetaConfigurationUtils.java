@@ -27,7 +27,7 @@ public class MetaConfigurationUtils {
   public static MetaConfiguration generateSampleMetaConfiguration() {
     MetaConfiguration metaConfiguration = new MetaConfiguration("Jerry", "TestMigrationJob", DataSource.Hive);
 
-    HiveConfiguration hiveConfiguration = new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default",
+    HiveConfiguration hiveConfiguration = new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default", "Hive", "",
         "thrift://127.0.0.1:9083", "", "", new String[]{""});
     metaConfiguration.setHiveConfiguration(hiveConfiguration);
 
@@ -61,13 +61,17 @@ public class MetaConfigurationUtils {
     return new File(currentDir + "/" + ODPS_DATA_CARRIER, META_CONFIG_FILE);
   }
 
-  public static void main(String[] args) throws Exception {
-    File configFile = getDefaultConfigFile();
+  public static void generateConfigFile(File configFile) throws Exception {
     Files.deleteIfExists(configFile.toPath());
     configFile.createNewFile();
     FileOutputStream outputStream = new FileOutputStream(configFile);
     outputStream.write(getSampleMetaConfigurationStr().getBytes());
     outputStream.close();
+  }
+
+  public static void main(String[] args) throws Exception {
+    File configFile = getDefaultConfigFile();
+    generateConfigFile(configFile);
   }
 
 }

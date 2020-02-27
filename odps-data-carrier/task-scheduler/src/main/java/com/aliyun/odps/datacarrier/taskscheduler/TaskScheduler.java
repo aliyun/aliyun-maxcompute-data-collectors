@@ -55,11 +55,6 @@ public class TaskScheduler {
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<Task> tasks;
   private MetaConfiguration metaConfig;
-
-  //for HiveRunner.
-  private String user;
-  private String password;
-
   private MMAMetaManager mmaMetaManager;
 
   public TaskScheduler() {
@@ -73,7 +68,7 @@ public class TaskScheduler {
     this.tasks = new LinkedList<>();
   }
 
-  private void run(MetaConfiguration metaConfiguration, String user, String password) throws TException {
+  private void run(MetaConfiguration metaConfiguration) throws TException {
 
     // TODO: check if datasource and metasource are valid
     this.metaConfig = metaConfiguration;
@@ -94,11 +89,6 @@ public class TaskScheduler {
     initTaskRunner();
     updateConcurrencyThreshold();
     this.heartbeatThread.start();
-
-    // TODO: move user and password to config, or they can be seen with ps command
-    this.user = user;
-    this.password = password;
-
     int retryTimes = 1;
     while (keepRunning) {
       LOG.info("Start to migrate data for the [{}] round", retryTimes);
@@ -128,6 +118,7 @@ public class TaskScheduler {
       LOG.info("All tasks finished");
       retryTimes++;
     }
+    shutdown();
   }
 
   @VisibleForTesting
@@ -171,7 +162,8 @@ public class TaskScheduler {
   private TaskRunner createTaskRunner(RunnerType runnerType) {
     if (RunnerType.HIVE.equals(runnerType)) {
       return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(),
-                            this.user, this.password);
+          this.metaConfig.getHiveConfiguration().getUser(),
+          this.metaConfig.getHiveConfiguration().getPassword());
     } else if (RunnerType.ODPS.equals(runnerType)) {
       return new OdpsRunner();
     }
@@ -381,40 +373,21 @@ public class TaskScheduler {
         .hasArg()
         .desc("Specify config.json, default: ./config.json")
         .build();
-    // for hive JDBC
-    Option user = Option
-        .builder("u")
-        .longOpt(USER)
-        .argName(USER)
-        .hasArg()
-        .desc("JDBC UserName, default value as \"Hive\"")
-        .build();
-    Option password = Option
-        .builder("p")
-        .longOpt(PASSWORD)
-        .argName(PASSWORD)
-        .optionalArg(true)
-        .hasArg()
-        .desc("JDBC Password, default value as \"\"")
-        .build();
     Option help = Option
         .builder("h")
         .longOpt(HELP)
         .argName(HELP)
         .desc("Print help information")
         .build();
-
     Options options = new Options()
         .addOption(config)
-        .addOption(user)
-        .addOption(password)
         .addOption(help);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    if (cmd.hasOption(USER) && cmd.hasOption(PASSWORD) && !cmd.hasOption(HELP)) {
-      File configFile = MetaConfigurationUtils.getDefaultConfigFile();
+    if (!cmd.hasOption(HELP)) {
+      File configFile = new File(System.getProperty("user.dir"), META_CONFIG_FILE);
       if (cmd.hasOption(META_CONFIG_FILE)) {
         configFile = new File(cmd.getOptionValue(META_CONFIG_FILE));
       }
@@ -424,15 +397,7 @@ public class TaskScheduler {
         System.exit(1);
       }
       TaskScheduler scheduler = new TaskScheduler();
-      String cmdUser = "hive";
-      String cmdPassword = "";
-      if (!StringUtils.isNullOrEmpty(cmd.getOptionValue(USER))) {
-        cmdUser = cmd.getOptionValue(USER);
-      }
-      if (!StringUtils.isNullOrEmpty(cmd.getOptionValue(PASSWORD))) {
-        cmdPassword = cmd.getOptionValue(PASSWORD);
-      }
-      scheduler.run(metaConfiguration, cmdUser, cmdPassword);
+      scheduler.run(metaConfiguration);
     } else {
       logHelp(options);
     }
@@ -440,7 +405,7 @@ public class TaskScheduler {
 
   private static void logHelp(Options options) {
     HelpFormatter formatter = new HelpFormatter();
-    String cmdLineSyntax = "task-scheduler -i <input directory> -d <datasource> -m <mode>";
+    String cmdLineSyntax = "task-scheduler -config <config.json>";
     formatter.printHelp(cmdLineSyntax, options);
   }
 }

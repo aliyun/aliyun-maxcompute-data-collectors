@@ -10,13 +10,8 @@
   <version>1.0-SNAPSHOT</version>
 
   <modules>
-<!--    <module>meta-carrier</module>-->
     <module>data-carrier-commons</module>
-<!--    <module>meta-processor</module>-->
     <module>data-transfer-hive-udtf</module>
-<!--    <module>odps-sql-migration-tool-wrapper</module>-->
-<!--    <module>network-measurement-tool</module>-->
-<!--    <module>data-transfer-spark</module>-->
     <module>task-scheduler</module>
   </modules>
 
@@ -97,18 +92,6 @@
         <artifactId>progressbar</artifactId>
         <version>0.7.3</version>
       </dependency>
-
-      <!--<dependency>-->
-        <!--<groupId>org.slf4j</groupId>-->
-        <!--<artifactId>slf4j-api</artifactId>-->
-        <!--<version>1.7.10</version>-->
-      <!--</dependency>-->
-      <!--<dependency>-->
-        <!--<groupId>org.slf4j</groupId>-->
-        <!--<artifactId>slf4j-log4j12</artifactId>-->
-        <!--<version>1.7.10</version>-->
-      <!--</dependency>-->
-
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
         <artifactId>log4j-api</artifactId>

@@ -31,38 +31,38 @@ public class HiveRunner extends AbstractTaskRunner {
   private static String DRIVER_NAME = "org.apache.hive.jdbc.HiveDriver";
   private static String EXTRA_SETTINGS_INI = "extra_settings_jdbc.ini";
 
-//  private static Connection con;
-
   private static String jdbcAddress;
   private static String user;
   private static String password;
 
-  public HiveRunner(String jdbcAddress, String user, String password) {
+  public HiveRunner(MetaConfiguration.HiveConfiguration hiveConfiguration) {
+    if (hiveConfiguration == null) {
+      throw new IllegalArgumentException("'hiveConfiguration' cannot be null");
+    }
+
     try{
       Class.forName(DRIVER_NAME);
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
-      throw new RuntimeException("Create HiveRunner failed.");
+      throw new RuntimeException("Create HiveRunner failed");
     }
 
-    this.jdbcAddress = jdbcAddress;
-    this.user = user;
-    this.password = password;
-
-//    try {
-//      con = DriverManager.getConnection(jdbcAddress, user, password);
-//      LOG.info("Create HiveRunner succeeded.");
-//    } catch (SQLException e) {
-//      e.printStackTrace();
-//      throw new RuntimeException("Create connection to JDBC failed. ");
-//    }
+    jdbcAddress = hiveConfiguration.getHiveJdbcAddress();
+    user = hiveConfiguration.getUser();
+    password = hiveConfiguration.getPassword();
 
     loadExtraSettings();
   }
 
   private void loadExtraSettings() {
-    Path extraSettingsPath = Paths.get(System.getProperty("user.dir"), "odps-data-carrier", EXTRA_SETTINGS_INI);
+    // TODO: use a fixed parent directory
+    Path extraSettingsPath = Paths.get(System.getProperty("user.dir"),
+                                       "odps-data-carrier",
+                                       EXTRA_SETTINGS_INI);
     LOG.info("extraSettingsPath = {}", extraSettingsPath);
+    if (!extraSettingsPath.toFile().exists()) {
+      return;
+    }
     try {
       List<String> settings = Files.readAllLines(extraSettingsPath);
       for (String setting : settings) {
@@ -176,7 +176,7 @@ public class HiveRunner extends AbstractTaskRunner {
     if (StringUtils.isNullOrEmpty(log) || hiveExecutionInfo == null) {
       return;
     }
-    if (log.indexOf("Starting Job =") == -1) {
+    if (!log.contains("Starting Job =")) {
       return;
     }
     String jobId = log.split("=")[1].split(",")[0];

@@ -47,6 +47,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
   public MMAMetaManagerFsImpl(String parentDir, MetaSource metaSource) {
     if (parentDir == null) {
+      // TODO: use a fixed parent directory
       parentDir = System.getProperty("user.dir");
     }
 

@@ -57,13 +57,19 @@ if __name__ == '__main__':
         fd.truncate()
 
     # build and make dirs
-    ret = execute("mvn clean package -pl task-scheduler -am")
+    ret = execute("mvn clean package -pl task-scheduler -am -DskipTests")
     if ret != 0:
         print("Build failed, exit")
         sys.exit(1)
 
     os.makedirs("odps-data-carrier")
+    os.makedirs("odps-data-carrier/libs")
     shutil.copyfile("config.json", "odps-data-carrier/config.json")
+
+    # hive-udtf-sql-runner
+    jar_name = "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
+    shutil.copyfile("data-transfer-hive-udtf/target/" + jar_name,
+                    "odps-data-carrier/libs/" + jar_name)
 
     # task-scheduler
     jar_name = "task-scheduler-1.0-SNAPSHOT.jar"

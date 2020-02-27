@@ -12,6 +12,8 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.aliyun.odps.utils.StringUtils;
+
 public class HiveMetaSource implements MetaSource {
 
   private static final Logger LOG = LogManager.getLogger(HiveMetaSource.class);
@@ -29,22 +31,32 @@ public class HiveMetaSource implements MetaSource {
                              String principal,
                              String keyTab,
                              String[] systemProperties) throws MetaException {
+    LOG.info("Initializing HMS client, "
+             + "HMS addr: {}, kbr principal: {}, kbr keytab: {}, system properties: {}",
+             hmsAddr, principal, keyTab, String.join(" ", systemProperties));
+
     HiveConf hiveConf = new HiveConf();
     hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, hmsAddr);
-    if (principal != null) {
+    if (!StringUtils.isNullOrEmpty(principal)) {
+      LOG.info("Set {} to true", HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL);
       hiveConf.setVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL, "true");
+      LOG.info("Set {} to {}", HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL, principal);
       hiveConf.setVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL, principal);
     }
-    if (keyTab != null) {
+    if (!StringUtils.isNullOrEmpty(keyTab)) {
+      LOG.info("Set {} to {}", HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, keyTab);
       hiveConf.setVar(HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, keyTab);
     }
-    if (systemProperties != null) {
+    if (systemProperties != null && systemProperties.length > 0) {
       for (String property : systemProperties) {
         int idx = property.indexOf('=');
         if (idx != -1) {
+          LOG.info("Set system property {} = {}",
+                   property.substring(0, idx),
+                   property.substring(idx + 1));
           System.setProperty(property.substring(0, idx), property.substring(idx + 1));
         } else {
-          System.err.print("Invalid system property: " + property);
+          LOG.error("Invalid system property: " + property);
         }
       }
     }

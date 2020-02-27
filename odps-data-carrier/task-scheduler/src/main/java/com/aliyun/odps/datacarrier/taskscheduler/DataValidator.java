@@ -65,6 +65,7 @@ public class DataValidator {
   }
 
   private void getTableMapping(String tableMappingFilePath) {
+    // TODO: use a fixed parent directory
     Path projectFilePath = Paths.get(System.getProperty("user.dir"), tableMappingFilePath);
     LOG.info("Start parsing table mapping for {}.", projectFilePath.toString());
     try {

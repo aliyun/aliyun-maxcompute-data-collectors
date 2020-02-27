@@ -6,7 +6,10 @@ import com.aliyun.odps.OdpsException;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.odps.data.Record;
 import com.aliyun.odps.task.SQLTask;
+import com.aliyun.odps.utils.StringUtils;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,34 +37,17 @@ public class OdpsRunner extends AbstractTaskRunner {
   private static Properties properties;
   private static Odps odps;
 
-  public OdpsRunner() {
-    try {
-      this.odps = odps();
-      LOG.info("Create OdpsRunner succeeded.");
-    } catch (IOException e) {
-      e.printStackTrace();
-      throw new RuntimeException("Create odps failed.");
+  public OdpsRunner(MetaConfiguration.OdpsConfiguration odpsConfiguration) {
+    if (odpsConfiguration == null) {
+      throw new IllegalArgumentException("'odpsConfiguration' cannot be null");
     }
-  }
 
-  public static Odps odps() throws IOException {
-    String odpsConfigPath = System.getProperty("user.dir") + "/odps-data-carrier/" + ODPS_CONFIG_INI;
-    LOG.info("odpsConfigPath = {}", odpsConfigPath);
-    InputStream is = new FileInputStream(odpsConfigPath);
-    properties = new Properties();
-    properties.load(is);
-    AliyunAccount account = new AliyunAccount(properties.getProperty(ACCESS_ID),
-        properties.getProperty(ACCESS_KEY));
-    Odps odps = new Odps(account);
-    if (properties.getProperty(PROJECT_NAME) == null) {
-      throw new IllegalArgumentException("Project should not be empty.");
-    }
-    odps.setDefaultProject(properties.getProperty(PROJECT_NAME));
-    if (properties.getProperty(END_POINT) == null) {
-      throw new IllegalArgumentException("Endpoint should not be empty.");
-    }
-    odps.setEndpoint(properties.getProperty(END_POINT));
-    return odps;
+    AliyunAccount account = new AliyunAccount(odpsConfiguration.getAccessId(),
+                                              odpsConfiguration.getAccessKey());
+    odps = new Odps(account);
+    odps.setEndpoint(odpsConfiguration.getEndpoint());
+    odps.setDefaultProject(odpsConfiguration.getProjectName());
+    LOG.info("Create OdpsRunner succeeded");
   }
 
   public static class OdpsSqlExecutor implements Runnable {
@@ -80,20 +66,22 @@ public class OdpsRunner extends AbstractTaskRunner {
     @Override
     public void run() {
       Instance i;
+
+      // Submit
       try {
         //validate sql statement, multi-statement query will set odps.sql.submit.mode=script
         Map<String, String> hints = new HashMap<>();
         if (sql.chars().filter(ch -> ch == ';').count() > 1) {
-          LOG.info("multi-statement query, will \"SET odps.sql.submit.mode=script\"", sql);
+          LOG.info("multi-statement query, will 'SET odps.sql.submit.mode=script'");
           hints.put("odps.sql.submit.mode", "script");
         }
         hints.put("odps.sql.type.system.odps2", "true");
         hints.put("odps.sql.allow.fullscan", "true");
-        i = SQLTask.run(odps, properties.getProperty(PROJECT_NAME), sql, hints, null);
+        i = SQLTask.run(odps, odps.getDefaultProject(), sql, hints, null);
       } catch (OdpsException e) {
         LOG.error("Submit ODPS Sql failed, task: " + task +
             ", executionTaskName: " + executionTaskName +
-            ", project: " + properties.getProperty(PROJECT_NAME) +
+            ", project: " + odps.getDefaultProject() +
             ", sql: \n" + sql +
             ", exception: " + e.toString());
         task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
@@ -101,7 +89,7 @@ public class OdpsRunner extends AbstractTaskRunner {
       } catch (RuntimeException e) {
         LOG.error("Submit ODPS Sql failed, task: " + task +
             ", executionTaskName: " + executionTaskName +
-            ", project: " + properties.getProperty(PROJECT_NAME) +
+            ", project: " + odps.getDefaultProject() +
             ", sql: \n" + sql +
             ", exception: " + e.getMessage());
         e.printStackTrace();
@@ -109,6 +97,7 @@ public class OdpsRunner extends AbstractTaskRunner {
         return;
       }
 
+      // Wait for success
       try {
         i.waitForSuccess();
       } catch (OdpsException e) {
@@ -119,21 +108,24 @@ public class OdpsRunner extends AbstractTaskRunner {
         task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
         return;
       }
+
+      // Update execution info
       OdpsExecutionInfo odpsExecutionInfo =
           (OdpsExecutionInfo) task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
       String instanceId = i.getId();
       odpsExecutionInfo.setInstanceId(instanceId);
-      String logView = "";
       try {
-        logView = i.getOdps().logview().generateLogView(i, TOKEN_EXPIRE_INTERVAL);
+        String logView = i.getOdps().logview().generateLogView(i, TOKEN_EXPIRE_INTERVAL);
         odpsExecutionInfo.setLogView(logView);
       } catch (OdpsException e) {
-        LOG.error("Generate ODPS Sql logview failed, task: " + task +
-            "executionTaskName: " + executionTaskName +
-            "exception: " + e.toString());
+        LOG.error("Generate ODPS Sql logview failed, task: {}, executionTaskName: {}, "
+                  + "instance id: {}, exception: {}", task, executionTaskName, instanceId,
+                  ExceptionUtils.getStackTrace(e));
       }
+
       LOG.debug("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
       RUNNER_LOG.info("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
+
       // need result when sql is node script mode.
       if (!odpsExecutionInfo.isScriptMode()) {
         try {

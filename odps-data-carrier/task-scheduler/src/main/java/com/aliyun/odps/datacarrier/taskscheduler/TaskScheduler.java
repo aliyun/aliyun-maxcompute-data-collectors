@@ -93,6 +93,13 @@ public class TaskScheduler {
     while (keepRunning) {
       LOG.info("Start to migrate data for the [{}] round", retryTimes);
       List<MetaSource.TableMetaModel> pendingTables = this.mmaMetaManager.getPendingTables();
+      LOG.info("Tables to migrate");
+      for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
+        LOG.info("Database: {}, table: {}",
+                 tableMetaModel.databaseName,
+                 tableMetaModel.tableName);
+      }
+
       this.taskManager = new TableSplitter(pendingTables, metaConfiguration);
       this.tasks.clear();
       this.tasks.addAll(this.taskManager.generateTasks(actions, null));
@@ -129,7 +136,8 @@ public class TaskScheduler {
       actions.add(Action.HIVE_LOAD_DATA);
       actions.add(Action.HIVE_VALIDATE);
       actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION_BY_PARTITION);
+//      actions.add(Action.VALIDATION_BY_PARTITION);
+      actions.add(Action.VALIDATION_BY_TABLE);
     } else if (DataSource.OSS.equals(dataSource)) {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
@@ -150,22 +158,20 @@ public class TaskScheduler {
     for (Action action : this.actions) {
       //Create task runner.
       RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+      LOG.info("Find runnerType = {}, Add Runner: {}",
+               runnerType,
+               taskRunnerMap.get(runnerType).getClass());
       if (!taskRunnerMap.containsKey(runnerType)) {
         taskRunnerMap.put(runnerType, createTaskRunner(runnerType));
-        LOG.info("Find runnerType = {}, Add Runner: {}",
-                 runnerType,
-                 taskRunnerMap.get(runnerType).getClass());
       }
     }
   }
 
   private TaskRunner createTaskRunner(RunnerType runnerType) {
     if (RunnerType.HIVE.equals(runnerType)) {
-      return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(),
-          this.metaConfig.getHiveConfiguration().getUser(),
-          this.metaConfig.getHiveConfiguration().getPassword());
+      return new HiveRunner(this.metaConfig.getHiveConfiguration());
     } else if (RunnerType.ODPS.equals(runnerType)) {
-      return new OdpsRunner();
+      return new OdpsRunner(this.metaConfig.getOdpsConfiguration());
     }
     throw new RuntimeException("Unknown runner type: " + runnerType.name());
   }
@@ -379,14 +385,28 @@ public class TaskScheduler {
         .argName(HELP)
         .desc("Print help information")
         .build();
+    Option version = Option
+        .builder("v")
+        .longOpt("version")
+        .argName("version")
+        .hasArg(false)
+        .desc("Print MMA version")
+        .build();
     Options options = new Options()
         .addOption(config)
-        .addOption(help);
+        .addOption(help)
+        .addOption(version);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
+    if (cmd.hasOption("version")) {
+      System.err.println("0.0.1");
+      System.exit(0);
+    }
+
     if (!cmd.hasOption(HELP)) {
+      // TODO: use a fixed parent directory
       File configFile = new File(System.getProperty("user.dir"), META_CONFIG_FILE);
       if (cmd.hasOption(META_CONFIG_FILE)) {
         configFile = new File(cmd.getOptionValue(META_CONFIG_FILE));
@@ -397,7 +417,11 @@ public class TaskScheduler {
         System.exit(1);
       }
       TaskScheduler scheduler = new TaskScheduler();
-      scheduler.run(metaConfiguration);
+      try {
+        scheduler.run(metaConfiguration);
+      } finally {
+        scheduler.shutdown();
+      }
     } else {
       logHelp(options);
     }

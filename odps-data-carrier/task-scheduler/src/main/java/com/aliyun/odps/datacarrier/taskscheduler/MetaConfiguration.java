@@ -163,7 +163,7 @@ public class MetaConfiguration {
 
     public boolean validate() {
       return (!StringUtils.isNullOrEmpty(hiveJdbcAddress) &&
-          !StringUtils.isNullOrEmpty(thriftAddr));
+              !StringUtils.isNullOrEmpty(thriftAddr));
     }
 
     public String getHiveJdbcAddress() {
@@ -226,11 +226,31 @@ public class MetaConfiguration {
       this.tunnelEndpoint = tunnelEndpoint;
     }
 
+    public String getAccessId() {
+      return accessId;
+    }
+
+    public String getAccessKey() {
+      return accessKey;
+    }
+
+    public String getEndpoint() {
+      return endpoint;
+    }
+
+    public String getProjectName() {
+      return projectName;
+    }
+
+    public String getTunnelEndpoint() {
+      return tunnelEndpoint;
+    }
+
     public boolean validate() {
       return (!StringUtils.isNullOrEmpty(accessId) &&
-          !StringUtils.isNullOrEmpty(accessKey) &&
-          !StringUtils.isNullOrEmpty(endpoint) &&
-          !StringUtils.isNullOrEmpty(projectName));
+              !StringUtils.isNullOrEmpty(accessKey) &&
+              !StringUtils.isNullOrEmpty(endpoint) &&
+              !StringUtils.isNullOrEmpty(projectName));
     }
 
     @Override
@@ -389,27 +409,28 @@ public class MetaConfiguration {
   }
 
   public boolean validateAndInitConfig() {
-    boolean validated = true;
+    boolean valid = true;
     switch (this.dataSource) {
       case Hive:
         if (!this.hiveConfiguration.validate()) {
-          validated = false;
+          valid = false;
           LOG.error("Validate MetaConfiguration failed due to {}", this.hiveConfiguration);
         }
         break;
       case OSS:
         if (!this.ossConfiguration.validate()) {
-          validated = false;
+          valid = false;
           LOG.error("Validate MetaConfiguration failed due to {}", this.ossConfiguration);
         }
         break;
     }
-    if (odpsConfiguration.validate()) {
-      validated = false;
+
+    if (!odpsConfiguration.validate()) {
+      valid = false;
       LOG.error("Validate MetaConfiguration failed due to {}", this.odpsConfiguration);
     }
 
-    if (!validated) {
+    if (!valid) {
       return false;
     }
 

@@ -56,8 +56,8 @@ public class OdpsSqlUtilsTest {
                       + "test.`test_partitioned`\n"
                       + "ADD IF NOT EXISTS\n"
                       + "PARTITION (bar='hello_world');\n";
-    List<String> actual = OdpsSqlUtils.getAddPartitionStatement(partitioned);
-    Assert.assertEquals(expected, actual.get(0));
+    String actual = OdpsSqlUtils.getAddPartitionStatement(partitioned);
+    Assert.assertEquals(expected, actual);
   }
 
   @Test

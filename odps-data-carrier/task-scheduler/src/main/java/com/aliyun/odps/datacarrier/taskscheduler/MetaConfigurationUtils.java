@@ -57,6 +57,7 @@ public class MetaConfigurationUtils {
   }
 
   public static File getDefaultConfigFile() {
+    // TODO: use a fixed parent directory
     String currentDir = System.getProperty("user.dir");
     return new File(currentDir + "/" + ODPS_DATA_CARRIER, META_CONFIG_FILE);
   }

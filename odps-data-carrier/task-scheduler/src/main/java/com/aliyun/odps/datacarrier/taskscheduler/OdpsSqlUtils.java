@@ -68,46 +68,79 @@ public class OdpsSqlUtils {
   }
 
   /**
-   * Get add partition statements
+   * Get drop partition statement
    *
    * @param tableMetaModel {@link MetaSource.TableMetaModel}
-   * @return List of add partition statements. Each could add at most 1000 partitions. If the input
-   * does not contain any partition, an empty list will be returned.
+   * @return Drop partition statement for multiple partitions
    * @throws IllegalArgumentException when input represents a non partitioned table
    */
-  public static List<String> getAddPartitionStatement(MetaSource.TableMetaModel tableMetaModel) {
+  public static String getDropPartitionStatement(MetaSource.TableMetaModel tableMetaModel) {
     if (tableMetaModel.partitionColumns.size() == 0) {
       throw new IllegalArgumentException("Not a partitioned table");
     }
 
-    List<String> addPartitionStatements = new LinkedList<>();
+    if (tableMetaModel.partitions.size() > ADD_PARTITION_BATCH_SIZE) {
+      throw new IllegalArgumentException(
+          "Partition batch size exceeds upper bound: " + ADD_PARTITION_BATCH_SIZE);
+    }
+
+    StringBuilder sb = new StringBuilder();
     if (tableMetaModel.partitions.size() == 0) {
-      return addPartitionStatements;
+      return sb.toString();
     }
 
-    Iterator<MetaSource.PartitionMetaModel> iterator = tableMetaModel.partitions.iterator();
-    while (iterator.hasNext()) {
-      StringBuilder sb = new StringBuilder();
-      sb.append("ALTER TABLE\n");
-      sb.append(tableMetaModel.odpsProjectName)
-          .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
-      sb.append("ADD IF NOT EXISTS");
-
-      for (int i = 0; i < ADD_PARTITION_BATCH_SIZE; i++) {
-        if (iterator.hasNext()) {
-          MetaSource.PartitionMetaModel partitionMeta = iterator.next();
-          String odpsPartitionSpec = getPartitionSpec(tableMetaModel.partitionColumns,
-                                                      partitionMeta);
-          sb.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
-        } else {
-          break;
-        }
+    sb.append("ALTER TABLE\n");
+    sb.append(tableMetaModel.odpsProjectName)
+        .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+    sb.append("DROP IF EXISTS");
+    for (int i = 0; i < tableMetaModel.partitions.size(); i++) {
+      MetaSource.PartitionMetaModel partitionMetaModel = tableMetaModel.partitions.get(i);
+      String odpsPartitionSpec = getPartitionSpec(tableMetaModel.partitionColumns,
+                                                  partitionMetaModel);
+      sb.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+      if (i != tableMetaModel.partitions.size() - 1) {
+        sb.append(",");
       }
-      sb.append(";\n");
-      addPartitionStatements.add(sb.toString());
+    }
+    sb.append(";\n");
+
+    return sb.toString();
+  }
+
+  /**
+   * Get add partition statement
+   *
+   * @param tableMetaModel {@link MetaSource.TableMetaModel}
+   * @return Add partition statement for multiple partitions
+   * @throws IllegalArgumentException when input represents a non partitioned table
+   */
+  public static String getAddPartitionStatement(MetaSource.TableMetaModel tableMetaModel) {
+    if (tableMetaModel.partitionColumns.size() == 0) {
+      throw new IllegalArgumentException("Not a partitioned table");
     }
 
-    return addPartitionStatements;
+    if (tableMetaModel.partitions.size() > ADD_PARTITION_BATCH_SIZE) {
+      throw new IllegalArgumentException(
+          "Partition batch size exceeds upper bound: " + ADD_PARTITION_BATCH_SIZE);
+    }
+
+    StringBuilder sb = new StringBuilder();
+    if (tableMetaModel.partitions.size() == 0) {
+      return sb.toString();
+    }
+
+    sb.append("ALTER TABLE\n");
+    sb.append(tableMetaModel.odpsProjectName)
+        .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+    sb.append("ADD IF NOT EXISTS");
+    for (MetaSource.PartitionMetaModel partitionMetaModel : tableMetaModel.partitions) {
+      String odpsPartitionSpec = getPartitionSpec(tableMetaModel.partitionColumns,
+                                                  partitionMetaModel);
+      sb.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+    }
+    sb.append(";\n");
+
+    return sb.toString();
   }
 
   public static String getVerifySql(MetaSource.TableMetaModel tableMetaModel) {

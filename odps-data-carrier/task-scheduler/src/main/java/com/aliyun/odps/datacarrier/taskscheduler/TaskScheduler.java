@@ -93,6 +93,13 @@ public class TaskScheduler {
     while (keepRunning) {
       LOG.info("Start to migrate data for the [{}] round", retryTimes);
       List<MetaSource.TableMetaModel> pendingTables = this.mmaMetaManager.getPendingTables();
+      LOG.info("Tables to migrate");
+      for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
+        LOG.info("Database: {}, table: {}",
+                 tableMetaModel.databaseName,
+                 tableMetaModel.tableName);
+      }
+
       this.taskManager = new TableSplitter(pendingTables, metaConfiguration);
       this.tasks.clear();
       this.tasks.addAll(this.taskManager.generateTasks(actions, null));
@@ -127,18 +134,23 @@ public class TaskScheduler {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
       actions.add(Action.HIVE_LOAD_DATA);
-      actions.add(Action.HIVE_VALIDATE);
-      actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION_BY_PARTITION);
-    } else if (DataSource.OSS.equals(dataSource)) {
-      actions.add(Action.ODPS_CREATE_TABLE);
-      actions.add(Action.ODPS_ADD_PARTITION);
-      actions.add(Action.ODPS_CREATE_EXTERNAL_TABLE);
-      actions.add(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION);
-      actions.add(Action.ODPS_LOAD_DATA);
-      actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.VALIDATION_BY_TABLE);
+//      actions.add(Action.HIVE_VALIDATE);
+//      actions.add(Action.ODPS_VALIDATE);
+//      actions.add(Action.VALIDATION_BY_PARTITION);
+//      actions.add(Action.VALIDATION_BY_TABLE);
+//    } else if (DataSource.OSS.equals(dataSource)) {
+//      actions.add(Action.ODPS_CREATE_TABLE);
+//      actions.add(Action.ODPS_ADD_PARTITION);
+//      actions.add(Action.ODPS_CREATE_EXTERNAL_TABLE);
+//      actions.add(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION);
+//      actions.add(Action.ODPS_LOAD_DATA);
+//      actions.add(Action.ODPS_VALIDATE);
+//      actions.add(Action.VALIDATION_BY_TABLE);
+    } else {
+      throw new IllegalArgumentException("Unsupported datasource: " + dataSource);
     }
+
+    LOG.info("Actions initialized");
   }
 
   @VisibleForTesting
@@ -147,25 +159,22 @@ public class TaskScheduler {
   }
 
   private void initTaskRunner() {
-    for (Action action : this.actions) {
+    for (Action action : actions) {
       //Create task runner.
       RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+      LOG.info("Initializing {} for {}", runnerType, action);
       if (!taskRunnerMap.containsKey(runnerType)) {
         taskRunnerMap.put(runnerType, createTaskRunner(runnerType));
-        LOG.info("Find runnerType = {}, Add Runner: {}",
-                 runnerType,
-                 taskRunnerMap.get(runnerType).getClass());
+        LOG.info("TaskRunner {} created for {}", taskRunnerMap.get(runnerType).getClass(), action);
       }
     }
   }
 
   private TaskRunner createTaskRunner(RunnerType runnerType) {
     if (RunnerType.HIVE.equals(runnerType)) {
-      return new HiveRunner(this.metaConfig.getHiveConfiguration().getHiveJdbcAddress(),
-          this.metaConfig.getHiveConfiguration().getUser(),
-          this.metaConfig.getHiveConfiguration().getPassword());
+      return new HiveRunner(this.metaConfig.getHiveConfiguration());
     } else if (RunnerType.ODPS.equals(runnerType)) {
-      return new OdpsRunner();
+      return new OdpsRunner(this.metaConfig.getOdpsConfiguration());
     }
     throw new RuntimeException("Unknown runner type: " + runnerType.name());
   }
@@ -260,14 +269,12 @@ public class TaskScheduler {
         sb.append(action.name()).append("(").append(task.actionInfoMap.get(action).progress).append(") ");
       }
       LOG.info(sb.toString());
-      System.out.print(csb.toString() + "\n");
+      System.err.print(csb.toString() + "\n");
     }
 
     return tasks.stream().allMatch(task -> Progress.FAILED.equals(task.progress)
         || Progress.SUCCEEDED.equals(task.progress));
   }
-
-
 
   private void scheduleExecutionTask(Action action) {
     ActionScheduleInfo actionScheduleInfo = actionScheduleInfoMap.get(action);
@@ -289,61 +296,50 @@ public class TaskScheduler {
 
     // Iterate over tasks, start actions and update status
     for (Task task : tasks) {
+      // Check if this task has finished
+      // TODO: this is quite hacky and not efficient, should consider a better design
+      boolean taskFinished = true;
+      boolean taskSucceeded = true;
+      for (Map.Entry<Action, Task.ActionInfo> entry : task.actionInfoMap.entrySet()) {
+        if (Progress.FAILED.equals(entry.getValue().progress)) {
+          taskSucceeded = false;
+        } else if (!Progress.SUCCEEDED.equals(entry.getValue().progress)) {
+          taskFinished = false;
+        }
+      }
+      if (taskFinished) {
+        if (taskSucceeded) {
+          mmaMetaManager.updateStatus(task.project,
+                                      task.tableName,
+                                      MMAMetaManager.MigrationStatus.SUCCEEDED);
+          continue;
+        } else {
+          mmaMetaManager.updateStatus(task.project,
+                                      task.tableName,
+                                      MMAMetaManager.MigrationStatus.FAILED);
+          continue;
+        }
+      }
+
+      // Check if this action can be scheduled
       if (!task.isReadyAction(action)) {
         continue;
       }
+
       LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
 
-      if (Action.VALIDATION_BY_TABLE.equals(action)) {
-        // Update action status and table migration status
-        if (dataValidator.validateTaskCountResult(task)) {
-          task.changeActionProgress(action, Progress.SUCCEEDED);
-          mmaMetaManager.updateStatus(task.project,
-                                      task.tableName,
-                                      MMAMetaManager.MigrationStatus.SUCCEEDED);
-        } else {
-          task.changeActionProgress(action, Progress.FAILED);
-          mmaMetaManager.updateStatus(task.project,
-                                      task.tableName,
-                                      MMAMetaManager.MigrationStatus.FAILED);
+      // Schedule
+      for (Map.Entry<String, AbstractExecutionInfo> entry :
+          task.actionInfoMap.get(action).executionInfoMap.entrySet()) {
+        if (!Progress.NEW.equals(entry.getValue().progress)) {
+          continue;
         }
-      } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
-        DataValidator.ValidationResult validationResult = dataValidator.validationPartitions(task);
-        // Update partition migration status
-        mmaMetaManager.updateStatus(task.project,
-                                    task.tableName,
-                                    validationResult.failedPartitions,
-                                    MMAMetaManager.MigrationStatus.FAILED);
-        mmaMetaManager.updateStatus(task.project,
-                                    task.tableName,
-                                    validationResult.succeededPartitions,
-                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
-
-        // Update action status and table migration status
-        if (!validationResult.failedPartitions.isEmpty()) {
-          task.changeActionProgress(action, Progress.FAILED);
-          mmaMetaManager.updateStatus(task.project,
-                                      task.tableName,
-                                      MMAMetaManager.MigrationStatus.SUCCEEDED);
-        } else {
-          task.changeActionProgress(action, Progress.SUCCEEDED);
-          mmaMetaManager.updateStatus(task.project,
-                                      task.tableName,
-                                      MMAMetaManager.MigrationStatus.FAILED);
-        }
-      } else {
-        for (Map.Entry<String, AbstractExecutionInfo> entry :
-            task.actionInfoMap.get(action).executionInfoMap.entrySet()) {
-          if (!Progress.NEW.equals(entry.getValue().progress)) {
-            continue;
-          }
-          String executionTaskName = entry.getKey();
-          task.changeExecutionProgress(action, executionTaskName, Progress.RUNNING);
-          LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
-              task.toString(), action.name(), executionTaskName);
-          getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action, executionTaskName);
-          actionScheduleInfo.concurrency++;
-        }
+        String executionTaskName = entry.getKey();
+        task.changeExecutionProgress(action, executionTaskName, Progress.RUNNING);
+        LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
+                 task.toString(), action.name(), executionTaskName);
+        getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action, executionTaskName);
+        actionScheduleInfo.concurrency++;
       }
     }
   }
@@ -355,7 +351,6 @@ public class TaskScheduler {
       runner.shutdown();
     }
   }
-
 
   private static class ActionComparator implements Comparator<Action> {
     @Override
@@ -379,14 +374,28 @@ public class TaskScheduler {
         .argName(HELP)
         .desc("Print help information")
         .build();
+    Option version = Option
+        .builder("v")
+        .longOpt("version")
+        .argName("version")
+        .hasArg(false)
+        .desc("Print MMA version")
+        .build();
     Options options = new Options()
         .addOption(config)
-        .addOption(help);
+        .addOption(help)
+        .addOption(version);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
+    if (cmd.hasOption("version")) {
+      System.err.println("0.0.1");
+      System.exit(0);
+    }
+
     if (!cmd.hasOption(HELP)) {
+      // TODO: use a fixed parent directory
       File configFile = new File(System.getProperty("user.dir"), META_CONFIG_FILE);
       if (cmd.hasOption(META_CONFIG_FILE)) {
         configFile = new File(cmd.getOptionValue(META_CONFIG_FILE));
@@ -397,7 +406,11 @@ public class TaskScheduler {
         System.exit(1);
       }
       TaskScheduler scheduler = new TaskScheduler();
-      scheduler.run(metaConfiguration);
+      try {
+        scheduler.run(metaConfiguration);
+      } finally {
+        scheduler.shutdown();
+      }
     } else {
       logHelp(options);
     }

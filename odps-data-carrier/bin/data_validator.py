@@ -204,6 +204,9 @@ class DataValidator:
                                                                       False)
         odps_stdout, _ = odps_verify_sql_future.result()
         if self._is_partitioned_table(odps_stdout):
+            partition_cols = self._get_hive_partition_columns(hive_db,
+                                                              hive_tbl,
+                                                              os.path.join(log_dir, "hive", "desc"))
             partition_values_to_count = self._get_partition_values_to_count(odps_stdout)
             ret = True
             fd = open(validate_failed_partition_list_path, 'a')
@@ -217,7 +220,7 @@ class DataValidator:
                     ret = False
                     fd.write("%s.%s(%s):%s.%s\n" % (hive_db,
                                                     hive_tbl,
-                                                    partition_values,
+                                                    self._get_partition_spec(partition_cols, partition_values.split("/")),
                                                     mc_pjt,
                                                     mc_tbl))
             fd.close()

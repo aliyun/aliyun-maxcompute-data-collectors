@@ -44,7 +44,7 @@ public class TaskScheduler {
   private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
 
   private TaskManager taskManager;
-  private DataValidator dataValidator;
+//  private DataValidator dataValidator;
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
   protected Map<RunnerType, TaskRunner> taskRunnerMap;
@@ -60,7 +60,7 @@ public class TaskScheduler {
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
     this.keepRunning = true;
-    this.dataValidator = new DataValidator();
+//    this.dataValidator = new DataValidator();
     this.actionScheduleInfoMap = new ConcurrentHashMap<>();
     this.actions = new TreeSet<>(new ActionComparator());
     this.taskRunnerMap = new ConcurrentHashMap<>();
@@ -185,21 +185,23 @@ public class TaskScheduler {
 
   private void updateConcurrencyThreshold() {
     actionScheduleInfoMap.put(Action.ODPS_CREATE_TABLE,
-        new ActionScheduleInfo(CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.ODPS_CREATE_EXTERNAL_TABLE,
-        new ActionScheduleInfo(CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(
+                                  CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.ODPS_ADD_PARTITION,
-        new ActionScheduleInfo(ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION,
-        new ActionScheduleInfo(ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(
+                                  ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.ODPS_LOAD_DATA,
-        new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.HIVE_LOAD_DATA,
-        new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.ODPS_VALIDATE,
-        new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.HIVE_VALIDATE,
-        new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+                              new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
 
     for (Map.Entry<Action, ActionScheduleInfo> entry : actionScheduleInfoMap.entrySet()) {
       LOG.info("Set concurrency limit for Action: {}, limit: {}",
@@ -208,7 +210,7 @@ public class TaskScheduler {
     }
   }
 
-  private class ActionScheduleInfo {
+  private static class ActionScheduleInfo {
     int concurrency;
     int concurrencyLimit;
 
@@ -296,29 +298,26 @@ public class TaskScheduler {
 
     // Iterate over tasks, start actions and update status
     for (Task task : tasks) {
-      // Check if this task has finished
       // TODO: this is quite hacky and not efficient, should consider a better design
-      boolean taskFinished = true;
-      boolean taskSucceeded = true;
-      for (Map.Entry<Action, Task.ActionInfo> entry : task.actionInfoMap.entrySet()) {
-        if (Progress.FAILED.equals(entry.getValue().progress)) {
-          taskSucceeded = false;
-        } else if (!Progress.SUCCEEDED.equals(entry.getValue().progress)) {
-          taskFinished = false;
-        }
+      // Skip if this table has reached final state
+      MMAMetaManager.MigrationStatus status = mmaMetaManager.getStatus(task.getSourceDatabaseName(),
+                                                                       task.getSourceTableName());
+      if (MMAMetaManager.MigrationStatus.SUCCEEDED.equals(status) ||
+          MMAMetaManager.MigrationStatus.FAILED.equals(status)) {
+        continue;
       }
-      if (taskFinished) {
-        if (taskSucceeded) {
-          mmaMetaManager.updateStatus(task.project,
-                                      task.tableName,
-                                      MMAMetaManager.MigrationStatus.SUCCEEDED);
-          continue;
-        } else {
-          mmaMetaManager.updateStatus(task.project,
-                                      task.tableName,
-                                      MMAMetaManager.MigrationStatus.FAILED);
-          continue;
-        }
+
+      // Update progress if task succeeded or failed
+      if (Progress.SUCCEEDED.equals(task.progress)) {
+        mmaMetaManager.updateStatus(task.getSourceDatabaseName(),
+                                    task.getSourceTableName(),
+                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+        continue;
+      } else if (Progress.FAILED.equals(task.progress)) {
+        mmaMetaManager.updateStatus(task.getSourceDatabaseName(),
+                                    task.getSourceTableName(),
+                                    MMAMetaManager.MigrationStatus.FAILED);
+        continue;
       }
 
       // Check if this action can be scheduled

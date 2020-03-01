@@ -10,17 +10,14 @@ import org.apache.logging.log4j.Logger;
 class Task {
 
   private static final Logger LOG = LogManager.getLogger(Task.class);
-  protected String project; //source project
-  protected String tableName; //source table
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
 
-  public Task(String project, String tableName, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
-    this.project = project;
-    this.tableName = tableName;
+  public Task(MetaSource.TableMetaModel tableMetaModel,
+              MetaConfiguration.Config tableConfig) {
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
@@ -28,7 +25,7 @@ class Task {
     this.progress = Progress.NEW;
   }
 
-  class ActionInfo {
+  static class ActionInfo {
     protected Progress progress = Progress.NEW;
     protected Map<String, AbstractExecutionInfo> executionInfoMap = new ConcurrentHashMap<>();
   }
@@ -175,24 +172,18 @@ class Task {
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder("[");
-    sb.append(project).append(".").append(tableName).append("]");
-    return sb.toString();
+    return "[" + tableMetaModel.databaseName + "." + tableMetaModel.tableName + "]";
   }
 
-  public String getTableNameWithProject() {
-    final StringBuilder sb = new StringBuilder(project);
-    sb.append(".").append(tableName);
-    return sb.toString();
+  public String getSourceDatabaseName() {
+    return tableMetaModel.databaseName;
   }
 
-
-
-  public String getProject() {
-    return project;
+  public String getSourceTableName() {
+    return tableMetaModel.tableName;
   }
 
-  public String getTableName() {
-    return tableName;
+  public String getName() {
+    return tableMetaModel.databaseName + "." + tableMetaModel.tableName;
   }
 }

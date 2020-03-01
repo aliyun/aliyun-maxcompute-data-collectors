@@ -23,15 +23,16 @@ public class TableSplitter implements TaskManager {
   @Override
   public List<Task> generateTasks(SortedSet<Action> actions, Mode mode) {
     for (MetaSource.TableMetaModel tableMetaModel : this.tables) {
-      MetaConfiguration.Config tableConfig = metaConfiguration.getTableConfig(tableMetaModel.databaseName, tableMetaModel.tableName);
+      MetaConfiguration.Config tableConfig =
+          metaConfiguration.getTableConfig(tableMetaModel.databaseName, tableMetaModel.tableName);
       // Empty partitions, means the table is non-partition table.
-      if (tableMetaModel.partitions.isEmpty()) {
-        Task task = new Task(tableMetaModel.databaseName, tableMetaModel.tableName, tableMetaModel, tableConfig);
+      if (tableMetaModel.partitionColumns.isEmpty()) {
+        Task task = new Task(tableMetaModel, tableConfig);
         for (Action action : actions) {
           if (Action.ODPS_ADD_PARTITION.equals(action)) {
             continue;
           }
-          task.addExecutionInfo(action, task.getTableNameWithProject());
+          task.addExecutionInfo(action, task.getName());
         }
         this.tasks.add(task);
       } else {
@@ -50,17 +51,14 @@ public class TableSplitter implements TaskManager {
         for (int taskIndex = 0; taskIndex < numOfSplitSet; taskIndex++) {
           MetaSource.TableMetaModel clone = tableMetaModel.clone();
           clone.partitions = new LinkedList<>();
-          Task task = new Task(tableMetaModel.databaseName,
-                               tableMetaModel.tableName,
-                               clone,
-                               tableConfig);
+          Task task = new Task(clone, tableConfig);
           for (int partitionIndex = taskIndex * numPartitionsPerSet;
                partitionIndex < (taskIndex + 1) * numPartitionsPerSet && partitionIndex < numOfAllPartitions;
                partitionIndex++) {
             task.tableMetaModel.partitions.add(tableMetaModel.partitions.get(partitionIndex));
           }
           for (Action action : actions) {
-            task.addExecutionInfo(action, task.getTableNameWithProject() + "." + taskIndex);
+            task.addExecutionInfo(action, task.getName() + "." + taskIndex);
           }
           this.tasks.add(task);
         }

@@ -9,20 +9,15 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-
-import com.aliyun.odps.utils.StringUtils;
-import com.google.common.collect.Lists;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.hive.jdbc.HiveStatement;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.aliyun.odps.utils.StringUtils;
 
 
 
@@ -32,7 +27,6 @@ public class HiveRunner extends AbstractTaskRunner {
   private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
   private static String DRIVER_NAME = "org.apache.hive.jdbc.HiveDriver";
-  private static String EXTRA_SETTINGS_INI = "extra_settings_jdbc.ini";
 
   private static String jdbcAddress;
   private static String user;
@@ -54,32 +48,7 @@ public class HiveRunner extends AbstractTaskRunner {
     jdbcAddress = hiveConfiguration.getHiveJdbcAddress();
     user = hiveConfiguration.getUser();
     password = hiveConfiguration.getPassword();
-
-    loadExtraSettings();
-  }
-
-  private void loadExtraSettings() {
-    // TODO: use a fixed parent directory
-    Path extraSettingsPath = Paths.get(System.getProperty("user.dir"),
-                                       EXTRA_SETTINGS_INI);
-    LOG.info("JDBC extra settings path: {}", extraSettingsPath);
-    if (!extraSettingsPath.toFile().exists()) {
-      LOG.warn("JDBC extra settings path does not exist");
-      return;
-    }
-    try {
-      List<String> settings = Files.readAllLines(extraSettingsPath);
-      for (String setting : settings) {
-        if (setting.trim().isEmpty() || setting.trim().startsWith("#")) {
-          continue;
-        }
-        extraSettings.add(setting.trim());
-        LOG.info("Load setting: {}", setting);
-      }
-    } catch (IOException e) {
-      LOG.error("Load extra settings failed, {}", e.getMessage());
-      e.printStackTrace();
-    }
+    extraSettings = hiveConfiguration.getHiveJdbcExtraSettings();
   }
 
   public static class HiveSqlExecutor implements Runnable {

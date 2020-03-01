@@ -1,11 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.utils.StringUtils;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -16,6 +10,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 abstract class AbstractTaskRunner implements TaskRunner {
 
@@ -47,7 +43,7 @@ abstract class AbstractTaskRunner implements TaskRunner {
     List<String> sqlStatements = new LinkedList<>();
     switch (action) {
       case ODPS_CREATE_TABLE:
-        if (task.tableMetaModel.partitions.isEmpty()) {
+        if (task.tableMetaModel.partitionColumns.isEmpty()) {
           //Non-partition table should drop table at first.
           sqlStatements.add(OdpsSqlUtils.getDropTableStatement(task.tableMetaModel));
         }

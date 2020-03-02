@@ -6,11 +6,11 @@ import com.google.gson.GsonBuilder;
 import java.lang.reflect.Modifier;
 
 public class GsonUtils {
-  private static Gson fullConfigGson = new GsonBuilder().
+  private static final Gson FULL_CONFIG_GSON = new GsonBuilder().
       excludeFieldsWithModifiers(Modifier.STATIC, Modifier.VOLATILE).
       disableHtmlEscaping().setPrettyPrinting().create();
 
   public static Gson getFullConfigGson() {
-    return fullConfigGson;
+    return FULL_CONFIG_GSON;
   }
 }

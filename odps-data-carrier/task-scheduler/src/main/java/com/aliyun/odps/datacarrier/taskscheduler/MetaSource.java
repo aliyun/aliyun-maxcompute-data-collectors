@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.metacarrier;
+package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -7,7 +7,7 @@ import java.util.Map;
 
 public interface MetaSource {
 
-  class TableMetaModel {
+  class TableMetaModel implements Cloneable {
     public String databaseName;
     public String odpsProjectName;
     public String tableName;
@@ -28,7 +28,8 @@ public interface MetaSource {
     public Boolean ifNotExists = true;
     public Boolean dropIfExists = true;
 
-    public TableMetaModel createSubTableMetaModel(List<PartitionMetaModel> partitions) {
+    @Override
+    public TableMetaModel clone() {
       TableMetaModel tableMetaModel = new TableMetaModel();
       tableMetaModel.databaseName = this.databaseName;
       tableMetaModel.odpsProjectName = this.odpsProjectName;

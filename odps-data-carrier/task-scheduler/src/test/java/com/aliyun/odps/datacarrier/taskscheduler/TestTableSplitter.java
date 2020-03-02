@@ -1,8 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.PartitionMetaModel;
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource.TableMetaModel;
 import com.aliyun.odps.datacarrier.taskscheduler.MetaConfiguration.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -101,18 +98,18 @@ public class TestTableSplitter {
     assertTrue(task1.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200224"));
   }
 
-  public List<TableMetaModel> updateMetaConfigAndCreateTables(int tableNum, int partitionsNum, int numOfPartitions) {
-    List<TableMetaModel> tableMetaModels = new ArrayList<>();
-    List<TablesGroup> tablesGroupList = new ArrayList<>();
-    TablesGroup tablesGroup = new TablesGroup();
-    List<Table> tables = new ArrayList<>();
+  public List<MetaSource.TableMetaModel> updateMetaConfigAndCreateTables(int tableNum, int partitionsNum, int numOfPartitions) {
+    List<MetaSource.TableMetaModel> tableMetaModels = new ArrayList<>();
+    List<TableGroup> tablesGroupList = new ArrayList<>();
+    TableGroup tablesGroup = new TableGroup();
+    List<TableConfig> tableConfigs = new ArrayList<>();
 
     for (int i = 0; i < tableNum; i++) {
       String tName = tableName + "_" + i;
-      Config tableConfig = new Config(null, null, numOfPartitions, 5, "");
-      Table table = new Table(dataBase, tName, dataBase, tName, tableConfig);
-      tables.add(table);
-      TableMetaModel tableMetaModel = new TableMetaModel();
+      Config config = new Config(null, null, numOfPartitions, 5, "");
+      TableConfig table = new TableConfig(dataBase, tName, dataBase, tName, config);
+      tableConfigs.add(table);
+      MetaSource.TableMetaModel tableMetaModel = new MetaSource.TableMetaModel();
       tableMetaModel.databaseName = dataBase;
       tableMetaModel.tableName = tName;
       //Partitioned table.
@@ -121,17 +118,17 @@ public class TestTableSplitter {
       }
       tableMetaModels.add(tableMetaModel);
     }
-    tablesGroup.setTables(tables);
+    tablesGroup.setTables(tableConfigs);
     tablesGroupList.add(tablesGroup);
-    metaConfiguration.setTablesGroupList(tablesGroupList);
+    metaConfiguration.setTableGroups(tablesGroupList);
     metaConfiguration.validateAndInitConfig();
     return tableMetaModels;
   }
 
-  public static List<PartitionMetaModel> createPartitions(int date, int partitionsNum) {
-    List<PartitionMetaModel> partitions = new ArrayList<>();
+  public static List<MetaSource.PartitionMetaModel> createPartitions(int date, int partitionsNum) {
+    List<MetaSource.PartitionMetaModel> partitions = new ArrayList<>();
     for (int p = 0; p < partitionsNum; p++) {
-      PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
+      MetaSource.PartitionMetaModel partitionMetaModel = new MetaSource.PartitionMetaModel();
       partitionMetaModel.partitionValues.add(String.valueOf(date + p));
       partitions.add(partitionMetaModel);
     }

@@ -1,15 +1,18 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.utils.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.aliyun.odps.utils.StringUtils;
+
+// TODO: rename
 public class MetaConfiguration {
   private static final Logger LOG = LogManager.getLogger(MetaConfiguration.class);
 
@@ -22,12 +25,12 @@ public class MetaConfiguration {
   private OssConfiguration ossConfiguration;
   private HiveConfiguration hiveConfiguration;
   private OdpsConfiguration odpsConfiguration;
-  private List<TablesGroup> tablesGroupList;
+  private List<TableGroup> tableGroups;
 
   //global config for all tables.
   private Config globalTableConfig;
 
-  private volatile Map<String, Map<String, Table>> tableConfig = new HashMap<>();
+  private volatile Map<String, Map<String, TableConfig>> tableConfigMap;
 
   public MetaConfiguration(String user,
                            String migrationJobName,
@@ -94,12 +97,12 @@ public class MetaConfiguration {
     this.odpsConfiguration = odpsConfiguration;
   }
 
-  public List<TablesGroup> getTablesGroupList() {
-    return tablesGroupList;
+  public List<TableGroup> getTableGroups() {
+    return tableGroups;
   }
 
-  public void setTablesGroupList(List<TablesGroup> tablesGroupList) {
-    this.tablesGroupList = tablesGroupList;
+  public void setTableGroups(List<TableGroup> tableGroups) {
+    this.tableGroups = tableGroups;
   }
 
   public Config getGlobalTableConfig() {
@@ -136,30 +139,57 @@ public class MetaConfiguration {
 
   public static class HiveConfiguration {
     private String hiveJdbcAddress;
+    private String user;
+    private String password;
     private String thriftAddr;
     private String krbPrincipal;
     private String keyTab;
+    // TODO: consider a list?
     private String[] krbSystemProperties;
+    // Ensures not null when deserialized from json
+    private List<String> hiveJdbcExtraSettings;
 
     public HiveConfiguration(String hiveJdbcAddress,
+                             String user,
+                             String password,
                              String thriftAddr,
                              String krbPrincipal,
                              String keyTab,
-                             String[] krbSystemProperties) {
+                             String[] krbSystemProperties,
+                             List<String> hiveJdbcExtraSettings) {
       this.hiveJdbcAddress = hiveJdbcAddress;
+      this.user = user;
+      this.password = password;
       this.thriftAddr = thriftAddr;
       this.krbPrincipal = krbPrincipal;
       this.keyTab = keyTab;
       this.krbSystemProperties = krbSystemProperties;
+      this.hiveJdbcExtraSettings = hiveJdbcExtraSettings;
     }
 
     public boolean validate() {
+      if (hiveJdbcExtraSettings == null || hiveJdbcExtraSettings.isEmpty()) {
+        return false;
+      }
+      for (String setting : hiveJdbcExtraSettings) {
+        if (StringUtils.isNullOrEmpty(setting)) {
+          return false;
+        }
+      }
       return (!StringUtils.isNullOrEmpty(hiveJdbcAddress) &&
-          !StringUtils.isNullOrEmpty(thriftAddr));
+              !StringUtils.isNullOrEmpty(thriftAddr));
     }
 
     public String getHiveJdbcAddress() {
       return hiveJdbcAddress;
+    }
+
+    public String getUser() {
+      return user;
+    }
+
+    public String getPassword() {
+      return password;
     }
 
     public String getThriftAddr() {
@@ -178,14 +208,19 @@ public class MetaConfiguration {
       return krbSystemProperties;
     }
 
+    public List<String> getHiveJdbcExtraSettings() {
+      return hiveJdbcExtraSettings;
+    }
+
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder("HiveMetaSource{");
+      final StringBuilder sb = new StringBuilder("HiveConfiguration {");
       sb.append("hiveJdbcAddress='").append(hiveJdbcAddress).append('\'');
       sb.append(", thriftAddr='").append(thriftAddr).append('\'');
       sb.append(", krbPrincipal='").append(krbPrincipal).append('\'');
       sb.append(", keyTab='").append(keyTab).append('\'');
       sb.append(", krbSystemProperties=").append(Arrays.toString(krbSystemProperties));
+      sb.append(", hiveJdbcExtraSettings=").append(String.join(",", hiveJdbcExtraSettings));
       sb.append('}');
       return sb.toString();
     }
@@ -210,11 +245,31 @@ public class MetaConfiguration {
       this.tunnelEndpoint = tunnelEndpoint;
     }
 
+    public String getAccessId() {
+      return accessId;
+    }
+
+    public String getAccessKey() {
+      return accessKey;
+    }
+
+    public String getEndpoint() {
+      return endpoint;
+    }
+
+    public String getProjectName() {
+      return projectName;
+    }
+
+    public String getTunnelEndpoint() {
+      return tunnelEndpoint;
+    }
+
     public boolean validate() {
       return (!StringUtils.isNullOrEmpty(accessId) &&
-          !StringUtils.isNullOrEmpty(accessKey) &&
-          !StringUtils.isNullOrEmpty(endpoint) &&
-          !StringUtils.isNullOrEmpty(projectName));
+              !StringUtils.isNullOrEmpty(accessKey) &&
+              !StringUtils.isNullOrEmpty(endpoint) &&
+              !StringUtils.isNullOrEmpty(projectName));
     }
 
     @Override
@@ -230,48 +285,91 @@ public class MetaConfiguration {
     }
   }
 
-  public static class TablesGroup {
-    private List<Table> tables;
+  public static class TableGroup {
+    private List<TableConfig> tableConfigs;
     //group config for tables.
-    private Config groupTableConfig;
+    private Config config;
 
-    public TablesGroup() {
+    public TableGroup() {
     }
 
-    public List<Table> getTables() {
-      return tables;
+    public List<TableConfig> getTableConfigs() {
+      return tableConfigs;
     }
 
-    public void setTables(List<Table> tables) {
-      this.tables = tables;
+    public void setTables(List<TableConfig> tableConfigs) {
+      this.tableConfigs = tableConfigs;
     }
 
-    public Config getGroupTableConfig() {
-      return groupTableConfig;
+    public Config getGroupConfig() {
+      return config;
     }
 
-    public void setGroupTableConfig(Config groupTableConfig) {
-      this.groupTableConfig = groupTableConfig;
+    public void setGroupConfig(Config groupConfig) {
+      this.config = groupConfig;
     }
   }
-  public static class Table {
-    private String sourceDataBase;
-    private String sourceTableName;
-    private String destinationProject;
-    private String destinationTableName;
-    //table config.
-    private Config tableConfig;
 
-    public Table(String sourceDataBase,
-                 String sourceTableName,
-                 String destinationProject,
-                 String destinationTableName,
-                 Config tableConfig) {
+  public static class TableConfig  {
+    public String sourceDataBase;
+    public String sourceTableName;
+    public String destinationProject;
+    public String destinationTableName;
+    public List<List<String>> partitionValuesList;
+    //table config
+    public Config config;
+
+    public TableConfig (String sourceDataBase,
+                        String sourceTableName,
+                        String destinationProject,
+                        String destinationTableName,
+                        Config config) {
+      this(sourceDataBase,
+           sourceTableName,
+           destinationProject,
+           destinationTableName,
+           null,
+           config);
+    }
+
+    public TableConfig (String sourceDataBase,
+                        String sourceTableName,
+                        String destinationProject,
+                        String destinationTableName,
+                        List<List<String>> partitionValuesList,
+                        Config config) {
       this.sourceDataBase = sourceDataBase;
       this.sourceTableName = sourceTableName;
       this.destinationProject = destinationProject;
       this.destinationTableName = destinationTableName;
-      this.tableConfig = tableConfig;
+      this.partitionValuesList = partitionValuesList;
+      this.config = config;
+    }
+
+    public void apply(MetaSource.TableMetaModel tableMetaModel) {
+      // TODO: use typeCustomizedConversion and columnNameCustomizedConversion
+      tableMetaModel.odpsProjectName = destinationProject;
+      tableMetaModel.odpsTableName = destinationTableName;
+      // TODO: should not init a hive type transformer here, looking for better design
+      TypeTransformer typeTransformer = new HiveTypeTransformer();
+
+      for (MetaSource.ColumnMetaModel c : tableMetaModel.columns) {
+        c.odpsColumnName = c.columnName;
+        c.odpsType = typeTransformer.toOdpsTypeV2(c.type).getTransformedType();
+      }
+
+      for (MetaSource.ColumnMetaModel pc : tableMetaModel.partitionColumns) {
+        pc.odpsColumnName = pc.columnName;
+        pc.odpsType = typeTransformer.toOdpsTypeV2(pc.type).getTransformedType();
+      }
+    }
+
+    public static TableConfig fromJson(String json) {
+      return GsonUtils.getFullConfigGson().fromJson(json, TableConfig.class);
+    }
+
+    public static String toJson(TableConfig config) {
+      return GsonUtils.getFullConfigGson().toJson(config);
     }
   }
 
@@ -283,6 +381,9 @@ public class MetaConfiguration {
     private int numOfPartitions;
     private int retryTimesLimit;
     private String whereCondition;
+
+    public Config() {
+    }
 
     public Config(Map<String, String> typeCustomizedConversion,
                   Map<String, String> columnNameCustomizedConversion,
@@ -318,51 +419,53 @@ public class MetaConfiguration {
   }
 
   public Config getTableConfig(String dataBase, String tableName) {
-    if (this.tableConfig.containsKey(dataBase)) {
-      if (this.tableConfig.get(dataBase).containsKey(tableName)) {
-        return this.tableConfig.get(dataBase).get(tableName).tableConfig;
+    if (this.tableConfigMap.containsKey(dataBase)) {
+      if (this.tableConfigMap.get(dataBase).containsKey(tableName)) {
+        return this.tableConfigMap.get(dataBase).get(tableName).config;
       }
     }
     return null;
   }
 
   public boolean validateAndInitConfig() {
-    boolean validated = true;
+    boolean valid = true;
     switch (this.dataSource) {
       case Hive:
         if (!this.hiveConfiguration.validate()) {
-          validated = false;
+          valid = false;
           LOG.error("Validate MetaConfiguration failed due to {}", this.hiveConfiguration);
         }
         break;
       case OSS:
         if (!this.ossConfiguration.validate()) {
-          validated = false;
+          valid = false;
           LOG.error("Validate MetaConfiguration failed due to {}", this.ossConfiguration);
         }
         break;
     }
-    if (odpsConfiguration.validate()) {
-      validated = false;
+
+    if (!odpsConfiguration.validate()) {
+      valid = false;
       LOG.error("Validate MetaConfiguration failed due to {}", this.odpsConfiguration);
     }
 
-    if (!validated) {
+    if (!valid) {
       return false;
     }
 
     this.migrationJobId = createMigrationJobId();
-    for (TablesGroup tablesGroup : tablesGroupList) {
-      for (Table table : tablesGroup.tables) {
-        this.tableConfig.putIfAbsent(table.sourceDataBase, new HashMap<>());
-        if (table.tableConfig == null) {
-          if (tablesGroup.groupTableConfig != null) {
-            table.tableConfig = tablesGroup.groupTableConfig;
+    this.tableConfigMap = new HashMap<>();
+    for (TableGroup tableGroup : tableGroups) {
+      for (TableConfig table : tableGroup.tableConfigs) {
+        this.tableConfigMap.putIfAbsent(table.sourceDataBase, new HashMap<>());
+        if (table.config == null) {
+          if (tableGroup.config != null) {
+            table.config = tableGroup.config;
           } else if (this.globalTableConfig != null) {
-            table.tableConfig = globalTableConfig;
+            table.config = globalTableConfig;
           }
         }
-        this.tableConfig.get(table.sourceDataBase).put(table.sourceTableName, table);
+        this.tableConfigMap.get(table.sourceDataBase).put(table.sourceTableName, table);
       }
     }
     return true;

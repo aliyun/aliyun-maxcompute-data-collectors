@@ -1,4 +1,4 @@
-package com.aliyun.odps.datacarrier.metaprocessor;
+package com.aliyun.odps.datacarrier.taskscheduler;
 
 import com.aliyun.odps.datacarrier.commons.Constants.DATASOURCE_TYPE;
 import com.aliyun.odps.datacarrier.commons.risk.Risk;

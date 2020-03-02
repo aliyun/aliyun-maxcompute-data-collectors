@@ -5,8 +5,6 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
-
 // TODO: use interfaces provided by odps sdk to create table and partitions
 public class OdpsSqlUtilsTest {
 
@@ -58,8 +56,8 @@ public class OdpsSqlUtilsTest {
                       + "test.`test_partitioned`\n"
                       + "ADD IF NOT EXISTS\n"
                       + "PARTITION (bar='hello_world');\n";
-    List<String> actual = OdpsSqlUtils.getAddPartitionStatement(partitioned);
-    Assert.assertEquals(expected, actual.get(0));
+    String actual = OdpsSqlUtils.getAddPartitionStatement(partitioned);
+    Assert.assertEquals(expected, actual);
   }
 
   @Test

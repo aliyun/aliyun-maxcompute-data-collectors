@@ -19,15 +19,14 @@
 
 package com.aliyun.odps.datacarrier.transfer;
 
-import org.apache.hadoop.fs.FileSystem;
-
-import org.apache.hadoop.conf.Configuration;
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import org.apache.hadoop.fs.Path;
 import java.util.Properties;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 /**
  * @author: Jon (wangzhong.zw@alibaba-inc.com)
@@ -43,16 +42,11 @@ public class OdpsConfig {
   private Properties properties;
 
   public OdpsConfig(String filename) throws IOException {
-    try {
-      // filename = "hdfs://emr-header-1.cluster-139215:9000//user/root/mma/odps_config.ini";
-      Path path = new Path(filename);
-      FileSystem fs = FileSystem.get(new Configuration());
-      BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(path)));
-      this.properties = new Properties();
-      this.properties.load(br);
-    } catch (Exception e) {
-      System.out.print(e);
-    }
+    Path path = new Path(filename);
+    FileSystem fs = path.getFileSystem(new Configuration());
+    BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(path)));
+    this.properties = new Properties();
+    this.properties.load(br);
   }
 
   public String getAccessId() {

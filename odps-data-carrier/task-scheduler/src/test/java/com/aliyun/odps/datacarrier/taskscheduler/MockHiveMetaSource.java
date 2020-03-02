@@ -6,7 +6,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import com.aliyun.odps.datacarrier.metacarrier.MetaSource;
 
 public class MockHiveMetaSource implements MetaSource {
 

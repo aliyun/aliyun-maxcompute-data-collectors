@@ -486,14 +486,13 @@ class MigrationRunner:
 
             executor = ThreadPoolExecutor(self._parallelism)
             hive_script_to_futures = {}
-            finished_hive_script = set()
 
             for i in range(0, len(hive_verify_sql_scripts)):
                 hive_verify_sql_path = os.path.join(hive_verify_sql_dir,
                                                     hive_verify_sql_scripts[i])
                 odps_verify_sql_path = os.path.join(odps_verify_sql_dir,
                                                     odps_verify_sql_scripts[i])
-                if self._hive_meta_non_partitioned is not None:
+                if self._hive_meta_non_partitioned is not None and self._hive_meta_partitioned is not None:
                     future = executor.submit(self._data_validator.verify_with_hive_meta,
                                              hive_db,
                                              hive_tbl,

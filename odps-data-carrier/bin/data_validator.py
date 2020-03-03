@@ -210,19 +210,32 @@ class DataValidator:
             partition_values_to_count = self._get_partition_values_to_count(odps_stdout)
             ret = True
             fd = open(validate_failed_partition_list_path, 'a')
-            for partition_values in partition_values_to_count.keys():
-                count = partition_values_to_count[partition_values]
-                if partition_values not in hive_meta_partitioned["%s.%s" % (hive_db, hive_tbl)]:
-                    raise Exception("Hive meta doesn't contains %s.%s(%s)" % (hive_db,
-                                                                              hive_tbl,
-                                                                              partition_values))
-                if hive_meta_partitioned["%s.%s" % (hive_db, hive_tbl)][partition_values] != count:
+            for partition_values in hive_meta_partitioned["%s.%s" % (hive_db, hive_tbl)]:
+                partition_spec = self._get_partition_spec(partition_cols,
+                                                          partition_values.split("/"))
+                if partition_values not in partition_values_to_count:
                     ret = False
                     fd.write("%s.%s(%s):%s.%s\n" % (hive_db,
                                                     hive_tbl,
-                                                    self._get_partition_spec(partition_cols, partition_values.split("/")),
+                                                    partition_spec,
                                                     mc_pjt,
                                                     mc_tbl))
+                    continue
+                diff = 1 - (partition_values_to_count[partition_values] /
+                            hive_meta_partitioned["%s.%s" % (hive_db, hive_tbl)][partition_values])
+                if abs(diff) > 0.01:
+                    ret = False
+                    fd.write("%s.%s(%s):%s.%s\n" % (hive_db,
+                                                    hive_tbl,
+                                                    partition_spec,
+                                                    mc_pjt,
+                                                    mc_tbl))
+                elif diff != 0:
+                    fd.write("# %s.%s(%s):%s.%s, diff: %.2f%%\n" % (hive_db,
+                                                                   hive_tbl,
+                                                                   partition_spec,
+                                                                   mc_pjt,
+                                                                   mc_tbl, diff * 100))
             fd.close()
             return ret
         else:

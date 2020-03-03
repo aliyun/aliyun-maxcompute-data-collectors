@@ -4,6 +4,7 @@ import com.aliyun.odps.datacarrier.taskscheduler.MetaConfiguration.*;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,10 +20,10 @@ public class TestTableSplitter {
   private MetaConfiguration metaConfiguration;
 
   @Before
-  public void setup() {
+  public void setup() throws IOException {
     taskScheduler = new TaskScheduler();
     taskScheduler.initActions(DataSource.Hive);
-    metaConfiguration = MetaConfigurationUtils.generateSampleMetaConfiguration();
+    metaConfiguration = MetaConfigurationUtils.generateSampleMetaConfiguration(null, null);
   }
 
   @Test(timeout = 5000)

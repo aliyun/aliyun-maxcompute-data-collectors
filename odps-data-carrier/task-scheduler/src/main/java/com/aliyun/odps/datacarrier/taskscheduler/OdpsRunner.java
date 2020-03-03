@@ -26,11 +26,7 @@ public class OdpsRunner extends AbstractTaskRunner {
   private static final Logger LOG = LogManager.getLogger(OdpsRunner.class);
   private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
-
   private static final long TOKEN_EXPIRE_INTERVAL = 7 * 24; // hours
-  private static final String ODPS_CONFIG_INI = "odps_config.ini";
-
-  private static Properties properties;
   private static Odps odps;
 
   public OdpsRunner(MetaConfiguration.OdpsConfiguration odpsConfiguration) {
@@ -47,13 +43,13 @@ public class OdpsRunner extends AbstractTaskRunner {
   }
 
   public static class OdpsSqlExecutor implements Runnable {
-    private String sql;
+    private List<String> sqls;
     private Task task;
     private Action action;
     private String executionTaskName;
 
-    OdpsSqlExecutor(String sql, Task task, Action action, String executionTaskName) {
-      this.sql = sql;
+    OdpsSqlExecutor(List<String> sqls, Task task, Action action, String executionTaskName) {
+      this.sqls = sqls;
       this.task = task;
       this.action = action;
       this.executionTaskName = executionTaskName;
@@ -63,94 +59,93 @@ public class OdpsRunner extends AbstractTaskRunner {
     public void run() {
       Instance i;
 
-      // Submit
-      try {
-        //validate sql statement, multi-statement query will set odps.sql.submit.mode=script
-        Map<String, String> hints = new HashMap<>();
-        if (sql.chars().filter(ch -> ch == ';').count() > 1) {
-          LOG.info("multi-statement query, will 'SET odps.sql.submit.mode=script'");
-          hints.put("odps.sql.submit.mode", "script");
+      for (String sql : sqls) {
+        // Submit
+        try {
+          Map<String, String> hints = new HashMap<>();
+          hints.put("odps.sql.type.system.odps2", "true");
+          hints.put("odps.sql.allow.fullscan", "true");
+          i = SQLTask.run(odps, odps.getDefaultProject(), sql, hints, null);
+        } catch (OdpsException e) {
+          LOG.error("Submit ODPS Sql failed, task: " + task +
+                    ", executionTaskName: " + executionTaskName +
+                    ", project: " + odps.getDefaultProject() +
+                    ", sql: \n" + sql +
+                    ", exception: " + e.toString());
+          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          return;
+        } catch (RuntimeException e) {
+          LOG.error("Submit ODPS Sql failed, task: " + task +
+                    ", executionTaskName: " + executionTaskName +
+                    ", project: " + odps.getDefaultProject() +
+                    ", sql: \n" + sql +
+                    ", exception: " + e.getMessage());
+          e.printStackTrace();
+          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          return;
         }
-        hints.put("odps.sql.type.system.odps2", "true");
-        hints.put("odps.sql.allow.fullscan", "true");
-        i = SQLTask.run(odps, odps.getDefaultProject(), sql, hints, null);
-      } catch (OdpsException e) {
-        LOG.error("Submit ODPS Sql failed, task: " + task +
-            ", executionTaskName: " + executionTaskName +
-            ", project: " + odps.getDefaultProject() +
-            ", sql: \n" + sql +
-            ", exception: " + e.toString());
-        task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
-        return;
-      } catch (RuntimeException e) {
-        LOG.error("Submit ODPS Sql failed, task: " + task +
-            ", executionTaskName: " + executionTaskName +
-            ", project: " + odps.getDefaultProject() +
-            ", sql: \n" + sql +
-            ", exception: " + e.getMessage());
-        e.printStackTrace();
-        task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
-        return;
-      }
 
-      // Wait for success
-      try {
-        i.waitForSuccess();
-      } catch (OdpsException e) {
-        LOG.error("Run ODPS Sql failed, task: " + task +
-            ", executionTaskName: " + executionTaskName +
-            ", sql: \n" + sql +
-            ", exception: " + e.toString());
-        task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
-        return;
-      }
+        // Wait for success
+        try {
+          i.waitForSuccess();
+        } catch (OdpsException e) {
+          LOG.error("Run ODPS Sql failed, task: " + task +
+                    ", executionTaskName: " + executionTaskName +
+                    ", sql: \n" + sql +
+                    ", exception: " + e.toString());
+          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          return;
+        }
 
-      // Update execution info
-      OdpsExecutionInfo odpsExecutionInfo =
-          (OdpsExecutionInfo) task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
-      String instanceId = i.getId();
-      odpsExecutionInfo.setInstanceId(instanceId);
-      try {
-        String logView = i.getOdps().logview().generateLogView(i, TOKEN_EXPIRE_INTERVAL);
-        odpsExecutionInfo.setLogView(logView);
-      } catch (OdpsException e) {
-        LOG.error("Generate ODPS Sql logview failed, task: {}, executionTaskName: {}, "
-                  + "instance id: {}, exception: {}", task, executionTaskName, instanceId,
-                  ExceptionUtils.getStackTrace(e));
-      }
+        // Update execution info
+        // TODO: execution info is overwrote
+        OdpsExecutionInfo odpsExecutionInfo =
+            (OdpsExecutionInfo) task.actionInfoMap.get(action).executionInfoMap
+                .get(executionTaskName);
+        String instanceId = i.getId();
+        odpsExecutionInfo.setInstanceId(instanceId);
+        try {
+          String logView = i.getOdps().logview().generateLogView(i, TOKEN_EXPIRE_INTERVAL);
+          odpsExecutionInfo.setLogView(logView);
+        } catch (OdpsException e) {
+          LOG.error("Generate ODPS Sql logview failed, task: {}, executionTaskName: {}, "
+                    + "instance id: {}, exception: {}", task, executionTaskName, instanceId,
+                    ExceptionUtils.getStackTrace(e));
+        }
 
-      LOG.debug("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
-      RUNNER_LOG.info("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
+        LOG.debug("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
+        RUNNER_LOG.info("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
+      }
 
       // need result when sql is node script mode.
-      if (!odpsExecutionInfo.isScriptMode()) {
-        try {
-          List<Record> records = SQLTask.getResult(i);
-          if (Action.VALIDATION_BY_TABLE.equals(action)) {
-            // hacky: get result for count(1), only 1 record and 1 column.
-            String result = records.get(0).get(0).toString();
-            odpsExecutionInfo.setResult(result);
-          } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
-            //TODO[mingyou] need to support multiple partition key.
-            List<String> partitionValues = Lists.newArrayList(records.get(0).toString().split("\n"));
-            List<String> counts = Lists.newArrayList(records.get(1).toString().split("\n"));
-            if(partitionValues.size() != counts.size()) {
-              odpsExecutionInfo.setMultiRecordResult(Collections.emptyMap());
-            } else {
-              Map<String, String> result = new HashMap<>();
-              for (int index = 0; index < partitionValues.size(); index++) {
-                result.put(partitionValues.get(index), counts.get(index));
-              }
-              odpsExecutionInfo.setMultiRecordResult(result);
-            }
-          }
-        } catch (OdpsException e) {
-          LOG.error("Get ODPS Sql result failed, task: " + task +
-              ", executionTaskName: " + executionTaskName +
-              ", sql: \n" + sql +
-              ", exception: " + e.toString());
-        }
-      }
+//      if (!odpsExecutionInfo.isScriptMode()) {
+//        try {
+//          List<Record> records = SQLTask.getResult(i);
+//          if (Action.VALIDATION_BY_TABLE.equals(action)) {
+//            // hacky: get result for count(1), only 1 record and 1 column.
+//            String result = records.get(0).get(0).toString();
+//            odpsExecutionInfo.setResult(result);
+//          } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
+//            //TODO[mingyou] need to support multiple partition key.
+//            List<String> partitionValues = Lists.newArrayList(records.get(0).toString().split("\n"));
+//            List<String> counts = Lists.newArrayList(records.get(1).toString().split("\n"));
+//            if(partitionValues.size() != counts.size()) {
+//              odpsExecutionInfo.setMultiRecordResult(Collections.emptyMap());
+//            } else {
+//              Map<String, String> result = new HashMap<>();
+//              for (int index = 0; index < partitionValues.size(); index++) {
+//                result.put(partitionValues.get(index), counts.get(index));
+//              }
+//              odpsExecutionInfo.setMultiRecordResult(result);
+//            }
+//          }
+//        } catch (OdpsException e) {
+//          LOG.error("Get ODPS Sql result failed, task: " + task +
+//              ", executionTaskName: " + executionTaskName +
+//              ", sql: \n" + sql +
+//              ", exception: " + e.toString());
+//        }
+//      }
       task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
     }
   }

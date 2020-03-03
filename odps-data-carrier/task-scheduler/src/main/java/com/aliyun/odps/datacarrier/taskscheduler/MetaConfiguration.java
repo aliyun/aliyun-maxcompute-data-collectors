@@ -2,6 +2,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -143,7 +144,10 @@ public class MetaConfiguration {
     private String thriftAddr;
     private String krbPrincipal;
     private String keyTab;
+    // TODO: consider a list?
     private String[] krbSystemProperties;
+    // Ensures not null when deserialized from json
+    private List<String> hiveJdbcExtraSettings;
 
     public HiveConfiguration(String hiveJdbcAddress,
                              String user,
@@ -151,7 +155,8 @@ public class MetaConfiguration {
                              String thriftAddr,
                              String krbPrincipal,
                              String keyTab,
-                             String[] krbSystemProperties) {
+                             String[] krbSystemProperties,
+                             List<String> hiveJdbcExtraSettings) {
       this.hiveJdbcAddress = hiveJdbcAddress;
       this.user = user;
       this.password = password;
@@ -159,9 +164,18 @@ public class MetaConfiguration {
       this.krbPrincipal = krbPrincipal;
       this.keyTab = keyTab;
       this.krbSystemProperties = krbSystemProperties;
+      this.hiveJdbcExtraSettings = hiveJdbcExtraSettings;
     }
 
     public boolean validate() {
+      if (hiveJdbcExtraSettings == null || hiveJdbcExtraSettings.isEmpty()) {
+        return false;
+      }
+      for (String setting : hiveJdbcExtraSettings) {
+        if (StringUtils.isNullOrEmpty(setting)) {
+          return false;
+        }
+      }
       return (!StringUtils.isNullOrEmpty(hiveJdbcAddress) &&
               !StringUtils.isNullOrEmpty(thriftAddr));
     }
@@ -194,6 +208,10 @@ public class MetaConfiguration {
       return krbSystemProperties;
     }
 
+    public List<String> getHiveJdbcExtraSettings() {
+      return hiveJdbcExtraSettings;
+    }
+
     @Override
     public String toString() {
       final StringBuilder sb = new StringBuilder("HiveConfiguration {");
@@ -202,6 +220,7 @@ public class MetaConfiguration {
       sb.append(", krbPrincipal='").append(krbPrincipal).append('\'');
       sb.append(", keyTab='").append(keyTab).append('\'');
       sb.append(", krbSystemProperties=").append(Arrays.toString(krbSystemProperties));
+      sb.append(", hiveJdbcExtraSettings=").append(String.join(",", hiveJdbcExtraSettings));
       sb.append('}');
       return sb.toString();
     }

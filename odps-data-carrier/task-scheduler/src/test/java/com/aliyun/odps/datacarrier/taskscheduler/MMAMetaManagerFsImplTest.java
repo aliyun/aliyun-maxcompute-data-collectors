@@ -28,6 +28,7 @@
 //    metaSource = new MockHiveMetaSource();
 //    metaManager = new MMAMetaManagerFsImpl(null, metaSource);
 //    for (String table : metaSource.listTables(DEFAULT_DB)) {
+//      TODO: generate table config to run test
 //      metaManager.initMigration();
 //    }
 //  }

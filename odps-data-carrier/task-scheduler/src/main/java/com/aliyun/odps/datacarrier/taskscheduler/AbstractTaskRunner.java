@@ -1,11 +1,7 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.utils.StringUtils;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
@@ -14,6 +10,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 abstract class AbstractTaskRunner implements TaskRunner {
 
@@ -41,30 +39,31 @@ abstract class AbstractTaskRunner implements TaskRunner {
     }
   }
 
-  private String generateSqlStatement(Task task, Action action) {
-    StringBuilder sb = new StringBuilder();
+  private List<String> getSqlStatements(Task task, Action action) {
+    List<String> sqlStatements = new LinkedList<>();
     switch (action) {
       case ODPS_CREATE_TABLE:
-        if (task.tableMetaModel.partitions.isEmpty()) {
+        if (task.tableMetaModel.partitionColumns.isEmpty()) {
           //Non-partition table should drop table at first.
-          sb.append(OdpsSqlUtils.getDropTableStatement(task.tableMetaModel));
+          sqlStatements.add(OdpsSqlUtils.getDropTableStatement(task.tableMetaModel));
         }
-        sb.append(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel));
-        return sb.toString();
+        sqlStatements.add(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel));
+        return sqlStatements;
       case ODPS_ADD_PARTITION:
-        OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel).forEach(s -> sb.append(s));
-        return sb.toString();
+        sqlStatements.add(OdpsSqlUtils.getDropPartitionStatement(task.tableMetaModel));
+        sqlStatements.add(OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel));
+        return sqlStatements;
       case HIVE_LOAD_DATA:
-        sb.append(HiveSqlUtils.getUdtfSql(task.tableMetaModel));
-        return sb.toString();
+        sqlStatements.add(HiveSqlUtils.getUdtfSql(task.tableMetaModel));
+        return sqlStatements;
       case HIVE_VALIDATE:
-        sb.append(HiveSqlUtils.getVerifySql(task.tableMetaModel));
-        return sb.toString();
+        sqlStatements.add(HiveSqlUtils.getVerifySql(task.tableMetaModel));
+        return sqlStatements;
       case ODPS_VALIDATE:
-        sb.append(OdpsSqlUtils.getVerifySql(task.tableMetaModel));
-        return sb.toString();
+        sqlStatements.add(OdpsSqlUtils.getVerifySql(task.tableMetaModel));
+        return sqlStatements;
       default:
-        return "";
+        return sqlStatements;
     }
   }
 
@@ -72,24 +71,9 @@ abstract class AbstractTaskRunner implements TaskRunner {
     AbstractExecutionInfo executionInfo =
         task.actionInfoMap.get(action).executionInfoMap.get(executionTaskName);
 
-    String sqlStr;
-    if (executionInfo.isScriptMode()) {
-      Path sqlPath = executionInfo.getSqlPath();
-      try {
-        sqlStr = new String(Files.readAllBytes(sqlPath));
-      } catch (IOException e) {
-        LOG.error("Submit execution task failed, " + "executionTaskName: " + executionTaskName +
-            ", path: " + sqlPath.toString());
-        task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
-        return;
-      }
-    } else if (StringUtils.isNullOrEmpty(executionInfo.getSqlStatements())) {
-      // TODO: deprecated
-      sqlStr = executionInfo.getSqlStatements();
-    } else {
-      sqlStr = generateSqlStatement(task, action);
-    }
-    if (StringUtils.isNullOrEmpty(sqlStr)) {
+    List<String> sqlStatements = getSqlStatements(task, action);
+    LOG.info("SQL Statements: {}", String.join(", ", sqlStatements));
+    if (sqlStatements.isEmpty()) {
       task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
       LOG.error("Empty sqlStatement, mark done, executionTaskName: " + executionTaskName);
       return;
@@ -100,9 +84,15 @@ abstract class AbstractTaskRunner implements TaskRunner {
     // TODO: this is not clear, HiveRunner and OdpsRunner should impl their own submitExecutionTask
     //  method
     if (RunnerType.HIVE.equals(runnerType)) {
-      this.runnerPool.execute(new HiveRunner.HiveSqlExecutor(sqlStr, task, action, executionTaskName));
+      this.runnerPool.execute(new HiveRunner.HiveSqlExecutor(sqlStatements,
+                                                             task,
+                                                             action,
+                                                             executionTaskName));
     } else if (RunnerType.ODPS.equals(runnerType)) {
-      this.runnerPool.execute(new OdpsRunner.OdpsSqlExecutor(sqlStr, task, action, executionTaskName));
+      this.runnerPool.execute(new OdpsRunner.OdpsSqlExecutor(sqlStatements,
+                                                             task,
+                                                             action,
+                                                             executionTaskName));
     }
   }
 

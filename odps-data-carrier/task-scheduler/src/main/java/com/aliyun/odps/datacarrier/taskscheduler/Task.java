@@ -10,17 +10,14 @@ import org.apache.logging.log4j.Logger;
 class Task {
 
   private static final Logger LOG = LogManager.getLogger(Task.class);
-  protected String project; //source project
-  protected String tableName; //source table
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
 
-  public Task(String project, String tableName, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
-    this.project = project;
-    this.tableName = tableName;
+  public Task(MetaSource.TableMetaModel tableMetaModel,
+              MetaConfiguration.Config tableConfig) {
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
@@ -28,7 +25,7 @@ class Task {
     this.progress = Progress.NEW;
   }
 
-  class ActionInfo {
+  static class ActionInfo {
     protected Progress progress = Progress.NEW;
     protected Map<String, AbstractExecutionInfo> executionInfoMap = new ConcurrentHashMap<>();
   }
@@ -64,6 +61,7 @@ class Task {
     }
   }
 
+  // TODO: has side effects, will change action status and task status as well
   protected void changeExecutionProgress(Action action, String executionTaskName, Progress newProgress) {
     if (!actionInfoMap.containsKey(action)) {
       return;
@@ -73,6 +71,8 @@ class Task {
     if (!executionInfoMap.containsKey(executionTaskName)) {
       return;
     }
+
+    // TODO: is this necessary?
     if (newProgress.equals(executionInfoMap.get(executionTaskName).progress)) {
       return;
     }
@@ -105,17 +105,20 @@ class Task {
   private boolean updateActionProgress(ActionInfo actionInfo, Progress executionProgress) {
     boolean actionProgressChanged = false;
     if (Progress.SUCCEEDED.equals(executionProgress)) {
+      // Check if all subtask has succeeded, set the task status to succeeded if true
       if (!Progress.SUCCEEDED.equals(actionInfo.progress)
           && actionInfo.executionInfoMap.values().stream().allMatch(v -> v.progress.equals(Progress.SUCCEEDED))) {
         actionInfo.progress = Progress.SUCCEEDED;
         actionProgressChanged = true;
       }
     } else if (Progress.FAILED.equals(executionProgress)) {
+      // Set the task status to failed if any subtask failed
       if (!Progress.FAILED.equals(actionInfo.progress)) {
         actionInfo.progress = Progress.FAILED;
         actionProgressChanged = true;
       }
     } else if (Progress.RUNNING.equals(executionProgress)) {
+      // TODO: not very intuitive, should change the task status to running when it is scheduled
       if (Progress.NEW.equals(actionInfo.progress)) {
         actionInfo.progress = Progress.RUNNING;
         actionProgressChanged = true;
@@ -151,46 +154,36 @@ class Task {
       return false;
     }
 
-    if (Action.VALIDATION_BY_TABLE.equals(action)) {
-      if (!Progress.NEW.equals(actionInfoMap.get(action).progress)) {
-        return false;
-      }
-    } else {
-      if (!Progress.NEW.equals(actionInfoMap.get(action).progress)
-          && !Progress.RUNNING.equals(actionInfoMap.get(action).progress)) {
+    // If is action is already scheduled
+    if (!Progress.NEW.equals(actionInfoMap.get(action).progress)) {
+      return false;
+    }
+
+    // If its previous actions have finished successfully
+    for (Map.Entry<Action, ActionInfo> entry : actionInfoMap.entrySet()) {
+      if (entry.getKey().ordinal() < action.ordinal() &&
+          !Progress.SUCCEEDED.equals(entry.getValue().progress)) {
         return false;
       }
     }
 
-    for (Map.Entry<Action, ActionInfo> entry : actionInfoMap.entrySet()) {
-      if (entry.getKey().ordinal() < action.ordinal()
-          && !Progress.SUCCEEDED.equals(entry.getValue().progress)) {
-        return false;
-      }
-    }
     return true;
   }
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder("[");
-    sb.append(project).append(".").append(tableName).append("]");
-    return sb.toString();
+    return "[" + tableMetaModel.databaseName + "." + tableMetaModel.tableName + "]";
   }
 
-  public String getTableNameWithProject() {
-    final StringBuilder sb = new StringBuilder(project);
-    sb.append(".").append(tableName);
-    return sb.toString();
+  public String getSourceDatabaseName() {
+    return tableMetaModel.databaseName;
   }
 
-
-
-  public String getProject() {
-    return project;
+  public String getSourceTableName() {
+    return tableMetaModel.tableName;
   }
 
-  public String getTableName() {
-    return tableName;
+  public String getName() {
+    return tableMetaModel.databaseName + "." + tableMetaModel.tableName;
   }
 }

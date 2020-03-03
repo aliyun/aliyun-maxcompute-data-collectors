@@ -57,7 +57,7 @@ if __name__ == '__main__':
         fd.truncate()
 
     # build and make dirs
-    ret = execute("mvn clean package")
+    ret = execute("mvn clean package -DskipTests")
     if ret != 0:
         print("Build failed, exit")
         sys.exit(1)

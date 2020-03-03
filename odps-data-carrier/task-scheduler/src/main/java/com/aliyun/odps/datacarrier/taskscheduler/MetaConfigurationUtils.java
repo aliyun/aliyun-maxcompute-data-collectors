@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -27,6 +27,18 @@ import static com.aliyun.odps.datacarrier.taskscheduler.Constants.*;
 
 public class MetaConfigurationUtils {
 
+  private static final List<String> hiveJdbcExtraSettings = new ArrayList<String>() {
+    {
+      add("hive.fetch.task.conversion=none");
+      add("hive.execution.engine=mr");
+      add("mapreduce.job.name=data-carrier");
+      add("mapreduce.max.split.size=512000000");
+      add("mapreduce.task.timeout=3600000");
+      add("mapreduce.map.maxattempts=0");
+      add("mapred.map.tasks.speculative.execution=false");
+    }
+  };
+
   public static MetaConfiguration readConfigFile(File configFile) throws IOException {
     if (!configFile.exists()) {
       throw new RuntimeException("Config file not exists (yet)");
@@ -39,8 +51,14 @@ public class MetaConfigurationUtils {
   public static MetaConfiguration generateSampleMetaConfiguration(String tableMappingFilePath,
                                                                   String odpsConfigFilePath) throws IOException {
     MetaConfiguration metaConfiguration = new MetaConfiguration("Jerry", "TestMigrationJob", DataSource.Hive);
-    HiveConfiguration hiveConfiguration = new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default", "Hive", "",
-        "thrift://127.0.0.1:9083", "", "", new String[]{""});
+    HiveConfiguration hiveConfiguration =
+        new HiveConfiguration("jdbc:hive2://127.0.0.1:10000/default",
+                              "Hive",
+                              "",
+                              "thrift://127.0.0.1:9083",
+                              "",
+                              "",
+                              new String[]{}, hiveJdbcExtraSettings);
     metaConfiguration.setHiveConfiguration(hiveConfiguration);
 
     if (StringUtils.isNullOrEmpty(odpsConfigFilePath)) {
@@ -102,7 +120,7 @@ public class MetaConfigurationUtils {
   public static File getDefaultConfigFile() {
     // TODO: use a fixed parent directory
     String currentDir = System.getProperty("user.dir");
-    return new File(currentDir + "/" + ODPS_DATA_CARRIER, META_CONFIG_FILE);
+    return new File(currentDir + "/" + META_CONFIG_FILE);
   }
 
   public static void generateConfigFile(File configFile, String tableMappingFilePath, String odpsConfigFilePath)

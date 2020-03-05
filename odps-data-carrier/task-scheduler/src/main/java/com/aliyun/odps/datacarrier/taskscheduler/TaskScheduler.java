@@ -7,6 +7,7 @@ import static com.aliyun.odps.datacarrier.taskscheduler.Constants.PASSWORD;
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.USER;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -68,7 +69,7 @@ public class TaskScheduler {
     this.tasks = new LinkedList<>();
   }
 
-  private void run(MetaConfiguration metaConfiguration) throws TException {
+  private void run(MetaConfiguration metaConfiguration) throws TException, IOException {
 
     // TODO: check if datasource and metasource are valid
     this.metaConfig = metaConfiguration;

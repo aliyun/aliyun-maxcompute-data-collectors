@@ -10,14 +10,15 @@ import org.apache.logging.log4j.Logger;
 class Task {
 
   private static final Logger LOG = LogManager.getLogger(Task.class);
+  private String taskId;
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
 
-  public Task(MetaSource.TableMetaModel tableMetaModel,
-              MetaConfiguration.Config tableConfig) {
+  public Task(String taskId, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
+    this.taskId = taskId;
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
@@ -173,6 +174,10 @@ class Task {
   @Override
   public String toString() {
     return "[" + tableMetaModel.databaseName + "." + tableMetaModel.tableName + "]";
+  }
+
+  public String getTaskId() {
+    return taskId;
   }
 
   public String getSourceDatabaseName() {

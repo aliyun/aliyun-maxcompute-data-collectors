@@ -27,7 +27,7 @@ public class TableSplitter implements TaskManager {
           metaConfiguration.getTableConfig(tableMetaModel.databaseName, tableMetaModel.tableName);
       // Empty partitions, means the table is non-partition table.
       if (tableMetaModel.partitionColumns.isEmpty()) {
-        Task task = new Task(tableMetaModel, tableConfig);
+        Task task = new Task(tableMetaModel.databaseName + "." + tableMetaModel.tableName, tableMetaModel, tableConfig);
         for (Action action : actions) {
           if (Action.ODPS_ADD_PARTITION.equals(action)) {
             continue;
@@ -51,14 +51,16 @@ public class TableSplitter implements TaskManager {
         for (int taskIndex = 0; taskIndex < numOfSplitSet; taskIndex++) {
           MetaSource.TableMetaModel clone = tableMetaModel.clone();
           clone.partitions = new LinkedList<>();
-          Task task = new Task(clone, tableConfig);
+          String taskId = tableMetaModel.databaseName + "." + tableMetaModel.tableName +
+              "." + numOfSplitSet + "_" + taskIndex;
+          Task task = new Task(taskId, clone, tableConfig);
           for (int partitionIndex = taskIndex * numPartitionsPerSet;
                partitionIndex < (taskIndex + 1) * numPartitionsPerSet && partitionIndex < numOfAllPartitions;
                partitionIndex++) {
             task.tableMetaModel.partitions.add(tableMetaModel.partitions.get(partitionIndex));
           }
           for (Action action : actions) {
-            task.addExecutionInfo(action, task.getName() + "." + taskIndex);
+            task.addExecutionInfo(action, taskId);
           }
           this.tasks.add(task);
         }

@@ -35,7 +35,7 @@ public class TestTableSplitter {
     assertTrue(tasks.stream().allMatch(t -> t.tableMetaModel.partitions.isEmpty()));
   }
 
-  @Test(timeout = 5000)
+  @Test//(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable0() {
     TableSplitter tableSplitter = new TableSplitter(updateMetaConfigAndCreateTables(1, 5, 1), metaConfiguration);
     List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
@@ -115,6 +115,9 @@ public class TestTableSplitter {
       tableMetaModel.tableName = tName;
       //Partitioned table.
       if (partitionsNum > 0) {
+        MetaSource.ColumnMetaModel columnMetaModel = new MetaSource.ColumnMetaModel();
+        columnMetaModel.columnName = columnName;
+        tableMetaModel.partitionColumns.add(columnMetaModel);
         tableMetaModel.partitions = createPartitions(date, partitionsNum);
       }
       tableMetaModels.add(tableMetaModel);

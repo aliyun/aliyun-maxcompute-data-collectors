@@ -1,0 +1,14 @@
+dma_demo.catalog_sales:ODPS_DATA_CARRIER_TEST.catalog_sales
+dma_demo.inventory:ODPS_DATA_CARRIER_TEST.inventory
+dma_demo.store_sales:ODPS_DATA_CARRIER_TEST.store_sales
+dma_demo.test_partition:ODPS_DATA_CARRIER_TEST.test_partition
+dma_demo.web_sales:ODPS_DATA_CARRIER_TEST.web_sales
+
+dma_demo.web_sales:ODPS_DATA_CARRIER_TEST2.web_sales
+dma_demo.web_sales:ODPS_DATA_CARRIER_TEST2.web_sales
+
+dma_demo.web_sales:ODPS_DATA_CARRIER_TEST3.web_sales
+dma_demo.web_sales:ODPS_DATA_CARRIER_TEST3.web_sales2
+
+dma_demo2.web_sales:ODPS_DATA_CARRIER_TEST4.web_sales
+dma_demo2.web_sales2:ODPS_DATA_CARRIER_TEST4.web_sales2

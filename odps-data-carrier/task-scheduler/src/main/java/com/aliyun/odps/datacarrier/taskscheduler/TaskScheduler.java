@@ -3,8 +3,6 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.META_CONFIG_FILE;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.PASSWORD;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.USER;
 
 import java.io.File;
 import java.util.Comparator;
@@ -27,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 
-import com.aliyun.odps.utils.StringUtils;
 import com.google.common.annotations.VisibleForTesting;
 
 public class TaskScheduler {
@@ -259,8 +256,8 @@ public class TaskScheduler {
 
     // Print logs
     for (Task task : tasks) {
-      StringBuilder csb = new StringBuilder(task.toString());
-      StringBuilder sb = new StringBuilder(task.toString());
+      StringBuilder csb = new StringBuilder(task.getTaskId());
+      StringBuilder sb = new StringBuilder(task.getTaskId());
       csb.append(":").append(task.progress.toColorString()).append("--> ");
       sb.append(":").append(task.progress).append("--> ");
       for (Action action : actions) {
@@ -325,7 +322,7 @@ public class TaskScheduler {
         continue;
       }
 
-      LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
+      LOG.info("Task {} - Action {} is ready to schedule.", task.getTaskId(), action.name());
 
       // Schedule
       for (Map.Entry<String, AbstractExecutionInfo> entry :
@@ -336,7 +333,7 @@ public class TaskScheduler {
         String executionTaskName = entry.getKey();
         task.changeExecutionProgress(action, executionTaskName, Progress.RUNNING);
         LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
-                 task.toString(), action.name(), executionTaskName);
+                 task.getTaskId(), action.name(), executionTaskName);
         getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action, executionTaskName);
         actionScheduleInfo.concurrency++;
       }

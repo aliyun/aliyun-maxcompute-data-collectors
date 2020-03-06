@@ -1,10 +1,13 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.StringReader;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -42,10 +45,34 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   private static final String PARTITION_LIST_FAILED = "partitions_failed";
   private static final String PARTITION_LIST_SUCCEEDED = "partitions_succeeded";
 
+  /**
+   * Control process level access
+   */
+  private static class Lock {
+    private RandomAccessFile ram;
+    private FileLock lock;
+
+    public Lock(RandomAccessFile ram, FileLock lock) {
+      if (ram == null || lock == null) {
+        throw new IllegalArgumentException("'fis' or 'lock' cannot be null");
+      }
+
+      this.ram = ram;
+
+      this.lock = lock;
+    }
+
+    public void release() throws IOException {
+      lock.release();
+      ram.close();
+    }
+  }
+  private static Lock lock;
+
   private Path workspace;
   private MetaSource metaSource;
 
-  public MMAMetaManagerFsImpl(String parentDir, MetaSource metaSource) {
+  public MMAMetaManagerFsImpl(String parentDir, MetaSource metaSource) throws IOException {
     if (parentDir == null) {
       // TODO: use a fixed parent directory
       parentDir = System.getProperty("user.dir");
@@ -53,6 +80,12 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
     this.workspace = Paths.get(parentDir, META_DIR_NAME).toAbsolutePath();
     this.metaSource = metaSource;
+
+    // Create lock file
+    LOG.info("lock path: {}", getLockPath().toString());
+    if (!getLockPath().toFile().exists()) {
+      DirUtils.writeFile(getLockPath(), Long.toString(System.currentTimeMillis()));
+    }
   }
 
   @Override
@@ -60,90 +93,95 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     if (config == null) {
       throw new IllegalArgumentException("'config' cannot be null");
     }
+    acquireLock();
 
-    String db = config.sourceDataBase;
-    String tbl = config.sourceTableName;
+    try {
+      String db = config.sourceDataBase;
+      String tbl = config.sourceTableName;
 
-    Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
-    Path metadataPath = getMetadataPath(db, tbl);
-    Path configPath = getConfigPath(db, tbl);
+      Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
+      Path metadataPath = getMetadataPath(db, tbl);
+      Path configPath = getConfigPath(db, tbl);
 
-    // If the dir already exists
-    // TODO: maybe we should force overwrite existing dir
-    if (tableMetaDir.toFile().exists()) {
-      LOG.info("Migration root dir exists, db: " + db +
-               ", tbl: " + tbl + ", path" + tableMetaDir.toString());
-      // If migration root dir exists and status is not running or pending, remove it and continue
-      MigrationStatus status = getStatusInternal(db, tbl);
-      if (status.equals(MigrationStatus.RUNNING) || status.equals(MigrationStatus.PENDING)) {
-        throw new IllegalStateException("Failed to init migration, current status: "
-                                        + status.toString());
+      // If the dir already exists
+      // TODO: maybe we should force overwrite existing dir
+      if (tableMetaDir.toFile().exists()) {
+        LOG.info("Migration root dir exists, db: " + db +
+                 ", tbl: " + tbl + ", path" + tableMetaDir.toString());
+        // If migration root dir exists and status is not running or pending, remove it and continue
+        MigrationStatus status = getStatusInternal(db, tbl);
+        if (status.equals(MigrationStatus.RUNNING) || status.equals(MigrationStatus.PENDING)) {
+          throw new IllegalStateException("Failed to init migration, current status: "
+                                          + status.toString());
+        }
+        // Remove the migration root dir and continue
+        if (!DirUtils.removeDir(tableMetaDir)) {
+          throw new IllegalStateException("Failed to init migration, remove "
+                                          + tableMetaDir.toString() + " failed");
+        }
       }
-      // Remove the migration root dir and continue
-      if (!DirUtils.removeDir(tableMetaDir)) {
-        throw new IllegalStateException("Failed to init migration, remove "
-                                        + tableMetaDir.toString() + " failed");
+
+      // Init metadata file
+      try {
+        String content = String.format("%s\n%d", MigrationStatus.PENDING.toString(), 0);
+        DirUtils.writeFile(metadataPath, content);
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to init migration, write "
+                                        + metadataPath.toString() + " failed");
       }
-    }
 
-    // Init metadata file
-    try {
-      String content = String.format("%s\n%d", MigrationStatus.PENDING.toString(), 0);
-      DirUtils.writeFile(metadataPath, content);
-    } catch (IOException e) {
-      throw new IllegalStateException("Failed to init migration, write "
-                                      + metadataPath.toString() + " failed");
-    }
+      // Save configuration
+      try {
+        DirUtils.writeFile(configPath, MetaConfiguration.TableConfig.toJson(config));
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to init config, write "
+                                        + configPath.toString() + " failed");
+      }
 
-    // Save configuration
-    try {
-      DirUtils.writeFile(configPath, MetaConfiguration.TableConfig.toJson(config));
-    } catch (IOException e) {
-      throw new IllegalStateException("Failed to init migration, write "
-                                      + metadataPath.toString() + " failed");
-    }
+      // Create partitions_all, partitions_succeeded and partitions_failed for partitioned tables
+      try {
+        MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(db, tbl);
 
-    // Create partitions_all, partitions_succeeded and partitions_failed for partitioned tables
-    try {
-      MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(db, tbl);
+        if (tableMetaModel.partitionColumns.size() > 0) {
+          Path allPartitionListPath = getAllPartitionListPath(db, tbl);
+          Path succeededPartitionListPath = getSucceededPartitionListPath(db, tbl);
+          Path failedPartitionListPath = getFailedPartitionListPath(db, tbl);
 
-      if (tableMetaModel.partitionColumns.size() > 0) {
-        Path allPartitionListPath = getAllPartitionListPath(db, tbl);
-        Path succeededPartitionListPath = getSucceededPartitionListPath(db, tbl);
-        Path failedPartitionListPath = getFailedPartitionListPath(db, tbl);
-
-        // Create partitions_all, partitions_succeeded and partitions_failed for partitioned tables
-        if (!allPartitionListPath.toFile().createNewFile()) {
-          throw new IllegalStateException("Failed to create file " + PARTITION_LIST_ALL);
-        }
-        if (!succeededPartitionListPath.toFile().createNewFile()) {
-          throw new IllegalStateException("Failed to create file " + PARTITION_LIST_SUCCEEDED);
-        }
-        if (!failedPartitionListPath.toFile().createNewFile()) {
-          throw new IllegalStateException("Failed to create file " + PARTITION_LIST_FAILED);
-        }
-
-        // User doesn't specify any partition, get from HMS
-        if (config.partitionValuesList == null || config.partitionValuesList.isEmpty()) {
-          config.partitionValuesList = metaSource.listPartitions(db, tbl);
-        }
-
-        // Init PARTITION_LIST_ALL
-        try {
-          FileOutputStream fos = new FileOutputStream(allPartitionListPath.toFile());
-          CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
-          for (List<String> partitionValues : config.partitionValuesList) {
-            csvWriter.writeRecord(partitionValues.toArray(new String[0]));
+          // Create partitions_all, partitions_succeeded and partitions_failed for partitioned tables
+          if (!allPartitionListPath.toFile().createNewFile()) {
+            throw new IllegalStateException("Failed to create file " + PARTITION_LIST_ALL);
           }
-          csvWriter.close();
-        } catch (IOException e) {
-          throw new IllegalStateException("Failed to init migration, init "
-                                          + allPartitionListPath.toString() + " failed");
+          if (!succeededPartitionListPath.toFile().createNewFile()) {
+            throw new IllegalStateException("Failed to create file " + PARTITION_LIST_SUCCEEDED);
+          }
+          if (!failedPartitionListPath.toFile().createNewFile()) {
+            throw new IllegalStateException("Failed to create file " + PARTITION_LIST_FAILED);
+          }
+
+          // User doesn't specify any partition, get from HMS
+          if (config.partitionValuesList == null || config.partitionValuesList.isEmpty()) {
+            config.partitionValuesList = metaSource.listPartitions(db, tbl);
+          }
+
+          // Init PARTITION_LIST_ALL
+          try {
+            FileOutputStream fos = new FileOutputStream(allPartitionListPath.toFile());
+            CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
+            for (List<String> partitionValues : config.partitionValuesList) {
+              csvWriter.writeRecord(partitionValues.toArray(new String[0]));
+            }
+            csvWriter.close();
+          } catch (IOException e) {
+            throw new IllegalStateException("Failed to init migration, init "
+                                            + allPartitionListPath.toString() + " failed");
+          }
         }
+      } catch (Exception e) {
+        throw new IllegalStateException("Failed to get metadata, database: " + db + ", table: " +
+                                        tbl + ", stack trace: " + ExceptionUtils.getStackTrace(e));
       }
-    } catch (Exception e) {
-      throw new IllegalStateException("Failed to get metadata, database: " + db + ", table: " +
-                                      tbl + ", stack trace: " + ExceptionUtils.getStackTrace(e));
+    } finally {
+      releaseLock();
     }
   }
 
@@ -152,8 +190,13 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     if (db == null || tbl == null || status == null) {
       throw new IllegalArgumentException("'db' or 'tbl' or 'status' cannot be null");
     }
+    acquireLock();
 
-    updateStatusInternal(db, tbl, status);
+    try {
+      updateStatusInternal(db, tbl, status);
+    } finally {
+      releaseLock();
+    }
   }
 
   private void updateStatusInternal(String db, String tbl, MigrationStatus status) {
@@ -187,27 +230,37 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   public synchronized void updateStatus(String db, String tbl,
                                         List<List<String>> partitionValuesList,
                                         MigrationStatus status) {
-    Path partitionListPath;
-    if (MigrationStatus.SUCCEEDED.equals(status)) {
-      partitionListPath = getSucceededPartitionListPath(db, tbl);
-    } else if (MigrationStatus.FAILED.equals(status)) {
-      partitionListPath = getFailedPartitionListPath(db, tbl);
-    } else {
-      return;
+    if (db == null || tbl == null || partitionValuesList == null ||  status == null) {
+      throw new IllegalArgumentException(
+          "'db' or 'tbl' or 'partitionValuesList' or 'status' cannot be null");
     }
+    acquireLock();
 
     try {
-      // Use csv to read/write the partition list files, since the partition values may contain
-      // special char
-      FileOutputStream fos = new FileOutputStream(partitionListPath.toFile(), true);
-      CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
-      for (List<String> partitionValues : partitionValuesList) {
-        csvWriter.writeRecord(partitionValues.toArray(new String[0]));
+      Path partitionListPath;
+      if (MigrationStatus.SUCCEEDED.equals(status)) {
+        partitionListPath = getSucceededPartitionListPath(db, tbl);
+      } else if (MigrationStatus.FAILED.equals(status)) {
+        partitionListPath = getFailedPartitionListPath(db, tbl);
+      } else {
+        return;
       }
-      csvWriter.close();
-    } catch (IOException e) {
-      throw new IllegalStateException("Failed to update status, write "
-                                      + partitionListPath.toString() + " failed");
+
+      try {
+        // Use csv to read/write the partition list files, since the partition values may contain
+        // special char
+        FileOutputStream fos = new FileOutputStream(partitionListPath.toFile(), true);
+        CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
+        for (List<String> partitionValues : partitionValuesList) {
+          csvWriter.writeRecord(partitionValues.toArray(new String[0]));
+        }
+        csvWriter.close();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to update status, write "
+                                        + partitionListPath.toString() + " failed");
+      }
+    } finally {
+      releaseLock();
     }
   }
 
@@ -216,8 +269,13 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
+    acquireLock();
 
-    return getStatusInternal(db, tbl);
+    try {
+      return getStatusInternal(db, tbl);
+    } finally {
+      releaseLock();
+    }
   }
 
   @Override
@@ -254,9 +312,14 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
+    acquireLock();
 
-    Path configPath = getConfigPath(db, tbl);
-    return getConfigInternal(configPath);
+    try {
+      Path configPath = getConfigPath(db, tbl);
+      return getConfigInternal(configPath);
+    } finally {
+      releaseLock();
+    }
   }
 
   private MetaConfiguration.TableConfig getConfigInternal(Path configPath) {
@@ -298,62 +361,68 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
   @Override
   public synchronized List<MetaSource.TableMetaModel> getPendingTables() {
-    List<MetaSource.TableMetaModel> ret = new LinkedList<>();
+    acquireLock();
 
-    for (String db : DirUtils.listDirs(Paths.get(workspace.toString()))) {
-      for (String tbl : DirUtils.listDirs(Paths.get(workspace.toString(), db))) {
-        MigrationStatus status = getStatusInternal(db, tbl);
-        if (!MigrationStatus.PENDING.equals(status)) {
-          continue;
-        }
-        try {
-          MetaSource.TableMetaModel tableMetaModel =
-              metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
+    try {
+      List<MetaSource.TableMetaModel> ret = new LinkedList<>();
 
-          // For partition tables, add its pending partitions
-          if (tableMetaModel.partitionColumns.size() > 0) {
-            // Get partitions to migrate
-            Set<String> allPartitionListRawLines =
-                new HashSet<>(getRawLinesFromAllPartitionList(db, tbl));
-            Set<String> succeededPartitionListRawLines =
-               new HashSet<>(getRawLinesFromSucceededPartitionList(db, tbl));
-            allPartitionListRawLines.removeAll(succeededPartitionListRawLines);
-
-            // Convert to partition values
-            StringReader reader = new StringReader(String.join("\n",
-                                                               allPartitionListRawLines));
-            CsvReader csvReader = new CsvReader(reader);
-            List<MetaSource.PartitionMetaModel> partitions = new LinkedList<>();
-            while (csvReader.readRecord()) {
-              MetaSource.PartitionMetaModel partitionMetaModel =
-                  metaSource.getPartitionMeta(db, tbl, Arrays.asList(csvReader.getValues()));
-              partitions.add(partitionMetaModel);
-            }
-            csvReader.close();
-            reader.close();
-
-            // Add to table meta model
-            tableMetaModel.partitions = partitions;
+      for (String db : DirUtils.listDirs(Paths.get(workspace.toString()))) {
+        for (String tbl : DirUtils.listDirs(Paths.get(workspace.toString(), db))) {
+          MigrationStatus status = getStatusInternal(db, tbl);
+          if (!MigrationStatus.PENDING.equals(status)) {
+            continue;
           }
+          try {
+            MetaSource.TableMetaModel tableMetaModel =
+                metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
 
-          Path configPath = getConfigPath(db, tbl);
-          MetaConfiguration.TableConfig config = getConfigInternal(configPath);
+            // For partition tables, add its pending partitions
+            if (tableMetaModel.partitionColumns.size() > 0) {
+              // Get partitions to migrate
+              Set<String> allPartitionListRawLines =
+                  new HashSet<>(getRawLinesFromAllPartitionList(db, tbl));
+              Set<String> succeededPartitionListRawLines =
+                  new HashSet<>(getRawLinesFromSucceededPartitionList(db, tbl));
+              allPartitionListRawLines.removeAll(succeededPartitionListRawLines);
 
-          config.apply(tableMetaModel);
+              // Convert to partition values
+              StringReader reader = new StringReader(String.join("\n",
+                                                                 allPartitionListRawLines));
+              CsvReader csvReader = new CsvReader(reader);
+              List<MetaSource.PartitionMetaModel> partitions = new LinkedList<>();
+              while (csvReader.readRecord()) {
+                MetaSource.PartitionMetaModel partitionMetaModel =
+                    metaSource.getPartitionMeta(db, tbl, Arrays.asList(csvReader.getValues()));
+                partitions.add(partitionMetaModel);
+              }
+              csvReader.close();
+              reader.close();
 
-          ret.add(tableMetaModel);
-        } catch (Exception e) {
-          LOG.error("Get metadata form metasource failed, database: " + db + ", " +
-                    "table: " + tbl + ", stacktrace: " + ExceptionUtils.getStackTrace(e));
+              // Add to table meta model
+              tableMetaModel.partitions = partitions;
+            }
+
+            Path configPath = getConfigPath(db, tbl);
+            MetaConfiguration.TableConfig config = getConfigInternal(configPath);
+
+            config.apply(tableMetaModel);
+
+            ret.add(tableMetaModel);
+          } catch (Exception e) {
+            LOG.error("Get metadata form metasource failed, database: " + db + ", " +
+                      "table: " + tbl + ", stacktrace: " + ExceptionUtils.getStackTrace(e));
+          }
         }
       }
-    }
 
-    for (MetaSource.TableMetaModel tableMetaModel : ret) {
-      LOG.info("Pending table: {}", GsonUtils.getFullConfigGson().toJson(tableMetaModel));
-    }
+      for (MetaSource.TableMetaModel tableMetaModel : ret) {
+        LOG.info("Pending table: {}", GsonUtils.getFullConfigGson().toJson(tableMetaModel));
+      }
 
-    return ret;
+      return ret;
+    } finally {
+      releaseLock();
+    }
   }
 
   @Override
@@ -384,6 +453,10 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     return Paths.get(workspace.toString(), db, tbl, PARTITION_LIST_SUCCEEDED);
   }
 
+  private Path getLockPath() {
+    return Paths.get(workspace.toString(), ".lock");
+  }
+
   private List<String> getRawLinesFromAllPartitionList(String db, String tbl) {
     Path allPartitionListPath = getAllPartitionListPath(db, tbl);
     return getRawLinesFromPartitionList(allPartitionListPath);
@@ -410,5 +483,53 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     } catch (IOException e) {
       throw new IllegalStateException("Failed to read " + path.toString());
     }
+  }
+
+
+  /**
+   * Ensure the directory won't be corrupted multiple {@link MMAMetaManagerFsImpl} runs at the same
+   * time
+   * @throws IOException
+   */
+  private void acquireLock() {
+    Path lockPath = getLockPath();
+    if (!lockPath.toFile().exists()) {
+      throw new IllegalStateException("lock file does not exist");
+    }
+
+    if (lock != null) {
+      throw new IllegalStateException("lock is not null");
+    }
+
+    try {
+      RandomAccessFile ram = new RandomAccessFile(lockPath.toFile(), "rw");
+      FileLock fl = null;
+      while (fl == null) {
+        fl = ram.getChannel().tryLock();
+        Thread.sleep(100);
+      }
+      lock = new Lock(ram, fl);
+    } catch (IOException | InterruptedException e) {
+      throw new IllegalStateException("Failed to acquire lock on file: " + lockPath.toString());
+    }
+  }
+
+  private void releaseLock() {
+    Path lockPath = getLockPath();
+    if (!lockPath.toFile().exists()) {
+      throw new IllegalStateException("lock file does not exist");
+    }
+
+    if (lock == null) {
+      throw new IllegalStateException("lock is null");
+    }
+
+    try {
+      lock.release();
+    } catch (IOException e) {
+      throw new IllegalStateException("Failed to release lock on file: " + lockPath.toString() +
+                                      ", stack: " + ExceptionUtils.getStackTrace(e));
+    }
+    lock = null;
   }
 }

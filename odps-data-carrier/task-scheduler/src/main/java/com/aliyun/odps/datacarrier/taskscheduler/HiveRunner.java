@@ -38,7 +38,7 @@ public class HiveRunner extends AbstractTaskRunner {
       throw new IllegalArgumentException("'hiveConfiguration' cannot be null");
     }
 
-    try{
+    try {
       Class.forName(DRIVER_NAME);
     } catch (ClassNotFoundException e) {
       e.printStackTrace();

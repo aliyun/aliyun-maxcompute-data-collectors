@@ -74,7 +74,7 @@ abstract class AbstractTaskRunner implements TaskRunner {
     List<String> sqlStatements = getSqlStatements(task, action);
     LOG.info("SQL Statements: {}", String.join(", ", sqlStatements));
     if (sqlStatements.isEmpty()) {
-      task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
+      task.updateExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
       LOG.error("Empty sqlStatement, mark done, executionTaskName: " + executionTaskName);
       return;
     }

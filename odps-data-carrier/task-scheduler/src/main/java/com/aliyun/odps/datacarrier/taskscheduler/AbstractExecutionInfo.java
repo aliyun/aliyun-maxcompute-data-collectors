@@ -8,6 +8,8 @@ abstract class AbstractExecutionInfo {
   // scriptMode, specify the way to get sql statements,
   // if scriptMode = true, sql statements will read content from file of sqlPath,
   // otherwise sql statements is as sqlStatements.
+
+  // TODO: remove deprecated fields and methods
   private boolean scriptMode;
   private Path sqlPath;
   private String sqlStatements;

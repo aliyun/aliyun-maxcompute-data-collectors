@@ -1,7 +1,9 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,14 +12,15 @@ import org.apache.logging.log4j.Logger;
 class Task {
 
   private static final Logger LOG = LogManager.getLogger(Task.class);
+  private String taskName;
   protected long updateTime;
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
 
-  public Task(MetaSource.TableMetaModel tableMetaModel,
-              MetaConfiguration.Config tableConfig) {
+  public Task(String taskName, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
+    this.taskName = taskName;
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
@@ -61,93 +64,128 @@ class Task {
     }
   }
 
-  // TODO: has side effects, will change action status and task status as well
-  protected void changeExecutionProgress(Action action, String executionTaskName, Progress newProgress) {
+  /**
+   * Update execution progress, will trigger a action progress update
+   * @param action action that the execution belongs to
+   * @param executionTaskName execution name
+   * @param progress new progress
+   */
+  protected synchronized void updateExecutionProgress(Action action,
+                                                      String executionTaskName,
+                                                      Progress progress) {
     if (!actionInfoMap.containsKey(action)) {
       return;
     }
+
     ActionInfo actionInfo = actionInfoMap.get(action);
-    Map<String, AbstractExecutionInfo> executionInfoMap = actionInfo.executionInfoMap;
-    if (!executionInfoMap.containsKey(executionTaskName)) {
+    if (!actionInfo.executionInfoMap.containsKey(executionTaskName)) {
+      return;
+    }
+    if (actionInfo.executionInfoMap.get(executionTaskName).progress.equals(progress)) {
       return;
     }
 
-    // TODO: is this necessary?
-    if (newProgress.equals(executionInfoMap.get(executionTaskName).progress)) {
-      return;
-    }
+    // TODO: should check if the progress change is valid or not
+    actionInfo.executionInfoMap.get(executionTaskName).progress = progress;
 
-    // step1. update execution.progress
-    // step2. update action.progress
-    // step3. update task.progress
-
-    executionInfoMap.get(executionTaskName).progress = newProgress;
-
-    boolean actionProgressChanged = updateActionProgress(actionInfo, newProgress);
-
-    if (actionProgressChanged) {
-      updateTaskProgress(actionInfo.progress);
-    }
+    // Triggers an action progress update
+    updateActionProgress(action, progress);
   }
 
-  protected void changeActionProgress(Action action, Progress newProgress) {
+  /**
+   * Update action progress, triggered by a execution progress update
+   * @param action action
+   * @param executionNewProgress the new execution progress that triggers this update
+   */
+  private void updateActionProgress(Action action, Progress executionNewProgress) {
     if (!actionInfoMap.containsKey(action)) {
       return;
     }
+
     ActionInfo actionInfo = actionInfoMap.get(action);
-    boolean actionProgressChanged = updateActionProgress(actionInfo, newProgress);
-
-    if (actionProgressChanged) {
-      updateTaskProgress(actionInfo.progress);
-    }
-  }
-
-  private boolean updateActionProgress(ActionInfo actionInfo, Progress executionProgress) {
     boolean actionProgressChanged = false;
-    if (Progress.SUCCEEDED.equals(executionProgress)) {
-      // Check if all subtask has succeeded, set the task status to succeeded if true
-      if (!Progress.SUCCEEDED.equals(actionInfo.progress)
-          && actionInfo.executionInfoMap.values().stream().allMatch(v -> v.progress.equals(Progress.SUCCEEDED))) {
-        actionInfo.progress = Progress.SUCCEEDED;
-        actionProgressChanged = true;
-      }
-    } else if (Progress.FAILED.equals(executionProgress)) {
-      // Set the task status to failed if any subtask failed
-      if (!Progress.FAILED.equals(actionInfo.progress)) {
-        actionInfo.progress = Progress.FAILED;
-        actionProgressChanged = true;
-      }
-    } else if (Progress.RUNNING.equals(executionProgress)) {
-      // TODO: not very intuitive, should change the task status to running when it is scheduled
-      if (Progress.NEW.equals(actionInfo.progress)) {
-        actionInfo.progress = Progress.RUNNING;
-        actionProgressChanged = true;
-      }
+
+    switch (actionInfo.progress) {
+      case NEW:
+      case RUNNING:
+        if (Progress.RUNNING.equals(executionNewProgress)) {
+          actionInfo.progress = Progress.RUNNING;
+          actionProgressChanged = true;
+        } else if (Progress.FAILED.equals(executionNewProgress)) {
+          actionInfo.progress = Progress.FAILED;
+          actionProgressChanged = true;
+        } else if (Progress.SUCCEEDED.equals(executionNewProgress)) {
+          boolean allExecutionSucceeded = actionInfo.executionInfoMap.values()
+              .stream().allMatch(v -> v.progress.equals(Progress.SUCCEEDED));
+          if (allExecutionSucceeded) {
+            actionInfo.progress = Progress.SUCCEEDED;
+            actionProgressChanged = true;
+          }
+        }
+        break;
+      case FAILED:
+      case SUCCEEDED:
+      default:
     }
-    return actionProgressChanged;
+
+    // Triggers a task progress update
+    if (actionProgressChanged) {
+      updateTaskProgress(actionInfo.progress);
+    }
   }
 
-  private void updateTaskProgress(Progress actionProgress) {
-    if (Progress.SUCCEEDED.equals(actionProgress)) {
-      if (!Progress.SUCCEEDED.equals(this.progress)
-          && actionInfoMap.values().stream().allMatch(v -> v.progress.equals(Progress.SUCCEEDED))) {
-        this.progress = Progress.SUCCEEDED;
-      }
-    } else if (Progress.FAILED.equals(actionProgress)) {
-      if (!Progress.FAILED.equals(this.progress)) {
-        this.progress = Progress.FAILED;
-      }
-    } else if (Progress.RUNNING.equals(actionProgress)) {
-      if (Progress.NEW.equals(this.progress)) {
-        this.progress = Progress.RUNNING;
+  /**
+   * Update task progress, triggered by an action progress update
+   * @param actionNewProgress the new action progress that triggers this update
+   */
+  private void updateTaskProgress(Progress actionNewProgress) {
+    boolean taskProgressChanged = false;
+
+    switch (progress) {
+      case NEW:
+      case RUNNING:
+        if (Progress.RUNNING.equals(actionNewProgress)) {
+          progress = Progress.RUNNING;
+          taskProgressChanged = true;
+        } else if (Progress.FAILED.equals(actionNewProgress)) {
+          progress = Progress.FAILED;
+          taskProgressChanged = true;
+        } else if (Progress.SUCCEEDED.equals(actionNewProgress)) {
+          boolean allActionsSucceeded = actionInfoMap.values()
+              .stream().allMatch(v -> v.progress.equals(Progress.SUCCEEDED));
+          if (allActionsSucceeded) {
+            progress = Progress.SUCCEEDED;
+            taskProgressChanged = true;
+          }
+        }
+        break;
+      case FAILED:
+      case SUCCEEDED:
+      default:
+    }
+
+    // No need to update the table status when succeeded, since succeeded is default value
+    if (taskProgressChanged) {
+      if (Progress.FAILED.equals(progress)) {
+        TaskScheduler.markAsFailed(tableMetaModel.databaseName, tableMetaModel.tableName);
+      } else {
+        // Partitioned table should update succeeded partitions
+        List<List<String>> partitionValuesList = tableMetaModel.partitions
+            .stream()
+            .map(p -> p.partitionValues)
+            .collect(Collectors.toList());
+        MMAMetaManagerFsImpl.getInstance().updateStatus(tableMetaModel.databaseName,
+                                                        tableMetaModel.tableName,
+                                                        partitionValuesList,
+                                                        MMAMetaManager.MigrationStatus.SUCCEEDED);
       }
     }
   }
 
   /**
-   * Is all actions should be executed before given action already succeeded.
-   * @param action
-   * @return
+   * If all parent actions succeeded
+   * @param action action
+   * @return returns true if all parent actions succeeded, else false
    */
   public boolean isReadyAction(Action action) {
     if (!actionInfoMap.containsKey(action)) {
@@ -161,6 +199,7 @@ class Task {
 
     // If its previous actions have finished successfully
     for (Map.Entry<Action, ActionInfo> entry : actionInfoMap.entrySet()) {
+      // TODO: quite hacky
       if (entry.getKey().ordinal() < action.ordinal() &&
           !Progress.SUCCEEDED.equals(entry.getValue().progress)) {
         return false;
@@ -172,8 +211,9 @@ class Task {
 
   @Override
   public String toString() {
-    return "[" + tableMetaModel.databaseName + "." + tableMetaModel.tableName + "]";
+    return taskName;
   }
+
 
   public String getSourceDatabaseName() {
     return tableMetaModel.databaseName;
@@ -184,6 +224,6 @@ class Task {
   }
 
   public String getName() {
-    return tableMetaModel.databaseName + "." + tableMetaModel.tableName;
+    return taskName;
   }
 }

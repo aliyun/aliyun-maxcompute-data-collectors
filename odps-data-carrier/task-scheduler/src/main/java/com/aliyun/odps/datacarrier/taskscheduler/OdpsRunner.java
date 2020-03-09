@@ -72,7 +72,7 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", project: " + odps.getDefaultProject() +
                     ", sql: \n" + sql +
                     ", exception: " + e.toString());
-          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          task.updateExecutionProgress(action, executionTaskName, Progress.FAILED);
           return;
         } catch (RuntimeException e) {
           LOG.error("Submit ODPS Sql failed, task: " + task +
@@ -81,7 +81,7 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", sql: \n" + sql +
                     ", exception: " + e.getMessage());
           e.printStackTrace();
-          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          task.updateExecutionProgress(action, executionTaskName, Progress.FAILED);
           return;
         }
 
@@ -93,7 +93,7 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", executionTaskName: " + executionTaskName +
                     ", sql: \n" + sql +
                     ", exception: " + e.toString());
-          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          task.updateExecutionProgress(action, executionTaskName, Progress.FAILED);
           return;
         }
 
@@ -146,7 +146,7 @@ public class OdpsRunner extends AbstractTaskRunner {
 //              ", exception: " + e.toString());
 //        }
 //      }
-      task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
+      task.updateExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
     }
   }
 

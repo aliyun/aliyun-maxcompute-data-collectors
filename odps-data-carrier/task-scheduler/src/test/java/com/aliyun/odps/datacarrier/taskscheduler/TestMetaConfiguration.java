@@ -26,7 +26,7 @@ public class TestMetaConfiguration {
   public void testGenerateMetaConfigurationFromTableMapping() throws Exception {
     String currentDir = System.getProperty("user.dir");
     File configFile = new File(currentDir + "/src/test/resources/", META_CONFIG_FILE);
-    String tableMappingFilePathStr = "/src/test/resources/dma_demo.txt";
+    String tableMappingFilePathStr = System.getProperty("user.dir") + "/src/test/resources/dma_demo.txt";
     MetaConfigurationUtils.generateConfigFile(configFile, tableMappingFilePathStr, null);
     MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
     assertTrue(metaConfiguration.validateAndInitConfig());

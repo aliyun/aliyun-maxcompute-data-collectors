@@ -131,15 +131,14 @@ public class HiveRunner extends AbstractTaskRunner {
         LOG.error("Run HIVE Sql failed, " +
                   "sql: \n" + String.join(", ", sqls) +
                   "\nexception: " + ExceptionUtils.getStackTrace(e));
-        e.printStackTrace();
         if (task != null) {
-          task.changeExecutionProgress(action, executionTaskName, Progress.FAILED);
+          task.updateExecutionProgress(action, executionTaskName, Progress.FAILED);
         }
         return;
       }
 
       if (task != null) {
-        task.changeExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
+        task.updateExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
       }
     }
   }

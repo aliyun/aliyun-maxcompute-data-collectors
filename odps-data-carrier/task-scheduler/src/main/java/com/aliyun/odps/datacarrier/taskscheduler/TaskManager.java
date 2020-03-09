@@ -5,6 +5,6 @@ import java.util.SortedSet;
 
 public interface TaskManager {
 
-  List<Task> generateTasks(SortedSet<Action> actions, Mode mode);
+  List<Task> generateTasks(SortedSet<Action> actions);
 
 }

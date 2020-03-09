@@ -1,15 +1,16 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.datacarrier.taskscheduler.MetaConfiguration.*;
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.aliyun.odps.datacarrier.taskscheduler.MetaConfiguration.Config;
 
 public class TestTableSplitter {
   static private String dataBase = "TestDataBase";
@@ -28,102 +29,145 @@ public class TestTableSplitter {
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithNonPartitionedTable() {
-    TableSplitter tableSplitter = new TableSplitter(updateMetaConfigAndCreateTables(2, 0, 4), metaConfiguration);
-    List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
+    TableSplitter tableSplitter = new TableSplitter(null);
 
-    assertEquals(tasks.size(), 2);
-    assertTrue(tasks.stream().allMatch(t -> t.tableMetaModel.partitions.isEmpty()));
+    MetaSource.TableMetaModel tableMetaModel =
+        createNonPartitionedTableMetaModel("non_partitioned");
+    Config config = createConfig(5);
+    Task task = tableSplitter.generateTaskForNonPartitionedTable(tableMetaModel,
+                                                                 config,
+                                                                 taskScheduler.getActions());
+
+    assertTrue(task.tableMetaModel.partitions.isEmpty());
   }
 
-  @Test(timeout = 5000)
+  @Test//(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable0() {
-    TableSplitter tableSplitter = new TableSplitter(updateMetaConfigAndCreateTables(1, 5, 1), metaConfiguration);
-    List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
+    TableSplitter tableSplitter = new TableSplitter(null);
+
+    Config config = createConfig(1);
+    MetaSource.TableMetaModel tableMetaModel =
+        createPartitionedTableMetaModel("partitioned", 5);
+
+    List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
+                                                                     config,
+                                                                     taskScheduler.getActions());
 
     assertEquals(tasks.size(), 5);
-    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
-    assertTrue(tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(tasks.get(1).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200219"));
-    assertTrue(tasks.get(2).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200220"));
-    assertTrue(tasks.get(3).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200221"));
-    assertTrue(tasks.get(4).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200222"));
+    assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
+    assertEquals("20200218",
+                 tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200219",
+                 tasks.get(1).tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200220",
+                 tasks.get(2).tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200221",
+                 tasks.get(3).tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200222",
+                 tasks.get(4).tableMetaModel.partitions.get(0).partitionValues.get(0));
   }
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable1() {
-    TableSplitter tableSplitter = new TableSplitter(updateMetaConfigAndCreateTables(1, 5, 10), metaConfiguration);
-    List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
+    TableSplitter tableSplitter = new TableSplitter(null);
+
+    Config config = createConfig(10);
+    MetaSource.TableMetaModel tableMetaModel =
+        createPartitionedTableMetaModel("partitioned", 5);
+    List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
+                                                                     config,
+                                                                     taskScheduler.getActions());
 
     assertEquals(tasks.size(), 1);
-    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
-    assertTrue(tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(tasks.get(0).tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200219"));
-    assertTrue(tasks.get(0).tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200220"));
-    assertTrue(tasks.get(0).tableMetaModel.partitions.get(3).partitionValues.get(0).equals("20200221"));
-    assertTrue(tasks.get(0).tableMetaModel.partitions.get(4).partitionValues.get(0).equals("20200222"));
+    assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
+    assertEquals("20200218",
+                 tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200219",
+                 tasks.get(0).tableMetaModel.partitions.get(1).partitionValues.get(0));
+    assertEquals("20200220",
+                 tasks.get(0).tableMetaModel.partitions.get(2).partitionValues.get(0));
+    assertEquals("20200221",
+                 tasks.get(0).tableMetaModel.partitions.get(3).partitionValues.get(0));
+    assertEquals("20200222",
+                 tasks.get(0).tableMetaModel.partitions.get(4).partitionValues.get(0));
   }
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable2() {
-    TableSplitter tableSplitter = new TableSplitter(updateMetaConfigAndCreateTables(1, 5, 3), metaConfiguration);
-    List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
+    TableSplitter tableSplitter = new TableSplitter(null);
+
+    Config config = createConfig(3);
+    MetaSource.TableMetaModel tableMetaModel =
+        createPartitionedTableMetaModel("partitioned", 5);
+    List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
+                                                                     config,
+                                                                     taskScheduler.getActions());
 
     assertEquals(tasks.size(), 2);
-    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
+    assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
     Task task0 = tasks.get(0);
-    assertTrue(task0.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(task0.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200219"));
-    assertTrue(task0.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200220"));
+    assertEquals("20200218", task0.tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200219", task0.tableMetaModel.partitions.get(1).partitionValues.get(0));
+    assertEquals("20200220", task0.tableMetaModel.partitions.get(2).partitionValues.get(0));
 
     Task task1 = tasks.get(1);
-    assertTrue(task1.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200221"));
-    assertTrue(task1.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200222"));
+    assertEquals("20200221", task1.tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200222", task1.tableMetaModel.partitions.get(1).partitionValues.get(0));
   }
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable3() {
-    TableSplitter tableSplitter = new TableSplitter(updateMetaConfigAndCreateTables(1, 7, 4), metaConfiguration);
-    List<Task> tasks = tableSplitter.generateTasks(taskScheduler.getActions(), Mode.BATCH);
+    TableSplitter tableSplitter = new TableSplitter(null);
+
+    Config config = createConfig(4);
+    MetaSource.TableMetaModel tableMetaModel =
+        createPartitionedTableMetaModel("partitioned", 7);
+    List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
+                                                                     config,
+                                                                     taskScheduler.getActions());
 
     assertEquals(tasks.size(), 2);
-    assertTrue(tasks.stream().allMatch(t -> !t.tableMetaModel.partitions.isEmpty()));
+    assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
     Task task0 = tasks.get(0);
-    assertTrue(task0.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200218"));
-    assertTrue(task0.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200219"));
-    assertTrue(task0.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200220"));
-    assertTrue(task0.tableMetaModel.partitions.get(3).partitionValues.get(0).equals("20200221"));
+    assertEquals("20200218", task0.tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200219", task0.tableMetaModel.partitions.get(1).partitionValues.get(0));
+    assertEquals("20200220", task0.tableMetaModel.partitions.get(2).partitionValues.get(0));
+    assertEquals("20200221", task0.tableMetaModel.partitions.get(3).partitionValues.get(0));
 
     Task task1 = tasks.get(1);
-    assertTrue(task1.tableMetaModel.partitions.get(0).partitionValues.get(0).equals("20200222"));
-    assertTrue(task1.tableMetaModel.partitions.get(1).partitionValues.get(0).equals("20200223"));
-    assertTrue(task1.tableMetaModel.partitions.get(2).partitionValues.get(0).equals("20200224"));
+    assertEquals("20200222", task1.tableMetaModel.partitions.get(0).partitionValues.get(0));
+    assertEquals("20200223", task1.tableMetaModel.partitions.get(1).partitionValues.get(0));
+    assertEquals("20200224", task1.tableMetaModel.partitions.get(2).partitionValues.get(0));
   }
 
-  public List<MetaSource.TableMetaModel> updateMetaConfigAndCreateTables(int tableNum, int partitionsNum, int numOfPartitions) {
-    List<MetaSource.TableMetaModel> tableMetaModels = new ArrayList<>();
-    List<TableGroup> tablesGroupList = new ArrayList<>();
-    TableGroup tablesGroup = new TableGroup();
-    List<TableConfig> tableConfigs = new ArrayList<>();
+  public Config createConfig(int numOfPartitions) {
+    return new Config(null,
+                      null,
+                      numOfPartitions,
+                      5,
+                      "");
+  }
 
-    for (int i = 0; i < tableNum; i++) {
-      String tName = tableName + "_" + i;
-      Config config = new Config(null, null, numOfPartitions, 5, "");
-      TableConfig table = new TableConfig(dataBase, tName, dataBase, tName, config);
-      tableConfigs.add(table);
-      MetaSource.TableMetaModel tableMetaModel = new MetaSource.TableMetaModel();
-      tableMetaModel.databaseName = dataBase;
-      tableMetaModel.tableName = tName;
-      //Partitioned table.
-      if (partitionsNum > 0) {
-        tableMetaModel.partitions = createPartitions(date, partitionsNum);
-      }
-      tableMetaModels.add(tableMetaModel);
-    }
-    tablesGroup.setTables(tableConfigs);
-    tablesGroupList.add(tablesGroup);
-    metaConfiguration.setTableGroups(tablesGroupList);
-    metaConfiguration.validateAndInitConfig();
-    return tableMetaModels;
+  public MetaSource.TableMetaModel createNonPartitionedTableMetaModel(String suffix) {
+    MetaSource.TableMetaModel tableMetaModel = new MetaSource.TableMetaModel();
+    tableMetaModel.databaseName = dataBase;
+    tableMetaModel.tableName = tableName + "_" + suffix;
+
+    return tableMetaModel;
+  }
+
+  public MetaSource.TableMetaModel createPartitionedTableMetaModel(String suffix,
+                                                                   int numPartitions) {
+    MetaSource.TableMetaModel tableMetaModel = new MetaSource.TableMetaModel();
+    tableMetaModel.databaseName = dataBase;
+    tableMetaModel.tableName = tableName + "_" + suffix;
+
+    MetaSource.ColumnMetaModel columnMetaModel = new MetaSource.ColumnMetaModel();
+    columnMetaModel.columnName = columnName;
+    tableMetaModel.partitionColumns.add(columnMetaModel);
+    tableMetaModel.partitions = createPartitions(date, numPartitions);
+
+    return tableMetaModel;
   }
 
   public static List<MetaSource.PartitionMetaModel> createPartitions(int date, int partitionsNum) {

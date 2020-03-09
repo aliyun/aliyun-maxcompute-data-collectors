@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.aliyun.odps.datacarrier.commons.risk;
+package com.aliyun.odps.datacarrier.taskscheduler;
 
 public class Risk {
 

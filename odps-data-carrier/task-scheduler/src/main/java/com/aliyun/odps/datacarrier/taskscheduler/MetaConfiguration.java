@@ -310,6 +310,7 @@ public class MetaConfiguration {
   }
 
   public static class TableConfig  {
+    // TODO: make them private
     public String sourceDataBase;
     public String sourceTableName;
     public String destinationProject;
@@ -360,6 +361,13 @@ public class MetaConfiguration {
       for (MetaSource.ColumnMetaModel pc : tableMetaModel.partitionColumns) {
         pc.odpsColumnName = pc.columnName;
         pc.odpsType = typeTransformer.toOdpsTypeV2(pc.type).getTransformedType();
+      }
+
+      // TODO: make it a general config
+      for (MetaSource.ColumnMetaModel pc : tableMetaModel.partitionColumns) {
+        if ("DATE".equalsIgnoreCase(pc.type)) {
+          pc.odpsType = "STRING";
+        }
       }
     }
 

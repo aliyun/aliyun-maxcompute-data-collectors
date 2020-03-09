@@ -68,7 +68,8 @@ if __name__ == '__main__':
     jar_name = "task-scheduler-1.0-SNAPSHOT.jar"
     original_jar_path = "task-scheduler/target/" + jar_name
 
-    shutil.copyfile("bin/migrate", "odps-data-carrier/migrate")
+    shutil.copyfile("bin/mma-server", "odps-data-carrier/mma-server")
+    shutil.copyfile("bin/mma-client", "odps-data-carrier/mma-client")
     shutil.copyfile("bin/generate-config", "odps-data-carrier/generate-config")
     shutil.copyfile("odps_config.ini", "odps-data-carrier/odps_config.ini")
     shutil.copyfile(original_jar_path, "odps-data-carrier/" + jar_name)

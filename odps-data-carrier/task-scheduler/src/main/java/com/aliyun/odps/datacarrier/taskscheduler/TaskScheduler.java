@@ -133,6 +133,7 @@ public class TaskScheduler {
       this.tasks.addAll(tableSplitter.generateTasks(actions));
 
       if (this.tasks.isEmpty()) {
+        System.err.println("Waiting for migration jobs");
         LOG.info("No tasks to schedule");
         try {
           Thread.sleep(GET_PENDING_TABLE_INTERVAL);

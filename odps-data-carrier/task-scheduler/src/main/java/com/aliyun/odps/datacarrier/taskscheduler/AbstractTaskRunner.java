@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.aliyun.odps.utils.StringUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 abstract class AbstractTaskRunner implements TaskRunner {
@@ -50,8 +51,14 @@ abstract class AbstractTaskRunner implements TaskRunner {
         sqlStatements.add(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel));
         return sqlStatements;
       case ODPS_ADD_PARTITION:
-        sqlStatements.add(OdpsSqlUtils.getDropPartitionStatement(task.tableMetaModel));
-        sqlStatements.add(OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel));
+        String dropPartitionStatement = OdpsSqlUtils.getDropPartitionStatement(task.tableMetaModel);
+        if (!StringUtils.isNullOrEmpty(dropPartitionStatement)) {
+          sqlStatements.add(dropPartitionStatement);
+        }
+        String addPartitionStatement = OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel);
+        if (!StringUtils.isNullOrEmpty(addPartitionStatement)) {
+          sqlStatements.add(addPartitionStatement);
+        }
         return sqlStatements;
       case HIVE_LOAD_DATA:
         sqlStatements.add(HiveSqlUtils.getUdtfSql(task.tableMetaModel));

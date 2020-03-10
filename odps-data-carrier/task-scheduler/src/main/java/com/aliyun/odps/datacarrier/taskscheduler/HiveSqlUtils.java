@@ -96,7 +96,7 @@ public class HiveSqlUtils {
     StringBuilder sb = new StringBuilder();
 
     // Return if this is not a partitioned table
-    if (tableMetaModel.partitionColumns.size() == 0) {
+    if (tableMetaModel.partitionColumns.size() == 0 || tableMetaModel.partitions.isEmpty()) {
       return sb.toString();
     }
 

@@ -385,21 +385,22 @@ public class MetaConfiguration {
     private Map<String, String> typeCustomizedConversion;
     //key: original column name, value: current column name.
     private Map<String, String> columnNameCustomizedConversion;
-    private int numOfPartitions;
+    private int partitionGroupSize;
     private int retryTimesLimit;
     private String whereCondition;
 
     public Config() {
     }
 
+    // TODO: support validate
     public Config(Map<String, String> typeCustomizedConversion,
                   Map<String, String> columnNameCustomizedConversion,
-                  int numOfPartitions,
+                  int partitionGroupSize,
                   int retryTimesLimit,
                   String whereCondition) {
       this.typeCustomizedConversion = typeCustomizedConversion;
       this.columnNameCustomizedConversion = columnNameCustomizedConversion;
-      this.numOfPartitions = numOfPartitions;
+      this.partitionGroupSize = partitionGroupSize;
       this.retryTimesLimit = retryTimesLimit;
       this.whereCondition = whereCondition;
     }
@@ -412,8 +413,8 @@ public class MetaConfiguration {
       return columnNameCustomizedConversion;
     }
 
-    public int getNumOfPartitions() {
-      return numOfPartitions;
+    public int getPartitionGroupSize() {
+      return partitionGroupSize;
     }
 
     public int getRetryTimesLimit() {

@@ -41,7 +41,7 @@ public class TestTableSplitter {
     assertTrue(task.tableMetaModel.partitions.isEmpty());
   }
 
-  @Test//(timeout = 5000)
+  @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable0() {
     TableSplitter tableSplitter = new TableSplitter(null);
 
@@ -53,7 +53,7 @@ public class TestTableSplitter {
                                                                      config,
                                                                      taskScheduler.getActions());
 
-    assertEquals(tasks.size(), 5);
+    assertEquals(5, tasks.size());
     assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
     assertEquals("20200218",
                  tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0));
@@ -78,7 +78,7 @@ public class TestTableSplitter {
                                                                      config,
                                                                      taskScheduler.getActions());
 
-    assertEquals(tasks.size(), 1);
+    assertEquals(1, tasks.size());
     assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
     assertEquals("20200218",
                  tasks.get(0).tableMetaModel.partitions.get(0).partitionValues.get(0));
@@ -103,7 +103,7 @@ public class TestTableSplitter {
                                                                      config,
                                                                      taskScheduler.getActions());
 
-    assertEquals(tasks.size(), 2);
+    assertEquals(2, tasks.size());
     assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
     Task task0 = tasks.get(0);
     assertEquals("20200218", task0.tableMetaModel.partitions.get(0).partitionValues.get(0));
@@ -126,7 +126,7 @@ public class TestTableSplitter {
                                                                      config,
                                                                      taskScheduler.getActions());
 
-    assertEquals(tasks.size(), 2);
+    assertEquals(2, tasks.size());
     assertTrue(tasks.stream().noneMatch(t -> t.tableMetaModel.partitions.isEmpty()));
     Task task0 = tasks.get(0);
     assertEquals("20200218", task0.tableMetaModel.partitions.get(0).partitionValues.get(0));
@@ -140,10 +140,10 @@ public class TestTableSplitter {
     assertEquals("20200224", task1.tableMetaModel.partitions.get(2).partitionValues.get(0));
   }
 
-  public Config createConfig(int numOfPartitions) {
+  public Config createConfig(int partitionGroupSize) {
     return new Config(null,
                       null,
-                      numOfPartitions,
+                      partitionGroupSize,
                       5,
                       "");
   }
@@ -157,7 +157,7 @@ public class TestTableSplitter {
   }
 
   public MetaSource.TableMetaModel createPartitionedTableMetaModel(String suffix,
-                                                                   int numPartitions) {
+                                                                   int numOfPartition) {
     MetaSource.TableMetaModel tableMetaModel = new MetaSource.TableMetaModel();
     tableMetaModel.databaseName = dataBase;
     tableMetaModel.tableName = tableName + "_" + suffix;
@@ -165,14 +165,14 @@ public class TestTableSplitter {
     MetaSource.ColumnMetaModel columnMetaModel = new MetaSource.ColumnMetaModel();
     columnMetaModel.columnName = columnName;
     tableMetaModel.partitionColumns.add(columnMetaModel);
-    tableMetaModel.partitions = createPartitions(date, numPartitions);
+    tableMetaModel.partitions = createPartitions(date, numOfPartition);
 
     return tableMetaModel;
   }
 
-  public static List<MetaSource.PartitionMetaModel> createPartitions(int date, int partitionsNum) {
+  public static List<MetaSource.PartitionMetaModel> createPartitions(int date, int numOfPartition) {
     List<MetaSource.PartitionMetaModel> partitions = new ArrayList<>();
-    for (int p = 0; p < partitionsNum; p++) {
+    for (int p = 0; p < numOfPartition; p++) {
       MetaSource.PartitionMetaModel partitionMetaModel = new MetaSource.PartitionMetaModel();
       partitionMetaModel.partitionValues.add(String.valueOf(date + p));
       partitions.add(partitionMetaModel);

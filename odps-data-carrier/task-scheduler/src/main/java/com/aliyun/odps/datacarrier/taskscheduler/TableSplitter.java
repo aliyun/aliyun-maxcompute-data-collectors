@@ -64,36 +64,51 @@ public class TableSplitter implements TaskManager {
                                                        SortedSet<Action> actions) {
     List<Task> ret = new LinkedList<>();
 
-    int numOfPartitions = -1;
-
-    if (config != null && config.getNumOfPartitions() > 0) {
-      numOfPartitions = config.getNumOfPartitions();
-    }
-    int numOfAllPartitions = tableMetaModel.partitions.size();
-    int numOfSplitSet = 1;
-    int numPartitionsPerSet = numOfAllPartitions;
-    if (numOfPartitions > 0) {
-      numOfSplitSet = (numOfAllPartitions + numOfPartitions - 1) / numOfPartitions;
-      numPartitionsPerSet = (numOfAllPartitions + numOfSplitSet - 1) / numOfSplitSet;
-    }
-    for (int taskIndex = 0; taskIndex < numOfSplitSet; taskIndex++) {
-      MetaSource.TableMetaModel clone = tableMetaModel.clone();
-      clone.partitions = new LinkedList<>();
-      String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName +
-                        "." + taskIndex;
-      Task task = new Task(taskName, clone, config);
-      // TODO: style
-      for (int partitionIndex = taskIndex * numPartitionsPerSet;
-           partitionIndex < (taskIndex + 1) * numPartitionsPerSet
-           && partitionIndex < numOfAllPartitions;
-           partitionIndex++) {
-        task.tableMetaModel.partitions.add(tableMetaModel.partitions.get(partitionIndex));
-      }
+    // If this table doesn't have any partition, create a task an return
+    if (tableMetaModel.partitions.isEmpty()) {
+      String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
+      Task task = new Task(taskName, tableMetaModel.clone(), config);
       for (Action action : actions) {
         task.addExecutionInfo(action, taskName);
       }
       ret.add(task);
+      return ret;
     }
+
+    int partitionGroupSize;
+    // By default, partition group size is number of partitions
+    if (config != null && config.getPartitionGroupSize() > 0) {
+      partitionGroupSize = config.getPartitionGroupSize();
+    } else {
+      partitionGroupSize = tableMetaModel.partitions.size();
+    }
+
+    // TODO: should do this in meta configuration
+    if (partitionGroupSize <= 0) {
+      throw new IllegalArgumentException("Invalid partition group size: " + partitionGroupSize);
+    }
+
+    int startIdx = 0;
+    int taskIdx = 0;
+    while (startIdx < tableMetaModel.partitions.size()) {
+      MetaSource.TableMetaModel clone = tableMetaModel.clone();
+
+      // Set partitions
+      int endIdx = Math.min(tableMetaModel.partitions.size(), startIdx + partitionGroupSize);
+      clone.partitions = new ArrayList<>(tableMetaModel.partitions.subList(startIdx, endIdx));
+
+      String taskName =
+          tableMetaModel.databaseName + "." + tableMetaModel.tableName + "." + taskIdx;
+      Task task = new Task(taskName, clone, config);
+      for (Action action : actions) {
+        task.addExecutionInfo(action, taskName);
+      }
+      ret.add(task);
+
+      startIdx += partitionGroupSize;
+      taskIdx += 1;
+    }
+
     return ret;
   }
 }

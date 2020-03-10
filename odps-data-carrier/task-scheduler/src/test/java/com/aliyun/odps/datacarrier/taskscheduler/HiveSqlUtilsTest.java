@@ -1,5 +1,7 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.LinkedList;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -38,6 +40,24 @@ public class HiveSqlUtilsTest {
                + "WHERE\n"
                + "bar='hello_world'\n";
     actual = HiveSqlUtils.getUdtfSql(partitioned);
+    Assert.assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testGetUdtfSqlNoPartition() throws Exception {
+    MetaSource.TableMetaModel partitioned =
+        metaSource.getTableMeta(DEFAULT_DB, "test_partitioned").clone();
+    partitioned.partitions = new LinkedList<>();
+
+    String expected = "SELECT odps_data_dump_multi(\n"
+                      + "'test',\n"
+                      + "'test_partitioned',\n"
+                      + "'foo',\n"
+                      + "'bar',\n"
+                      + "`foo`,\n"
+                      + "`bar`)\n"
+                      + "FROM test.`test_partitioned`\n";
+    String actual = HiveSqlUtils.getUdtfSql(partitioned);
     Assert.assertEquals(expected, actual);
   }
 

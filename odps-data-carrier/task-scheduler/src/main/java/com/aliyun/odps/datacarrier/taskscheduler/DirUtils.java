@@ -17,21 +17,34 @@
  * under the License.
  */
 
-package com.aliyun.odps.datacarrier.commons;
+package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.commons.io.FileUtils;
 
+import com.csvreader.CsvReader;
+import com.csvreader.CsvWriter;
+
 // TODO: check null
 public class DirUtils {
+
   /**
-   * Write to a file specified by filePath, create its parent directories if they doesn't exist.
+   * Write a file. Its parent directories will be created if they doesn't exist.
+   *
+   * @param filePath path to the file
+   * @param content content
+   * @throws IllegalArgumentException if any argument is null
+   * @throws IOException if any IOException happened
    */
   public static void writeFile(Path filePath, String content) throws IOException {
     writeFile(filePath, content, false);
@@ -41,8 +54,7 @@ public class DirUtils {
     writeFile(filePath, content, true);
   }
 
-  public static void writeFile(Path filePath, String content, boolean append)
-      throws IOException {
+  public static void writeFile(Path filePath, String content, boolean append) throws IOException {
     File file = filePath.toFile();
     File parent = file.getParentFile();
     if (!file.getParentFile().exists()) {
@@ -51,15 +63,45 @@ public class DirUtils {
       }
     }
 
-    FileUtils.writeStringToFile(file, content, Constants.DEFAULT_CHARSET, append);
+    FileUtils.writeStringToFile(file, content, StandardCharsets.UTF_8, append);
+  }
+
+  public static void writeCsvFile(Path filePath, List<List<String>> rows) throws IOException {
+    writeCsvFile(filePath, rows, false);
+  }
+
+  public static void appendToCsvFile(Path filePath, List<List<String>> rows) throws IOException {
+    writeCsvFile(filePath, rows, true);
+  }
+
+  public static void writeCsvFile(Path filePath, List<List<String>> rows, boolean append)
+      throws IOException {
+    try (FileOutputStream fos = new FileOutputStream(filePath.toFile(), append)) {
+      CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
+      for (List<String> partitionValues : rows) {
+        csvWriter.writeRecord(partitionValues.toArray(new String[0]));
+      }
+      csvWriter.close();
+    }
   }
 
   public static String readFile(Path filePath) throws IOException {
-    return FileUtils.readFileToString(filePath.toFile(), Constants.DEFAULT_CHARSET);
+    return FileUtils.readFileToString(filePath.toFile(), StandardCharsets.UTF_8);
   }
 
-  public static BufferedReader getLineReader(Path filePath) throws IOException {
-    return new BufferedReader(new FileReader(filePath.toFile()));
+  public static List<List<String>> readCsvFile(Path filePath) throws IOException {
+    try (FileInputStream fis = new FileInputStream(filePath.toFile())) {
+      List<List<String>> rows = new LinkedList<>();
+      CsvReader csvReader = new CsvReader(fis, ',', StandardCharsets.UTF_8);
+      while (csvReader.readRecord()) {
+        rows.add(Arrays.asList(csvReader.getValues()));
+      }
+      return rows;
+    }
+  }
+
+  public static List<String> readLines(Path filePath) throws IOException {
+    return FileUtils.readLines(filePath.toFile(), StandardCharsets.UTF_8);
   }
 
   public static String[] listDirs(Path dir) {

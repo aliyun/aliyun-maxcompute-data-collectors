@@ -5,9 +5,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.aliyun.odps.datacarrier.commons.Constants;
-import com.aliyun.odps.datacarrier.commons.risk.Risk;
-
 public class HiveTypeTransformer implements TypeTransformer {
 
   private static final String DECIMAL_INCOMPATIBILITY_REASON =
@@ -154,7 +151,7 @@ public class HiveTypeTransformer implements TypeTransformer {
       risk = Risk.getUnsupportedTypeRisk(hiveType);
     }
 
-    return new TypeTransformResult(Constants.DATASOURCE_TYPE.HIVE, hiveType, transformedType, risk);
+    return new TypeTransformResult(DataSource.Hive, hiveType, transformedType, risk);
   }
 
   private List<String> splitStructFields(String fieldDefinitionString) {

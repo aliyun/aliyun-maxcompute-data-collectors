@@ -14,11 +14,6 @@
     <dependencies>
         <dependency>
             <groupId>com.aliyun.odps</groupId>
-            <artifactId>data-carrier-commons</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-core</artifactId>
         </dependency>
         <dependency>
@@ -59,8 +54,11 @@
             <artifactId>slf4j-log4j12</artifactId>
             <scope>test</scope>
         </dependency>
-
         <!-- Log Settings: Log4j2 + Slf4j -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

@@ -3,8 +3,6 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.META_CONFIG_FILE;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.PASSWORD;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.USER;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,7 +26,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 
-import com.aliyun.odps.utils.StringUtils;
 import com.google.common.annotations.VisibleForTesting;
 
 public class TaskScheduler {
@@ -44,8 +41,7 @@ public class TaskScheduler {
   private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
 
-  private TaskManager taskManager;
-//  private DataValidator dataValidator;
+  //  private DataValidator dataValidator;
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
   protected Map<RunnerType, TaskRunner> taskRunnerMap;
@@ -56,7 +52,31 @@ public class TaskScheduler {
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<Task> tasks;
   private MetaConfiguration metaConfig;
-  private MMAMetaManager mmaMetaManager;
+
+  // This map indicates if a table succeeded in current round
+  // database -> table -> status
+  private static Map<String, Map<String, Boolean>> databaseTableStatus = new ConcurrentHashMap<>();
+
+  private static void initDatabaseTableStatus(List<MetaSource.TableMetaModel> pendingTables) {
+    databaseTableStatus.clear();
+    for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
+      databaseTableStatus
+          .computeIfAbsent(tableMetaModel.databaseName, k -> new ConcurrentHashMap<>())
+          .put(tableMetaModel.tableName, true);
+    }
+  }
+
+  public static void markAsFailed(String db, String tbl) {
+    if (databaseTableStatus == null) {
+      throw new IllegalStateException("Failed to update table status: table status is null");
+    }
+
+    if (!databaseTableStatus.containsKey(db) || !databaseTableStatus.get(db).containsKey(tbl)) {
+      throw new IllegalStateException("Failed to update table status: table not found");
+    }
+
+    databaseTableStatus.get(db).put(tbl, false);
+  }
 
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
@@ -73,27 +93,31 @@ public class TaskScheduler {
 
     // TODO: check if datasource and metasource are valid
     this.metaConfig = metaConfiguration;
-    this.dataSource = metaConfiguration.getDataSource();
-    MetaConfiguration.HiveConfiguration hiveConfigurationConfig = metaConfiguration.getHiveConfiguration();
+
+    MetaConfiguration.HiveConfiguration hiveConfigurationConfig =
+        metaConfiguration.getHiveConfiguration();
     MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
                                                hiveConfigurationConfig.getKrbPrincipal(),
                                                hiveConfigurationConfig.getKeyTab(),
                                                hiveConfigurationConfig.getKrbSystemProperties());
-    this.mmaMetaManager = new MMAMetaManagerFsImpl(null, metaSource);
+    MMAMetaManagerFsImpl.init(null, metaSource);
     for (MetaConfiguration.TableGroup tableGroup : metaConfiguration.getTableGroups()) {
       for (MetaConfiguration.TableConfig tableConfig : tableGroup.getTableConfigs()) {
-        this.mmaMetaManager.initMigration(tableConfig);
+        MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
       }
     }
 
-    initActions(this.dataSource);
+    initActions(metaConfiguration.getDataSource());
     initTaskRunner();
     updateConcurrencyThreshold();
     this.heartbeatThread.start();
-    int retryTimes = 1;
+    int round = 1;
     while (keepRunning) {
-      LOG.info("Start to migrate data for the [{}] round", retryTimes);
-      List<MetaSource.TableMetaModel> pendingTables = this.mmaMetaManager.getPendingTables();
+      // Get tables to migrate
+      LOG.info("Start to migrate data for the [{}] round", round);
+      List<MetaSource.TableMetaModel>
+          pendingTables =
+          MMAMetaManagerFsImpl.getInstance().getPendingTables();
       LOG.info("Tables to migrate");
       for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
         LOG.info("Database: {}, table: {}",
@@ -101,9 +125,12 @@ public class TaskScheduler {
                  tableMetaModel.tableName);
       }
 
-      this.taskManager = new TableSplitter(pendingTables, metaConfiguration);
+      // Init tableStatus
+      initDatabaseTableStatus(pendingTables);
+
+      TableSplitter tableSplitter = new TableSplitter(pendingTables);
       this.tasks.clear();
-      this.tasks.addAll(this.taskManager.generateTasks(actions, null));
+      this.tasks.addAll(tableSplitter.generateTasks(actions));
 
       if (this.tasks.isEmpty()) {
         LOG.info("No tasks to schedule");
@@ -113,7 +140,7 @@ public class TaskScheduler {
           // ignore
         }
       } else {
-        LOG.info("Add {} tasks in the [{}] round", tasks.size(), retryTimes);
+        LOG.info("Add {} tasks in the [{}] round", tasks.size(), round);
       }
 
       while (!isAllTasksFinished()) {
@@ -123,8 +150,24 @@ public class TaskScheduler {
           // ignore
         }
       }
+
+      // Update table status
+      for (String db : databaseTableStatus.keySet()) {
+        for (String tbl : databaseTableStatus.get(db).keySet()) {
+          Boolean succeeded = databaseTableStatus.get(db).get(tbl);
+          if (succeeded) {
+            MMAMetaManagerFsImpl
+                .getInstance()
+                .updateStatus(db, tbl, MMAMetaManager.MigrationStatus.SUCCEEDED);
+          } else {
+            MMAMetaManagerFsImpl
+                .getInstance()
+                .updateStatus(db, tbl, MMAMetaManager.MigrationStatus.FAILED);
+          }
+        }
+      }
       LOG.info("All tasks finished");
-      retryTimes++;
+      round++;
     }
     shutdown();
   }
@@ -212,6 +255,7 @@ public class TaskScheduler {
   }
 
   private static class ActionScheduleInfo {
+
     int concurrency;
     int concurrencyLimit;
 
@@ -222,13 +266,14 @@ public class TaskScheduler {
   }
 
   private class SchedulerHeartbeatThread extends Thread {
+
     public SchedulerHeartbeatThread() {
       super("scheduler thread");
     }
 
     public void run() {
       LOG.info("Heartbeat thread starts");
-      while(keepRunning) {
+      while (keepRunning) {
         try {
           for (Action action : actions) {
             scheduleExecutionTask(action);
@@ -244,7 +289,7 @@ public class TaskScheduler {
         try {
           Thread.sleep(heartbeatIntervalMs.get());
         } catch (InterruptedException ex) {
-          LOG.error("Heartbeat interrupted "+ ex.getMessage());
+          LOG.error("Heartbeat interrupted " + ex.getMessage());
         }
       }
 
@@ -258,25 +303,30 @@ public class TaskScheduler {
       return true;
     }
 
-    // Print logs
     for (Task task : tasks) {
-      StringBuilder csb = new StringBuilder(task.toString());
-      StringBuilder sb = new StringBuilder(task.toString());
+      StringBuilder csb = new StringBuilder(task.getName());
+      StringBuilder sb = new StringBuilder(task.getName());
       csb.append(":").append(task.progress.toColorString()).append("--> ");
       sb.append(":").append(task.progress).append("--> ");
       for (Action action : actions) {
         if (!task.actionInfoMap.containsKey(action)) {
           continue;
         }
-        csb.append(action.name()).append("(").append(task.actionInfoMap.get(action).progress.toColorString()).append(") ");
-        sb.append(action.name()).append("(").append(task.actionInfoMap.get(action).progress).append(") ");
+
+        Task.ActionInfo actionInfo = task.actionInfoMap.get(action);
+        csb
+            .append(action.name())
+            .append("(").append(actionInfo.progress.toColorString()).append(") ");
+        sb
+            .append(action.name())
+            .append("(").append(actionInfo.progress).append(") ");
       }
       LOG.info(sb.toString());
       System.err.print(csb.toString() + "\n");
     }
 
     return tasks.stream().allMatch(task -> Progress.FAILED.equals(task.progress)
-        || Progress.SUCCEEDED.equals(task.progress));
+                                           || Progress.SUCCEEDED.equals(task.progress));
   }
 
   private void scheduleExecutionTask(Action action) {
@@ -289,7 +339,7 @@ public class TaskScheduler {
           .count());
 
       LOG.info("Action: {}, concurrency: {}, concurrencyLimit: {}",
-          action.name(), actionScheduleInfo.concurrency, actionScheduleInfo.concurrencyLimit);
+               action.name(), actionScheduleInfo.concurrency, actionScheduleInfo.concurrencyLimit);
 
       // If current concurrency exceeds limitation, do not schedule this time
       if (actionScheduleInfo.concurrency >= actionScheduleInfo.concurrencyLimit) {
@@ -299,25 +349,8 @@ public class TaskScheduler {
 
     // Iterate over tasks, start actions and update status
     for (Task task : tasks) {
-      // TODO: this is quite hacky and not efficient, should consider a better design
-      // Skip if this table has reached final state
-      MMAMetaManager.MigrationStatus status = mmaMetaManager.getStatus(task.getSourceDatabaseName(),
-                                                                       task.getSourceTableName());
-      if (MMAMetaManager.MigrationStatus.SUCCEEDED.equals(status) ||
-          MMAMetaManager.MigrationStatus.FAILED.equals(status)) {
-        continue;
-      }
-
-      // Update progress if task succeeded or failed
-      if (Progress.SUCCEEDED.equals(task.progress)) {
-        mmaMetaManager.updateStatus(task.getSourceDatabaseName(),
-                                    task.getSourceTableName(),
-                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
-        continue;
-      } else if (Progress.FAILED.equals(task.progress)) {
-        mmaMetaManager.updateStatus(task.getSourceDatabaseName(),
-                                    task.getSourceTableName(),
-                                    MMAMetaManager.MigrationStatus.FAILED);
+      // Skip if terminated
+      if (Progress.SUCCEEDED.equals(task.progress) || Progress.FAILED.equals(task.progress)) {
         continue;
       }
 
@@ -326,7 +359,7 @@ public class TaskScheduler {
         continue;
       }
 
-      LOG.info("Task {} - Action {} is ready to schedule.", task.toString(), action.name());
+      LOG.info("Task {} - Action {} is ready to schedule.", task.getName(), action.name());
 
       // Schedule
       for (Map.Entry<String, AbstractExecutionInfo> entry :
@@ -335,10 +368,11 @@ public class TaskScheduler {
           continue;
         }
         String executionTaskName = entry.getKey();
-        task.changeExecutionProgress(action, executionTaskName, Progress.RUNNING);
+        task.updateExecutionProgress(action, executionTaskName, Progress.RUNNING);
         LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
-                 task.toString(), action.name(), executionTaskName);
-        getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action, executionTaskName);
+                 task.getName(), action.name(), executionTaskName);
+        getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
+            .submitExecutionTask(task, action, executionTaskName);
         actionScheduleInfo.concurrency++;
       }
     }
@@ -353,6 +387,7 @@ public class TaskScheduler {
   }
 
   private static class ActionComparator implements Comparator<Action> {
+
     @Override
     public int compare(Action o1, Action o2) {
       return o1.ordinal() - o2.ordinal();

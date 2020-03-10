@@ -1,7 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.util.List;
-
 import org.junit.Assert;
 import org.junit.Test;
 

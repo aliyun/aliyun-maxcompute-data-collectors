@@ -128,12 +128,9 @@ public class HiveSqlUtils {
       MetaSource.ColumnMetaModel partitionColumn = partitionColumns.get(i);
       String partitionValue = partitionMetaModel.partitionValues.get(i);
 
-      sb.append(partitionColumn.columnName).append("=");
-      if ("STRING".equalsIgnoreCase(partitionColumn.type)) {
-        sb.append("'").append(partitionValue).append("'");
-      } else {
-        sb.append(partitionValue);
-      }
+      sb.append(partitionColumn.columnName).append("=").append("cast('").append(partitionValue)
+          .append("' AS ").append(partitionColumn.type).append(")");
+
       if (i != partitionColumns.size() - 1) {
         sb.append(" AND ");
       }

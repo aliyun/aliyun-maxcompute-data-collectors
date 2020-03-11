@@ -1,5 +1,7 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.LinkedList;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -56,6 +58,26 @@ public class OdpsSqlUtilsTest {
                       + "PARTITION (bar='hello_world');\n";
     String actual = OdpsSqlUtils.getAddPartitionStatement(partitioned);
     Assert.assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testGetAddPartitionStatementsNoPartition() throws Exception {
+    MetaSource.TableMetaModel partitioned =
+        metaSource.getTableMeta(DEFAULT_DB, "test_partitioned").clone();
+    partitioned.partitions = new LinkedList<>();
+
+    String actual = OdpsSqlUtils.getAddPartitionStatement(partitioned);
+    Assert.assertEquals("", actual);
+  }
+
+  @Test
+  public void testGetDropPartitionStatementsNoPartition() throws Exception {
+    MetaSource.TableMetaModel partitioned =
+        metaSource.getTableMeta(DEFAULT_DB, "test_partitioned").clone();
+    partitioned.partitions = new LinkedList<>();
+
+    String actual = OdpsSqlUtils.getDropPartitionStatement(partitioned);
+    Assert.assertEquals("", actual);
   }
 
   @Test

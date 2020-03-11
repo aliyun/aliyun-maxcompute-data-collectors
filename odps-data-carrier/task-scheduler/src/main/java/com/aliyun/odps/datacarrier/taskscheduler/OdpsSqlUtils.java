@@ -25,7 +25,6 @@ public class OdpsSqlUtils {
 
     for (int i = 0; i < tableMetaModel.columns.size(); i++) {
       MetaSource.ColumnMetaModel columnMetaModel = tableMetaModel.columns.get(i);
-      // TODO: type should be transformed before this
       sb.append("    `").append(columnMetaModel.odpsColumnName).append("` ")
           .append(columnMetaModel.odpsType);
 

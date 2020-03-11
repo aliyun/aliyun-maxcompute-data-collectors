@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,14 +68,9 @@ public class TaskScheduler {
   }
 
   public static void markAsFailed(String db, String tbl) {
-    if (databaseTableStatus == null) {
-      throw new IllegalStateException("Failed to update table status: table status is null");
-    }
-
-    if (!databaseTableStatus.containsKey(db) || !databaseTableStatus.get(db).containsKey(tbl)) {
+    if (!databaseTableStatus.containsKey(db)) {
       throw new IllegalStateException("Failed to update table status: table not found");
     }
-
     databaseTableStatus.get(db).put(tbl, false);
   }
 
@@ -153,17 +149,16 @@ public class TaskScheduler {
       }
 
       // Update table status
-      for (String db : databaseTableStatus.keySet()) {
-        for (String tbl : databaseTableStatus.get(db).keySet()) {
-          Boolean succeeded = databaseTableStatus.get(db).get(tbl);
-          if (succeeded) {
+      for (Map.Entry<String, Map<String, Boolean>> dbEntry: databaseTableStatus.entrySet()) {
+        for (Map.Entry<String, Boolean> tableEntry : dbEntry.getValue().entrySet()) {
+          if (tableEntry.getValue()) {
             MMAMetaManagerFsImpl
                 .getInstance()
-                .updateStatus(db, tbl, MMAMetaManager.MigrationStatus.SUCCEEDED);
+                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MMAMetaManager.MigrationStatus.SUCCEEDED);
           } else {
             MMAMetaManagerFsImpl
                 .getInstance()
-                .updateStatus(db, tbl, MMAMetaManager.MigrationStatus.FAILED);
+                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MMAMetaManager.MigrationStatus.FAILED);
           }
         }
       }

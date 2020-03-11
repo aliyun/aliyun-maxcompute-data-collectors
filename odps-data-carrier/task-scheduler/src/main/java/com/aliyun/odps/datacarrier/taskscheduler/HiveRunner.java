@@ -63,10 +63,11 @@ public class HiveRunner extends AbstractTaskRunner {
     @Override
     public void run() {
       try {
-        LOG.info("HiveSqlExecutor execute task {}, {}, {}",
-                 task,
-                 action,
-                 String.join(", ", sqls));
+        LOG.info("HiveSqlExecutor execute task {}, {}, {}, {}",
+            task,
+            action,
+            executionTaskName,
+            String.join(", ", sqls));
 
         Connection con = DriverManager.getConnection(jdbcAddress, user, password);
 
@@ -78,12 +79,12 @@ public class HiveRunner extends AbstractTaskRunner {
         settingsStatement.close();
 
         Statement statement = con.createStatement();
-        HiveStatement hiveStatement = (HiveStatement) statement;
         HiveExecutionInfo hiveExecutionInfo = (HiveExecutionInfo) task.actionInfoMap
             .get(action).executionInfoMap.get(executionTaskName);
         //statement.setQueryTimeout(24 * 60 * 60);
         for (String sql : sqls) {
           ResultSet resultSet = statement.executeQuery(sql);
+          HiveStatement hiveStatement = (HiveStatement) statement;
           while (resultSet.next()) {
             // -- getQueryLog --
             try {
@@ -128,12 +129,14 @@ public class HiveRunner extends AbstractTaskRunner {
                   "sql: \n" + String.join(", ", sqls) +
                   "\nexception: " + ExceptionUtils.getStackTrace(e));
         if (task != null) {
+          LOG.info("Hive SQL FAILED {}, {}, {}", action, executionTaskName, task.toString());
           task.updateExecutionProgress(action, executionTaskName, Progress.FAILED);
         }
         return;
       }
 
       if (task != null) {
+        LOG.info("Hive SQL SUCCEEDED {}, {}, {}", action, executionTaskName, task.toString());
         task.updateExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
       }
     }

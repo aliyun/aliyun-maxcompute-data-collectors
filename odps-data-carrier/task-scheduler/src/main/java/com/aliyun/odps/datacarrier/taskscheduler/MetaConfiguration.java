@@ -140,7 +140,7 @@ public class MetaConfiguration {
     private String hiveJdbcAddress;
     private String user;
     private String password;
-    private String thriftAddr;
+    private String hmsThriftAddr;
     private String krbPrincipal;
     private String keyTab;
     // TODO: consider a list?
@@ -151,7 +151,7 @@ public class MetaConfiguration {
     public HiveConfiguration(String hiveJdbcAddress,
                              String user,
                              String password,
-                             String thriftAddr,
+                             String hmsThriftAddr,
                              String krbPrincipal,
                              String keyTab,
                              String[] krbSystemProperties,
@@ -159,7 +159,7 @@ public class MetaConfiguration {
       this.hiveJdbcAddress = hiveJdbcAddress;
       this.user = user;
       this.password = password;
-      this.thriftAddr = thriftAddr;
+      this.hmsThriftAddr = hmsThriftAddr;
       this.krbPrincipal = krbPrincipal;
       this.keyTab = keyTab;
       this.krbSystemProperties = krbSystemProperties;
@@ -176,7 +176,7 @@ public class MetaConfiguration {
         }
       }
       return (!StringUtils.isNullOrEmpty(hiveJdbcAddress) &&
-              !StringUtils.isNullOrEmpty(thriftAddr));
+              !StringUtils.isNullOrEmpty(hmsThriftAddr));
     }
 
     public String getHiveJdbcAddress() {
@@ -191,8 +191,8 @@ public class MetaConfiguration {
       return password;
     }
 
-    public String getThriftAddr() {
-      return thriftAddr;
+    public String getHmsThriftAddr() {
+      return hmsThriftAddr;
     }
 
     public String getKrbPrincipal() {
@@ -215,7 +215,7 @@ public class MetaConfiguration {
     public String toString() {
       final StringBuilder sb = new StringBuilder("HiveConfiguration {");
       sb.append("hiveJdbcAddress='").append(hiveJdbcAddress).append('\'');
-      sb.append(", thriftAddr='").append(thriftAddr).append('\'');
+      sb.append(", hmsThriftAddr='").append(hmsThriftAddr).append('\'');
       sb.append(", krbPrincipal='").append(krbPrincipal).append('\'');
       sb.append(", keyTab='").append(keyTab).append('\'');
       sb.append(", krbSystemProperties=").append(Arrays.toString(krbSystemProperties));
@@ -387,6 +387,7 @@ public class MetaConfiguration {
     private Map<String, String> columnNameCustomizedConversion;
     private int partitionGroupSize;
     private int retryTimesLimit;
+    // TODO: remove
     private String whereCondition;
 
     public Config() {

@@ -88,8 +88,10 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
   private MMAMetaManagerFsImpl(String parentDir, MetaSource metaSource) throws IOException {
     if (parentDir == null) {
-      // TODO: use a fixed parent directory
-      parentDir = System.getProperty("user.dir");
+      parentDir = System.getenv("MMA_HOME");
+      if (parentDir == null) {
+        throw new IllegalStateException("Environment variable 'MMA_HOME' not set");
+      }
     }
 
     this.workspace = Paths.get(parentDir, META_DIR_NAME).toAbsolutePath();

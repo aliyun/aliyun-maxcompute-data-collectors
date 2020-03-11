@@ -2,6 +2,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import org.apache.commons.cli.CommandLine;
@@ -19,7 +20,7 @@ public class MMAClientFsImpl implements MMAClient {
 
   public MMAClientFsImpl(MetaConfiguration configuration) throws MetaException, IOException {
     MetaConfiguration.HiveConfiguration hiveConfigurationConfig = configuration.getHiveConfiguration();
-    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
+    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getHmsThriftAddr(),
                                                hiveConfigurationConfig.getKrbPrincipal(),
                                                hiveConfigurationConfig.getKeyTab(),
                                                hiveConfigurationConfig.getKrbSystemProperties());
@@ -50,16 +51,13 @@ public class MMAClientFsImpl implements MMAClient {
         .addOption(startJobOption);
 
     // TODO: support wait job and wait all
+    // TODO: support help
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
     if (cmd.hasOption("start")) {
-      String configFilePath = cmd.getOptionValue("start");
-      if (!configFilePath.startsWith("/")) {
-        configFilePath = Paths.get(System.getProperty("user.dir"), configFilePath).toString();
-      }
-      File configFile = new File(configFilePath);
+      File configFile = new File(cmd.getOptionValue("start"));
       MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
       MMAClient client = new MMAClientFsImpl(metaConfiguration);
       client.createMigrationJobs();

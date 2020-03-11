@@ -142,12 +142,6 @@ public class MetaConfigurationUtils {
     return metaConfiguration;
   }
 
-  public static File getDefaultConfigFile() {
-    // TODO: use a fixed parent directory
-    String currentDir = System.getProperty("user.dir");
-    return new File(currentDir + "/" + META_CONFIG_FILE);
-  }
-
   public static void generateConfigFile(File configFile, String tableMappingFilePath, String odpsConfigFilePath)
       throws Exception {
     Files.deleteIfExists(configFile.toPath());
@@ -189,14 +183,14 @@ public class MetaConfigurationUtils {
 
   public static void main(String[] args) throws Exception {
     Option input = Option
-        .builder("input")
+        .builder()
         .longOpt(TABLE_MAPPING)
         .argName(TABLE_MAPPING)
         .hasArg()
         .desc("generate config.json for tables specified in table mapping file.")
         .build();
     Option odpsConfig = Option
-        .builder("odpsConfig")
+        .builder()
         .longOpt(ODPS_CONFIG)
         .argName(ODPS_CONFIG)
         .hasArg()
@@ -208,22 +202,28 @@ public class MetaConfigurationUtils {
         .argName(HELP)
         .desc("Print help information")
         .build();
+
     Options options = new Options()
         .addOption(input)
         .addOption(odpsConfig)
         .addOption(help);
+
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    if (!cmd.hasOption(HELP)) {
-      File configFile = getDefaultConfigFile();
-      if (cmd.hasOption(TABLE_MAPPING)) {
-        configFile = new File(System.getProperty("user.dir"), META_CONFIG_FILE);
-      }
-      generateConfigFile(configFile, cmd.getOptionValue(TABLE_MAPPING), cmd.getOptionValue(ODPS_CONFIG));
-    } else {
+    if (cmd.hasOption(HELP)) {
       logHelp(options);
+      System.exit(0);
     }
+
+    if (!cmd.hasOption(TABLE_MAPPING) || !cmd.hasOption(ODPS_CONFIG)) {
+      throw new IllegalArgumentException("Required arguments: 'table-mapping' and 'odps-config'");
+    }
+
+    File outputFile = new File(META_CONFIG_FILE);
+    generateConfigFile(outputFile,
+                       cmd.getOptionValue(TABLE_MAPPING),
+                       cmd.getOptionValue(ODPS_CONFIG));
   }
 
   private static void logHelp(Options options) {

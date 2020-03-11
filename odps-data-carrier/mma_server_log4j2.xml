@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Appenders>
+        <RollingFile name="ServerLogFile" fileName="${env:MMA_HOME}log/mma_server.LOG"
+                     filePattern="${env:MMA_HOME}log/mma_server.LOG.%i.gz">
+            <PatternLayout>
+                <!-- 2019-03-01 20:57:25,271 INFO  [main] app.DagAppMaster (DagAppMaster.java:<init>(337)) - Log example. -->
+                <Pattern>%d{DEFAULT} %-5p [%t] %c{2} (%F:%M(%L)) - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <OnStartupTriggeringPolicy />
+                <SizeBasedTriggeringPolicy size="100 MB" />
+            </Policies>
+            <DefaultRolloverStrategy fileIndex="min" max="10000"/>
+        </RollingFile>
+        <Async name="ServerLoggerAppender" bufferSize="100000" blocking="false" includeLocation="true">
+            <AppenderRef ref="ServerLogFile"/>
+        </Async>
+        <RollingFile name="RunnerLogFile" fileName="${env:MMA_HOME}log/task_runner.LOG"
+                     filePattern="${env:MMA_HOME}log/task_runner.LOG.%i.gz">
+            <PatternLayout>
+                <!-- Only print the original message. -->
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <OnStartupTriggeringPolicy />
+                <SizeBasedTriggeringPolicy size="100 MB" />
+            </Policies>
+            <DefaultRolloverStrategy fileIndex="min" max="10000"/>
+        </RollingFile>
+        <Async name="RunnerLoggerAppender" bufferSize="100000" blocking="false" includeLocation="false">
+            <AppenderRef ref="RunnerLogFile"/>
+        </Async>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="ServerLoggerAppender"/>
+        </Root>
+        <logger name="RunnerLogger" level="all" additivity="false">
+            <AppenderRef ref="RunnerLoggerAppender"/>
+        </logger>
+        <logger name="org.apache.thrift.transport.TSaslTransport" level="warn" additivity="false">
+            <AppenderRef ref="RunnerLoggerAppender"/>
+        </logger>
+    </Loggers>
+</Configuration>

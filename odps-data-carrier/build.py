@@ -47,6 +47,7 @@ if __name__ == '__main__':
         os.unlink("odps-data-carrier.tar.gz")
 
     # replace hive version
+    # TODO: not this easy
     with open("pom.xml", "r+") as fd:
         content = fd.read()
         content = re.sub("<hive.version>.*</hive.version>",
@@ -62,27 +63,38 @@ if __name__ == '__main__':
         print("Build failed, exit")
         sys.exit(1)
 
+    # mkdirs
     os.makedirs("odps-data-carrier")
-    os.makedirs("odps-data-carrier/libs")
+    os.makedirs("odps-data-carrier/bin")
+    os.makedirs("odps-data-carrier/lib")
+    os.makedirs("odps-data-carrier/conf")
+    os.makedirs("odps-data-carrier/resource")
+
     # task-scheduler
     jar_name = "task-scheduler-1.0-SNAPSHOT.jar"
     original_jar_path = "task-scheduler/target/" + jar_name
 
-    shutil.copyfile("bin/mma-server", "odps-data-carrier/mma-server")
-    shutil.copyfile("bin/mma-client", "odps-data-carrier/mma-client")
-    shutil.copyfile("bin/generate-config", "odps-data-carrier/generate-config")
-    shutil.copyfile("odps_config.ini", "odps-data-carrier/odps_config.ini")
-    shutil.copyfile(original_jar_path, "odps-data-carrier/" + jar_name)
+    # bin
+    shutil.copyfile("bin/mma-server", "odps-data-carrier/bin/mma-server")
+    shutil.copyfile("bin/mma-client", "odps-data-carrier/bin/mma-client")
+    shutil.copyfile("bin/generate-config", "odps-data-carrier/bin/generate-config")
+
+    # lib
+    task_scheduler_jar_name = "task-scheduler-1.0-SNAPSHOT.jar"
+    shutil.copyfile("task-scheduler/target/" + jar_name, "odps-data-carrier/lib/" + jar_name)
+
+    # conf
+    shutil.copyfile("odps_config.ini", "odps-data-carrier/conf/odps_config.ini")
+    shutil.copyfile("oss_config.ini", "odps-data-carrier/conf/oss_config.ini")
+
+    # resource
+    shutil.copyfile("mma_server_log4j2.xml", "odps-data-carrier/resource/mma_server_log4j2.xml")
+    shutil.copyfile("mma_client_log4j2.xml", "odps-data-carrier/resource/mma_client_log4j2.xml")
 
     # data-transfer-hive-udtf
     udtf_jar_name = "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
-    shutil.copyfile("data-transfer-hive-udtf/target/" + udtf_jar_name, "odps-data-carrier/libs/" + udtf_jar_name)
-
-    # generate config.json
-    ret = execute("java -cp %s com.aliyun.odps.datacarrier.taskscheduler.MetaConfigurationUtils" % original_jar_path)
-    if ret != 0:
-        print("Generate config.json failed, exit")
-        sys.exit(1)
+    shutil.copyfile("data-transfer-hive-udtf/target/" + udtf_jar_name,
+                    "odps-data-carrier/lib/" + udtf_jar_name)
 
     execute("tar -zcpvf odps-data-carrier.tar.gz odps-data-carrier")
     shutil.rmtree("odps-data-carrier")

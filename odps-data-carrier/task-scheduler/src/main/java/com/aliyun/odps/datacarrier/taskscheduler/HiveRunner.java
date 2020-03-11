@@ -118,7 +118,6 @@ public class HiveRunner extends AbstractTaskRunner {
 //          }
             break;
           }
-          hiveStatement.close();
           resultSet.close();
         }
         LOG.debug("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());

@@ -168,7 +168,7 @@ class Task {
     if (taskProgressChanged) {
       if (Progress.FAILED.equals(progress)) {
         TaskScheduler.markAsFailed(tableMetaModel.databaseName, tableMetaModel.tableName);
-      } else {
+      } else if (Progress.SUCCEEDED.equals(progress)) {
         // Partitioned table should update succeeded partitions
         List<List<String>> partitionValuesList = tableMetaModel.partitions
             .stream()

@@ -57,6 +57,8 @@ public class Configure {
 
     private boolean isCheckPointFileDisable = false;
 
+    private String charsetName = "UTF-8";
+
     public String getOracleSid() {
         return oracleSid;
     }
@@ -167,6 +169,14 @@ public class Configure {
 
     public void setCheckPointFileDisable(boolean checkPointFileDisable) {
         isCheckPointFileDisable = checkPointFileDisable;
+    }
+
+    public String getCharsetName() {
+        return charsetName;
+    }
+
+    public void setCharsetName(String charsetName) {
+        this.charsetName = charsetName;
     }
 
     public Map<String, TableMapping> getTableMappings() {

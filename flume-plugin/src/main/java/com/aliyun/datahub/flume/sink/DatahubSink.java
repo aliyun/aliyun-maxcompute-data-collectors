@@ -134,7 +134,10 @@ public class DatahubSink extends AbstractSink implements Configurable {
             sinkCounter = new SinkCounter(getName());
         }
 
-        logger.debug(configure.sinktoString());
+        if (logger.isInfoEnabled())
+        {
+            logger.info(configure.sinktoString());
+        }
     }
 
     private OdpsEventSerializer createSerializer(String serializerType) {
@@ -195,7 +198,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
     @Override
     public Status process() throws EventDeliveryException {
         long threadId = Thread.currentThread().getId();
-        logger.debug("[Thread " + threadId + "] " + "Sink {} processing...", getName());
+        logger.debug("[Thread {}] Sink {} processing...", threadId, getName());
         Status status = Status.READY;
         Channel channel = getChannel();
         Transaction transaction = channel.getTransaction();
@@ -215,6 +218,12 @@ public class DatahubSink extends AbstractSink implements Configurable {
                 } else {
                     serializer.initialize(event);
                     Map<String, String> rowMap = serializer.getRow();
+                    if (logger.isDebugEnabled())
+                    {
+                        logger.debug("[Thread {}] Sink: {}, event: {}", threadId, getName(), new String(event.getBody()));
+                        logger.debug("[Thread {}] Sink: {}, rowMap: {}", threadId, getName(), rowMap);
+                    }
+
                     if (!rowMap.isEmpty()) {
                         TupleRecordData data = datahubWriter.buildRecord(rowMap);
                         if (data != null) {

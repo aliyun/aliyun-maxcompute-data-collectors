@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
+import java.security.InvalidParameterException;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -49,6 +50,7 @@ public class RecordBuilder {
     private Map<String, Integer> latestSyncId = Maps.newHashMap();
     private final static SimpleDateFormat DEFAULT_DATE_FORMATTER =
             new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
+    private Charset charset;
 
     private static RecordBuilder recordBuilder;
 
@@ -64,6 +66,11 @@ public class RecordBuilder {
 
     private RecordBuilder(Configure configure) {
         this.configure = configure;
+
+        if (!Charset.isSupported(configure.getCharsetName())) {
+            throw new InvalidParameterException("Invalid charsetName: " + configure.getCharsetName());
+        }
+        charset = Charset.forName(configure.getCharsetName());
 
         for (String oracleTableFullName : configure.getTableMappings().keySet()) {
             latestSyncId.put(oracleTableFullName, 0);
@@ -161,32 +168,38 @@ public class RecordBuilder {
             }
 
             DsColumn dsColumn = columns.get(i);
+            String afterValue = dsColumn.getAfterValue();
+            String beforeValue = dsColumn.getBeforeValue();
+            if (!columnMapping.isDefaultCharset()) {
+                afterValue = dsColumn.getAfter() == null ? null : new String(dsColumn.getAfterValue().getBytes(charset));
+                beforeValue = dsColumn.getBefore() == null ? null : new String(dsColumn.getBeforeValue().getBytes(charset));
+            }
+            logger.info("after {}, before {}", afterValue, beforeValue);
 
             String dest = columnMapping.getDest();
             if (StringUtils.isNotBlank(dest)) {
                 if (columnMapping.isKeyColumn()) {
                     if (dsColumn.getAfter() == null) {
-                        //recordData.setField(dest, dsColumn.getBeforeValue());
-                        setTupleData(recordData, recordSchema.getField(dest), dsColumn.getBeforeValue(),
+                        setTupleData(recordData, recordSchema.getField(dest), beforeValue,
                                 columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
                     } else {
-                        setTupleData(recordData, recordSchema.getField(dest), dsColumn.getAfterValue(),
+                        setTupleData(recordData, recordSchema.getField(dest), afterValue,
                                 columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
                     }
                 } else {
-                    setTupleData(recordData, recordSchema.getField(dest), dsColumn.getAfterValue(),
+                    setTupleData(recordData, recordSchema.getField(dest), afterValue,
                             columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
                 }
             }
 
             String destOld = columnMapping.getDestOld();
             if (StringUtils.isNotBlank(destOld)) {
-                setTupleData(recordData, recordSchema.getField(destOld), dsColumn.getBeforeValue(),
+                setTupleData(recordData, recordSchema.getField(destOld), beforeValue,
                         columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
             }
 
             if (columnMapping.isShardColumn()) {
-                hashString.append(columns.get(i).getAfterValue());
+                hashString.append(afterValue);
             }
         }
 
@@ -211,7 +224,23 @@ public class RecordBuilder {
                 continue;
             }
 
-            BlobRecordData recordData = new BlobRecordData(columns.get(i).getAfterValue().getBytes(Charset.forName("UTF-8")));
+            DsColumn dsColumn = columns.get(i);
+            byte[] data;
+            if (columnMapping.isDefaultCharset()) {
+                if ("D".equalsIgnoreCase(opType)) {
+                    data = dsColumn.getBeforeValue().getBytes(Charset.forName("UTF-8"));
+                } else {
+                    data = dsColumn.getAfterValue().getBytes(Charset.forName("UTF-8"));
+                }
+            } else {
+                if ("D".equalsIgnoreCase(opType)) {
+                    data = dsColumn.getBeforeValue().getBytes(charset);
+                } else {
+                    data = dsColumn.getAfterValue().getBytes(charset);
+                }
+            }
+
+            BlobRecordData recordData = new BlobRecordData(data);
             recordEntry.setRecordData(recordData);
             break;
         }

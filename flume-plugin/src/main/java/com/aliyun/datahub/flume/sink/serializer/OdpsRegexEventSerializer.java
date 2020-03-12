@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.security.InvalidParameterException;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -83,7 +84,15 @@ public class OdpsRegexEventSerializer implements OdpsEventSerializer {
                 CHARSET_DEFAULT));
 
         String colNameStr = context.getString(FIELD_NAMES, FIELD_NAME_DEFAULT);
-        inputColNames = colNameStr.split(",");
+        if (colNameStr == null) {
+            throw new InvalidParameterException("invalid fieldnames: " + colNameStr);
+        }
+        inputColNames = colNameStr.split(",", -1);
+        for (int i = 0; i < inputColNames.length; i++) {
+            inputColNames[i] = StringUtils.trimToEmpty(inputColNames[i]);
+        }
+
+        logger.info("RegexEventSerializer, regex: [{}], charset: {}, fieldnames, {} ", regex, charset, inputColNames);
     }
 
     @Override

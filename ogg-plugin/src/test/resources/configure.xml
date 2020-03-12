@@ -50,6 +50,8 @@
 
     <checkPointFileName>datahub_ogg_plugin.chk.test</checkPointFileName>
 
+    <charset>utf-8</charset>
+
     <mappings>
         <mapping>
             <!-- oracle schema, 见上描述-->
@@ -84,7 +86,7 @@
                 dateFormat: timestamp字段的转换格式, 不填就用默认值yyyy-MM-dd HH:mm:ss
                 -->
                 <column src="c1" dest="c1" />
-                <column src="c2" dest="c2" destOld="c2_old" isShardColumn="true" isDateFormat="false" dateFormat="yyyy-MM-dd:HH:mm:ss"/>
+                <column src="c2" dest="c2" destOld="c2_old" isShardColumn="true" isDateFormat="false" dateFormat="yyyy-MM-dd:HH:mm:ss" isDefaultCharset="false"/>
             </columnMapping>
         </mapping>
         <mapping>

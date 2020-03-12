@@ -51,6 +51,7 @@ public class ConfigureReaderTest {
         Assert.assertEquals(configure.getRetryTimes(), 35);
         Assert.assertEquals(configure.getRetryInterval(), 1000);
         Assert.assertEquals(configure.getCheckPointFileName(), "datahub_ogg_plugin.chk.test");
+        Assert.assertEquals(configure.getCharsetName(), "utf-8");
         Assert.assertTrue(configure.isCheckPointFileDisable());
         Map<String, TableMapping> tableMappingMap = configure.getTableMappings();
         Assert.assertEquals(tableMappingMap.size(), 2);
@@ -88,6 +89,7 @@ public class ConfigureReaderTest {
         Assert.assertFalse(column1.isShardColumn());
         Assert.assertTrue(column1.isDateFormat());
         Assert.assertFalse(column1.isKeyColumn());
+        Assert.assertTrue(column1.isDefaultCharset());
         ColumnMapping column2 = columns.get("c2");
         Assert.assertEquals(column2.getDest(), "c2");
         Assert.assertEquals(column2.getDestOld(), "c2_old");
@@ -95,6 +97,7 @@ public class ConfigureReaderTest {
         Assert.assertFalse(column2.isDateFormat());
         Assert.assertEquals(column2.getDateFormat(), "yyyy-MM-dd:HH:mm:ss");
         Assert.assertFalse(column2.isKeyColumn());
+        Assert.assertFalse(column2.isDefaultCharset());
 
 
         TableMapping table2 = configure.getTableMapping("ogg_test.test2");

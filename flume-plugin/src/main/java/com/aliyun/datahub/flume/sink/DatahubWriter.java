@@ -23,9 +23,9 @@ import com.aliyun.datahub.client.DatahubClient;
 import com.aliyun.datahub.client.DatahubClientBuilder;
 import com.aliyun.datahub.client.common.DatahubConfig;
 import com.aliyun.datahub.client.exception.DatahubClientException;
-import com.aliyun.datahub.client.exception.InvalidParameterException;
 import com.aliyun.datahub.client.http.HttpConfig;
 import com.aliyun.datahub.client.model.*;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +88,7 @@ public class DatahubWriter {
         RecordSchema schema = topic.getRecordSchema();
         String[] columns = configure.getInputColumnNames();
         for (String columnName : columns) {
-            if (!schema.containsField(columnName)) {
+            if (!StringUtils.isEmpty(columnName) && !schema.containsField(columnName)) {
                 throw new IllegalArgumentException("The field " + columnName + " is not exist in datahub schema.");
             }
         }

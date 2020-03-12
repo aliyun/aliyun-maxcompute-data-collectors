@@ -1,3 +1,5 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-java -cp "$DIR/task-scheduler-1.0-SNAPSHOT.jar" com.aliyun.odps.datacarrier.taskscheduler.MetaConfigurationUtils "$@"
+export MMA_HOME="$DIR/../"
+
+java -cp "$DIR/../lib/task-scheduler-1.0-SNAPSHOT.jar" com.aliyun.odps.datacarrier.taskscheduler.MetaConfigurationUtils "$@"

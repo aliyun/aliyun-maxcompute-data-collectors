@@ -6,6 +6,8 @@ import static com.aliyun.odps.datacarrier.taskscheduler.Constants.META_CONFIG_FI
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -92,7 +94,7 @@ public class TaskScheduler {
 
     MetaConfiguration.HiveConfiguration hiveConfigurationConfig =
         metaConfiguration.getHiveConfiguration();
-    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getThriftAddr(),
+    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getHmsThriftAddr(),
                                                hiveConfigurationConfig.getKrbPrincipal(),
                                                hiveConfigurationConfig.getKeyTab(),
                                                hiveConfigurationConfig.getKrbSystemProperties());
@@ -394,8 +396,8 @@ public class TaskScheduler {
     BasicConfigurator.configure();
     Option config = Option
         .builder("config")
-        .longOpt(META_CONFIG_FILE)
-        .argName(META_CONFIG_FILE)
+        .longOpt("config")
+        .argName("config")
         .hasArg()
         .desc("Specify config.json, default: ./config.json")
         .build();
@@ -405,51 +407,40 @@ public class TaskScheduler {
         .argName(HELP)
         .desc("Print help information")
         .build();
-    Option version = Option
-        .builder("v")
-        .longOpt("version")
-        .argName("version")
-        .hasArg(false)
-        .desc("Print MMA version")
-        .build();
     Options options = new Options()
         .addOption(config)
-        .addOption(help)
-        .addOption(version);
+        .addOption(help);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    if (cmd.hasOption("version")) {
-      System.err.println("0.0.1");
+    if (cmd.hasOption(HELP)) {
+      logHelp(options);
       System.exit(0);
     }
 
-    if (!cmd.hasOption(HELP)) {
-      // TODO: use a fixed parent directory
-      File configFile = new File(System.getProperty("user.dir"), META_CONFIG_FILE);
-      if (cmd.hasOption(META_CONFIG_FILE)) {
-        configFile = new File(cmd.getOptionValue(META_CONFIG_FILE));
-      }
-      MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
-      if (!metaConfiguration.validateAndInitConfig()) {
-        LOG.error("Init MetaConfiguration failed, please check {}", configFile.toString());
-        System.exit(1);
-      }
-      TaskScheduler scheduler = new TaskScheduler();
-      try {
-        scheduler.run(metaConfiguration);
-      } finally {
-        scheduler.shutdown();
-      }
-    } else {
-      logHelp(options);
+    if (!cmd.hasOption("config")) {
+      throw new IllegalArgumentException("Required argument 'config'");
+    }
+
+    File configFile = new File(cmd.getOptionValue("config"));
+    MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
+    if (!metaConfiguration.validateAndInitConfig()) {
+      LOG.error("Init MetaConfiguration failed, please check {}", configFile.toString());
+      System.exit(1);
+    }
+
+    TaskScheduler scheduler = new TaskScheduler();
+    try {
+      scheduler.run(metaConfiguration);
+    } finally {
+      scheduler.shutdown();
     }
   }
 
   private static void logHelp(Options options) {
     HelpFormatter formatter = new HelpFormatter();
-    String cmdLineSyntax = "migrate -config <config.json>";
+    String cmdLineSyntax = "migrate --config <config.json>";
     formatter.printHelp(cmdLineSyntax, options);
   }
 }

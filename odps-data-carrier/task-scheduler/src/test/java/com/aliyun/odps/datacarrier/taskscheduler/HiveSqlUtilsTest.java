@@ -38,7 +38,7 @@ public class HiveSqlUtilsTest {
                + "`bar`)\n"
                + "FROM test.`test_partitioned`\n"
                + "WHERE\n"
-               + "bar='hello_world'\n";
+               + "bar=cast('hello_world' AS string)\n";
     actual = HiveSqlUtils.getUdtfSql(partitioned);
     Assert.assertEquals(expected, actual);
   }

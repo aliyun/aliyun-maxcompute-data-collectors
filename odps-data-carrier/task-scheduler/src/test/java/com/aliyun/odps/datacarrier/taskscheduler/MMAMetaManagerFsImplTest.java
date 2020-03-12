@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -16,20 +17,27 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class MMAMetaManagerFsImplTest {
-  private static final Path DEFAULT_MMA_META_DIR =
-      Paths.get(System.getProperty("user.dir"), ".mma").toAbsolutePath();
+  private static final Path DEFAULT_MMA_PARENT_DIR =
+      Paths.get(System.getProperty("user.dir")).toAbsolutePath();
+  private static final Path DEFAULT_MMA_META_DIR = Paths.get(DEFAULT_MMA_PARENT_DIR.toString(),
+                                                             ".mma");
   private static final String DEFAULT_DB = "test";
 
   private static MetaSource metaSource = new MockHiveMetaSource();
 
   @BeforeClass
   public static void beforeClass() throws IOException {
-    MMAMetaManagerFsImpl.init(null, metaSource);
+    if (DEFAULT_MMA_META_DIR.toFile().exists()) {
+      DirUtils.removeDir(DEFAULT_MMA_META_DIR);
+    }
+    MMAMetaManagerFsImpl.init(DEFAULT_MMA_PARENT_DIR.toString(), metaSource);
   }
 
   @AfterClass
   public static void afterClass() throws IOException {
-    DirUtils.removeDir(DEFAULT_MMA_META_DIR);
+    if (DEFAULT_MMA_META_DIR.toFile().exists()) {
+      DirUtils.removeDir(DEFAULT_MMA_META_DIR);
+    }
   }
 
   @Before
@@ -88,6 +96,133 @@ public class MMAMetaManagerFsImplTest {
         assertEquals("hello_world\n", partitionMetadata);
       }
     }
+  }
+
+  @Test
+  public void testRestartJobPartitioned() throws Exception {
+    // Update status to succeeded so that it could be restarted
+    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
+                                                    "test_partitioned",
+                                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+
+    // Restart job
+    MetaConfiguration.Config config = new MetaConfiguration.Config(null,
+                                                                   null,
+                                                                   10,
+                                                                   1,
+                                                                   "");
+    MetaConfiguration.TableConfig tableConfig =
+        new MetaConfiguration.TableConfig(DEFAULT_DB,
+                                          "test_partitioned",
+                                          DEFAULT_DB,
+                                          "test_partitioned",
+                                          config);
+    MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+
+    // Make sure the metadata dir exists
+    Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_partitioned");
+    assertTrue(dir.toFile().exists());
+
+    // Make sure the table metadata file exists
+    Path metadataPath = Paths.get(dir.toString(), "metadata");
+    assertTrue(metadataPath.toFile().exists());
+
+    // Make sure the content of table metadata file is expected
+    String metadata = DirUtils.readFile(metadataPath);
+    assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+
+    // Make sure the config file exists
+    Path configPath = Paths.get(dir.toString(), "config");
+    assertTrue(configPath.toFile().exists());
+
+    // Make sure the partition metadata file exists and its content is expected
+    Path partitionMetadataPath = Paths.get(dir.toString(), "partitions_all");
+    assertTrue(partitionMetadataPath.toFile().exists());
+    String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
+    assertEquals("hello_world\n", partitionMetadata);
+  }
+
+  @Test
+  public void testRestartJobNonPartitioned() throws Exception {
+    // Update status to succeeded so that it could be restarted
+    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
+                                                    "test_non_partitioned",
+                                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+
+    // Restart job
+    MetaConfiguration.Config config = new MetaConfiguration.Config(null,
+                                                                   null,
+                                                                   10,
+                                                                   1,
+                                                                   "");
+    MetaConfiguration.TableConfig tableConfig =
+        new MetaConfiguration.TableConfig(DEFAULT_DB,
+                                          "test_non_partitioned",
+                                          DEFAULT_DB,
+                                          "test_non_partitioned",
+                                          config);
+    MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+
+    // Make sure the metadata dir exists
+    Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_non_partitioned");
+    assertTrue(dir.toFile().exists());
+
+    // Make sure the table metadata file exists
+    Path metadataPath = Paths.get(dir.toString(), "metadata");
+    assertTrue(metadataPath.toFile().exists());
+
+    // Make sure the content of table metadata file is expected
+    String metadata = DirUtils.readFile(metadataPath);
+    assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+
+    // Make sure the config file exists
+    Path configPath = Paths.get(dir.toString(), "config");
+    assertTrue(configPath.toFile().exists());
+  }
+
+  @Test
+  public void testAddPartitionsToExistingJob() throws IOException {
+    // Update status to succeeded so that it could be restarted
+    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
+                                                    "test_partitioned",
+                                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+    // Restart job
+    MetaConfiguration.Config config = new MetaConfiguration.Config(null,
+                                                                   null,
+                                                                   10,
+                                                                   1,
+                                                                   "");
+    MetaConfiguration.TableConfig tableConfig =
+        new MetaConfiguration.TableConfig(DEFAULT_DB,
+                                          "test_partitioned",
+                                          DEFAULT_DB,
+                                          "test_partitioned",
+                                          config);
+    tableConfig.partitionValuesList =
+        new LinkedList<>(Collections.singletonList(Collections.singletonList("foo")));
+    MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+
+    // Make sure the metadata dir exists
+    Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_partitioned");
+    assertTrue(dir.toFile().exists());
+
+    // Make sure the table metadata file exists
+    Path metadataPath = Paths.get(dir.toString(), "metadata");
+    assertTrue(metadataPath.toFile().exists());
+
+    // Make sure the content of table metadata file is expected
+    String metadata = DirUtils.readFile(metadataPath);
+    assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+
+    // Make sure the config file exists
+    Path configPath = Paths.get(dir.toString(), "config");
+    assertTrue(configPath.toFile().exists());
+
+    // Make sure the partition metadata file exists and its content is expected
+    Path partitionMetadataPath = Paths.get(dir.toString(), "partitions_all");
+    assertTrue(partitionMetadataPath.toFile().exists());
+    String partitionMetadata = DirUtils.readFile(partitionMetadataPath);
+    assertEquals("hello_world\nfoo\n", partitionMetadata);
   }
 
   @Test

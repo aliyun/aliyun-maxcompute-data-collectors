@@ -1,6 +1,6 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.io.FileOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
@@ -118,12 +118,17 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
       Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
       Path metadataPath = getMetadataPath(db, tbl);
       Path configPath = getConfigPath(db, tbl);
+      boolean metadataExists = tableMetaDir.toFile().exists();
 
       // If the dir already exists
-      if (tableMetaDir.toFile().exists()) {
-        String errMsg = String.format(
-            "Migration job for %s.%s already exists, please remove it first", db, tbl);
-        throw new IllegalArgumentException(errMsg);
+      if (metadataExists) {
+        MigrationStatus status = getStatusInternal(db, tbl);
+        // If the migration job has ended, restart it. Otherwise, throw an exception
+        if (!MigrationStatus.SUCCEEDED.equals(status) && !MigrationStatus.FAILED.equals(status)) {
+          String errMsg = String.format(
+              "Migration job for %s.%s already exists and is running, please wait", db, tbl);
+          throw new IllegalArgumentException(errMsg);
+        }
       }
 
       // Init metadata file
@@ -143,42 +148,47 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
                                         + configPath.toString() + " failed");
       }
 
-      // Create partitions_all, partitions_succeeded and partitions_failed for partitioned tables
+      // Create partitions_all, partitions_succeeded and partitions_failed if not exists for
+      // partitioned tables
       try {
-        MetaSource.TableMetaModel tableMetaModel = metaSource.getTableMeta(db, tbl);
+        MetaSource.TableMetaModel tableMetaModel =
+            metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
 
         if (tableMetaModel.partitionColumns.size() > 0) {
-          Path allPartitionListPath = getAllPartitionListPath(db, tbl);
-          Path succeededPartitionListPath = getSucceededPartitionListPath(db, tbl);
-          Path failedPartitionListPath = getFailedPartitionListPath(db, tbl);
+          File allPartitionList = getAllPartitionListPath(db, tbl).toFile();
+          File succeededPartitionList = getSucceededPartitionListPath(db, tbl).toFile();
+          File failedPartitionList = getFailedPartitionListPath(db, tbl).toFile();
 
-          // Create partitions_all, partitions_succeeded and partitions_failed for partitioned tables
-          if (!allPartitionListPath.toFile().createNewFile()) {
+          if (!allPartitionList.exists() && !allPartitionList.createNewFile()) {
             throw new IllegalStateException("Failed to create file " + PARTITION_LIST_ALL);
           }
-          if (!succeededPartitionListPath.toFile().createNewFile()) {
+          if (!succeededPartitionList.exists() && !succeededPartitionList.createNewFile()) {
             throw new IllegalStateException("Failed to create file " + PARTITION_LIST_SUCCEEDED);
           }
-          if (!failedPartitionListPath.toFile().createNewFile()) {
+          if (!failedPartitionList.exists() && !failedPartitionList.createNewFile()) {
             throw new IllegalStateException("Failed to create file " + PARTITION_LIST_FAILED);
           }
 
           // User doesn't specify any partition, get from HMS
+          List<List<String>> partitionValuesList = new LinkedList<>();
           if (config.partitionValuesList == null || config.partitionValuesList.isEmpty()) {
-            config.partitionValuesList = metaSource.listPartitions(db, tbl);
+            partitionValuesList.addAll(metaSource.listPartitions(db, tbl));
+          } else {
+            if (metadataExists) {
+              partitionValuesList.addAll(
+                  getMergedAllPartitionValuesList(db, tbl, config.partitionValuesList));
+            } else {
+              // TODO: should check if config.partitionValuesList has duplications
+              partitionValuesList.addAll(config.partitionValuesList);
+            }
           }
 
           // Init PARTITION_LIST_ALL
           try {
-            FileOutputStream fos = new FileOutputStream(allPartitionListPath.toFile());
-            CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
-            for (List<String> partitionValues : config.partitionValuesList) {
-              csvWriter.writeRecord(partitionValues.toArray(new String[0]));
-            }
-            csvWriter.close();
+            DirUtils.writeCsvFile(allPartitionList.toPath(), partitionValuesList);
           } catch (IOException e) {
             throw new IllegalStateException("Failed to init migration, init "
-                                            + allPartitionListPath.toString() + " failed");
+                                            + allPartitionList.toPath().toString() + " failed");
           }
         }
       } catch (Exception e) {
@@ -487,6 +497,26 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
   private Path getLockPath() {
     return Paths.get(workspace.toString(), ".lock");
+  }
+
+  private List<List<String>> getMergedAllPartitionValuesList(
+      String db,
+      String tbl,
+      List<List<String>> newPartitionValuesList) {
+    try {
+      List<List<String>> allPartitionValuesList =
+          DirUtils.readCsvFile(getAllPartitionListPath(db, tbl));
+      for (List<String> partitionValues : newPartitionValuesList) {
+        if (!allPartitionValuesList.contains(partitionValues)) {
+          allPartitionValuesList.add(partitionValues);
+        }
+      }
+
+      return allPartitionValuesList;
+    } catch (IOException e) {
+      throw new IllegalArgumentException("Failed to get merged all partition list, db:"
+                                         + db + ", tbl: " + tbl);
+    }
   }
 
   private List<List<String>> getUnSucceededPartitionValuesList(String db, String tbl) {

@@ -65,13 +65,11 @@ public class TableSplitter implements TaskManager {
     List<Task> ret = new LinkedList<>();
 
     // If this table doesn't have any partition, create a task an return
-    // TODO: In this case, there shouldn't be "ADD PARTITION" or "LOAD_DATA" stage
+    // TODO: Handle this case in a more elegant way
     if (tableMetaModel.partitions.isEmpty()) {
       String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
       Task task = new Task(taskName, tableMetaModel.clone(), config);
-      for (Action action : actions) {
-        task.addExecutionInfo(action, taskName);
-      }
+      task.addExecutionInfo(Action.ODPS_CREATE_TABLE, taskName);
       ret.add(task);
       return ret;
     }

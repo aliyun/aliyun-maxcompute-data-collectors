@@ -72,56 +72,44 @@ public class HiveRunner extends AbstractTaskRunner {
         Connection con = DriverManager.getConnection(jdbcAddress, user, password);
 
         // Apply JDBC extra settings
-        Statement settingsStatement = con.createStatement();
+        HiveStatement settingsStatement = (HiveStatement) con.createStatement();
         for (String setting : extraSettings) {
           settingsStatement.execute("SET " + setting);
         }
         settingsStatement.close();
 
-        Statement statement = con.createStatement();
+        HiveStatement statement = (HiveStatement) con.createStatement();
         HiveExecutionInfo hiveExecutionInfo = (HiveExecutionInfo) task.actionInfoMap
             .get(action).executionInfoMap.get(executionTaskName);
-        //statement.setQueryTimeout(24 * 60 * 60);
-        for (String sql : sqls) {
-          ResultSet resultSet = statement.executeQuery(sql);
-          HiveStatement hiveStatement = (HiveStatement) statement;
-          while (resultSet.next()) {
-            // -- getQueryLog --
+
+        Runnable logging = () -> {
+          while (statement.hasMoreLogs()) {
             try {
-              List<String> queryLogs = hiveStatement.getQueryLog();
-              for (String log : queryLogs) {
-                LOG.info("Hive --> " + log);
+              for (String line : statement.getQueryLog()) {
+                LOG.info("Hive >>> {}", line);
                 // TODO: execution info is overwrote
-                parseLogSetExecutionInfo(log, hiveExecutionInfo);
+                parseLogSetExecutionInfo(line, hiveExecutionInfo);
               }
             } catch (SQLException e) {
-              LOG.error("Query log failed. ");
+              LOG.warn("Fetching hive query log failed");
             }
-//          // -- getQueryLog --
-//          if (Action.VALIDATION_BY_TABLE.equals(action)) {
-//            LOG.info("executeQuery result: {}", resultSet.getString(1));
-//            hiveExecutionInfo.setResult(resultSet.getString(1));
-//          } else if (Action.VALIDATION_BY_PARTITION.equals(action)) {
-//            LOG.info("executeQuery result: {}", resultSet.getString(1));
-//            //TODO[mingyou] need to support multiple partition key.
-//            List<String> partitionValues = Lists.newArrayList(resultSet.getString(1).split("\n"));
-//            List<String> counts = Lists.newArrayList(resultSet.getString(2).split("\n"));
-//            if(partitionValues.size() != counts.size()) {
-//              hiveExecutionInfo.setMultiRecordResult(Collections.emptyMap());
-//            } else {
-//              Map<String, String> result = new HashMap<>();
-//              for (int i = 0; i < partitionValues.size(); i++) {
-//                result.put(partitionValues.get(i), counts.get(i));
-//              }
-//              hiveExecutionInfo.setMultiRecordResult(result);
-//            }
-//          }
-            break;
           }
+        };
+        Thread loggingThread = new Thread(logging);
+        loggingThread.start();
+
+        for (String sql : sqls) {
+          ResultSet resultSet = statement.executeQuery(sql);
           resultSet.close();
         }
         LOG.debug("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());
         RUNNER_LOG.info("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());
+
+        try {
+          loggingThread.join();
+        } catch (InterruptedException e) {
+          // Ignore
+        }
         statement.close();
         con.close();
       } catch (SQLException e) {

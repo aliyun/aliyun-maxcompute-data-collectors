@@ -448,7 +448,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
       }
 
       for (MetaSource.TableMetaModel tableMetaModel : ret) {
-        LOG.info("Pending table: {}", GsonUtils.getFullConfigGson().toJson(tableMetaModel));
+        LOG.debug("Pending table: {}", GsonUtils.getFullConfigGson().toJson(tableMetaModel));
       }
 
       return ret;

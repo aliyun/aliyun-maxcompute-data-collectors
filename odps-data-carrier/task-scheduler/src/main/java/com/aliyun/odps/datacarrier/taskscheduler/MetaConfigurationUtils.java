@@ -100,7 +100,7 @@ public class MetaConfigurationUtils {
       metaConfiguration.setOdpsConfiguration(odpsConfiguration);
     }
 
-    Config defaultTableConfig = new Config(null, null, 10, 5, "");
+    Config defaultTableConfig = new Config(null, null, 10, 3, "");
 
     List<TableGroup> tablesGroupList = new ArrayList<>();
     if (StringUtils.isNullOrEmpty(tableMappingFilePath)) {

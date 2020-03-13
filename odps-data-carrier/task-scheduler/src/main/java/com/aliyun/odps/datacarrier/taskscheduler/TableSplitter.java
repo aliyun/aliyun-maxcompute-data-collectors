@@ -55,6 +55,7 @@ public class TableSplitter implements TaskManager {
       }
       task.addExecutionInfo(action, taskName);
     }
+
     return task;
   }
 
@@ -62,11 +63,16 @@ public class TableSplitter implements TaskManager {
   protected List<Task> generateTaskForPartitionedTable(MetaSource.TableMetaModel tableMetaModel,
                                                        MetaConfiguration.Config config,
                                                        SortedSet<Action> actions) {
+    // TODO: add directly to this.task could avoid creating an extra list, but will make it much
+    // harder to test
     List<Task> ret = new LinkedList<>();
 
     // If this table doesn't have any partition, create a task an return
     // TODO: Handle this case in a more elegant way
     if (tableMetaModel.partitions.isEmpty()) {
+      LOG.info("Partitioned table job with no partition, db: {}, tbl: {}",
+               tableMetaModel.databaseName,
+               tableMetaModel.tableName);
       String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
       Task task = new Task(taskName, tableMetaModel.clone(), config);
       task.addExecutionInfo(Action.ODPS_CREATE_TABLE, taskName);

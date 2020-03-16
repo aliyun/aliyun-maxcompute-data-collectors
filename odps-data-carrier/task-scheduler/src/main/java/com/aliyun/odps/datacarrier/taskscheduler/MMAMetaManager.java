@@ -43,8 +43,7 @@ public interface MMAMetaManager {
       return numFailedPartitions;
     }
 
-    @Override
-    public String toString() {
+    public String toJson() {
       return GsonUtils.getFullConfigGson().toJson(this);
     }
   }

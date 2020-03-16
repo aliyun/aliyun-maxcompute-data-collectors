@@ -12,10 +12,15 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.log4j.BasicConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class MMAClientFsImpl implements MMAClient {
 
+  private static final Logger LOG = LogManager.getLogger(MMAClient.class);
+
   private static final long MMA_CLIENT_WAIT_INTERVAL = 5000;
+  private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
   private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
 
   public MMAClientFsImpl(MetaConfiguration configuration) throws MetaException, IOException {
@@ -37,7 +42,18 @@ public class MMAClientFsImpl implements MMAClient {
   }
 
   public MMAMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl) {
-    return MMAMetaManagerFsImpl.getInstance().getStatus(db, tbl);
+    MMAMetaManager.MigrationStatus status =  MMAMetaManagerFsImpl.getInstance().getStatus(db, tbl);
+    LOG.info("Get migration status, db: {}, tbl: {}, status: {}", db, tbl, status);
+
+    return status;
+  }
+
+  public MMAMetaManager.MigrationProgress getMigrationProgress(String db, String tbl) {
+    MMAMetaManager.MigrationProgress progress =
+        MMAMetaManagerFsImpl.getInstance().getProgress(db, tbl);
+    LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}", db, tbl, progress);
+
+    return progress;
   }
 
   private static void logHelp(Options options) {
@@ -105,7 +121,7 @@ public class MMAClientFsImpl implements MMAClient {
       File configFile = new File(cmd.getOptionValue("start"));
       MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
       client.createMigrationJobs(metaConfiguration);
-      System.err.println("Job submitted");
+      System.err.println("\nJob submitted");
     } else if (cmd.hasOption("wait")) {
       String jobName = cmd.getOptionValue("wait");
       int dotIdx = jobName.indexOf(".");
@@ -117,11 +133,38 @@ public class MMAClientFsImpl implements MMAClient {
         MMAMetaManager.MigrationStatus status = client.getMigrationJobStatus(db, tbl);
         if (MMAMetaManager.MigrationStatus.FAILED.equals(status) ||
             MMAMetaManager.MigrationStatus.SUCCEEDED.equals(status)) {
-          System.err.println("Job " + jobName + " " + status);
+          System.err.println("\nJob " + jobName + " " + status);
           break;
         } else {
-          System.err.print("\rWaiting" + PROGRESS_INDICATOR[progressIndicatorIdx % PROGRESS_INDICATOR.length]);
+          MMAMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
+
+          System.err.print(
+              "\rWaiting" + PROGRESS_INDICATOR[progressIndicatorIdx % PROGRESS_INDICATOR.length]);
           progressIndicatorIdx += 1;
+
+          // Print progress for partition tables
+          // Format: Waiting... | [*****               ] | 25.00%
+          if (progress != null) {
+            int all = progress.getNumPendingPartitions() + progress.getNumRunningPartitions() +
+                      progress.getNumFailedPartitions() + progress.getNumSucceededPartitions();
+
+            float succeededPercent;
+            if (all == 0) {
+              succeededPercent = 1;
+            } else {
+              succeededPercent = progress.getNumSucceededPartitions() / (float) all;
+            }
+            StringBuilder sb = new StringBuilder(" | [");
+            for (int i = 0; i < MMA_CLIENT_PROGRESS_BAR_LENGTH; i++) {
+              if (i > succeededPercent * MMA_CLIENT_PROGRESS_BAR_LENGTH) {
+                sb.append(" ");
+              } else {
+                sb.append("*");
+              }
+            }
+            sb.append("] | ").append(String.format("%.2f%%", succeededPercent * 100));
+            System.err.print(sb.toString());
+          }
         }
 
         try {

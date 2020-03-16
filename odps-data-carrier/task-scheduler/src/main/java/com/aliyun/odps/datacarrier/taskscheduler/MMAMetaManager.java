@@ -11,8 +11,48 @@ public interface MMAMetaManager {
     FAILED,
   }
 
+  public static class MigrationProgress {
+    private int numPendingPartitions;
+    private int numRunningPartitions;
+    private int numSucceededPartitions;
+    private int numFailedPartitions;
+
+    public MigrationProgress(int numPendingPartitions,
+                             int numRunningPartitions,
+                             int numSucceededPartitions,
+                             int numFailedPartitions) {
+      this.numPendingPartitions = numPendingPartitions;
+      this.numRunningPartitions = numRunningPartitions;
+      this.numSucceededPartitions = numSucceededPartitions;
+      this.numFailedPartitions = numFailedPartitions;
+    }
+
+    public int getNumPendingPartitions() {
+      return numPendingPartitions;
+    }
+
+    public int getNumRunningPartitions() {
+      return numRunningPartitions;
+    }
+
+    public int getNumSucceededPartitions() {
+      return numSucceededPartitions;
+    }
+
+    public int getNumFailedPartitions() {
+      return numFailedPartitions;
+    }
+
+    @Override
+    public String toString() {
+      return GsonUtils.getFullConfigGson().toJson(this);
+    }
+  }
+
   /**
    * Add a migration job of give table.
+   *
+   * TODO: explain the behavior when migration job exists in detail
    *
    * @param config migration config
    */
@@ -74,6 +114,15 @@ public interface MMAMetaManager {
    * @return migration status
    */
   MigrationStatus getStatus(String db, String tbl, List<String> partitionValues);
+
+  /**
+   * Get migration progress.
+   * @param db database name
+   * @param tbl table name
+   * @return for partitioned tables, a {@link MigrationProgress} object will be returned. For
+   * non-partitioned tables, null will be returned.
+   */
+  MigrationProgress getProgress(String db, String tbl);
 
   /**
    * Get config of a migration job.

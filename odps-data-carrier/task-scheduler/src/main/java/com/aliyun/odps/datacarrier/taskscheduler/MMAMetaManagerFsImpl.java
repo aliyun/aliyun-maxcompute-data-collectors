@@ -338,6 +338,41 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  public MigrationProgress getProgress(String db, String tbl) {
+    if (db == null || tbl == null) {
+      throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
+    }
+
+    try {
+      MetaSource.TableMetaModel tableMetaModel =
+          metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
+      if (tableMetaModel.partitionColumns.isEmpty()) {
+        return null;
+      }
+    } catch (Exception e) {
+      LOG.error("Get metadata form metasource failed, database: " + db + ", " +
+                "table: " + tbl + ", stacktrace: " + ExceptionUtils.getStackTrace(e));
+      return null;
+    }
+
+    acquireLock();
+    try {
+      int numAllPartitions = DirUtils.readLines(getAllPartitionListPath(db, tbl)).size();
+      int numSucceedPartitions = DirUtils.readLines(getSucceededPartitionListPath(db, tbl)).size();
+      // TODO: returned progress is simplified due to current impl
+      return new MigrationProgress(0,
+                                   numAllPartitions - numSucceedPartitions,
+                                   numSucceedPartitions,
+                                   0);
+    } catch (IOException e) {
+      LOG.error("Failed to get progress, database: " + db + ", " + "table: " + tbl);
+      return null;
+    } finally {
+      releaseLock();
+    }
+  }
+
   private MigrationStatus getStatusInternal(String db, String tbl) {
     Path tableMetadataPath = getMetadataPath(db, tbl);
     if (!tableMetadataPath.toFile().exists()) {

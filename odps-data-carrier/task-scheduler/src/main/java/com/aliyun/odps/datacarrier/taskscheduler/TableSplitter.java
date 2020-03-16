@@ -25,7 +25,7 @@ public class TableSplitter implements TaskManager {
   public List<Task> generateTasks(SortedSet<Action> actions) {
     for (MetaSource.TableMetaModel tableMetaModel : this.tables) {
 
-      MetaConfiguration.Config config =  MMAMetaManagerFsImpl
+      MetaConfiguration.Config config =  MmaMetaManagerFsImpl
           .getInstance()
           .getConfig(tableMetaModel.databaseName, tableMetaModel.tableName).config;
 

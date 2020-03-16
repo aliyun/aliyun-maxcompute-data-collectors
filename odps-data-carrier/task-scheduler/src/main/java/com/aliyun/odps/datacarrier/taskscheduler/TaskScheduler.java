@@ -98,10 +98,10 @@ public class TaskScheduler {
                                                hiveConfigurationConfig.getKrbPrincipal(),
                                                hiveConfigurationConfig.getKeyTab(),
                                                hiveConfigurationConfig.getKrbSystemProperties());
-    MMAMetaManagerFsImpl.init(null, metaSource);
+    MmaMetaManagerFsImpl.init(null, metaSource);
     for (MetaConfiguration.TableGroup tableGroup : metaConfiguration.getTableGroups()) {
       for (MetaConfiguration.TableConfig tableConfig : tableGroup.getTableConfigs()) {
-        MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+        MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
       }
     }
 
@@ -115,7 +115,7 @@ public class TaskScheduler {
       LOG.info("Start to migrate data for the [{}] round", round);
       List<MetaSource.TableMetaModel>
           pendingTables =
-          MMAMetaManagerFsImpl.getInstance().getPendingTables();
+          MmaMetaManagerFsImpl.getInstance().getPendingTables();
       LOG.info("Tables to migrate");
       for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
         LOG.info("Database: {}, table: {}",
@@ -154,13 +154,13 @@ public class TaskScheduler {
       for (Map.Entry<String, Map<String, Boolean>> dbEntry: databaseTableStatus.entrySet()) {
         for (Map.Entry<String, Boolean> tableEntry : dbEntry.getValue().entrySet()) {
           if (tableEntry.getValue()) {
-            MMAMetaManagerFsImpl
+            MmaMetaManagerFsImpl
                 .getInstance()
-                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MMAMetaManager.MigrationStatus.SUCCEEDED);
+                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MmaMetaManager.MigrationStatus.SUCCEEDED);
           } else {
-            MMAMetaManagerFsImpl
+            MmaMetaManagerFsImpl
                 .getInstance()
-                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MMAMetaManager.MigrationStatus.FAILED);
+                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MmaMetaManager.MigrationStatus.FAILED);
           }
         }
       }

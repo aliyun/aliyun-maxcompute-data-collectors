@@ -32,9 +32,9 @@ import com.csvreader.CsvWriter;
  *           |____partitions_failed
  *           |____partitions_succeeded
  */
-public class MMAMetaManagerFsImpl implements MMAMetaManager {
+public class MmaMetaManagerFsImpl implements MmaMetaManager {
 
-  private static final Logger LOG = LogManager.getLogger(MMAMetaManagerFsImpl.class);
+  private static final Logger LOG = LogManager.getLogger(MmaMetaManagerFsImpl.class);
 
   private static final String META_DIR_NAME = ".mma";
   private static final String PARTITION_LIST_ALL = "partitions_all";
@@ -68,17 +68,17 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   private Path workspace;
   private MetaSource metaSource;
 
-  private static MMAMetaManagerFsImpl instance;
+  private static MmaMetaManagerFsImpl instance;
 
   public static void init(String parentDir, MetaSource metaSource) throws IOException {
     if (instance != null) {
       throw new IllegalStateException("Cannot initialize twice");
     }
 
-    instance = new MMAMetaManagerFsImpl(parentDir, metaSource);
+    instance = new MmaMetaManagerFsImpl(parentDir, metaSource);
   }
 
-  public static MMAMetaManagerFsImpl getInstance() {
+  public static MmaMetaManagerFsImpl getInstance() {
     if (instance == null) {
       throw new IllegalStateException("MMAMetaManager not initialized");
     }
@@ -86,7 +86,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     return instance;
   }
 
-  private MMAMetaManagerFsImpl(String parentDir, MetaSource metaSource) throws IOException {
+  private MmaMetaManagerFsImpl(String parentDir, MetaSource metaSource) throws IOException {
     if (parentDir == null) {
       parentDir = System.getenv("MMA_HOME");
       if (parentDir == null) {
@@ -579,7 +579,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
 
   /**
-   * Ensure the directory won't be corrupted multiple {@link MMAMetaManagerFsImpl} runs at the same
+   * Ensure the directory won't be corrupted multiple {@link MmaMetaManagerFsImpl} runs at the same
    * time
    * @throws IOException
    */

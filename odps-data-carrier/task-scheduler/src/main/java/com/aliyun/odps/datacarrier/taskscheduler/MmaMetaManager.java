@@ -2,7 +2,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.List;
 
-public interface MMAMetaManager {
+public interface MmaMetaManager {
 
   enum MigrationStatus {
     PENDING,

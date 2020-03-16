@@ -16,7 +16,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class MMAMetaManagerFsImplTest {
+public class MmaMetaManagerFsImplTest {
   private static final Path DEFAULT_MMA_PARENT_DIR =
       Paths.get(System.getProperty("user.dir")).toAbsolutePath();
   private static final Path DEFAULT_MMA_META_DIR = Paths.get(DEFAULT_MMA_PARENT_DIR.toString(),
@@ -30,7 +30,7 @@ public class MMAMetaManagerFsImplTest {
     if (DEFAULT_MMA_META_DIR.toFile().exists()) {
       DirUtils.removeDir(DEFAULT_MMA_META_DIR);
     }
-    MMAMetaManagerFsImpl.init(DEFAULT_MMA_PARENT_DIR.toString(), metaSource);
+    MmaMetaManagerFsImpl.init(DEFAULT_MMA_PARENT_DIR.toString(), metaSource);
   }
 
   @AfterClass
@@ -54,14 +54,14 @@ public class MMAMetaManagerFsImplTest {
                                                                                     DEFAULT_DB,
                                                                                     table,
                                                                                     config);
-      MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+      MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
     }
   }
 
   @After
   public void after() throws Exception {
     for (String table : metaSource.listTables(DEFAULT_DB)) {
-      MMAMetaManagerFsImpl.getInstance().removeMigrationJob(DEFAULT_DB, table);
+      MmaMetaManagerFsImpl.getInstance().removeMigrationJob(DEFAULT_DB, table);
     }
   }
 
@@ -81,7 +81,7 @@ public class MMAMetaManagerFsImplTest {
 
       // Make sure the content of table metadata file is expected
       String metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
 
       // Make sure the config file exists
       Path configPath = Paths.get(dir.toString(), "config");
@@ -101,9 +101,9 @@ public class MMAMetaManagerFsImplTest {
   @Test
   public void testRestartJobPartitioned() throws Exception {
     // Update status to succeeded so that it could be restarted
-    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
+    MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
                                                     "test_partitioned",
-                                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+                                                    MmaMetaManager.MigrationStatus.SUCCEEDED);
 
     // Restart job
     MetaConfiguration.Config config = new MetaConfiguration.Config(null,
@@ -117,7 +117,7 @@ public class MMAMetaManagerFsImplTest {
                                           DEFAULT_DB,
                                           "test_partitioned",
                                           config);
-    MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
 
     // Make sure the metadata dir exists
     Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_partitioned");
@@ -129,7 +129,7 @@ public class MMAMetaManagerFsImplTest {
 
     // Make sure the content of table metadata file is expected
     String metadata = DirUtils.readFile(metadataPath);
-    assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+    assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
 
     // Make sure the config file exists
     Path configPath = Paths.get(dir.toString(), "config");
@@ -145,9 +145,9 @@ public class MMAMetaManagerFsImplTest {
   @Test
   public void testRestartJobNonPartitioned() throws Exception {
     // Update status to succeeded so that it could be restarted
-    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
+    MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
                                                     "test_non_partitioned",
-                                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+                                                    MmaMetaManager.MigrationStatus.SUCCEEDED);
 
     // Restart job
     MetaConfiguration.Config config = new MetaConfiguration.Config(null,
@@ -161,7 +161,7 @@ public class MMAMetaManagerFsImplTest {
                                           DEFAULT_DB,
                                           "test_non_partitioned",
                                           config);
-    MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
 
     // Make sure the metadata dir exists
     Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_non_partitioned");
@@ -173,7 +173,7 @@ public class MMAMetaManagerFsImplTest {
 
     // Make sure the content of table metadata file is expected
     String metadata = DirUtils.readFile(metadataPath);
-    assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+    assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
 
     // Make sure the config file exists
     Path configPath = Paths.get(dir.toString(), "config");
@@ -183,9 +183,9 @@ public class MMAMetaManagerFsImplTest {
   @Test
   public void testAddPartitionsToExistingJob() throws IOException {
     // Update status to succeeded so that it could be restarted
-    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
+    MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB,
                                                     "test_partitioned",
-                                                    MMAMetaManager.MigrationStatus.SUCCEEDED);
+                                                    MmaMetaManager.MigrationStatus.SUCCEEDED);
     // Restart job
     MetaConfiguration.Config config = new MetaConfiguration.Config(null,
                                                                    null,
@@ -200,7 +200,7 @@ public class MMAMetaManagerFsImplTest {
                                           config);
     tableConfig.partitionValuesList =
         new LinkedList<>(Collections.singletonList(Collections.singletonList("foo")));
-    MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
 
     // Make sure the metadata dir exists
     Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_partitioned");
@@ -212,7 +212,7 @@ public class MMAMetaManagerFsImplTest {
 
     // Make sure the content of table metadata file is expected
     String metadata = DirUtils.readFile(metadataPath);
-    assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+    assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
 
     // Make sure the config file exists
     Path configPath = Paths.get(dir.toString(), "config");
@@ -233,9 +233,9 @@ public class MMAMetaManagerFsImplTest {
 
       // Make sure the content of table metadata file is expected
       String metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
-      assertEquals(MMAMetaManager.MigrationStatus.PENDING,
-                   MMAMetaManagerFsImpl.getInstance().getStatus(DEFAULT_DB, table));
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
+      assertEquals(MmaMetaManager.MigrationStatus.PENDING,
+                   MmaMetaManagerFsImpl.getInstance().getStatus(DEFAULT_DB, table));
     }
   }
 
@@ -249,18 +249,19 @@ public class MMAMetaManagerFsImplTest {
 
       // Should be PENDING at beginning
       String metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
 
       // Change to RUNNING
-      MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.RUNNING);
+      MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table,
+                                                      MmaMetaManager.MigrationStatus.RUNNING);
       metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.RUNNING, 0), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.RUNNING, 0), metadata);
 
       if (tableMetaModel.partitionColumns.size() > 0) {
         List<List<String>> partitionValuesList = new LinkedList<>();
         partitionValuesList.add(tableMetaModel.partitions.get(0).partitionValues);
-        MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, partitionValuesList,
-                                 MMAMetaManager.MigrationStatus.FAILED);
+        MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, partitionValuesList,
+                                 MmaMetaManager.MigrationStatus.FAILED);
 
         Path succeededPartitionsPath = Paths.get(dir.toString(), "partitions_failed");
         String succeededPartitions = DirUtils.readFile(succeededPartitionsPath);
@@ -268,14 +269,14 @@ public class MMAMetaManagerFsImplTest {
       }
 
       // Change to FAILED, but since retry limit is 1, the status should be set to PENDING
-      MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.FAILED);
+      MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MmaMetaManager.MigrationStatus.FAILED);
       metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 1), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 1), metadata);
 
       // Change to FAILED, this time should be FAILED
-      MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.FAILED);
+      MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MmaMetaManager.MigrationStatus.FAILED);
       metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.FAILED, 2), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.FAILED, 2), metadata);
     }
   }
 
@@ -289,23 +290,23 @@ public class MMAMetaManagerFsImplTest {
 
       // Should be PENDING at beginning
       String metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 0), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 0), metadata);
 
       // Change to RUNNING
-      MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.RUNNING);
+      MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MmaMetaManager.MigrationStatus.RUNNING);
       metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.RUNNING, 0), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.RUNNING, 0), metadata);
 
       // Change to FAILED, but since retry limit is 1, the status should be set to PENDING
-      MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.FAILED);
+      MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MmaMetaManager.MigrationStatus.FAILED);
       metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.PENDING, 1), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.PENDING, 1), metadata);
 
       if (tableMetaModel.partitionColumns.size() > 0) {
         List<List<String>> partitionValuesList = new LinkedList<>();
         partitionValuesList.add(tableMetaModel.partitions.get(0).partitionValues);
-        MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, partitionValuesList,
-                                 MMAMetaManager.MigrationStatus.SUCCEEDED);
+        MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, partitionValuesList,
+                                 MmaMetaManager.MigrationStatus.SUCCEEDED);
 
         Path succeededPartitionsPath = Paths.get(dir.toString(), "partitions_succeeded");
         String succeededPartitions = DirUtils.readFile(succeededPartitionsPath);
@@ -313,15 +314,15 @@ public class MMAMetaManagerFsImplTest {
       }
 
       // Change to SUCCEED, this time should be SUCCEED
-      MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MMAMetaManager.MigrationStatus.SUCCEEDED);
+      MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, table, MmaMetaManager.MigrationStatus.SUCCEEDED);
       metadata = DirUtils.readFile(metadataPath);
-      assertEquals(String.format("%s\n%d", MMAMetaManager.MigrationStatus.SUCCEEDED, 1), metadata);
+      assertEquals(String.format("%s\n%d", MmaMetaManager.MigrationStatus.SUCCEEDED, 1), metadata);
     }
   }
 
   @Test
   public void testGetPendingTables() {
-    List<MetaSource.TableMetaModel> pendingTables = MMAMetaManagerFsImpl.getInstance().getPendingTables();
+    List<MetaSource.TableMetaModel> pendingTables = MmaMetaManagerFsImpl.getInstance().getPendingTables();
     assertEquals(2, pendingTables.size());
 
     for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
@@ -350,10 +351,10 @@ public class MMAMetaManagerFsImplTest {
 
   @Test
   public void testGetPendingTablesAfterUpdateTableStatus() {
-    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, "test_non_partitioned",
-                             MMAMetaManager.MigrationStatus.SUCCEEDED);
+    MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, "test_non_partitioned",
+                             MmaMetaManager.MigrationStatus.SUCCEEDED);
 
-    List<MetaSource.TableMetaModel> pendingTables = MMAMetaManagerFsImpl.getInstance().getPendingTables();
+    List<MetaSource.TableMetaModel> pendingTables = MmaMetaManagerFsImpl.getInstance().getPendingTables();
     assertEquals(1, pendingTables.size());
 
     MetaSource.TableMetaModel tableMetaModel = pendingTables.get(0);
@@ -375,10 +376,10 @@ public class MMAMetaManagerFsImplTest {
     partitionValues.add("hello_world");
     List<List<String>> partitionValuesList = new LinkedList<>();
     partitionValuesList.add(partitionValues);
-    MMAMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, "test_partitioned", partitionValuesList,
-                             MMAMetaManager.MigrationStatus.SUCCEEDED);
+    MmaMetaManagerFsImpl.getInstance().updateStatus(DEFAULT_DB, "test_partitioned", partitionValuesList,
+                             MmaMetaManager.MigrationStatus.SUCCEEDED);
 
-    List<MetaSource.TableMetaModel> pendingTables = MMAMetaManagerFsImpl.getInstance().getPendingTables();
+    List<MetaSource.TableMetaModel> pendingTables = MmaMetaManagerFsImpl.getInstance().getPendingTables();
     assertEquals(2, pendingTables.size());
 
     for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {

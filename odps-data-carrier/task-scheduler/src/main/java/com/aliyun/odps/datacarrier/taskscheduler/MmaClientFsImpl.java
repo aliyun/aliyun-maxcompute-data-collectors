@@ -15,42 +15,42 @@ import org.apache.log4j.BasicConfigurator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class MMAClientFsImpl implements MMAClient {
+public class MmaClientFsImpl implements MmaClient {
 
-  private static final Logger LOG = LogManager.getLogger(MMAClient.class);
+  private static final Logger LOG = LogManager.getLogger(MmaClient.class);
 
   private static final long MMA_CLIENT_WAIT_INTERVAL = 5000;
   private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
   private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
 
-  public MMAClientFsImpl(MetaConfiguration configuration) throws MetaException, IOException {
+  public MmaClientFsImpl(MetaConfiguration configuration) throws MetaException, IOException {
     MetaConfiguration.HiveConfiguration hiveConfigurationConfig = configuration.getHiveConfiguration();
     MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getHmsThriftAddr(),
                                                hiveConfigurationConfig.getKrbPrincipal(),
                                                hiveConfigurationConfig.getKeyTab(),
                                                hiveConfigurationConfig.getKrbSystemProperties());
-    MMAMetaManagerFsImpl.init(null, metaSource);
+    MmaMetaManagerFsImpl.init(null, metaSource);
   }
 
   @Override
   public void createMigrationJobs(MetaConfiguration configuration) {
     for (MetaConfiguration.TableGroup tableGroup : configuration.getTableGroups()) {
       for (MetaConfiguration.TableConfig tableConfig : tableGroup.getTableConfigs()) {
-        MMAMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+        MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
       }
     }
   }
 
-  public MMAMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl) {
-    MMAMetaManager.MigrationStatus status =  MMAMetaManagerFsImpl.getInstance().getStatus(db, tbl);
+  public MmaMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl) {
+    MmaMetaManager.MigrationStatus status =  MmaMetaManagerFsImpl.getInstance().getStatus(db, tbl);
     LOG.info("Get migration status, db: {}, tbl: {}, status: {}", db, tbl, status);
 
     return status;
   }
 
-  public MMAMetaManager.MigrationProgress getMigrationProgress(String db, String tbl) {
-    MMAMetaManager.MigrationProgress progress =
-        MMAMetaManagerFsImpl.getInstance().getProgress(db, tbl);
+  public MmaMetaManager.MigrationProgress getMigrationProgress(String db, String tbl) {
+    MmaMetaManager.MigrationProgress progress =
+        MmaMetaManagerFsImpl.getInstance().getProgress(db, tbl);
     LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}", db, tbl, progress);
 
     return progress;
@@ -115,7 +115,7 @@ public class MMAClientFsImpl implements MMAClient {
 
     File mmaClientConfigFile = new File(cmd.getOptionValue("config"));
     MetaConfiguration mmaClientConfig = MetaConfigurationUtils.readConfigFile(mmaClientConfigFile);
-    MMAClient client = new MMAClientFsImpl(mmaClientConfig);
+    MmaClient client = new MmaClientFsImpl(mmaClientConfig);
 
     if (cmd.hasOption("start")) {
       File configFile = new File(cmd.getOptionValue("start"));
@@ -130,13 +130,13 @@ public class MMAClientFsImpl implements MMAClient {
 
       int progressIndicatorIdx = 0;
       while (true) {
-        MMAMetaManager.MigrationStatus status = client.getMigrationJobStatus(db, tbl);
-        if (MMAMetaManager.MigrationStatus.FAILED.equals(status) ||
-            MMAMetaManager.MigrationStatus.SUCCEEDED.equals(status)) {
+        MmaMetaManager.MigrationStatus status = client.getMigrationJobStatus(db, tbl);
+        if (MmaMetaManager.MigrationStatus.FAILED.equals(status) ||
+            MmaMetaManager.MigrationStatus.SUCCEEDED.equals(status)) {
           System.err.println("\nJob " + jobName + " " + status);
           break;
         } else {
-          MMAMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
+          MmaMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
 
           System.err.print(
               "\rWaiting" + PROGRESS_INDICATOR[progressIndicatorIdx % PROGRESS_INDICATOR.length]);

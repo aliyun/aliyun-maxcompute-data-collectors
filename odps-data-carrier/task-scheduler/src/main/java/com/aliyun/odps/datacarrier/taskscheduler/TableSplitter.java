@@ -47,15 +47,15 @@ public class TableSplitter implements TaskManager {
   protected Task generateTaskForNonPartitionedTable(MetaSource.TableMetaModel tableMetaModel,
                                                     MetaConfiguration.Config config,
                                                     SortedSet<Action> actions) {
+
     String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
     Task task = new Task(taskName, tableMetaModel, config);
     for (Action action : actions) {
       if (Action.ODPS_ADD_PARTITION.equals(action)) {
         continue;
       }
-      task.addExecutionInfo(action, taskName);
+      task.addExecutionInfo(action);
     }
-
     return task;
   }
 
@@ -75,7 +75,7 @@ public class TableSplitter implements TaskManager {
                tableMetaModel.tableName);
       String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
       Task task = new Task(taskName, tableMetaModel.clone(), config);
-      task.addExecutionInfo(Action.ODPS_CREATE_TABLE, taskName);
+      task.addExecutionInfo(Action.ODPS_CREATE_TABLE);
       ret.add(task);
       return ret;
     }
@@ -106,7 +106,7 @@ public class TableSplitter implements TaskManager {
           tableMetaModel.databaseName + "." + tableMetaModel.tableName + "." + taskIdx;
       Task task = new Task(taskName, clone, config);
       for (Action action : actions) {
-        task.addExecutionInfo(action, taskName);
+        task.addExecutionInfo(action);
       }
       ret.add(task);
 

@@ -14,7 +14,7 @@ class Task {
   private static final Logger LOG = LogManager.getLogger(Task.class);
   private String taskName;
   protected long updateTime;
-  protected Map<Action, ActionInfo> actionInfoMap;
+  protected Map<Action, AbstractExecutionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
@@ -28,109 +28,32 @@ class Task {
     this.progress = Progress.NEW;
   }
 
-  static class ActionInfo {
-    protected Progress progress = Progress.NEW;
-    protected Map<String, AbstractExecutionInfo> executionInfoMap = new ConcurrentHashMap<>();
-  }
-
-  protected void addActionInfo(Action action) {
-    actionInfoMap.putIfAbsent(action, new ActionInfo());
-  }
-
-  protected void addExecutionInfo(Action action, String executionTaskName, AbstractExecutionInfo executionInfo) {
-    ActionInfo actionInfo = actionInfoMap.computeIfAbsent(action, k -> new ActionInfo());
-    if (actionInfo.executionInfoMap.containsKey(executionTaskName)) {
-      LOG.warn("Execution task already exists, create failed, " +
-          "Action: " + action.name() +
-          "TaskName: " + executionTaskName);
-      return;
-    }
-    actionInfo.executionInfoMap.put(executionTaskName, executionInfo);
-  }
-
-  protected void addExecutionInfo(Action action, String executionTaskName) {
-    ActionInfo actionInfo = actionInfoMap.computeIfAbsent(action, k -> new ActionInfo());
-    if (actionInfo.executionInfoMap.containsKey(executionTaskName)) {
-      LOG.warn("Execution task already exists, create failed, " +
-          "Action: " + action.name() +
-          "TaskName: " + executionTaskName);
-      return;
-    }
+  protected void addExecutionInfo(Action action) {
     RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
     if (RunnerType.ODPS.equals(runnerType)) {
-      actionInfo.executionInfoMap.put(executionTaskName, new OdpsExecutionInfo());
+      actionInfoMap.put(action, new OdpsExecutionInfo());
     } else if (RunnerType.HIVE.equals(runnerType)) {
-      actionInfo.executionInfoMap.put(executionTaskName, new HiveExecutionInfo());
+      actionInfoMap.put(action, new HiveExecutionInfo());
+    } else if (RunnerType.VALIDATOR.equals(runnerType)) {
+      actionInfoMap.put(action, new ValidateExecutionInfo());
     }
   }
 
   /**
    * Update execution progress, will trigger a action progress update
    * @param action action that the execution belongs to
-   * @param executionTaskName execution name
    * @param progress new progress
    */
-  protected synchronized void updateExecutionProgress(Action action,
-                                                      String executionTaskName,
-                                                      Progress progress) {
+  protected synchronized void updateActionExecutionProgress(Action action,
+                                                            Progress progress) {
     if (!actionInfoMap.containsKey(action)) {
       return;
     }
 
-    ActionInfo actionInfo = actionInfoMap.get(action);
-    if (!actionInfo.executionInfoMap.containsKey(executionTaskName)) {
-      return;
-    }
-    if (actionInfo.executionInfoMap.get(executionTaskName).progress.equals(progress)) {
-      return;
-    }
-
-    // TODO: should check if the progress change is valid or not
-    actionInfo.executionInfoMap.get(executionTaskName).progress = progress;
-
-    // Triggers an action progress update
-    updateActionProgress(action, progress);
-  }
-
-  /**
-   * Update action progress, triggered by a execution progress update
-   * @param action action
-   * @param executionNewProgress the new execution progress that triggers this update
-   */
-  private void updateActionProgress(Action action, Progress executionNewProgress) {
-    if (!actionInfoMap.containsKey(action)) {
-      return;
-    }
-
-    ActionInfo actionInfo = actionInfoMap.get(action);
-    boolean actionProgressChanged = false;
-
-    switch (actionInfo.progress) {
-      case NEW:
-      case RUNNING:
-        if (Progress.RUNNING.equals(executionNewProgress)) {
-          actionInfo.progress = Progress.RUNNING;
-          actionProgressChanged = true;
-        } else if (Progress.FAILED.equals(executionNewProgress)) {
-          actionInfo.progress = Progress.FAILED;
-          actionProgressChanged = true;
-        } else if (Progress.SUCCEEDED.equals(executionNewProgress)) {
-          boolean allExecutionSucceeded = actionInfo.executionInfoMap.values()
-              .stream().allMatch(v -> v.progress.equals(Progress.SUCCEEDED));
-          if (allExecutionSucceeded) {
-            actionInfo.progress = Progress.SUCCEEDED;
-            actionProgressChanged = true;
-          }
-        }
-        break;
-      case FAILED:
-      case SUCCEEDED:
-      default:
-    }
-
-    // Triggers a task progress update
-    if (actionProgressChanged) {
-      updateTaskProgress(actionInfo.progress);
+    AbstractExecutionInfo executionInfo = actionInfoMap.get(action);
+    if (!executionInfo.progress.equals(progress)) {
+      executionInfo.progress = progress;
+      updateTaskProgress(executionInfo.progress);
     }
   }
 
@@ -168,16 +91,22 @@ class Task {
     if (taskProgressChanged) {
       if (Progress.FAILED.equals(progress)) {
         TaskScheduler.markAsFailed(tableMetaModel.databaseName, tableMetaModel.tableName);
-      } else if (Progress.SUCCEEDED.equals(progress)) {
-        // Partitioned table should update succeeded partitions
-        List<List<String>> partitionValuesList = tableMetaModel.partitions
-            .stream()
-            .map(p -> p.partitionValues)
-            .collect(Collectors.toList());
-        MMAMetaManagerFsImpl.getInstance().updateStatus(tableMetaModel.databaseName,
-                                                        tableMetaModel.tableName,
-                                                        partitionValuesList,
-                                                        MMAMetaManager.MigrationStatus.SUCCEEDED);
+      }
+      //Partitioned table should update partition values when task.progress is Succeeded or failed in Action.VALIDATE.
+      if (!tableMetaModel.partitionColumns.isEmpty()) {
+        if (Progress.SUCCEEDED.equals(progress) ||
+            (Progress.FAILED.equals(progress) &&
+                actionInfoMap.containsKey(Action.VALIDATE) &&
+                actionInfoMap.get(Action.VALIDATE).progress.equals(Progress.FAILED))) {
+          List<List<String>> partitionValuesList = tableMetaModel.partitions
+              .stream()
+              .map(p -> p.partitionValues)
+              .collect(Collectors.toList());
+          MMAMetaManagerFsImpl.getInstance().updateStatus(tableMetaModel.databaseName,
+              tableMetaModel.tableName,
+              partitionValuesList,
+              MMAMetaManager.MigrationStatus.SUCCEEDED);
+        }
       }
     }
   }
@@ -198,9 +127,9 @@ class Task {
     }
 
     // If its previous actions have finished successfully
-    for (Map.Entry<Action, ActionInfo> entry : actionInfoMap.entrySet()) {
+    for (Map.Entry<Action, AbstractExecutionInfo> entry : actionInfoMap.entrySet()) {
       // TODO: quite hacky
-      if (entry.getKey().ordinal() < action.ordinal() &&
+      if (entry.getKey().getPriority() < action.getPriority() &&
           !Progress.SUCCEEDED.equals(entry.getValue().progress)) {
         return false;
       }

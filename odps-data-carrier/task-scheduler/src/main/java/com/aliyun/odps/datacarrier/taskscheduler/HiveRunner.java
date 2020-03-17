@@ -3,8 +3,9 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -15,14 +16,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.aliyun.odps.utils.StringUtils;
 
-
-
 public class HiveRunner extends AbstractTaskRunner {
 
   private static final Logger LOG = LogManager.getLogger(HiveRunner.class);
   private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
   private static String DRIVER_NAME = "org.apache.hive.jdbc.HiveDriver";
+  private static final List<String> EMPTY_LIST = Collections.emptyList();
 
   private static String jdbcAddress;
   private static String user;
@@ -48,26 +48,20 @@ public class HiveRunner extends AbstractTaskRunner {
   }
 
   public static class HiveSqlExecutor implements Runnable {
-    private List<String> sqls;
+    private String sql;
     private Task task;
     private Action action;
-    private String executionTaskName;
 
-    HiveSqlExecutor(List<String> sqls, Task task, Action action, String executionTaskName) {
-      this.sqls = sqls;
+    HiveSqlExecutor(String sql, Task task, Action action) {
+      this.sql = sql;
       this.task = task;
       this.action = action;
-      this.executionTaskName = executionTaskName;
     }
 
     @Override
     public void run() {
       try {
-        LOG.info("HiveSqlExecutor execute task {}, {}, {}, {}",
-            task,
-            action,
-            executionTaskName,
-            String.join(", ", sqls));
+        LOG.info("HiveSqlExecutor execute task {}, {}, {}", task, action, sql);
 
         Connection con = DriverManager.getConnection(jdbcAddress, user, password);
 
@@ -78,16 +72,13 @@ public class HiveRunner extends AbstractTaskRunner {
         }
         settingsStatement.close();
 
+        HiveExecutionInfo hiveExecutionInfo = (HiveExecutionInfo) task.actionInfoMap.get(action);
         HiveStatement statement = (HiveStatement) con.createStatement();
-        HiveExecutionInfo hiveExecutionInfo = (HiveExecutionInfo) task.actionInfoMap
-            .get(action).executionInfoMap.get(executionTaskName);
-
         Runnable logging = () -> {
           while (statement.hasMoreLogs()) {
             try {
               for (String line : statement.getQueryLog()) {
                 LOG.info("Hive >>> {}", line);
-                // TODO: execution info is overwrote
                 parseLogSetExecutionInfo(line, hiveExecutionInfo);
               }
             } catch (SQLException e) {
@@ -98,13 +89,25 @@ public class HiveRunner extends AbstractTaskRunner {
         Thread loggingThread = new Thread(logging);
         loggingThread.start();
 
-        for (String sql : sqls) {
-          ResultSet resultSet = statement.executeQuery(sql);
-          resultSet.close();
-        }
-        LOG.debug("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());
-        RUNNER_LOG.info("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());
+        ResultSet resultSet = statement.executeQuery(sql);
 
+        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+        int columnsNumber = resultSetMetaData.getColumnCount();
+        LOG.debug("task: {}, action: {}, columnsNumber: {}", task.getName(), action, columnsNumber);
+        List<List<String>> result = new LinkedList<>();
+        while (resultSet.next()) {
+          List<String> record = new LinkedList<>();
+          for (int i = 1; i <= columnsNumber; i++) {
+            record.add(resultSet.getString(i));
+          }
+          result.add(record);
+        }
+        hiveExecutionInfo.setResult(result);
+        resultSet.close();
+
+        LOG.debug("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());
+        RUNNER_LOG.info("Task: {}, Action: {} {}",
+            task, action, hiveExecutionInfo.getHiveExecutionInfoSummary());
         try {
           loggingThread.join();
         } catch (InterruptedException e) {
@@ -113,19 +116,17 @@ public class HiveRunner extends AbstractTaskRunner {
         statement.close();
         con.close();
       } catch (SQLException e) {
-        LOG.error("Run HIVE Sql failed, " +
-                  "sql: \n" + String.join(", ", sqls) +
-                  "\nexception: " + ExceptionUtils.getStackTrace(e));
+        LOG.error("Run HIVE Sql failed, {}, \nexception: {}", sql, ExceptionUtils.getStackTrace(e));
         if (task != null) {
-          LOG.info("Hive SQL FAILED {}, {}, {}", action, executionTaskName, task.toString());
-          task.updateExecutionProgress(action, executionTaskName, Progress.FAILED);
+          LOG.info("Hive SQL FAILED {}, {}", action, task.toString());
+          task.updateActionExecutionProgress(action, Progress.FAILED);
         }
         return;
       }
 
       if (task != null) {
-        LOG.info("Hive SQL SUCCEEDED {}, {}, {}", action, executionTaskName, task.toString());
-        task.updateExecutionProgress(action, executionTaskName, Progress.SUCCEEDED);
+        LOG.info("Hive SQL SUCCEEDED {}, {}, {}", action, task.toString());
+        task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
       }
     }
   }
@@ -143,6 +144,33 @@ public class HiveRunner extends AbstractTaskRunner {
     hiveExecutionInfo.setTrackingUrl(trackingUrl);
   }
 
+  private String getSqlStatements(Task task, Action action) {
+    switch (action) {
+      case HIVE_LOAD_DATA:
+        return HiveSqlUtils.getUdtfSql(task.tableMetaModel);
+      case HIVE_VALIDATE:
+        return HiveSqlUtils.getVerifySql(task.tableMetaModel);
+    }
+    return "";
+  }
+
+  @Override
+  public void submitExecutionTask(Task task, Action action) {
+    String sqlStatement = getSqlStatements(task, action);
+    if (StringUtils.isNullOrEmpty(sqlStatement)) {
+      task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
+      LOG.error("Empty sqlStatement, mark done, action: {}", action);
+      return;
+    }
+    RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+    LOG.info("Submit {} task: {}, action: {}, taskProgress: {}",
+        runnerType.name(), task, action.name(), task.progress);
+    this.runnerPool.execute(new HiveSqlExecutor(getSqlStatements(task, action),
+        task,
+        action));
+  }
+
+  @Override
   public void shutdown() {
     super.shutdown();
   }

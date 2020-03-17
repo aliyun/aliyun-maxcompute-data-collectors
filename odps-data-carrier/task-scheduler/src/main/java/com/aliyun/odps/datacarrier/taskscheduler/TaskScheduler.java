@@ -2,17 +2,13 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.META_CONFIG_FILE;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +40,6 @@ public class TaskScheduler {
   private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
 
-  //  private DataValidator dataValidator;
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
   protected Map<RunnerType, TaskRunner> taskRunnerMap;
@@ -79,7 +74,6 @@ public class TaskScheduler {
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
     this.keepRunning = true;
-//    this.dataValidator = new DataValidator();
     this.actionScheduleInfoMap = new ConcurrentHashMap<>();
     this.actions = new TreeSet<>(new ActionComparator());
     this.taskRunnerMap = new ConcurrentHashMap<>();
@@ -176,18 +170,9 @@ public class TaskScheduler {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
       actions.add(Action.HIVE_LOAD_DATA);
-//      actions.add(Action.HIVE_VALIDATE);
-//      actions.add(Action.ODPS_VALIDATE);
-//      actions.add(Action.VALIDATION_BY_PARTITION);
-//      actions.add(Action.VALIDATION_BY_TABLE);
-//    } else if (DataSource.OSS.equals(dataSource)) {
-//      actions.add(Action.ODPS_CREATE_TABLE);
-//      actions.add(Action.ODPS_ADD_PARTITION);
-//      actions.add(Action.ODPS_CREATE_EXTERNAL_TABLE);
-//      actions.add(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION);
-//      actions.add(Action.ODPS_LOAD_DATA);
-//      actions.add(Action.ODPS_VALIDATE);
-//      actions.add(Action.VALIDATION_BY_TABLE);
+      actions.add(Action.ODPS_VALIDATE);
+      actions.add(Action.HIVE_VALIDATE);
+      actions.add(Action.VALIDATE);
     } else {
       throw new IllegalArgumentException("Unsupported datasource: " + dataSource);
     }
@@ -217,6 +202,8 @@ public class TaskScheduler {
       return new HiveRunner(this.metaConfig.getHiveConfiguration());
     } else if (RunnerType.ODPS.equals(runnerType)) {
       return new OdpsRunner(this.metaConfig.getOdpsConfiguration());
+    } else if (RunnerType.VALIDATOR.equals(runnerType)) {
+      return new ValidatorRunner();
     }
     throw new RuntimeException("Unknown runner type: " + runnerType.name());
   }
@@ -240,11 +227,9 @@ public class TaskScheduler {
                               new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.HIVE_LOAD_DATA,
                               new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_VALIDATE,
-                              new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.HIVE_VALIDATE,
-                              new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-
+    actionScheduleInfoMap.put(Action.ODPS_VALIDATE, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.HIVE_VALIDATE, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.VALIDATE, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
     for (Map.Entry<Action, ActionScheduleInfo> entry : actionScheduleInfoMap.entrySet()) {
       LOG.info("Set concurrency limit for Action: {}, limit: {}",
                entry.getKey().name(),
@@ -311,13 +296,13 @@ public class TaskScheduler {
           continue;
         }
 
-        Task.ActionInfo actionInfo = task.actionInfoMap.get(action);
+        AbstractExecutionInfo executionInfo = task.actionInfoMap.get(action);
         csb
             .append(action.name())
-            .append("(").append(actionInfo.progress.toColorString()).append(") ");
+            .append("(").append(executionInfo.progress.toColorString()).append(") ");
         sb
             .append(action.name())
-            .append("(").append(actionInfo.progress).append(") ");
+            .append("(").append(executionInfo.progress).append(") ");
       }
       LOG.info(sb.toString());
       System.err.print(csb.toString() + "\n");
@@ -357,22 +342,12 @@ public class TaskScheduler {
         continue;
       }
 
-      LOG.info("Task {} - Action {} is ready to schedule.", task.getName(), action.name());
-
-      // Schedule
-      for (Map.Entry<String, AbstractExecutionInfo> entry :
-          task.actionInfoMap.get(action).executionInfoMap.entrySet()) {
-        if (!Progress.NEW.equals(entry.getValue().progress)) {
-          continue;
-        }
-        String executionTaskName = entry.getKey();
-        task.updateExecutionProgress(action, executionTaskName, Progress.RUNNING);
-        LOG.info("Task {} - Action {} - Execution {} submitted to task runner.",
-                 task.getName(), action.name(), executionTaskName);
-        getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
-            .submitExecutionTask(task, action, executionTaskName);
-        actionScheduleInfo.concurrency++;
-      }
+      task.updateActionExecutionProgress(action, Progress.RUNNING);
+      LOG.info("Task {} - Action {} submitted to task runner.",
+          task.getName(), action.name());
+      getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
+          .submitExecutionTask(task, action);
+      actionScheduleInfo.concurrency++;
     }
   }
 
@@ -388,6 +363,9 @@ public class TaskScheduler {
 
     @Override
     public int compare(Action o1, Action o2) {
+      if (o1.getPriority() != o2.getPriority()) {
+        return o1.getPriority() - o2.getPriority();
+      }
       return o1.ordinal() - o2.ordinal();
     }
   }

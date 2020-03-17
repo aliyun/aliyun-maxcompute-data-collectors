@@ -1,42 +1,50 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.nio.file.Path;
+import com.aliyun.odps.data.Record;
+
+import java.util.LinkedList;
+import java.util.List;
 
 public class OdpsExecutionInfo extends AbstractExecutionInfo {
+  private List<OdpsSqlExecutionInfo> infos = new LinkedList<>();
 
-  private String instanceId;
-  private String logView;
+  static class OdpsSqlExecutionInfo {
+    private String instanceId;
+    private String logView;
+    private List<Record> result;
 
-  public OdpsExecutionInfo(Path sqlPath) {
-    super(sqlPath);
+    public void setInstanceId(String instanceId) {
+      this.instanceId = instanceId;
+    }
+
+    public void setLogView(String logView) {
+      this.logView = logView;
+    }
+
+    public void setResult(List<Record> result) {
+      this.result = result;
+    }
+
+    public List<Record> getResult() {
+      return result;
+    }
   }
 
-  public OdpsExecutionInfo(String sqlStatement) {
-    super(sqlStatement);
+  public List<OdpsSqlExecutionInfo> getInfos() {
+    return infos;
   }
 
-  public OdpsExecutionInfo() {
-
-  }
-
-  public void setInstanceId(String instanceId) {
-    this.instanceId = instanceId;
-  }
-
-  public void setLogView(String logView) {
-    this.logView = logView;
+  public void addInfo(OdpsSqlExecutionInfo info) {
+    this.infos.add(info);
   }
 
   public String getOdpsExecutionInfoSummary () {
-    final StringBuilder sb = new StringBuilder("OdpsExecutionInfo: ");
-    if (isScriptMode()) {
-      sb.append("SqlPath=").append(getSqlPath());
-    } else {
-      sb.append("Sql=").append(getSqlStatements());
+    final StringBuilder sb = new StringBuilder();
+    for (OdpsSqlExecutionInfo info : infos) {
+      sb.append("\nInstanceId= ").append(info.instanceId);
+      sb.append("\nLogView= ").append(info.logView);
+      sb.append("\n");
     }
-    sb.append("\nInstanceId=").append(instanceId);
-    sb.append("\nLogView=").append(logView);
-    sb.append("\n");
     return sb.toString();
   }
 }

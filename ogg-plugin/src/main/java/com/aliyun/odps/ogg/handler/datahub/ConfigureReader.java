@@ -97,6 +97,11 @@ public class ConfigureReader {
             configure.setCheckPointFileName(elementText);
         }
 
+        elementText = root.elementTextTrim("charset");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setCharsetName(elementText);
+        }
+
         /* for oracle default config */
         Element element = root.element("defaultOracleConfigure");
         if (element == null) {
@@ -310,8 +315,13 @@ public class ConfigureReader {
                 }
 
                 String dateFormat = columnElement.attributeValue("dateFormat");
-                if (StringUtils.isNotBlank(dateFormat)){
+                if (StringUtils.isNotBlank(dateFormat)) {
                     columnMapping.setDateFormat(dateFormat);
+                }
+
+                String charset = columnElement.attributeValue("isDefaultCharset");
+                if (StringUtils.isNotBlank(charset)) {
+                    columnMapping.setDefaultCharset(Boolean.parseBoolean(isDateFormat));
                 }
             }
         }

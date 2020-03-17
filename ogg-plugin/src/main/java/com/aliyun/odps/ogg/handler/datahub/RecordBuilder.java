@@ -23,6 +23,7 @@ import com.aliyun.datahub.client.model.*;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
+import com.aliyun.odps.ogg.handler.datahub.util.BucketPath;
 import com.google.common.collect.Maps;
 import oracle.goldengate.datasource.DsColumn;
 import oracle.goldengate.datasource.DsToken;
@@ -33,9 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
+import java.security.InvalidParameterException;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +48,9 @@ public class RecordBuilder {
 
     private Configure configure;
     private Map<String, Integer> latestSyncId = Maps.newHashMap();
+    private final static SimpleDateFormat DEFAULT_DATE_FORMATTER =
+            new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
+    private Charset charset;
 
     private static RecordBuilder recordBuilder;
 
@@ -61,6 +67,11 @@ public class RecordBuilder {
     private RecordBuilder(Configure configure) {
         this.configure = configure;
 
+        if (!Charset.isSupported(configure.getCharsetName())) {
+            throw new InvalidParameterException("Invalid charsetName: " + configure.getCharsetName());
+        }
+        charset = Charset.forName(configure.getCharsetName());
+
         for (String oracleTableFullName : configure.getTableMappings().keySet()) {
             latestSyncId.put(oracleTableFullName, 0);
         }
@@ -69,7 +80,7 @@ public class RecordBuilder {
     public RecordEntry buildRecord(Op op, String opType, TableMapping tableMapping) throws ParseException {
         RecordEntry recordEntry = new RecordEntry();
 
-        logger.debug("oracle table[{}] record [{}]", tableMapping.getOracleFullTableName(), op.getRecord().toString());
+        logger.debug("BuildRecord, oracle table: {}, record: {}", tableMapping.getOracleFullTableName(), op.getRecord().toString());
 
         if (tableMapping.getRecordSchema() == null) {
             // blob topic
@@ -104,10 +115,11 @@ public class RecordBuilder {
 
         String rowIdColumn = tableMapping.getRowIdColumn();
         if (StringUtils.isNotBlank(rowIdColumn)) {
-            DsToken token = op.getRecord().getUserToken("TKN-ROWID");
-            if (token == null) {
-                throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
-                        + "] token TKN-ROWID is not set, can not get oracle rowid");
+            DsToken token = op.getRecord().getUserToken(Constant.ROWID_TOKEN);
+            if (!token.isSet()) {
+                logger.error("BuildRecord failed, oracle table token TKN-ROWID is not set, can not get oracle rowid, table: {}",
+                        tableMapping.getOracleFullTableName());
+                throw new RuntimeException("oracle table token TKN-ROWID is not set, can not get oracle rowid");
             }
             recordData.setField(rowIdColumn, token.getValue());
         }
@@ -124,7 +136,9 @@ public class RecordBuilder {
             } else if (recordSchema.getField(ctime).getType() == FieldType.TIMESTAMP) {
                 recordData.setField(ctime, convertStrToMicroseconds(op.getTimestamp()));
             } else {
-                throw new RuntimeException("DataHub topic[{}] filed[{}] type must be string or timestamp");
+                logger.error("BuildRecord failed, cTimeColumn type must be string or timestamp in DataHub, type: {}",
+                        recordSchema.getField(ctime).getType().name());
+                throw new RuntimeException("cTimeColumn type must be string or timestamp in DataHub");
             }
         }
 
@@ -133,10 +147,13 @@ public class RecordBuilder {
             recordData.setField(cId, Long.toString(HandlerInfoManager.instance().getRecordId()));
         }
 
+
+        Date readTime = DEFAULT_DATE_FORMATTER.parse(op.getTimestamp());
         Map<String, String> constMap = tableMapping.getConstColumnMappings();
         if (constMap != null && !constMap.isEmpty()) {
             for (Map.Entry<String, String> entry : constMap.entrySet()) {
-                recordData.setField(entry.getKey(), entry.getValue());
+                recordData.setField(entry.getKey(), BucketPath.escapeString(entry.getValue(),
+                        readTime.getTime(), tableMapping.getConstColumnMappings()));
             }
         }
 
@@ -145,38 +162,44 @@ public class RecordBuilder {
             String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
             ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
             if (columnMapping == null) {
-                logger.debug("oracle table[{}] column[{}] is not configured.", op.getTableMeta().getTableName().getFullName(), columnName);
-
+                logger.debug("BuildRecord, oracle table column is not configured, table: {}, column: {}",
+                        op.getTableMeta().getTableName().getFullName(), columnName);
                 continue;
             }
 
             DsColumn dsColumn = columns.get(i);
+            String afterValue = dsColumn.getAfterValue();
+            String beforeValue = dsColumn.getBeforeValue();
+            if (!columnMapping.isDefaultCharset()) {
+                afterValue = dsColumn.getAfter() == null ? null : new String(dsColumn.getAfterValue().getBytes(charset));
+                beforeValue = dsColumn.getBefore() == null ? null : new String(dsColumn.getBeforeValue().getBytes(charset));
+            }
+            logger.info("after {}, before {}", afterValue, beforeValue);
 
             String dest = columnMapping.getDest();
             if (StringUtils.isNotBlank(dest)) {
                 if (columnMapping.isKeyColumn()) {
                     if (dsColumn.getAfter() == null) {
-                        //recordData.setField(dest, dsColumn.getBeforeValue());
-                        setTupleData(recordData, recordSchema.getField(dest), dsColumn.getBeforeValue(),
+                        setTupleData(recordData, recordSchema.getField(dest), beforeValue,
                                 columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
                     } else {
-                        setTupleData(recordData, recordSchema.getField(dest), dsColumn.getAfterValue(),
+                        setTupleData(recordData, recordSchema.getField(dest), afterValue,
                                 columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
                     }
                 } else {
-                    setTupleData(recordData, recordSchema.getField(dest), dsColumn.getAfterValue(),
+                    setTupleData(recordData, recordSchema.getField(dest), afterValue,
                             columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
                 }
             }
 
             String destOld = columnMapping.getDestOld();
             if (StringUtils.isNotBlank(destOld)) {
-                setTupleData(recordData, recordSchema.getField(destOld), dsColumn.getBeforeValue(),
+                setTupleData(recordData, recordSchema.getField(destOld), beforeValue,
                         columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
             }
 
             if (columnMapping.isShardColumn()) {
-                hashString.append(columns.get(i).getAfterValue());
+                hashString.append(afterValue);
             }
         }
 
@@ -187,10 +210,10 @@ public class RecordBuilder {
     private void buildBlobRecord(Op op, String opType, TableMapping tableMapping, RecordEntry recordEntry) {
         List<DsColumn> columns = op.getColumns();
         if (tableMapping.getColumnMappings().size() != 1) {
-            logger.error("oracle table[{}] must have only one column for blob topic[{}], but found {} column",
+            logger.error("BuildRecord failed, oracle table must have only one column for blob topic, " +
+                            "oracle table: {}, DataHub topic: {}, column num: {}",
                     tableMapping.getOracleFullTableName(), tableMapping.getTopicName(), op.getNumColumns());
-            throw new RuntimeException("oracle table[" + tableMapping.getOracleFullTableName()
-                    + "] must have only one column for blob topic[" + tableMapping.getTopicName() + "]");
+            throw new RuntimeException("oracle table must have only one column for blob topic");
         }
 
         for (int i = 0; i < columns.size(); i++) {
@@ -201,7 +224,23 @@ public class RecordBuilder {
                 continue;
             }
 
-            BlobRecordData recordData = new BlobRecordData(columns.get(i).getAfterValue().getBytes(Charset.forName("UTF-8")));
+            DsColumn dsColumn = columns.get(i);
+            byte[] data;
+            if (columnMapping.isDefaultCharset()) {
+                if ("D".equalsIgnoreCase(opType)) {
+                    data = dsColumn.getBeforeValue().getBytes(Charset.forName("UTF-8"));
+                } else {
+                    data = dsColumn.getAfterValue().getBytes(Charset.forName("UTF-8"));
+                }
+            } else {
+                if ("D".equalsIgnoreCase(opType)) {
+                    data = dsColumn.getBeforeValue().getBytes(charset);
+                } else {
+                    data = dsColumn.getAfterValue().getBytes(charset);
+                }
+            }
+
+            BlobRecordData recordData = new BlobRecordData(data);
             recordEntry.setRecordData(recordData);
             break;
         }
@@ -248,7 +287,8 @@ public class RecordBuilder {
                 recordData.setField(field.getName(), new BigDecimal(val));
                 break;
             default:
-                throw new RuntimeException("Unknown column type: " + field.getType().name() + " ,value is: " + val);
+                logger.error("BuildRecord failed, unknown DataHub filed type, type: {}", field.getType().name());
+                throw new RuntimeException("unknown DataHub filed type " + field.getType().name());
         }
     }
 
@@ -260,6 +300,10 @@ public class RecordBuilder {
 
         // convert yyyy-mm-dd:hh:mm:ss to yyyy-mm-dd hh:mm:ss
         StringBuilder sb = new StringBuilder(timeStr);
+        if (sb.length() < 11) {
+            logger.error("BuildRecord failed, convert timeStr to timestamp failed, invalid timeStr, timeStr: {}", timeStr);
+            throw new RuntimeException("convert timeStr to timestamp failed, invalid timeStr, timeStr: " + timeStr);
+        }
         sb.setCharAt(10, ' ');
         timeStr = sb.toString();
 

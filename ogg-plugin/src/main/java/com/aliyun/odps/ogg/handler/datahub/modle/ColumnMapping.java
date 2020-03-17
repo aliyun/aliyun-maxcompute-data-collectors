@@ -35,6 +35,7 @@ public class ColumnMapping {
     private boolean isKeyColumn = false;
 
     private boolean isDateFormat = true;
+    private boolean isDefaultCharset = true;
 
     @JsonIgnore private SimpleDateFormat simpleDateFormat;
     private String dateFormat;
@@ -102,5 +103,13 @@ public class ColumnMapping {
     public void setDateFormat(String dateFormat) {
         this.dateFormat = dateFormat;
         simpleDateFormat = new SimpleDateFormat(dateFormat);
+    }
+
+    public boolean isDefaultCharset() {
+        return isDefaultCharset;
+    }
+
+    public void setDefaultCharset(boolean defaultCharset) {
+        isDefaultCharset = defaultCharset;
     }
 }

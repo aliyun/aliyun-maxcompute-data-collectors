@@ -110,10 +110,13 @@ public class DatahubSource extends AbstractSource implements Configurable, Polla
         serializer.configure(serializerContext);
         configure.setInputColumnNames(serializer.getInputColumnNames());
 
-        logger.debug(configure.sourcetoString());
-
         if (sourceCounter == null) {
             sourceCounter = new SourceCounter(getName());
+        }
+
+        if (logger.isInfoEnabled())
+        {
+            logger.info(configure.sourcetoString());
         }
     }
 

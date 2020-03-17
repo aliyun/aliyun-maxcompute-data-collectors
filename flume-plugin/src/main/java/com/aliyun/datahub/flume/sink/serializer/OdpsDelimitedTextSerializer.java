@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.security.InvalidParameterException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,10 +67,15 @@ public class OdpsDelimitedTextSerializer implements OdpsEventSerializer {
         delimiter = parseDelimiterSpec(context.getString(DELIMITER, DEFAULT_DELIMITER));
         charset = context.getString(CHARSET, DEFAULT_CHARSET);
         String fieldNames = context.getString(FIELD_NAMES);
-        if (fieldNames != null){
-            inputColNames = fieldNames.split(",", -1);
+        if (fieldNames == null) {
+            throw new InvalidParameterException("invalid fieldnames: " + fieldNames);
+        }
+        inputColNames = fieldNames.split(",", -1);
+        for (int i = 0; i < inputColNames.length; i++) {
+            inputColNames[i] = StringUtils.trimToEmpty(inputColNames[i]);
         }
 
+        logger.info("DelimitedTextSerializer, delimiter: [{}], charset: {}, fieldnames, {}", delimiter, charset, inputColNames);
     }
 
     // if delimiter is a double quoted like "\t", drop quotes
@@ -94,7 +100,7 @@ public class OdpsDelimitedTextSerializer implements OdpsEventSerializer {
         String[] fieldValues = (new String(payLoad, charset)).split(delimiter, -1);
         if (inputColNames.length != fieldValues.length) {
             logger.warn("Serializing events failed. Check the configuration in serializer. " +
-                            "The filedNames count ({}) must equals fieldValues count ({})",
+                            "The filedNames count ({}) should equals fieldValues count ({})",
                     inputColNames.length, fieldValues.length);
             return rowMap;
         }

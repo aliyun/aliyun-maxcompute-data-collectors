@@ -5,7 +5,6 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -22,7 +21,6 @@ public class HiveRunner extends AbstractTaskRunner {
   private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
   private static String DRIVER_NAME = "org.apache.hive.jdbc.HiveDriver";
-  private static final List<String> EMPTY_LIST = Collections.emptyList();
 
   private static String jdbcAddress;
   private static String user;
@@ -72,7 +70,7 @@ public class HiveRunner extends AbstractTaskRunner {
         }
         settingsStatement.close();
 
-        HiveExecutionInfo hiveExecutionInfo = (HiveExecutionInfo) task.actionInfoMap.get(action);
+        HiveActionInfo hiveExecutionInfo = (HiveActionInfo) task.actionInfoMap.get(action);
         HiveStatement statement = (HiveStatement) con.createStatement();
         Runnable logging = () -> {
           while (statement.hasMoreLogs()) {
@@ -105,9 +103,9 @@ public class HiveRunner extends AbstractTaskRunner {
         hiveExecutionInfo.setResult(result);
         resultSet.close();
 
-        LOG.debug("Task: {}, {}", task, hiveExecutionInfo.getHiveExecutionInfoSummary());
+        LOG.debug("Task: {}, {}", task, hiveExecutionInfo.getHiveActionInfoSummary());
         RUNNER_LOG.info("Task: {}, Action: {} {}",
-            task, action, hiveExecutionInfo.getHiveExecutionInfoSummary());
+            task, action, hiveExecutionInfo.getHiveActionInfoSummary());
         try {
           loggingThread.join();
         } catch (InterruptedException e) {
@@ -119,19 +117,19 @@ public class HiveRunner extends AbstractTaskRunner {
         LOG.error("Run HIVE Sql failed, {}, \nexception: {}", sql, ExceptionUtils.getStackTrace(e));
         if (task != null) {
           LOG.info("Hive SQL FAILED {}, {}", action, task.toString());
-          task.updateActionExecutionProgress(action, Progress.FAILED);
+          task.updateActionProgress(action, Progress.FAILED);
         }
         return;
       }
 
       if (task != null) {
         LOG.info("Hive SQL SUCCEEDED {}, {}, {}", action, task.toString());
-        task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
+        task.updateActionProgress(action, Progress.SUCCEEDED);
       }
     }
   }
 
-  private static void parseLogSetExecutionInfo(String log, HiveExecutionInfo hiveExecutionInfo) {
+  private static void parseLogSetExecutionInfo(String log, HiveActionInfo hiveExecutionInfo) {
     if (StringUtils.isNullOrEmpty(log) || hiveExecutionInfo == null) {
       return;
     }
@@ -148,7 +146,7 @@ public class HiveRunner extends AbstractTaskRunner {
     switch (action) {
       case HIVE_LOAD_DATA:
         return HiveSqlUtils.getUdtfSql(task.tableMetaModel);
-      case HIVE_VALIDATE:
+      case HIVE_VERIFICATION:
         return HiveSqlUtils.getVerifySql(task.tableMetaModel);
     }
     return "";
@@ -158,7 +156,7 @@ public class HiveRunner extends AbstractTaskRunner {
   public void submitExecutionTask(Task task, Action action) {
     String sqlStatement = getSqlStatements(task, action);
     if (StringUtils.isNullOrEmpty(sqlStatement)) {
-      task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
+      task.updateActionProgress(action, Progress.SUCCEEDED);
       LOG.error("Empty sqlStatement, mark done, action: {}", action);
       return;
     }

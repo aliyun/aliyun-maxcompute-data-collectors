@@ -22,7 +22,6 @@ public class OdpsRunner extends AbstractTaskRunner {
   private static final Logger RUNNER_LOG = LogManager.getLogger("RunnerLogger");
 
   private static final long TOKEN_EXPIRE_INTERVAL = 7 * 24; // hours
-  private static final List<String> EMPTY_LIST = Collections.emptyList();
 
   private static Odps odps;
 
@@ -53,7 +52,7 @@ public class OdpsRunner extends AbstractTaskRunner {
     @Override
     public void run() {
       Instance i;
-      OdpsExecutionInfo odpsExecutionInfo = (OdpsExecutionInfo) task.actionInfoMap.get(action);
+      OdpsActionInfo odpsExecutionInfo = (OdpsActionInfo) task.actionInfoMap.get(action);
       for (String sql : sqls) {
         // Submit
         try {
@@ -66,7 +65,7 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", project: " + odps.getDefaultProject() +
                     ", sql: \n" + sql +
                     ", exception: " + e.toString());
-          task.updateActionExecutionProgress(action, Progress.FAILED);
+          task.updateActionProgress(action, Progress.FAILED);
           return;
         } catch (RuntimeException e) {
           LOG.error("Submit ODPS Sql failed, task: " + task +
@@ -74,7 +73,7 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", sql: \n" + sql +
                     ", exception: " + e.getMessage());
           e.printStackTrace();
-          task.updateActionExecutionProgress(action, Progress.FAILED);
+          task.updateActionProgress(action, Progress.FAILED);
           return;
         }
 
@@ -85,12 +84,12 @@ public class OdpsRunner extends AbstractTaskRunner {
           LOG.error("Run ODPS Sql failed, task: " + task +
                     ", sql: \n" + sql +
                     ", exception: " + e.toString());
-          task.updateActionExecutionProgress(action, Progress.FAILED);
+          task.updateActionProgress(action, Progress.FAILED);
           return;
         }
 
         // Update execution info
-        OdpsExecutionInfo.OdpsSqlExecutionInfo info = new OdpsExecutionInfo.OdpsSqlExecutionInfo();
+        OdpsActionInfo.OdpsExecutionInfo info = new OdpsActionInfo.OdpsExecutionInfo();
         String instanceId = i.getId();
         info.setInstanceId(instanceId);
 
@@ -112,11 +111,11 @@ public class OdpsRunner extends AbstractTaskRunner {
         }
 
         odpsExecutionInfo.addInfo(info);
-        LOG.debug("Task: {}, {}", task, odpsExecutionInfo.getOdpsExecutionInfoSummary());
+        LOG.debug("Task: {}, {}", task, odpsExecutionInfo.getOdpsActionInfoSummary());
         RUNNER_LOG.info("Task: {}, Action: {} {}",
-            task, action, odpsExecutionInfo.getOdpsExecutionInfoSummary());
+            task, action, odpsExecutionInfo.getOdpsActionInfoSummary());
       }
-      task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
+      task.updateActionProgress(action, Progress.SUCCEEDED);
     }
   }
 
@@ -140,11 +139,11 @@ public class OdpsRunner extends AbstractTaskRunner {
           sqlStatements.add(addPartitionStatement);
         }
         return sqlStatements;
-      case ODPS_VALIDATE:
+      case ODPS_VERIFICATION:
         sqlStatements.add(OdpsSqlUtils.getVerifySql(task.tableMetaModel));
         return sqlStatements;
     }
-    return EMPTY_LIST;
+    return Collections.emptyList();
   }
 
   @Override
@@ -152,7 +151,7 @@ public class OdpsRunner extends AbstractTaskRunner {
     List<String> sqlStatements = getSqlStatements(task, action);
     LOG.info("SQL Statements: {}", String.join(", ", sqlStatements));
     if (sqlStatements.isEmpty()) {
-      task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
+      task.updateActionProgress(action, Progress.SUCCEEDED);
       LOG.error("Empty sqlStatement, mark done, action: {}", action);
       return;
     }

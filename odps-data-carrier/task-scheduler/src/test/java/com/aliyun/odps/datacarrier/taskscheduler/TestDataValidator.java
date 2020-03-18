@@ -13,8 +13,8 @@
 //  public void testValidateTaskCountResultByPartition() {
 //
 //    Task task = new Task("TestDataBase", "TestTable", new MetaSource.TableMetaModel(), null);
-//    task.addExecutionInfo(Action.HIVE_VALIDATE, task.getTableNameWithProject());
-//    task.addExecutionInfo(Action.ODPS_VALIDATE, task.getTableNameWithProject());
+//    task.addActionInfo(Action.HIVE_VERIFICATION, task.getTableNameWithProject());
+//    task.addActionInfo(Action.ODPS_VERIFICATION, task.getTableNameWithProject());
 //    int date = 20200218;
 //    int partitionNum = 5;
 //    int succeededPartitionNum = 2;
@@ -26,9 +26,9 @@
 //    }
 //
 //    multiRecordResult.put("20200226", "12");
-//    task.actionInfoMap.get(Action.HIVE_VALIDATE).executionInfoMap.get(
+//    task.actionInfoMap.get(Action.HIVE_VERIFICATION).executionInfoMap.get(
 //        task.getTableNameWithProject()).setMultiRecordResult(multiRecordResult);
-//    task.actionInfoMap.get(Action.ODPS_VALIDATE).executionInfoMap.get(
+//    task.actionInfoMap.get(Action.ODPS_VERIFICATION).executionInfoMap.get(
 //        task.getTableNameWithProject()).setMultiRecordResult(multiRecordResult);
 //
 //    DataValidator dataValidator = new DataValidator();

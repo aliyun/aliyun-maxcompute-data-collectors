@@ -5,10 +5,10 @@ import com.aliyun.odps.data.Record;
 import java.util.LinkedList;
 import java.util.List;
 
-public class OdpsExecutionInfo extends AbstractExecutionInfo {
-  private List<OdpsSqlExecutionInfo> infos = new LinkedList<>();
+public class OdpsActionInfo extends AbstractActionInfo {
+  private List<OdpsExecutionInfo> infos = new LinkedList<>();
 
-  static class OdpsSqlExecutionInfo {
+  static class OdpsExecutionInfo {
     private String instanceId;
     private String logView;
     private List<Record> result;
@@ -30,17 +30,17 @@ public class OdpsExecutionInfo extends AbstractExecutionInfo {
     }
   }
 
-  public List<OdpsSqlExecutionInfo> getInfos() {
+  public List<OdpsExecutionInfo> getInfos() {
     return infos;
   }
 
-  public void addInfo(OdpsSqlExecutionInfo info) {
+  public void addInfo(OdpsExecutionInfo info) {
     this.infos.add(info);
   }
 
-  public String getOdpsExecutionInfoSummary () {
+  public String getOdpsActionInfoSummary() {
     final StringBuilder sb = new StringBuilder();
-    for (OdpsSqlExecutionInfo info : infos) {
+    for (OdpsExecutionInfo info : infos) {
       sb.append("\nInstanceId= ").append(info.instanceId);
       sb.append("\nLogView= ").append(info.logView);
       sb.append("\n");

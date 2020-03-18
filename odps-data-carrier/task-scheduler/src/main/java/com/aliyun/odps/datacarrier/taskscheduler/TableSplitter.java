@@ -54,7 +54,7 @@ public class TableSplitter implements TaskManager {
       if (Action.ODPS_ADD_PARTITION.equals(action)) {
         continue;
       }
-      task.addExecutionInfo(action);
+      task.addActionInfo(action);
     }
     return task;
   }
@@ -75,7 +75,7 @@ public class TableSplitter implements TaskManager {
                tableMetaModel.tableName);
       String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
       Task task = new Task(taskName, tableMetaModel.clone(), config);
-      task.addExecutionInfo(Action.ODPS_CREATE_TABLE);
+      task.addActionInfo(Action.ODPS_CREATE_TABLE);
       ret.add(task);
       return ret;
     }
@@ -106,7 +106,7 @@ public class TableSplitter implements TaskManager {
           tableMetaModel.databaseName + "." + tableMetaModel.tableName + "." + taskIdx;
       Task task = new Task(taskName, clone, config);
       for (Action action : actions) {
-        task.addExecutionInfo(action);
+        task.addActionInfo(action);
       }
       ret.add(task);
 

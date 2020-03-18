@@ -14,7 +14,7 @@ class Task {
   private static final Logger LOG = LogManager.getLogger(Task.class);
   private String taskName;
   protected long updateTime;
-  protected Map<Action, AbstractExecutionInfo> actionInfoMap;
+  protected Map<Action, AbstractActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MetaConfiguration.Config tableConfig;
@@ -28,14 +28,14 @@ class Task {
     this.progress = Progress.NEW;
   }
 
-  protected void addExecutionInfo(Action action) {
+  protected void addActionInfo(Action action) {
     RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
     if (RunnerType.ODPS.equals(runnerType)) {
-      actionInfoMap.put(action, new OdpsExecutionInfo());
+      actionInfoMap.put(action, new OdpsActionInfo());
     } else if (RunnerType.HIVE.equals(runnerType)) {
-      actionInfoMap.put(action, new HiveExecutionInfo());
-    } else if (RunnerType.VALIDATOR.equals(runnerType)) {
-      actionInfoMap.put(action, new ValidateExecutionInfo());
+      actionInfoMap.put(action, new HiveActionInfo());
+    } else {
+      actionInfoMap.put(action, new ValidateActionInfo());
     }
   }
 
@@ -44,16 +44,16 @@ class Task {
    * @param action action that the execution belongs to
    * @param progress new progress
    */
-  protected synchronized void updateActionExecutionProgress(Action action,
-                                                            Progress progress) {
+  protected synchronized void updateActionProgress(Action action,
+                                                   Progress progress) {
     if (!actionInfoMap.containsKey(action)) {
       return;
     }
 
-    AbstractExecutionInfo executionInfo = actionInfoMap.get(action);
-    if (!executionInfo.progress.equals(progress)) {
-      executionInfo.progress = progress;
-      updateTaskProgress(executionInfo.progress);
+    AbstractActionInfo actionInfo = actionInfoMap.get(action);
+    if (!actionInfo.progress.equals(progress)) {
+      actionInfo.progress = progress;
+      updateTaskProgress(actionInfo.progress);
     }
   }
 
@@ -92,12 +92,12 @@ class Task {
       if (Progress.FAILED.equals(progress)) {
         TaskScheduler.markAsFailed(tableMetaModel.databaseName, tableMetaModel.tableName);
       }
-      //Partitioned table should update partition values when task.progress is Succeeded or failed in Action.VALIDATE.
+      //Partitioned table should update partition values when task.progress is Succeeded or failed in Action.VERIFICATION.
       if (!tableMetaModel.partitionColumns.isEmpty()) {
         if (Progress.SUCCEEDED.equals(progress) ||
             (Progress.FAILED.equals(progress) &&
-                actionInfoMap.containsKey(Action.VALIDATE) &&
-                actionInfoMap.get(Action.VALIDATE).progress.equals(Progress.FAILED))) {
+                actionInfoMap.containsKey(Action.VERIFICATION) &&
+                actionInfoMap.get(Action.VERIFICATION).progress.equals(Progress.FAILED))) {
           List<List<String>> partitionValuesList = tableMetaModel.partitions
               .stream()
               .map(p -> p.partitionValues)
@@ -127,7 +127,7 @@ class Task {
     }
 
     // If its previous actions have finished successfully
-    for (Map.Entry<Action, AbstractExecutionInfo> entry : actionInfoMap.entrySet()) {
+    for (Map.Entry<Action, AbstractActionInfo> entry : actionInfoMap.entrySet()) {
       // TODO: quite hacky
       if (entry.getKey().getPriority() < action.getPriority() &&
           !Progress.SUCCEEDED.equals(entry.getValue().progress)) {

@@ -14,7 +14,7 @@ public class GsonUtils {
     return FULL_CONFIG_GSON;
   }
 
-  public static String toString(Object object) {
-    return FULL_CONFIG_GSON.toJson(object).toString();
+  public static String toJson(Object object) {
+    return FULL_CONFIG_GSON.toJson(object);
   }
 }

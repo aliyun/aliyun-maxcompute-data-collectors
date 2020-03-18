@@ -10,24 +10,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class ValidatorRunner extends AbstractTaskRunner {
-  private static final Logger LOG = LogManager.getLogger(ValidatorRunner.class);
+public class VerificationRunner extends AbstractTaskRunner {
+  private static final Logger LOG = LogManager.getLogger(VerificationRunner.class);
 
   @Override
   public void submitExecutionTask(Task task, Action action) {
-    if (!task.actionInfoMap.containsKey(Action.HIVE_VALIDATE) ||
-        !task.actionInfoMap.containsKey(Action.ODPS_VALIDATE)) {
-      LOG.warn("Can not find ODPS/Hive validate tasks, skip validate task {} result.", task.getName());
+    if (!task.actionInfoMap.containsKey(Action.HIVE_VERIFICATION) ||
+        !task.actionInfoMap.containsKey(Action.ODPS_VERIFICATION)) {
+      LOG.warn("Can not find ODPS/Hive verification tasks, skip verification task {} result.", task.getName());
     }
 
     List<Record> odpsResult =
-        ((OdpsExecutionInfo) task.actionInfoMap.get(Action.ODPS_VALIDATE)).getInfos().iterator().next().getResult();
-    List<List<String>> hiveResult = ((HiveExecutionInfo) task.actionInfoMap.get(Action.HIVE_VALIDATE)).getResult();
+        ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_VERIFICATION)).getInfos().iterator().next().getResult();
+    List<List<String>> hiveResult = ((HiveActionInfo) task.actionInfoMap.get(Action.HIVE_VERIFICATION)).getResult();
 
     boolean compareResult;
     if (odpsResult == null || odpsResult.isEmpty() || hiveResult == null) {
       compareResult = false;
-      LOG.error("Can not find ODPS/Hive validate results, validate task {} failed.", task.getName());
+      LOG.error("Can not find ODPS/Hive verification results, verification task {} failed.", task.getName());
     } else {
       if (task.tableMetaModel.partitionColumns.isEmpty()) {
         compareResult = compareNonPartitionedTableResult(task.getName(), odpsResult, hiveResult);
@@ -36,9 +36,9 @@ public class ValidatorRunner extends AbstractTaskRunner {
       }
     }
     if (compareResult) {
-      task.updateActionExecutionProgress(action, Progress.SUCCEEDED);
+      task.updateActionProgress(action, Progress.SUCCEEDED);
     } else {
-      task.updateActionExecutionProgress(action, Progress.FAILED);
+      task.updateActionProgress(action, Progress.FAILED);
     }
 
   }
@@ -48,10 +48,10 @@ public class ValidatorRunner extends AbstractTaskRunner {
       long hiveTableCount = Long.valueOf(hiveResult.get(0).get(0));
       long odpsTableCount = Long.valueOf(odpsResult.get(0).get(0).toString());
       if (hiveTableCount == odpsTableCount) {
-        LOG.info("Table {} pass data validate, count: {}.", taskName, hiveTableCount);
+        LOG.info("Table {} pass data verification, count: {}.", taskName, hiveTableCount);
         return true;
       } else {
-        LOG.info("Table {} failed data validate, hive table count: {}, odps table count: {}.",
+        LOG.info("Table {} failed data verification, hive table count: {}, odps table count: {}.",
             taskName, hiveTableCount, odpsTableCount);
         return false;
       }

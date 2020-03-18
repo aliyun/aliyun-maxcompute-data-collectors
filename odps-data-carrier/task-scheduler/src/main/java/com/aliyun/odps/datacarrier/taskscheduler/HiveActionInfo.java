@@ -1,9 +1,8 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.sql.ResultSet;
 import java.util.List;
 
-public class HiveExecutionInfo extends AbstractExecutionInfo {
+public class HiveActionInfo extends AbstractActionInfo {
 
   private String jobId;
   private String trackingUrl;
@@ -25,7 +24,7 @@ public class HiveExecutionInfo extends AbstractExecutionInfo {
     return result;
   }
 
-  public String getHiveExecutionInfoSummary () {
+  public String getHiveActionInfoSummary() {
     final StringBuilder sb = new StringBuilder();
     sb.append("\nJobId=").append(jobId);
     sb.append("\nTrackingUrl=").append(trackingUrl);

@@ -43,7 +43,6 @@ public class TaskScheduler {
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
   protected Map<RunnerType, TaskRunner> taskRunnerMap;
-  private DataSource dataSource;
   private final SchedulerHeartbeatThread heartbeatThread;
   private volatile boolean keepRunning;
   private volatile Throwable savedException;
@@ -170,9 +169,9 @@ public class TaskScheduler {
       actions.add(Action.ODPS_CREATE_TABLE);
       actions.add(Action.ODPS_ADD_PARTITION);
       actions.add(Action.HIVE_LOAD_DATA);
-      actions.add(Action.ODPS_VALIDATE);
-      actions.add(Action.HIVE_VALIDATE);
-      actions.add(Action.VALIDATE);
+      actions.add(Action.ODPS_VERIFICATION);
+      actions.add(Action.HIVE_VERIFICATION);
+      actions.add(Action.VERIFICATION);
     } else {
       throw new IllegalArgumentException("Unsupported datasource: " + dataSource);
     }
@@ -202,8 +201,8 @@ public class TaskScheduler {
       return new HiveRunner(this.metaConfig.getHiveConfiguration());
     } else if (RunnerType.ODPS.equals(runnerType)) {
       return new OdpsRunner(this.metaConfig.getOdpsConfiguration());
-    } else if (RunnerType.VALIDATOR.equals(runnerType)) {
-      return new ValidatorRunner();
+    } else if (RunnerType.VERIFICATION.equals(runnerType)) {
+      return new VerificationRunner();
     }
     throw new RuntimeException("Unknown runner type: " + runnerType.name());
   }
@@ -227,9 +226,9 @@ public class TaskScheduler {
                               new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.HIVE_LOAD_DATA,
                               new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_VALIDATE, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.HIVE_VALIDATE, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.VALIDATE, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.ODPS_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.HIVE_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
     for (Map.Entry<Action, ActionScheduleInfo> entry : actionScheduleInfoMap.entrySet()) {
       LOG.info("Set concurrency limit for Action: {}, limit: {}",
                entry.getKey().name(),
@@ -296,7 +295,7 @@ public class TaskScheduler {
           continue;
         }
 
-        AbstractExecutionInfo executionInfo = task.actionInfoMap.get(action);
+        AbstractActionInfo executionInfo = task.actionInfoMap.get(action);
         csb
             .append(action.name())
             .append("(").append(executionInfo.progress.toColorString()).append(") ");
@@ -342,7 +341,7 @@ public class TaskScheduler {
         continue;
       }
 
-      task.updateActionExecutionProgress(action, Progress.RUNNING);
+      task.updateActionProgress(action, Progress.RUNNING);
       LOG.info("Task {} - Action {} submitted to task runner.",
           task.getName(), action.name());
       getTaskRunner(CommonUtils.getRunnerTypeByAction(action))

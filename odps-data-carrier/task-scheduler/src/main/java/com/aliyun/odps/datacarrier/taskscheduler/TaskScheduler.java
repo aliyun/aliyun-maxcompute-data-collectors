@@ -2,9 +2,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
-import static com.aliyun.odps.datacarrier.taskscheduler.Constants.META_CONFIG_FILE;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -12,7 +10,6 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +28,7 @@ import org.apache.thrift.TException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+// TODO: move main to a new class MmaServerMain
 public class TaskScheduler {
 
   private static final Logger LOG = LogManager.getLogger(TaskScheduler.class);
@@ -54,7 +52,7 @@ public class TaskScheduler {
   private volatile Throwable savedException;
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<Task> tasks;
-  private MetaConfiguration metaConfig;
+  private MmaServerConfig mmaServerConfig;
 
   // This map indicates if a table succeeded in current round
   // database -> table -> status
@@ -87,25 +85,19 @@ public class TaskScheduler {
     this.tasks = new LinkedList<>();
   }
 
-  private void run(MetaConfiguration metaConfiguration) throws TException, IOException {
+  private void run(MmaServerConfig mmaServerConfig) throws TException, IOException {
 
     // TODO: check if datasource and metasource are valid
-    this.metaConfig = metaConfiguration;
+    this.mmaServerConfig = mmaServerConfig;
 
-    MetaConfiguration.HiveConfiguration hiveConfigurationConfig =
-        metaConfiguration.getHiveConfiguration();
-    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getHmsThriftAddr(),
-                                               hiveConfigurationConfig.getKrbPrincipal(),
-                                               hiveConfigurationConfig.getKeyTab(),
-                                               hiveConfigurationConfig.getKrbSystemProperties());
+    MmaConfig.HiveConfig hiveConfig = mmaServerConfig.getHiveConfig();
+    MetaSource metaSource = new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
+                                               hiveConfig.getKrbPrincipal(),
+                                               hiveConfig.getKeyTab(),
+                                               hiveConfig.getKrbSystemProperties());
     MmaMetaManagerFsImpl.init(null, metaSource);
-    for (MetaConfiguration.TableGroup tableGroup : metaConfiguration.getTableGroups()) {
-      for (MetaConfiguration.TableConfig tableConfig : tableGroup.getTableConfigs()) {
-        MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
-      }
-    }
 
-    initActions(metaConfiguration.getDataSource());
+    initActions(mmaServerConfig.getDataSource());
     initTaskRunner();
     updateConcurrencyThreshold();
     this.heartbeatThread.start();
@@ -214,9 +206,9 @@ public class TaskScheduler {
 
   private TaskRunner createTaskRunner(RunnerType runnerType) {
     if (RunnerType.HIVE.equals(runnerType)) {
-      return new HiveRunner(this.metaConfig.getHiveConfiguration());
+      return new HiveRunner(this.mmaServerConfig.getHiveConfig());
     } else if (RunnerType.ODPS.equals(runnerType)) {
-      return new OdpsRunner(this.metaConfig.getOdpsConfiguration());
+      return new OdpsRunner(this.mmaServerConfig.getOdpsConfig());
     }
     throw new RuntimeException("Unknown runner type: " + runnerType.name());
   }
@@ -423,16 +415,16 @@ public class TaskScheduler {
       throw new IllegalArgumentException("Required argument 'config'");
     }
 
-    File configFile = new File(cmd.getOptionValue("config"));
-    MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
-    if (!metaConfiguration.validateAndInitConfig()) {
-      LOG.error("Init MetaConfiguration failed, please check {}", configFile.toString());
+    Path mmaServerConfigPath = Paths.get(cmd.getOptionValue("config"));
+    MmaServerConfig mmaServerConfig = MmaServerConfig.fromFile(mmaServerConfigPath);
+    if (!mmaServerConfig.validate()) {
+      System.err.println("Invalid mma server config: " + mmaServerConfig.toJson());
       System.exit(1);
     }
 
     TaskScheduler scheduler = new TaskScheduler();
     try {
-      scheduler.run(metaConfiguration);
+      scheduler.run(mmaServerConfig);
     } finally {
       scheduler.shutdown();
     }

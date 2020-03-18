@@ -131,6 +131,17 @@ public class MockHiveMetaSource implements MetaSource {
   }
 
   @Override
+  public boolean hasTable(String databaseName, String tableName) throws Exception {
+    return DB_NAME.equalsIgnoreCase(databaseName)
+           && (TABLE_NAME_2_TABLE_META_MODEL.containsKey(tableName.toLowerCase()));
+  }
+
+  @Override
+  public boolean hasDatabase(String databaseName) throws Exception {
+    return DB_NAME.equalsIgnoreCase(databaseName);
+  }
+
+  @Override
   public List<String> listTables(String databaseName) throws Exception {
     return Arrays.asList(TABLE_NAMES);
   }

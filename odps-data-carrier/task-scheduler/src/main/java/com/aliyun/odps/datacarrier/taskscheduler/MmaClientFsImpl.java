@@ -1,7 +1,9 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -10,6 +12,7 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.logging.log4j.LogManager;
@@ -23,20 +26,132 @@ public class MmaClientFsImpl implements MmaClient {
   private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
   private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
 
-  public MmaClientFsImpl(MetaConfiguration configuration) throws MetaException, IOException {
-    MetaConfiguration.HiveConfiguration hiveConfigurationConfig = configuration.getHiveConfiguration();
-    MetaSource metaSource = new HiveMetaSource(hiveConfigurationConfig.getHmsThriftAddr(),
-                                               hiveConfigurationConfig.getKrbPrincipal(),
-                                               hiveConfigurationConfig.getKeyTab(),
-                                               hiveConfigurationConfig.getKrbSystemProperties());
+  private MetaSource metaSource;
+
+  public MmaClientFsImpl(MmaClientConfig mmaClientConfig) throws MetaException, IOException {
+    MmaConfig.HiveConfig hiveConfig = mmaClientConfig.getHiveConfig();
+    metaSource = new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
+                                    hiveConfig.getKrbPrincipal(),
+                                    hiveConfig.getKeyTab(),
+                                    hiveConfig.getKrbSystemProperties());
     MmaMetaManagerFsImpl.init(null, metaSource);
   }
 
   @Override
-  public void createMigrationJobs(MetaConfiguration configuration) {
-    for (MetaConfiguration.TableGroup tableGroup : configuration.getTableGroups()) {
-      for (MetaConfiguration.TableConfig tableConfig : tableGroup.getTableConfigs()) {
-        MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+  public void createMigrationJobs(MmaMigrationConfig mmaMigrationConfig) {
+    MmaConfig.AdditionalTableConfig globalAdditionalTableConfig =
+        mmaMigrationConfig.getGlobalAdditionalTableConfig();
+
+    if (mmaMigrationConfig.getServiceMigrationConfig() != null) {
+      MmaConfig.ServiceMigrationConfig serviceMigrationConfig =
+          mmaMigrationConfig.getServiceMigrationConfig();
+
+      List<String> databases;
+      try {
+        databases = metaSource.listDatabases();
+      } catch (Exception e) {
+        System.err.println("ERROR: Failed to create migration jobs");
+        LOG.error("Failed to create migration jobs, {}", ExceptionUtils.getStackTrace(e));
+        return;
+      }
+
+      for (String database : databases) {
+        List<String> tables;
+        try {
+          tables = metaSource.listTables(database);
+        } catch (Exception e) {
+          System.err.println("ERROR: Failed to create migration jobs for database:" + database);
+          LOG.error("Failed to create migration jobs for database: {}, {}",
+                    database,
+                    ExceptionUtils.getStackTrace(e));
+          continue;
+        }
+
+        for (String table : tables) {
+          MmaConfig.TableMigrationConfig tableMigrationConfig =
+              new MmaConfig.TableMigrationConfig(
+                  database,
+                  table,
+                  serviceMigrationConfig.getDestProjectName(),
+                  table,
+                  globalAdditionalTableConfig);
+
+          MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+          LOG.info("Job submitted, database: {}, table: {}", database, table);
+        }
+      }
+    } else if (mmaMigrationConfig.getDatabaseMigrationConfigs() != null) {
+      for (MmaConfig.DatabaseMigrationConfig databaseMigrationConfig :
+          mmaMigrationConfig.getDatabaseMigrationConfigs()) {
+        String database = databaseMigrationConfig.getSourceDatabaseName();
+
+        // TODO: merge additional table config
+        // Use global additional table config if database migration config doesn't contain one
+        MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig =
+            databaseMigrationConfig.getAdditionalTableConfig();
+        if (databaseAdditionalTableConfig == null) {
+          databaseAdditionalTableConfig = globalAdditionalTableConfig;
+        }
+
+        List<String> tables;
+        try {
+          if (!metaSource.hasDatabase(database)) {
+            System.err.println("WARNING: Database " + database + " not found");
+            LOG.warn("Database {} not found", database);
+            continue;
+          }
+          tables = metaSource.listTables(database);
+        } catch (Exception e) {
+          System.err.println("ERROR: Failed to create migration jobs for database:" + database);
+          LOG.error("Failed to create migration jobs for database: {}, {}",
+                    database,
+                    ExceptionUtils.getStackTrace(e));
+          continue;
+        }
+
+        for (String table : tables) {
+          try {
+            if (!metaSource.hasTable(database, table)) {
+              System.err.println("WARNING: Database " + database + ", table: " + table +
+                                 " not found");
+              LOG.warn("Database: {}, table: {} not found", database, table);
+              continue;
+            }
+          } catch (Exception e) {
+            System.err.println("ERROR: Failed to create migration jobs for database:" +
+                               database + ", table: " + table);
+            LOG.error("Failed to create migration jobs for database: {}, table: {}, {}",
+                      database,
+                      table,
+                      ExceptionUtils.getStackTrace(e));
+            continue;
+          }
+
+          MmaConfig.TableMigrationConfig tableMigrationConfig =
+              new MmaConfig.TableMigrationConfig(
+                  database,
+                  table,
+                  databaseMigrationConfig.getDestProjectName(),
+                  table,
+                  databaseAdditionalTableConfig);
+
+          MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+          LOG.info("Job submitted, database: {}, table: {}", database, table);
+        }
+      }
+    } else {
+      // TODO: merge additional table config
+      for (MmaConfig.TableMigrationConfig tableMigrationConfig :
+          mmaMigrationConfig.getTableMigrationConfigs()) {
+        if (tableMigrationConfig.getAdditionalTableConfig() == null) {
+          tableMigrationConfig.setAdditionalTableConfig(
+              mmaMigrationConfig.getGlobalAdditionalTableConfig());
+        }
+
+        MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+        LOG.info("Job submitted, database: {}, table: {}",
+                 tableMigrationConfig.getSourceDataBaseName(),
+                 tableMigrationConfig.getSourceTableName());
       }
     }
   }
@@ -113,14 +228,25 @@ public class MmaClientFsImpl implements MmaClient {
       throw new IllegalArgumentException("Required argument 'config'");
     }
 
-    File mmaClientConfigFile = new File(cmd.getOptionValue("config"));
-    MetaConfiguration mmaClientConfig = MetaConfigurationUtils.readConfigFile(mmaClientConfigFile);
+    Path mmaClientConfigFilePath = Paths.get(cmd.getOptionValue("config"));
+    MmaClientConfig mmaClientConfig = MmaClientConfig.fromFile(mmaClientConfigFilePath);
+    if (!mmaClientConfig.validate()) {
+      System.err.println("Invalid mma client config: " + mmaClientConfig.toJson());
+      System.exit(1);
+    }
+
+
     MmaClient client = new MmaClientFsImpl(mmaClientConfig);
 
     if (cmd.hasOption("start")) {
-      File configFile = new File(cmd.getOptionValue("start"));
-      MetaConfiguration metaConfiguration = MetaConfigurationUtils.readConfigFile(configFile);
-      client.createMigrationJobs(metaConfiguration);
+      Path mmaMigrationConfigPath = Paths.get(cmd.getOptionValue("start"));
+      MmaMigrationConfig mmaMigrationConfig = MmaMigrationConfig.fromFile(mmaMigrationConfigPath);
+      if (!mmaMigrationConfig.validate()) {
+        System.err.println("Invalid mma migration config: " + mmaClientConfig.toJson());
+        System.exit(1);
+      }
+
+      client.createMigrationJobs(mmaMigrationConfig);
       System.err.println("\nJob submitted");
     } else if (cmd.hasOption("wait")) {
       String jobName = cmd.getOptionValue("wait");

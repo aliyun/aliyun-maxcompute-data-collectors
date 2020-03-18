@@ -17,9 +17,9 @@ class Task {
   protected Map<Action, ActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
-  MetaConfiguration.Config tableConfig;
+  MmaConfig.AdditionalTableConfig tableConfig;
 
-  public Task(String taskName, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
+  public Task(String taskName, MetaSource.TableMetaModel tableMetaModel, MmaConfig.AdditionalTableConfig tableConfig) {
     this.taskName = taskName;
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;

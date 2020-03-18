@@ -4,23 +4,15 @@ import com.aliyun.odps.Instance;
 import com.aliyun.odps.Odps;
 import com.aliyun.odps.OdpsException;
 import com.aliyun.odps.account.AliyunAccount;
-import com.aliyun.odps.data.Record;
 import com.aliyun.odps.task.SQLTask;
-import com.aliyun.odps.utils.StringUtils;
-import com.google.common.collect.Lists;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 public class OdpsRunner extends AbstractTaskRunner {
   private static final Logger LOG = LogManager.getLogger(OdpsRunner.class);
@@ -29,7 +21,7 @@ public class OdpsRunner extends AbstractTaskRunner {
   private static final long TOKEN_EXPIRE_INTERVAL = 7 * 24; // hours
   private static Odps odps;
 
-  public OdpsRunner(MetaConfiguration.OdpsConfiguration odpsConfiguration) {
+  public OdpsRunner(MmaConfig.OdpsConfig odpsConfiguration) {
     if (odpsConfiguration == null) {
       throw new IllegalArgumentException("'odpsConfiguration' cannot be null");
     }

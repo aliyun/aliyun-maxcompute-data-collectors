@@ -44,17 +44,15 @@ public class MmaMetaManagerFsImplTest {
   public void before() throws Exception {
     // Add migration jobs
     for (String table : metaSource.listTables(DEFAULT_DB)) {
-      MetaConfiguration.Config config = new MetaConfiguration.Config(null,
-                                                                     null,
-                                                                     10,
-                                                                     1,
-                                                                     "");
-      MetaConfiguration.TableConfig tableConfig = new MetaConfiguration.TableConfig(DEFAULT_DB,
-                                                                                    table,
-                                                                                    DEFAULT_DB,
-                                                                                    table,
-                                                                                    config);
-      MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+      MmaConfig.AdditionalTableConfig config =
+          new MmaConfig.AdditionalTableConfig(
+              null,
+              null,
+              10,
+              1);
+      MmaConfig.TableMigrationConfig tableMigrationConfig =
+          new MmaConfig.TableMigrationConfig(DEFAULT_DB, table, DEFAULT_DB, table, config);
+      MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
     }
   }
 
@@ -106,18 +104,19 @@ public class MmaMetaManagerFsImplTest {
                                                     MmaMetaManager.MigrationStatus.SUCCEEDED);
 
     // Restart job
-    MetaConfiguration.Config config = new MetaConfiguration.Config(null,
-                                                                   null,
-                                                                   10,
-                                                                   1,
-                                                                   "");
-    MetaConfiguration.TableConfig tableConfig =
-        new MetaConfiguration.TableConfig(DEFAULT_DB,
-                                          "test_partitioned",
-                                          DEFAULT_DB,
-                                          "test_partitioned",
-                                          config);
-    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+    MmaConfig.AdditionalTableConfig config =
+        new MmaConfig.AdditionalTableConfig(
+            null,
+            null,
+            10,
+            1);
+    MmaConfig.TableMigrationConfig tableMigrationConfig =
+        new MmaConfig.TableMigrationConfig(DEFAULT_DB,
+                                           "test_partitioned",
+                                           DEFAULT_DB,
+                                           "test_partitioned",
+                                           config);
+    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
 
     // Make sure the metadata dir exists
     Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_partitioned");
@@ -150,18 +149,19 @@ public class MmaMetaManagerFsImplTest {
                                                     MmaMetaManager.MigrationStatus.SUCCEEDED);
 
     // Restart job
-    MetaConfiguration.Config config = new MetaConfiguration.Config(null,
-                                                                   null,
-                                                                   10,
-                                                                   1,
-                                                                   "");
-    MetaConfiguration.TableConfig tableConfig =
-        new MetaConfiguration.TableConfig(DEFAULT_DB,
-                                          "test_non_partitioned",
-                                          DEFAULT_DB,
-                                          "test_non_partitioned",
-                                          config);
-    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+    MmaConfig.AdditionalTableConfig config =
+        new MmaConfig.AdditionalTableConfig(
+            null,
+            null,
+            10,
+            1);
+    MmaConfig.TableMigrationConfig tableMigrationConfig =
+        new MmaConfig.TableMigrationConfig(DEFAULT_DB,
+                                           "test_non_partitioned",
+                                           DEFAULT_DB,
+                                           "test_non_partitioned",
+                                           config);
+    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
 
     // Make sure the metadata dir exists
     Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_non_partitioned");
@@ -187,20 +187,22 @@ public class MmaMetaManagerFsImplTest {
                                                     "test_partitioned",
                                                     MmaMetaManager.MigrationStatus.SUCCEEDED);
     // Restart job
-    MetaConfiguration.Config config = new MetaConfiguration.Config(null,
-                                                                   null,
-                                                                   10,
-                                                                   1,
-                                                                   "");
-    MetaConfiguration.TableConfig tableConfig =
-        new MetaConfiguration.TableConfig(DEFAULT_DB,
-                                          "test_partitioned",
-                                          DEFAULT_DB,
-                                          "test_partitioned",
-                                          config);
-    tableConfig.partitionValuesList =
-        new LinkedList<>(Collections.singletonList(Collections.singletonList("foo")));
-    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableConfig);
+    MmaConfig.AdditionalTableConfig config =
+        new MmaConfig.AdditionalTableConfig(
+            null,
+            null,
+            10,
+            1);
+
+    MmaConfig.TableMigrationConfig tableMigrationConfig =
+        new MmaConfig.TableMigrationConfig(DEFAULT_DB,
+                                           "test_partitioned",
+                                           DEFAULT_DB,
+                                           "test_partitioned",
+                                           new LinkedList<>(Collections.singletonList(
+                                               Collections.singletonList("foo"))),
+                                           config);
+    MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
 
     // Make sure the metadata dir exists
     Path dir = Paths.get(DEFAULT_MMA_META_DIR.toString(), DEFAULT_DB, "test_partitioned");

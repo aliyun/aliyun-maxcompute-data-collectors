@@ -10,7 +10,6 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.aliyun.odps.datacarrier.taskscheduler.MetaConfiguration.Config;
 
 public class TestTableSplitter {
   static private String dataBase = "TestDataBase";
@@ -18,13 +17,11 @@ public class TestTableSplitter {
   static private String columnName = "ds";
   static private int date = 20200218;
   private TaskScheduler taskScheduler;
-  private MetaConfiguration metaConfiguration;
 
   @Before
   public void setup() throws IOException {
     taskScheduler = new TaskScheduler();
     taskScheduler.initActions(DataSource.Hive);
-    metaConfiguration = MetaConfigurationUtils.generateSampleMetaConfiguration(null, null);
   }
 
   @Test(timeout = 5000)
@@ -33,9 +30,10 @@ public class TestTableSplitter {
 
     MetaSource.TableMetaModel tableMetaModel =
         createNonPartitionedTableMetaModel("non_partitioned");
-    Config config = createConfig(5);
+    MmaConfig.AdditionalTableConfig additionalTableConfig =
+        createAdditionalTableConfig(5);
     Task task = tableSplitter.generateTaskForNonPartitionedTable(tableMetaModel,
-                                                                 config,
+                                                                 additionalTableConfig,
                                                                  taskScheduler.getActions());
 
     assertTrue(task.tableMetaModel.partitions.isEmpty());
@@ -45,12 +43,13 @@ public class TestTableSplitter {
   public void testGenerateTasksWithPartitionedTable0() {
     TableSplitter tableSplitter = new TableSplitter(null);
 
-    Config config = createConfig(1);
+    MmaConfig.AdditionalTableConfig additionalTableConfig =
+        createAdditionalTableConfig(1);
     MetaSource.TableMetaModel tableMetaModel =
         createPartitionedTableMetaModel("partitioned", 5);
 
     List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
-                                                                     config,
+                                                                     additionalTableConfig,
                                                                      taskScheduler.getActions());
 
     assertEquals(5, tasks.size());
@@ -71,11 +70,11 @@ public class TestTableSplitter {
   public void testGenerateTasksWithPartitionedTable1() {
     TableSplitter tableSplitter = new TableSplitter(null);
 
-    Config config = createConfig(10);
+    MmaConfig.AdditionalTableConfig additionalTableConfig = createAdditionalTableConfig(10);
     MetaSource.TableMetaModel tableMetaModel =
         createPartitionedTableMetaModel("partitioned", 5);
     List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
-                                                                     config,
+                                                                     additionalTableConfig,
                                                                      taskScheduler.getActions());
 
     assertEquals(1, tasks.size());
@@ -96,11 +95,11 @@ public class TestTableSplitter {
   public void testGenerateTasksWithPartitionedTable2() {
     TableSplitter tableSplitter = new TableSplitter(null);
 
-    Config config = createConfig(3);
+    MmaConfig.AdditionalTableConfig additionalTableConfig = createAdditionalTableConfig(3);
     MetaSource.TableMetaModel tableMetaModel =
         createPartitionedTableMetaModel("partitioned", 5);
     List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
-                                                                     config,
+                                                                     additionalTableConfig,
                                                                      taskScheduler.getActions());
 
     assertEquals(2, tasks.size());
@@ -119,11 +118,11 @@ public class TestTableSplitter {
   public void testGenerateTasksWithPartitionedTable3() {
     TableSplitter tableSplitter = new TableSplitter(null);
 
-    Config config = createConfig(4);
+    MmaConfig.AdditionalTableConfig additionalTableConfig = createAdditionalTableConfig(4);
     MetaSource.TableMetaModel tableMetaModel =
         createPartitionedTableMetaModel("partitioned", 7);
     List<Task> tasks = tableSplitter.generateTaskForPartitionedTable(tableMetaModel,
-                                                                     config,
+                                                                     additionalTableConfig,
                                                                      taskScheduler.getActions());
 
     assertEquals(2, tasks.size());
@@ -140,12 +139,11 @@ public class TestTableSplitter {
     assertEquals("20200224", task1.tableMetaModel.partitions.get(2).partitionValues.get(0));
   }
 
-  public Config createConfig(int partitionGroupSize) {
-    return new Config(null,
-                      null,
-                      partitionGroupSize,
-                      5,
-                      "");
+  public MmaConfig.AdditionalTableConfig createAdditionalTableConfig(int partitionGroupSize) {
+    return new MmaConfig.AdditionalTableConfig(null,
+                                               null,
+                                               partitionGroupSize,
+                                               5);
   }
 
   public MetaSource.TableMetaModel createNonPartitionedTableMetaModel(String suffix) {

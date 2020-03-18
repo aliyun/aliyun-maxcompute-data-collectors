@@ -25,9 +25,11 @@ public class TableSplitter implements TaskManager {
   public List<Task> generateTasks(SortedSet<Action> actions) {
     for (MetaSource.TableMetaModel tableMetaModel : this.tables) {
 
-      MetaConfiguration.Config config =  MmaMetaManagerFsImpl
-          .getInstance()
-          .getConfig(tableMetaModel.databaseName, tableMetaModel.tableName).config;
+      MmaConfig.AdditionalTableConfig config =
+          MmaMetaManagerFsImpl
+              .getInstance()
+              .getConfig(tableMetaModel.databaseName, tableMetaModel.tableName)
+              .getAdditionalTableConfig();
 
       // Empty partitions, means the table is non-partition table.
       if (tableMetaModel.partitionColumns.isEmpty()) {
@@ -45,7 +47,7 @@ public class TableSplitter implements TaskManager {
 
   @VisibleForTesting
   protected Task generateTaskForNonPartitionedTable(MetaSource.TableMetaModel tableMetaModel,
-                                                    MetaConfiguration.Config config,
+                                                    MmaConfig.AdditionalTableConfig config,
                                                     SortedSet<Action> actions) {
     String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
     Task task = new Task(taskName, tableMetaModel, config);
@@ -61,7 +63,7 @@ public class TableSplitter implements TaskManager {
 
   @VisibleForTesting
   protected List<Task> generateTaskForPartitionedTable(MetaSource.TableMetaModel tableMetaModel,
-                                                       MetaConfiguration.Config config,
+                                                       MmaConfig.AdditionalTableConfig config,
                                                        SortedSet<Action> actions) {
     // TODO: add directly to this.task could avoid creating an extra list, but will make it much
     // harder to test

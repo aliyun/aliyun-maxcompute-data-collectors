@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
 import java.nio.channels.FileLock;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -19,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.csvreader.CsvReader;
-import com.csvreader.CsvWriter;
 
 /**
  * directory structure:
@@ -80,7 +78,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
 
   public static MmaMetaManagerFsImpl getInstance() {
     if (instance == null) {
-      throw new IllegalStateException("MMAMetaManager not initialized");
+      throw new IllegalStateException("MmaMetaManager not initialized");
     }
 
     return instance;
@@ -105,15 +103,15 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   }
 
   @Override
-  public synchronized void addMigrationJob(MetaConfiguration.TableConfig config) {
+  public synchronized void addMigrationJob(MmaConfig.TableMigrationConfig config) {
     if (config == null) {
       throw new IllegalArgumentException("'config' cannot be null");
     }
     acquireLock();
 
     try {
-      String db = config.sourceDataBase;
-      String tbl = config.sourceTableName;
+      String db = config.getSourceDataBaseName();
+      String tbl = config.getSourceTableName();
 
       Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
       Path metadataPath = getMetadataPath(db, tbl);
@@ -142,7 +140,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
 
       // Save configuration
       try {
-        DirUtils.writeFile(configPath, MetaConfiguration.TableConfig.toJson(config));
+        DirUtils.writeFile(configPath, MmaConfig.TableMigrationConfig.toJson(config));
       } catch (IOException e) {
         throw new IllegalStateException("Failed to init config, write "
                                         + configPath.toString() + " failed");
@@ -170,16 +168,16 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
           }
 
           // User doesn't specify any partition, get from HMS
-          List<List<String>> partitionValuesList = new LinkedList<>();
-          if (config.partitionValuesList == null || config.partitionValuesList.isEmpty()) {
-            partitionValuesList.addAll(metaSource.listPartitions(db, tbl));
+          List<List<String>> partitionValuesList;
+          if (config.getPartitionValuesList() == null || config.getPartitionValuesList().isEmpty()) {
+            partitionValuesList = metaSource.listPartitions(db, tbl);
           } else {
             if (metadataExists) {
-              partitionValuesList.addAll(
-                  getMergedAllPartitionValuesList(db, tbl, config.partitionValuesList));
+              partitionValuesList =
+                  getMergedAllPartitionValuesList(db, tbl, config.getPartitionValuesList());
             } else {
               // TODO: should check if config.partitionValuesList has duplications
-              partitionValuesList.addAll(config.partitionValuesList);
+              partitionValuesList = config.getPartitionValuesList();
             }
           }
 
@@ -263,8 +261,8 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     // If the status is FAILED, set the status to PENDING if retry is allowed
     if (MigrationStatus.FAILED.equals(status)) {
       failedTimes += 1;
-      MetaConfiguration.TableConfig config = getConfigInternal(getConfigPath(db, tbl));
-      if (failedTimes <= config.config.getRetryTimesLimit()) {
+      MmaConfig.TableMigrationConfig config = getConfigInternal(getConfigPath(db, tbl));
+      if (failedTimes <= config.getAdditionalTableConfig().getRetryTimesLimit()) {
         status = MigrationStatus.PENDING;
       }
     }
@@ -396,7 +394,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   }
 
   @Override
-  public synchronized MetaConfiguration.TableConfig getConfig(String db, String tbl) {
+  public synchronized MmaConfig.TableMigrationConfig getConfig(String db, String tbl) {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
@@ -410,7 +408,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     }
   }
 
-  private MetaConfiguration.TableConfig getConfigInternal(Path configPath) {
+  private MmaConfig.TableMigrationConfig getConfigInternal(Path configPath) {
     if (!configPath.toFile().exists()) {
       throw new IllegalStateException("Failed to get config, file does not exist: "
                                       + configPath.toString());
@@ -423,7 +421,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
       throw new IllegalStateException("Failed to read file: " + configPath.toString());
     }
 
-    return MetaConfiguration.TableConfig.fromJson(content);
+    return MmaConfig.TableMigrationConfig.fromJson(content);
   }
 
   private int getFailedTimesInternal(Path metadataPath) {
@@ -480,7 +478,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
             }
 
             Path configPath = getConfigPath(db, tbl);
-            MetaConfiguration.TableConfig config = getConfigInternal(configPath);
+            MmaConfig.TableMigrationConfig config = getConfigInternal(configPath);
 
             config.apply(tableMetaModel);
 

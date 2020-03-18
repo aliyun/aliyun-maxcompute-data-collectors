@@ -2,4 +2,4 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export MMA_HOME="$DIR/../"
 
-java -Dlog4j.configurationFile="$MMA_HOME/resource/mma_client_log4j2.xml" -cp "$MMA_HOME/lib/*" com.aliyun.odps.datacarrier.taskscheduler.MMAClientFsImpl "$@"
+java -Dlog4j.configurationFile="$MMA_HOME/resource/mma_client_log4j2.xml" -cp "$MMA_HOME/lib/*" com.aliyun.odps.datacarrier.taskscheduler.MmaClientFsImpl "$@"

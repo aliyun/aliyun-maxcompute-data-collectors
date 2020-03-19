@@ -10,14 +10,13 @@ public class CommonUtils {
       case ODPS_CREATE_EXTERNAL_TABLE:
       case ODPS_ADD_EXTERNAL_TABLE_PARTITION:
       case ODPS_LOAD_DATA:
-//      case ODPS_VALIDATE:
+      case ODPS_VERIFICATION:
         return RunnerType.ODPS;
       case HIVE_LOAD_DATA:
-//      case HIVE_VALIDATE:
+      case HIVE_VERIFICATION:
         return RunnerType.HIVE;
-//      case VALIDATION_BY_TABLE:
-//      case VALIDATION_BY_PARTITION:
-//        return RunnerType.LOCAL;
+      case VERIFICATION:
+        return RunnerType.VERIFICATION;
       case UNKNOWN:
       default:
         throw new RuntimeException("Unknown action: " + action.name());

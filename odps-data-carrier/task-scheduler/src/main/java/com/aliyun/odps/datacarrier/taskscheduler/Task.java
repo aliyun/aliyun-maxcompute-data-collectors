@@ -107,6 +107,8 @@ class Task {
               tableMetaModel.tableName,
               partitionValuesList,
               MmaMetaManager.MigrationStatus.SUCCEEDED);
+
+          partitionValuesList.forEach(partitionValues -> LOG.info("Partition succeeded: {}", String.join(", ", partitionValues)));
         }
       }
     }

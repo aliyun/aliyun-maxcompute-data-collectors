@@ -13,4 +13,8 @@ public class GsonUtils {
   public static Gson getFullConfigGson() {
     return FULL_CONFIG_GSON;
   }
+
+  public static String toJson(Object object) {
+    return FULL_CONFIG_GSON.toJson(object);
+  }
 }

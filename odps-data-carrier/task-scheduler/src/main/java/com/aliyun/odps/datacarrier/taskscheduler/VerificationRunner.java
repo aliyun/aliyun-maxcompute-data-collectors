@@ -25,7 +25,7 @@ public class VerificationRunner extends AbstractTaskRunner {
     List<List<String>> hiveResult = ((HiveActionInfo) task.actionInfoMap.get(Action.HIVE_VERIFICATION)).getResult();
 
     boolean compareResult;
-    if (odpsResult == null || odpsResult.isEmpty() || hiveResult == null) {
+    if (odpsResult == null || hiveResult == null) {
       compareResult = false;
       LOG.error("Can not find ODPS/Hive verification results, verification task {} failed.", task.getName());
     } else {
@@ -40,7 +40,6 @@ public class VerificationRunner extends AbstractTaskRunner {
     } else {
       task.updateActionProgress(action, Progress.FAILED);
     }
-
   }
 
   private boolean compareNonPartitionedTableResult(String taskName, List<Record> odpsResult, List<List<String>> hiveResult) {
@@ -62,51 +61,74 @@ public class VerificationRunner extends AbstractTaskRunner {
 
   private boolean comparePartitionedTableResult(Task task, List<Record> odpsResult, List<List<String>> hiveResult) {
     boolean result = true;
-    int partitionColumnsCount = task.tableMetaModel.partitionColumns.size();
+    int partitionColumnCount = task.tableMetaModel.partitionColumns.size();
+
     Map<String, Long> odpsPartitionCounts = new HashMap<>();
     for (Record record : odpsResult) {
-      StringBuilder partitionValue = new StringBuilder();
-      for (int i = 0; i < partitionColumnsCount; i++) {
+      StringBuilder partitionValues = new StringBuilder();
+      for (int i = 0; i < partitionColumnCount; i++) {
         if (i != 0) {
-          partitionValue.append(", ");
+          partitionValues.append(", ");
         }
-        partitionValue.append(record.get(i).toString());
+        partitionValues.append(record.getString(i));
       }
-      odpsPartitionCounts.put(partitionValue.toString(), Long.valueOf(record.get(partitionColumnsCount).toString()));
+      odpsPartitionCounts.put(partitionValues.toString(),
+                              Long.valueOf(record.get(partitionColumnCount).toString()));
     }
 
     Map<String, Long> hivePartitionCounts = new HashMap<>();
     for (List<String> record : hiveResult) {
-      StringBuilder partitionValue = new StringBuilder();
-      for (int i = 0; i < partitionColumnsCount; i++) {
+      StringBuilder partitionValues = new StringBuilder();
+      for (int i = 0; i < partitionColumnCount; i++) {
         if (i != 0) {
-          partitionValue.append(", ");
+          partitionValues.append(", ");
         }
-        partitionValue.append(record.get(i));
+        partitionValues.append(record.get(i));
       }
-      hivePartitionCounts.put(partitionValue.toString(), Long.valueOf(record.get(partitionColumnsCount)));
+      hivePartitionCounts.put(partitionValues.toString(),
+                              Long.valueOf(record.get(partitionColumnCount)));
     }
 
-    //validate partition result.
-    Iterator<MetaSource.PartitionMetaModel> partitionValueItor = task.tableMetaModel.partitions.iterator();
-    while (partitionValueItor.hasNext()) {
-      MetaSource.PartitionMetaModel partitionMetaModel = partitionValueItor.next();
-      String partitionValue = partitionMetaModel.partitionValues.stream().collect(Collectors.joining(", "));
-      if (odpsPartitionCounts.containsKey(partitionValue) && hivePartitionCounts.containsKey(partitionValue)) {
-          if(odpsPartitionCounts.get(partitionValue).longValue() == hivePartitionCounts.get(partitionValue).longValue()) {
-            LOG.info("Partition value {} pass validation, count: {}",
-                partitionValue, odpsPartitionCounts.get(partitionValue).longValue());
-            continue;
-          } else {
-            LOG.warn("Partition count is not equal, partition values: {}, hive count: {}, odps count: {}",
-                partitionValue, hivePartitionCounts.get(partitionValue), odpsPartitionCounts.get(partitionValue));
-          }
+    // Compare results
+    Iterator<MetaSource.PartitionMetaModel> partitionValueIter =
+        task.tableMetaModel.partitions.iterator();
+    while (partitionValueIter.hasNext()) {
+      MetaSource.PartitionMetaModel partitionMetaModel = partitionValueIter.next();
+      String partitionValues = String.join(", ", partitionMetaModel.partitionValues);
+
+      if (!odpsPartitionCounts.containsKey(partitionValues)
+          && !hivePartitionCounts.containsKey(partitionValues)) {
+        // If a partition is empty, it will not be in the result set
+        LOG.info("Partition verification passed, partition: {} is empty", partitionValues);
+        continue;
+      } else if (odpsPartitionCounts.containsKey(partitionValues)
+                 && hivePartitionCounts.containsKey(partitionValues)) {
+        long odpsRecordCount = odpsPartitionCounts.get(partitionValues);
+        long hiveRecordCount = hivePartitionCounts.get(partitionValues);
+
+        if(odpsRecordCount == hiveRecordCount) {
+          LOG.info("Partition verification passed, partition: {} , record count: {}",
+                   partitionValues, odpsRecordCount);
+          continue;
+        } else {
+          LOG.warn("Partition verification failed, partition: {}, hive: {}, ODPS: {}",
+                   partitionValues, hiveRecordCount, odpsRecordCount);
+        }
       } else {
-        LOG.warn("Partition value {} is not found in ODPS/Hive results.", partitionValue);
+        if (!odpsPartitionCounts.containsKey(partitionValues)) {
+          LOG.warn("Partition verification failed, partition: {} is not found in ODPS",
+                   partitionValues);
+        } else {
+          LOG.warn("Partition verification failed, partition: {} is not found in Hive "
+                   + "(probably due to changes during migration)", partitionValues);
+        }
       }
-      partitionValueItor.remove();
+
+      // Remove failed partitions from TableMetaModel, so that they won't be updated to succeeded
+      partitionValueIter.remove();
       result = false;
     }
+
     return result;
   }
 

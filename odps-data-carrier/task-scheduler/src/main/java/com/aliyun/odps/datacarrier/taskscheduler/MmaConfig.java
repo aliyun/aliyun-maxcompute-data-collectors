@@ -49,13 +49,13 @@ public class MmaConfig {
     private List<String> hiveJdbcExtraSettings;
 
     public HiveConfig(String jdbcConnectionUrl,
-                             String user,
-                             String password,
-                             String hmsThriftAddr,
-                             String krbPrincipal,
-                             String keyTab,
-                             List<String> krbSystemProperties,
-                             List<String> hiveJdbcExtraSettings) {
+                      String user,
+                      String password,
+                      String hmsThriftAddr,
+                      String krbPrincipal,
+                      String keyTab,
+                      List<String> krbSystemProperties,
+                      List<String> hiveJdbcExtraSettings) {
       this.jdbcConnectionUrl = jdbcConnectionUrl;
       this.user = user;
       this.password = password;
@@ -338,7 +338,7 @@ public class MmaConfig {
              && !StringUtils.isNullOrEmpty(sourceTableName)
              && !StringUtils.isNullOrEmpty(destProjectName)
              && !StringUtils.isNullOrEmpty(destTableName)
-             && partitionValuesList == null || partitionValuesList.stream().noneMatch(List::isEmpty)
+             && (partitionValuesList == null || partitionValuesList.stream().noneMatch(List::isEmpty))
              && (additionalTableConfig == null || additionalTableConfig.validate());
     }
   }

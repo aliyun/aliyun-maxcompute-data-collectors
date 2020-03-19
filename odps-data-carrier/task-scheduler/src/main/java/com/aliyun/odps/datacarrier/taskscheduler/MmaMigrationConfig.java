@@ -17,8 +17,6 @@ public class MmaMigrationConfig implements MmaConfig.Config {
                             List<MmaConfig.TableMigrationConfig> tableMigrationConfigs,
                             MmaConfig.AdditionalTableConfig globalAdditionalTableConfig) {
     this.user = user;
-    this.serviceMigrationConfig = serviceMigrationConfig;
-    this.databaseMigrationConfigs = databaseMigrationConfigs;
     this.tableMigrationConfigs = tableMigrationConfigs;
     this.globalAdditionalTableConfig = globalAdditionalTableConfig;
   }

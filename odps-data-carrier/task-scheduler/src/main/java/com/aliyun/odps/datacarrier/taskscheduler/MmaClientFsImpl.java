@@ -12,7 +12,6 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.logging.log4j.LogManager;
@@ -25,6 +24,9 @@ public class MmaClientFsImpl implements MmaClient {
   private static final long MMA_CLIENT_WAIT_INTERVAL = 5000;
   private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
   private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
+
+  private static final String ERROR_INDICATOR = "ERROR: ";
+  private static final String WARNING_INDICATOR = "WARNING: ";
 
   private MetaSource metaSource;
 
@@ -50,40 +52,25 @@ public class MmaClientFsImpl implements MmaClient {
       try {
         databases = metaSource.listDatabases();
       } catch (Exception e) {
-        System.err.println("ERROR: Failed to create migration jobs");
-        LOG.error("Failed to create migration jobs, {}", ExceptionUtils.getStackTrace(e));
+        String msg = "Failed to create migration jobs";
+        System.err.println(ERROR_INDICATOR + msg);
+        LOG.error(msg, e);
         return;
       }
 
       for (String database : databases) {
-        List<String> tables;
-        try {
-          tables = metaSource.listTables(database);
-        } catch (Exception e) {
-          System.err.println("ERROR: Failed to create migration jobs for database:" + database);
-          LOG.error("Failed to create migration jobs for database: {}, {}",
-                    database,
-                    ExceptionUtils.getStackTrace(e));
-          continue;
-        }
-
-        for (String table : tables) {
-          MmaConfig.TableMigrationConfig tableMigrationConfig =
-              new MmaConfig.TableMigrationConfig(
-                  database,
-                  table,
-                  serviceMigrationConfig.getDestProjectName(),
-                  table,
-                  globalAdditionalTableConfig);
-
-          MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
-          LOG.info("Job submitted, database: {}, table: {}", database, table);
-        }
+        createDatabaseMigrationJob(database,
+                                   serviceMigrationConfig.getDestProjectName(),
+                                   globalAdditionalTableConfig);
       }
     } else if (mmaMigrationConfig.getDatabaseMigrationConfigs() != null) {
       for (MmaConfig.DatabaseMigrationConfig databaseMigrationConfig :
           mmaMigrationConfig.getDatabaseMigrationConfigs()) {
         String database = databaseMigrationConfig.getSourceDatabaseName();
+
+        if (!databaseExists(database)) {
+          continue;
+        }
 
         // TODO: merge additional table config
         // Use global additional table config if database migration config doesn't contain one
@@ -93,66 +80,90 @@ public class MmaClientFsImpl implements MmaClient {
           databaseAdditionalTableConfig = globalAdditionalTableConfig;
         }
 
-        List<String> tables;
-        try {
-          if (!metaSource.hasDatabase(database)) {
-            System.err.println("WARNING: Database " + database + " not found");
-            LOG.warn("Database {} not found", database);
-            continue;
-          }
-          tables = metaSource.listTables(database);
-        } catch (Exception e) {
-          System.err.println("ERROR: Failed to create migration jobs for database:" + database);
-          LOG.error("Failed to create migration jobs for database: {}, {}",
-                    database,
-                    ExceptionUtils.getStackTrace(e));
-          continue;
-        }
-
-        for (String table : tables) {
-          try {
-            if (!metaSource.hasTable(database, table)) {
-              System.err.println("WARNING: Database " + database + ", table: " + table +
-                                 " not found");
-              LOG.warn("Database: {}, table: {} not found", database, table);
-              continue;
-            }
-          } catch (Exception e) {
-            System.err.println("ERROR: Failed to create migration jobs for database:" +
-                               database + ", table: " + table);
-            LOG.error("Failed to create migration jobs for database: {}, table: {}, {}",
-                      database,
-                      table,
-                      ExceptionUtils.getStackTrace(e));
-            continue;
-          }
-
-          MmaConfig.TableMigrationConfig tableMigrationConfig =
-              new MmaConfig.TableMigrationConfig(
-                  database,
-                  table,
-                  databaseMigrationConfig.getDestProjectName(),
-                  table,
-                  databaseAdditionalTableConfig);
-
-          MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
-          LOG.info("Job submitted, database: {}, table: {}", database, table);
-        }
+        createDatabaseMigrationJob(database,
+                                   databaseMigrationConfig.getDestProjectName(),
+                                   databaseAdditionalTableConfig);
       }
     } else {
-      // TODO: merge additional table config
       for (MmaConfig.TableMigrationConfig tableMigrationConfig :
           mmaMigrationConfig.getTableMigrationConfigs()) {
+        // TODO: merge additional table config
         if (tableMigrationConfig.getAdditionalTableConfig() == null) {
           tableMigrationConfig.setAdditionalTableConfig(
               mmaMigrationConfig.getGlobalAdditionalTableConfig());
         }
 
-        MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
-        LOG.info("Job submitted, database: {}, table: {}",
-                 tableMigrationConfig.getSourceDataBaseName(),
-                 tableMigrationConfig.getSourceTableName());
+        String database = tableMigrationConfig.getSourceDataBaseName();
+        String table = tableMigrationConfig.getSourceTableName();
+
+        if (databaseExists(database) && tableExists(database, table)) {
+          MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+          LOG.info("Job submitted, database: {}, table: {}",
+                   tableMigrationConfig.getSourceDataBaseName(),
+                   tableMigrationConfig.getSourceTableName());
+        }
       }
+    }
+  }
+
+  private boolean databaseExists(String database) {
+    try {
+      if (!metaSource.hasDatabase(database)) {
+        String msg = "Database " + database + " not found";
+        System.err.println(WARNING_INDICATOR + msg);
+        LOG.warn(msg);
+        return false;
+      }
+    } catch (Exception e) {
+      String msg = "Failed to create migration jobs for database:" + database;
+      System.err.println(ERROR_INDICATOR + msg);
+      LOG.error(msg, e);
+      return false;
+    }
+    return true;
+  }
+
+  private boolean tableExists(String database, String table) {
+    try {
+      if (!metaSource.hasTable(database, table)) {
+        String msg = "Table " + database + "." + table + " not found";
+        System.err.println("WARNING: " + msg);
+        LOG.warn(msg);
+        return false;
+      }
+    } catch (Exception e) {
+      String msg = "Failed to create migration jobs for table: " + database + "." + table;
+      System.err.println(ERROR_INDICATOR + msg);
+      LOG.error(msg, e);
+      return false;
+    }
+    return true;
+  }
+
+  private void createDatabaseMigrationJob(String database,
+                                          String project,
+                                          MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig) {
+    List<String> tables;
+    try {
+      tables = metaSource.listTables(database);
+    } catch (Exception e) {
+      String msg = "Failed to create migration jobs for database:" + database;
+      System.err.println(ERROR_INDICATOR + msg);
+      LOG.error(msg, e);
+      return;
+    }
+
+    for (String table : tables) {
+      MmaConfig.TableMigrationConfig tableMigrationConfig =
+          new MmaConfig.TableMigrationConfig(
+              database,
+              table,
+              project,
+              table,
+              databaseAdditionalTableConfig);
+
+      MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+      LOG.info("Job submitted, database: {}, table: {}", database, table);
     }
   }
 
@@ -234,7 +245,6 @@ public class MmaClientFsImpl implements MmaClient {
       System.err.println("Invalid mma client config: " + mmaClientConfig.toJson());
       System.exit(1);
     }
-
 
     MmaClient client = new MmaClientFsImpl(mmaClientConfig);
 

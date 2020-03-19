@@ -225,7 +225,7 @@ public class OdpsSqlUtils {
       return sb.toString();
     }
 
-    sb.append(" WHERE\n");
+    sb.append("WHERE\n");
     for (int i = 0; i < tableMetaModel.partitions.size(); i++) {
       String entry = getWhereConditionEntry(tableMetaModel.partitionColumns,
                                             tableMetaModel.partitions.get(i));

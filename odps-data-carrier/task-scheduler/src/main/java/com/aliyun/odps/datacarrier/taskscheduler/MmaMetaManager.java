@@ -2,7 +2,8 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.List;
 
-public interface MMAMetaManager {
+// TODO: throw MmaException
+public interface MmaMetaManager {
 
   enum MigrationStatus {
     PENDING,
@@ -55,7 +56,7 @@ public interface MMAMetaManager {
    *
    * @param config migration config
    */
-  void addMigrationJob(MetaConfiguration.TableConfig config);
+  void addMigrationJob(MmaConfig.TableMigrationConfig config);
 
   /**
    * Remove migration job of given table.
@@ -130,7 +131,7 @@ public interface MMAMetaManager {
    * @param tbl table name
    * @return migration config
    */
-  MetaConfiguration.TableConfig getConfig(String db, String tbl);
+  MmaConfig.TableMigrationConfig getConfig(String db, String tbl);
 
   /**
    * Get pending migration jobs.

@@ -7,6 +7,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.logging.log4j.LogManager;
@@ -23,17 +24,23 @@ public class HiveMetaSource implements MetaSource {
   public HiveMetaSource(String hmsAddr,
                         String principal,
                         String keyTab,
-                        String[] systemProperties) throws MetaException {
+                        List<String> systemProperties) throws MetaException {
     initHmsClient(hmsAddr, principal, keyTab, systemProperties);
   }
 
   private void initHmsClient(String hmsAddr,
                              String principal,
                              String keyTab,
-                             String[] systemProperties) throws MetaException {
+                             List<String> systemProperties) throws MetaException {
     LOG.info("Initializing HMS client, "
-             + "HMS addr: {}, kbr principal: {}, kbr keytab: {}, system properties: {}",
-             hmsAddr, principal, keyTab, String.join(" ", systemProperties));
+             + "HMS addr: {}, "
+             + "kbr principal: {}, "
+             + "kbr keytab: {}, "
+             + "system properties: {}",
+             hmsAddr,
+             principal,
+             keyTab,
+             systemProperties != null ? String.join(" ", systemProperties) : "null");
 
     HiveConf hiveConf = new HiveConf();
     hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, hmsAddr);
@@ -47,7 +54,7 @@ public class HiveMetaSource implements MetaSource {
       LOG.info("Set {} to {}", HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, keyTab);
       hiveConf.setVar(HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, keyTab);
     }
-    if (systemProperties != null && systemProperties.length > 0) {
+    if (systemProperties != null && systemProperties.size() > 0) {
       for (String property : systemProperties) {
         int idx = property.indexOf('=');
         if (idx != -1) {
@@ -135,6 +142,26 @@ public class HiveMetaSource implements MetaSource {
     partitionMetaModel.partitionValues = partition.getValues();
 
     return partitionMetaModel;
+  }
+
+  @Override
+  public boolean hasTable(String databaseName, String tableName) throws Exception {
+    try {
+      hmsClient.getTable(databaseName, tableName);
+    } catch (NoSuchObjectException e) {
+      return false;
+    }
+    return true;
+  }
+
+  @Override
+  public boolean hasDatabase(String databaseName) throws Exception {
+    try {
+      hmsClient.getDatabase(databaseName);
+    } catch (NoSuchObjectException e) {
+      return false;
+    }
+    return true;
   }
 
   @Override

@@ -65,14 +65,10 @@ public interface MetaSource {
     public Integer createTime;
   }
 
-  TableMetaModel getTableMeta(String databaseName, String tableName) throws Exception;
 
-  TableMetaModel getTableMetaWithoutPartitionMeta(String databaseName,
-                                                         String tableName) throws Exception;
+  boolean hasTable(String databaseName, String tableName) throws Exception;
 
-  PartitionMetaModel getPartitionMeta(String databaseName,
-                                             String tableName,
-                                             List<String> partitionValues) throws Exception;
+  boolean hasDatabase(String databaseName) throws Exception;
 
   /**
    * Get table names in given database
@@ -81,6 +77,11 @@ public interface MetaSource {
    * @throws Exception
    */
   List<String> listTables(String databaseName) throws Exception;
+
+  TableMetaModel getTableMeta(String databaseName, String tableName) throws Exception;
+
+  TableMetaModel getTableMetaWithoutPartitionMeta(String databaseName,
+                                                  String tableName) throws Exception;
 
   /**
    * Get partition values list of given table
@@ -91,6 +92,10 @@ public interface MetaSource {
    */
    List<List<String>> listPartitions(String databaseName,
                                             String tableName) throws Exception;
+
+  PartitionMetaModel getPartitionMeta(String databaseName,
+                                      String tableName,
+                                      List<String> partitionValues) throws Exception;
 
    List<String> listDatabases() throws Exception;
 

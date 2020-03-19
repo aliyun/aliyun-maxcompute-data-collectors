@@ -48,11 +48,12 @@ public class VerificationRunner extends AbstractTaskRunner {
       long hiveTableCount = Long.valueOf(hiveResult.get(0).get(0));
       long odpsTableCount = Long.valueOf(odpsResult.get(0).get(0).toString());
       if (hiveTableCount == odpsTableCount) {
-        LOG.info("Table {} pass data verification, count: {}.", taskName, hiveTableCount);
+        LOG.info("Table {} pass data verification, hive table count: {}, odps table count: {}",
+                 taskName, hiveTableCount, odpsTableCount);
         return true;
       } else {
         LOG.info("Table {} failed data verification, hive table count: {}, odps table count: {}.",
-            taskName, hiveTableCount, odpsTableCount);
+                 taskName, hiveTableCount, odpsTableCount);
         return false;
       }
     }

@@ -1,0 +1,5 @@
+# comment
+hive_test_db.hive_test_tbl1:mc_test_project.mc_test_table1
+# test duplications
+hive_test_db.hive_test_tbl2:mc_test_project.mc_test_table2
+hive_test_db.hive_test_tbl2:mc_test_project.mc_test_table2

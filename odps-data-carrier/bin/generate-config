@@ -2,4 +2,4 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export MMA_HOME="$DIR/../"
 
-java -cp "$DIR/../lib/task-scheduler-1.0-SNAPSHOT.jar" com.aliyun.odps.datacarrier.taskscheduler.MetaConfigurationUtils "$@"
+java -cp "$DIR/../lib/task-scheduler-1.0-SNAPSHOT.jar" com.aliyun.odps.datacarrier.taskscheduler.MmaConfigUtils "$@"

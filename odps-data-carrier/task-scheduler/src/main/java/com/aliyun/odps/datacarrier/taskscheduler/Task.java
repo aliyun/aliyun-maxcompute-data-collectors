@@ -17,9 +17,9 @@ class Task {
   protected Map<Action, AbstractActionInfo> actionInfoMap;
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
-  MetaConfiguration.Config tableConfig;
+  MmaConfig.AdditionalTableConfig tableConfig;
 
-  public Task(String taskName, MetaSource.TableMetaModel tableMetaModel, MetaConfiguration.Config tableConfig) {
+  public Task(String taskName, MetaSource.TableMetaModel tableMetaModel, MmaConfig.AdditionalTableConfig tableConfig) {
     this.taskName = taskName;
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
@@ -102,10 +102,11 @@ class Task {
               .stream()
               .map(p -> p.partitionValues)
               .collect(Collectors.toList());
-          MMAMetaManagerFsImpl.getInstance().updateStatus(tableMetaModel.databaseName,
+
+          MmaMetaManagerFsImpl.getInstance().updateStatus(tableMetaModel.databaseName,
               tableMetaModel.tableName,
               partitionValuesList,
-              MMAMetaManager.MigrationStatus.SUCCEEDED);
+              MmaMetaManager.MigrationStatus.SUCCEEDED);
         }
       }
     }

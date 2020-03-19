@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
 import java.nio.channels.FileLock;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -19,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.csvreader.CsvReader;
-import com.csvreader.CsvWriter;
 
 /**
  * directory structure:
@@ -32,9 +30,9 @@ import com.csvreader.CsvWriter;
  *           |____partitions_failed
  *           |____partitions_succeeded
  */
-public class MMAMetaManagerFsImpl implements MMAMetaManager {
+public class MmaMetaManagerFsImpl implements MmaMetaManager {
 
-  private static final Logger LOG = LogManager.getLogger(MMAMetaManagerFsImpl.class);
+  private static final Logger LOG = LogManager.getLogger(MmaMetaManagerFsImpl.class);
 
   private static final String META_DIR_NAME = ".mma";
   private static final String PARTITION_LIST_ALL = "partitions_all";
@@ -68,25 +66,25 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   private Path workspace;
   private MetaSource metaSource;
 
-  private static MMAMetaManagerFsImpl instance;
+  private static MmaMetaManagerFsImpl instance;
 
   public static void init(String parentDir, MetaSource metaSource) throws IOException {
     if (instance != null) {
       throw new IllegalStateException("Cannot initialize twice");
     }
 
-    instance = new MMAMetaManagerFsImpl(parentDir, metaSource);
+    instance = new MmaMetaManagerFsImpl(parentDir, metaSource);
   }
 
-  public static MMAMetaManagerFsImpl getInstance() {
+  public static MmaMetaManagerFsImpl getInstance() {
     if (instance == null) {
-      throw new IllegalStateException("MMAMetaManager not initialized");
+      throw new IllegalStateException("MmaMetaManager not initialized");
     }
 
     return instance;
   }
 
-  private MMAMetaManagerFsImpl(String parentDir, MetaSource metaSource) throws IOException {
+  private MmaMetaManagerFsImpl(String parentDir, MetaSource metaSource) throws IOException {
     if (parentDir == null) {
       parentDir = System.getenv("MMA_HOME");
       if (parentDir == null) {
@@ -105,15 +103,15 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   }
 
   @Override
-  public synchronized void addMigrationJob(MetaConfiguration.TableConfig config) {
+  public synchronized void addMigrationJob(MmaConfig.TableMigrationConfig config) {
     if (config == null) {
       throw new IllegalArgumentException("'config' cannot be null");
     }
     acquireLock();
 
     try {
-      String db = config.sourceDataBase;
-      String tbl = config.sourceTableName;
+      String db = config.getSourceDataBaseName();
+      String tbl = config.getSourceTableName();
 
       Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
       Path metadataPath = getMetadataPath(db, tbl);
@@ -142,7 +140,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
       // Save configuration
       try {
-        DirUtils.writeFile(configPath, MetaConfiguration.TableConfig.toJson(config));
+        DirUtils.writeFile(configPath, MmaConfig.TableMigrationConfig.toJson(config));
       } catch (IOException e) {
         throw new IllegalStateException("Failed to init config, write "
                                         + configPath.toString() + " failed");
@@ -170,16 +168,16 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
           }
 
           // User doesn't specify any partition, get from HMS
-          List<List<String>> partitionValuesList = new LinkedList<>();
-          if (config.partitionValuesList == null || config.partitionValuesList.isEmpty()) {
-            partitionValuesList.addAll(metaSource.listPartitions(db, tbl));
+          List<List<String>> partitionValuesList;
+          if (config.getPartitionValuesList() == null || config.getPartitionValuesList().isEmpty()) {
+            partitionValuesList = metaSource.listPartitions(db, tbl);
           } else {
             if (metadataExists) {
-              partitionValuesList.addAll(
-                  getMergedAllPartitionValuesList(db, tbl, config.partitionValuesList));
+              partitionValuesList =
+                  getMergedAllPartitionValuesList(db, tbl, config.getPartitionValuesList());
             } else {
               // TODO: should check if config.partitionValuesList has duplications
-              partitionValuesList.addAll(config.partitionValuesList);
+              partitionValuesList = config.getPartitionValuesList();
             }
           }
 
@@ -263,8 +261,8 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     // If the status is FAILED, set the status to PENDING if retry is allowed
     if (MigrationStatus.FAILED.equals(status)) {
       failedTimes += 1;
-      MetaConfiguration.TableConfig config = getConfigInternal(getConfigPath(db, tbl));
-      if (failedTimes <= config.config.getRetryTimesLimit()) {
+      MmaConfig.TableMigrationConfig config = getConfigInternal(getConfigPath(db, tbl));
+      if (failedTimes <= config.getAdditionalTableConfig().getRetryTimesLimit()) {
         status = MigrationStatus.PENDING;
       }
     }
@@ -396,7 +394,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
   }
 
   @Override
-  public synchronized MetaConfiguration.TableConfig getConfig(String db, String tbl) {
+  public synchronized MmaConfig.TableMigrationConfig getConfig(String db, String tbl) {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
@@ -410,7 +408,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
     }
   }
 
-  private MetaConfiguration.TableConfig getConfigInternal(Path configPath) {
+  private MmaConfig.TableMigrationConfig getConfigInternal(Path configPath) {
     if (!configPath.toFile().exists()) {
       throw new IllegalStateException("Failed to get config, file does not exist: "
                                       + configPath.toString());
@@ -423,7 +421,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
       throw new IllegalStateException("Failed to read file: " + configPath.toString());
     }
 
-    return MetaConfiguration.TableConfig.fromJson(content);
+    return MmaConfig.TableMigrationConfig.fromJson(content);
   }
 
   private int getFailedTimesInternal(Path metadataPath) {
@@ -480,7 +478,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
             }
 
             Path configPath = getConfigPath(db, tbl);
-            MetaConfiguration.TableConfig config = getConfigInternal(configPath);
+            MmaConfig.TableMigrationConfig config = getConfigInternal(configPath);
 
             config.apply(tableMetaModel);
 
@@ -579,7 +577,7 @@ public class MMAMetaManagerFsImpl implements MMAMetaManager {
 
 
   /**
-   * Ensure the directory won't be corrupted multiple {@link MMAMetaManagerFsImpl} runs at the same
+   * Ensure the directory won't be corrupted multiple {@link MmaMetaManagerFsImpl} runs at the same
    * time
    * @throws IOException
    */

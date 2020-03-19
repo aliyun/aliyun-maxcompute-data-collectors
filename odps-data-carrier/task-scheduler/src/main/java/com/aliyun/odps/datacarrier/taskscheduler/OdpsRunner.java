@@ -25,7 +25,7 @@ public class OdpsRunner extends AbstractTaskRunner {
 
   private static Odps odps;
 
-  public OdpsRunner(MetaConfiguration.OdpsConfiguration odpsConfiguration) {
+  public OdpsRunner(MmaConfig.OdpsConfig odpsConfiguration) {
     if (odpsConfiguration == null) {
       throw new IllegalArgumentException("'odpsConfiguration' cannot be null");
     }

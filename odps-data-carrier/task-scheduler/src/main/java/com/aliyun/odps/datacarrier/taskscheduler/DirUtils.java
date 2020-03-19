@@ -55,7 +55,7 @@ public class DirUtils {
   }
 
   public static void writeFile(Path filePath, String content, boolean append) throws IOException {
-    File file = filePath.toFile();
+    File file = filePath.toAbsolutePath().toFile();
     File parent = file.getParentFile();
     if (!file.getParentFile().exists()) {
       if(!file.getParentFile().mkdirs()) {
@@ -76,6 +76,14 @@ public class DirUtils {
 
   public static void writeCsvFile(Path filePath, List<List<String>> rows, boolean append)
       throws IOException {
+    File file = filePath.toAbsolutePath().toFile();
+    File parent = file.getParentFile();
+    if (!file.getParentFile().exists()) {
+      if(!file.getParentFile().mkdirs()) {
+        throw new IOException(parent.getAbsolutePath() + " does not exist and cannot be created.");
+      }
+    }
+
     try (FileOutputStream fos = new FileOutputStream(filePath.toFile(), append)) {
       CsvWriter csvWriter = new CsvWriter(fos, ',', StandardCharsets.UTF_8);
       for (List<String> partitionValues : rows) {

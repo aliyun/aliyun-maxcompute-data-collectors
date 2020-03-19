@@ -27,7 +27,7 @@ public class HiveRunner extends AbstractTaskRunner {
   private static String password;
   private static List<String> extraSettings = new LinkedList<>();
 
-  public HiveRunner(MetaConfiguration.HiveConfiguration hiveConfiguration) {
+  public HiveRunner(MmaConfig.HiveConfig hiveConfiguration) {
     if (hiveConfiguration == null) {
       throw new IllegalArgumentException("'hiveConfiguration' cannot be null");
     }
@@ -39,7 +39,7 @@ public class HiveRunner extends AbstractTaskRunner {
       throw new RuntimeException("Create HiveRunner failed");
     }
 
-    jdbcAddress = hiveConfiguration.getHiveJdbcAddress();
+    jdbcAddress = hiveConfiguration.getJdbcConnectionUrl();
     user = hiveConfiguration.getUser();
     password = hiveConfiguration.getPassword();
     extraSettings = hiveConfiguration.getHiveJdbcExtraSettings();

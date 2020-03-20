@@ -236,6 +236,47 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   }
 
   @Override
+  public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs() {
+    acquireLock();
+
+    try {
+      return listMigrationJobsInternal(null);
+    } finally {
+      releaseLock();
+    }
+  }
+
+  @Override
+  public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs(MigrationStatus status) {
+    if (status == null) {
+      throw new IllegalArgumentException("'status' cannot be null");
+    }
+
+    acquireLock();
+
+    try {
+      return listMigrationJobsInternal(status);
+    } finally {
+      releaseLock();
+    }
+  }
+
+  private List<MmaConfig.TableMigrationConfig> listMigrationJobsInternal(MigrationStatus status) {
+    List<MmaConfig.TableMigrationConfig> ret = new LinkedList<>();
+    Path workspacePath = Paths.get(workspace.toString());
+    for (String db : DirUtils.listDirs(workspacePath)) {
+      Path databasePath = Paths.get(workspacePath.toString(), db);
+      for (String tbl : DirUtils.listDirs(databasePath)) {
+        if (status == null || status.equals(getStatusInternal(db, tbl))) {
+          ret.add(getConfigInternal(getConfigPath(db, tbl)));
+        }
+      }
+    }
+
+    return ret;
+  }
+
+  @Override
   public synchronized void updateStatus(String db, String tbl, MigrationStatus status) {
     if (db == null || tbl == null || status == null) {
       throw new IllegalArgumentException("'db' or 'tbl' or 'status' cannot be null");

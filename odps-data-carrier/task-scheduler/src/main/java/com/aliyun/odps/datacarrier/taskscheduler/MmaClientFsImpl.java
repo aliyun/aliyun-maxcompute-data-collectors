@@ -3,7 +3,10 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -22,8 +25,6 @@ public class MmaClientFsImpl implements MmaClient {
   private static final Logger LOG = LogManager.getLogger(MmaClient.class);
 
   private static final long MMA_CLIENT_WAIT_INTERVAL = 5000;
-  private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
-  private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
 
   private static final String ERROR_INDICATOR = "ERROR: ";
   private static final String WARNING_INDICATOR = "WARNING: ";
@@ -41,6 +42,7 @@ public class MmaClientFsImpl implements MmaClient {
 
   @Override
   public void createMigrationJobs(MmaMigrationConfig mmaMigrationConfig) {
+    // TODO: prevent user from creating too many migration jobs
     MmaConfig.AdditionalTableConfig globalAdditionalTableConfig =
         mmaMigrationConfig.getGlobalAdditionalTableConfig();
 
@@ -177,9 +179,23 @@ public class MmaClientFsImpl implements MmaClient {
   public MmaMetaManager.MigrationProgress getMigrationProgress(String db, String tbl) {
     MmaMetaManager.MigrationProgress progress =
         MmaMetaManagerFsImpl.getInstance().getProgress(db, tbl);
-    LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}", db, tbl, progress);
+    LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}",
+             db, tbl, progress.toJson());
 
     return progress;
+  }
+
+  public List<MmaConfig.TableMigrationConfig> listMigrationJobs(
+      MmaMetaManager.MigrationStatus status) {
+
+    List<MmaConfig.TableMigrationConfig> ret =
+        MmaMetaManagerFsImpl.getInstance().listMigrationJobs(status);
+    LOG.info("Get migration job list, status: {}, ret: {}",
+             status,
+             ret.stream()
+                 .map(c -> c.getSourceDataBaseName() + "." + c.getSourceTableName())
+                 .collect(Collectors.joining(", ")));
+    return ret;
   }
 
   private static void logHelp(Options options) {
@@ -190,6 +206,9 @@ public class MmaClientFsImpl implements MmaClient {
 
   public static void main(String[] args) throws ParseException, IOException, MetaException {
     BasicConfigurator.configure();
+    /*
+      Required options
+     */
     Option configOption = Option
         .builder("config")
         .longOpt("config")
@@ -197,6 +216,9 @@ public class MmaClientFsImpl implements MmaClient {
         .hasArg()
         .desc("MMA client configuration, required")
         .build();
+    /*
+      Supported sub commands, mutually exclusive
+     */
     Option startJobOption = Option
         .builder("start")
         .longOpt("start")
@@ -211,6 +233,16 @@ public class MmaClientFsImpl implements MmaClient {
         .hasArg()
         .desc("Wait until specified job completes")
         .build();
+    Option waitAllOption = Option
+        .builder("wait_all")
+        .longOpt("wait_all")
+        .hasArg(false)
+        .desc("Wait until all job completes")
+        .build();
+
+    /*
+      Help
+     */
     Option helpOption = Option
         .builder("h")
         .longOpt("help")
@@ -223,9 +255,8 @@ public class MmaClientFsImpl implements MmaClient {
         .addOption(configOption)
         .addOption(startJobOption)
         .addOption(helpOption)
-        .addOption(waitJobOption);
-
-    // TODO: support wait all
+        .addOption(waitJobOption)
+        .addOption(waitAllOption);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
@@ -248,6 +279,8 @@ public class MmaClientFsImpl implements MmaClient {
 
     MmaClient client = new MmaClientFsImpl(mmaClientConfig);
 
+    // TODO: Check if multi sub command specified
+
     if (cmd.hasOption("start")) {
       Path mmaMigrationConfigPath = Paths.get(cmd.getOptionValue("start"));
       MmaMigrationConfig mmaMigrationConfig = MmaMigrationConfig.fromFile(mmaMigrationConfigPath);
@@ -264,7 +297,7 @@ public class MmaClientFsImpl implements MmaClient {
       String db = jobName.substring(0, dotIdx);
       String tbl = jobName.substring(dotIdx + 1);
 
-      int progressIndicatorIdx = 0;
+      JobProgressReporter reporter = new JobProgressReporter();
       while (true) {
         MmaMetaManager.MigrationStatus status = client.getMigrationJobStatus(db, tbl);
         if (MmaMetaManager.MigrationStatus.FAILED.equals(status) ||
@@ -273,34 +306,7 @@ public class MmaClientFsImpl implements MmaClient {
           break;
         } else {
           MmaMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
-
-          System.err.print(
-              "\rWaiting" + PROGRESS_INDICATOR[progressIndicatorIdx % PROGRESS_INDICATOR.length]);
-          progressIndicatorIdx += 1;
-
-          // Print progress for partition tables
-          // Format: Waiting... | [*****               ] | 25.00%
-          if (progress != null) {
-            int all = progress.getNumPendingPartitions() + progress.getNumRunningPartitions() +
-                      progress.getNumFailedPartitions() + progress.getNumSucceededPartitions();
-
-            float succeededPercent;
-            if (all == 0) {
-              succeededPercent = 1;
-            } else {
-              succeededPercent = progress.getNumSucceededPartitions() / (float) all;
-            }
-            StringBuilder sb = new StringBuilder(" | [");
-            for (int i = 0; i < MMA_CLIENT_PROGRESS_BAR_LENGTH; i++) {
-              if (i > succeededPercent * MMA_CLIENT_PROGRESS_BAR_LENGTH) {
-                sb.append(" ");
-              } else {
-                sb.append("*");
-              }
-            }
-            sb.append("] | ").append(String.format("%.2f%%", succeededPercent * 100));
-            System.err.print(sb.toString());
-          }
+          reporter.report(jobName, progress);
         }
 
         try {
@@ -309,7 +315,36 @@ public class MmaClientFsImpl implements MmaClient {
           System.err.println("Stop waiting, exit");
         }
       }
+    } else if (cmd.hasOption("wait_all")) {
+      JobProgressReporter reporter = new JobProgressReporter();
+      while (true) {
+        List<MmaConfig.TableMigrationConfig> runningMigrationJobs = client.listMigrationJobs(
+            MmaMetaManager.MigrationStatus.PENDING);
+
+        if (runningMigrationJobs.isEmpty()) {
+          System.err.println("\nAll migration jobs succeeded");
+          break;
+        }
+
+        Map<String, MmaMetaManager.MigrationProgress> tableToProgress = new HashMap<>();
+        for (MmaConfig.TableMigrationConfig tableMigrationConfig : runningMigrationJobs) {
+          String db = tableMigrationConfig.getSourceDataBaseName();
+          String tbl = tableMigrationConfig.getSourceTableName();
+          MmaMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
+          tableToProgress.put(db + "." + tbl, progress);
+        }
+
+        reporter.report(tableToProgress);
+        try {
+          Thread.sleep(MMA_CLIENT_WAIT_INTERVAL);
+        } catch (InterruptedException e) {
+          System.err.println("Stop waiting, exit");
+        }
+      }
+    } else {
+      System.err.println("\nNo sub command specified, exiting");
     }
+
     System.exit(0);
   }
 }

@@ -1,6 +1,7 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -63,7 +64,11 @@ public class MmaMetaManagerFsImplTest {
   @After
   public void after() throws Exception {
     for (String table : metaSource.listTables(MockHiveMetaSource.DB_NAME)) {
-      MmaMetaManagerFsImpl.getInstance().removeMigrationJob(MockHiveMetaSource.DB_NAME, table);
+      try {
+        MmaMetaManagerFsImpl.getInstance().removeMigrationJob(MockHiveMetaSource.DB_NAME, table);
+      } catch (Exception e) {
+        // ignore
+      }
     }
   }
 
@@ -102,19 +107,32 @@ public class MmaMetaManagerFsImplTest {
   }
 
   @Test
+  public void testRemoveJob() {
+    MmaMetaManagerFsImpl.getInstance().removeMigrationJob(MockHiveMetaSource.DB_NAME,
+                                                          MockHiveMetaSource.TBL_PARTITIONED);
+
+    Path tableDirPath = Paths.get(DEFAULT_MMA_META_DIR.toString(),
+                               MockHiveMetaSource.DB_NAME,
+                               MockHiveMetaSource.TBL_PARTITIONED);
+    assertFalse(tableDirPath.toFile().exists());
+  }
+
+  @Test
   public void testListJobs() {
     List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
         MmaMetaManagerFsImpl.getInstance().listMigrationJobs();
 
-    assertEquals(2, tableMigrationConfigs.size());
+    assertEquals(MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.size(),
+                 tableMigrationConfigs.size());
   }
 
   @Test
-  public void testListJobsWithStatus() throws Exception {
+  public void testListJobsWithStatus() {
     List<MmaConfig.TableMigrationConfig> tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
         .listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING);
-    assertEquals(2, tableMigrationConfigs.size());
+    assertEquals(MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.size(),
+                 tableMigrationConfigs.size());
 
     tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()

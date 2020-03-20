@@ -8,6 +8,8 @@ public interface MmaClient {
 
   public List<MmaConfig.TableMigrationConfig> listMigrationJobs(MmaMetaManager.MigrationStatus status);
 
+  public void removeMigrationJob(String db, String tbl);
+
   public MmaMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl);
 
   public MmaMetaManager.MigrationProgress getMigrationProgress(String db, String tbl);

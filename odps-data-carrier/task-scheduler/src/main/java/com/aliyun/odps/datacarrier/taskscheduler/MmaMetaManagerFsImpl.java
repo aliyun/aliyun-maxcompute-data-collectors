@@ -110,8 +110,8 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     acquireLock();
 
     try {
-      String db = config.getSourceDataBaseName();
-      String tbl = config.getSourceTableName();
+      String db = config.getSourceDataBaseName().toLowerCase();
+      String tbl = config.getSourceTableName().toLowerCase();
 
       Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
       Path metadataPath = getMetadataPath(db, tbl);
@@ -203,8 +203,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
-    acquireLock();
 
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
+
+    acquireLock();
     try {
       Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
       if (!tableMetaDir.toFile().exists()) {
@@ -225,8 +228,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
-    acquireLock();
 
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
+
+    acquireLock();
     try {
       Path tableMetaDir = Paths.get(workspace.toString(), db, tbl);
       return tableMetaDir.toFile().exists();
@@ -238,7 +244,6 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   @Override
   public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs() {
     acquireLock();
-
     try {
       return listMigrationJobsInternal(null);
     } finally {
@@ -281,8 +286,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     if (db == null || tbl == null || status == null) {
       throw new IllegalArgumentException("'db' or 'tbl' or 'status' cannot be null");
     }
-    acquireLock();
 
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
+
+    acquireLock();
     try {
       updateStatusInternal(db, tbl, status);
     } finally {
@@ -325,8 +333,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
       throw new IllegalArgumentException(
           "'db' or 'tbl' or 'partitionValuesList' or 'status' cannot be null");
     }
-    acquireLock();
 
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
+
+    acquireLock();
     try {
       Path partitionListPath;
       if (MigrationStatus.SUCCEEDED.equals(status)) {
@@ -361,8 +372,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
-    acquireLock();
 
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
+
+    acquireLock();
     try {
       return getStatusInternal(db, tbl);
     } finally {
@@ -382,6 +396,9 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
+
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
 
     try {
       MetaSource.TableMetaModel tableMetaModel =
@@ -439,8 +456,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     if (db == null || tbl == null) {
       throw new IllegalArgumentException("'db' or 'tbl' cannot be null");
     }
-    acquireLock();
 
+    db = db.toLowerCase();
+    tbl = tbl.toLowerCase();
+
+    acquireLock();
     try {
       Path configPath = getConfigPath(db, tbl);
       return getConfigInternal(configPath);
@@ -489,7 +509,6 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   @Override
   public synchronized List<MetaSource.TableMetaModel> getPendingTables() {
     acquireLock();
-
     try {
       List<MetaSource.TableMetaModel> ret = new LinkedList<>();
 

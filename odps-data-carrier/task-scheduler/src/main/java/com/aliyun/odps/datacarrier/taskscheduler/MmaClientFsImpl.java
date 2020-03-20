@@ -29,6 +29,20 @@ public class MmaClientFsImpl implements MmaClient {
   private static final String ERROR_INDICATOR = "ERROR: ";
   private static final String WARNING_INDICATOR = "WARNING: ";
 
+  /*
+    Options
+   */
+  private static final String CONFIG_OPT = "config";
+  private static final String START_OPT = "start";
+  private static final String WAIT_OPT = "wait";
+  private static final String WAIT_ALL_OPT = "wait_all";
+  private static final String REMOVE_OPT = "remove";
+  private static final String LIST_OPT = "list";
+  private static final String HELP_OPT = "help";
+
+  private static final String[] SUB_COMMANDS =
+      new String[] {START_OPT, WAIT_OPT, WAIT_ALL_OPT, REMOVE_OPT, LIST_OPT};
+
   private MetaSource metaSource;
 
   public MmaClientFsImpl(MmaClientConfig mmaClientConfig) throws MetaException, IOException {
@@ -169,6 +183,22 @@ public class MmaClientFsImpl implements MmaClient {
     }
   }
 
+  @Override
+  public void removeMigrationJob(String db, String tbl) {
+    if (MmaMetaManagerFsImpl.getInstance().hasMigrationJob(db, tbl)) {
+      MmaMetaManager.MigrationStatus status = MmaMetaManagerFsImpl.getInstance().getStatus(db, tbl);
+      if (MmaMetaManager.MigrationStatus.PENDING.equals(status)) {
+        String msg = String.format("Failed to remove migration job, database: %s, table: %s, "
+                                   + "reason: status is RUNNING", db, tbl);
+        LOG.error(msg);
+        throw new IllegalArgumentException(ERROR_INDICATOR + msg);
+      }
+      MmaMetaManagerFsImpl.getInstance().removeMigrationJob(db, tbl);
+    }
+
+  }
+
+  @Override
   public MmaMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl) {
     MmaMetaManager.MigrationStatus status =  MmaMetaManagerFsImpl.getInstance().getStatus(db, tbl);
     LOG.info("Get migration status, db: {}, tbl: {}, status: {}", db, tbl, status);
@@ -176,15 +206,17 @@ public class MmaClientFsImpl implements MmaClient {
     return status;
   }
 
+  @Override
   public MmaMetaManager.MigrationProgress getMigrationProgress(String db, String tbl) {
     MmaMetaManager.MigrationProgress progress =
         MmaMetaManagerFsImpl.getInstance().getProgress(db, tbl);
     LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}",
-             db, tbl, progress.toJson());
+             db, tbl, progress == null ? "N/A" : progress.toJson());
 
     return progress;
   }
 
+  @Override
   public List<MmaConfig.TableMigrationConfig> listMigrationJobs(
       MmaMetaManager.MigrationStatus status) {
 
@@ -210,9 +242,9 @@ public class MmaClientFsImpl implements MmaClient {
       Required options
      */
     Option configOption = Option
-        .builder("config")
-        .longOpt("config")
-        .argName("config")
+        .builder(CONFIG_OPT)
+        .longOpt(CONFIG_OPT)
+        .argName(CONFIG_OPT)
         .hasArg()
         .desc("MMA client configuration, required")
         .build();
@@ -220,24 +252,38 @@ public class MmaClientFsImpl implements MmaClient {
       Supported sub commands, mutually exclusive
      */
     Option startJobOption = Option
-        .builder("start")
-        .longOpt("start")
-        .argName("start")
+        .builder(START_OPT)
+        .longOpt(START_OPT)
+        .argName(START_OPT)
         .hasArg()
         .desc("Start a job with given config.json")
         .build();
     Option waitJobOption = Option
-        .builder("wait")
-        .longOpt("wait")
-        .argName("wait")
+        .builder(WAIT_OPT)
+        .longOpt(WAIT_OPT)
+        .argName(WAIT_OPT)
         .hasArg()
         .desc("Wait until specified job completes")
         .build();
     Option waitAllOption = Option
-        .builder("wait_all")
-        .longOpt("wait_all")
+        .builder(WAIT_ALL_OPT)
+        .longOpt(WAIT_ALL_OPT)
         .hasArg(false)
         .desc("Wait until all job completes")
+        .build();
+    Option removeJobOption = Option
+        .builder(REMOVE_OPT)
+        .longOpt(REMOVE_OPT)
+        .hasArg()
+        .argName("<db>.<table>")
+        .desc("Remove a migration job, its status should be succeeded or failed")
+        .build();
+    Option listJobsOption = Option
+        .builder(LIST_OPT)
+        .longOpt(LIST_OPT)
+        .hasArg()
+        .argName("PENDING | RUNNING | SUCCEEDED | FAILED")
+        .desc("List migration jobs in given status")
         .build();
 
     /*
@@ -245,8 +291,8 @@ public class MmaClientFsImpl implements MmaClient {
      */
     Option helpOption = Option
         .builder("h")
-        .longOpt("help")
-        .argName("help")
+        .longOpt(HELP_OPT)
+        .argName(HELP_OPT)
         .hasArg(false)
         .desc("Print usage")
         .build();
@@ -254,23 +300,25 @@ public class MmaClientFsImpl implements MmaClient {
     Options options = new Options()
         .addOption(configOption)
         .addOption(startJobOption)
+        .addOption(removeJobOption)
         .addOption(helpOption)
         .addOption(waitJobOption)
-        .addOption(waitAllOption);
+        .addOption(waitAllOption)
+        .addOption(listJobsOption);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    if (cmd.hasOption("help")) {
+    if (cmd.hasOption(HELP_OPT)) {
       logHelp(options);
       System.exit(0);
     }
 
-    if (!cmd.hasOption("config")) {
+    if (!cmd.hasOption(CONFIG_OPT)) {
       throw new IllegalArgumentException("Required argument 'config'");
     }
 
-    Path mmaClientConfigFilePath = Paths.get(cmd.getOptionValue("config"));
+    Path mmaClientConfigFilePath = Paths.get(cmd.getOptionValue(CONFIG_OPT));
     MmaClientConfig mmaClientConfig = MmaClientConfig.fromFile(mmaClientConfigFilePath);
     if (!mmaClientConfig.validate()) {
       System.err.println("Invalid mma client config: " + mmaClientConfig.toJson());
@@ -279,10 +327,20 @@ public class MmaClientFsImpl implements MmaClient {
 
     MmaClient client = new MmaClientFsImpl(mmaClientConfig);
 
-    // TODO: Check if multi sub command specified
+    // Check if more than one sub command is given
+    int numSubCommandSpecified = 0;
+    for (String subCommand : SUB_COMMANDS) {
+      if (cmd.hasOption(subCommand)) {
+        numSubCommandSpecified += 1;
+      }
+    }
+    if (numSubCommandSpecified > 1) {
+      System.err.println("More than one option specified");
+      System.exit(1);
+    }
 
-    if (cmd.hasOption("start")) {
-      Path mmaMigrationConfigPath = Paths.get(cmd.getOptionValue("start"));
+    if (cmd.hasOption(START_OPT)) {
+      Path mmaMigrationConfigPath = Paths.get(cmd.getOptionValue(START_OPT));
       MmaMigrationConfig mmaMigrationConfig = MmaMigrationConfig.fromFile(mmaMigrationConfigPath);
       if (!mmaMigrationConfig.validate()) {
         System.err.println("Invalid mma migration config: " + mmaClientConfig.toJson());
@@ -291,8 +349,8 @@ public class MmaClientFsImpl implements MmaClient {
 
       client.createMigrationJobs(mmaMigrationConfig);
       System.err.println("\nJob submitted");
-    } else if (cmd.hasOption("wait")) {
-      String jobName = cmd.getOptionValue("wait");
+    } else if (cmd.hasOption(WAIT_OPT)) {
+      String jobName = cmd.getOptionValue(WAIT_OPT);
       int dotIdx = jobName.indexOf(".");
       String db = jobName.substring(0, dotIdx);
       String tbl = jobName.substring(dotIdx + 1);
@@ -315,7 +373,7 @@ public class MmaClientFsImpl implements MmaClient {
           System.err.println("Stop waiting, exit");
         }
       }
-    } else if (cmd.hasOption("wait_all")) {
+    } else if (cmd.hasOption(WAIT_ALL_OPT)) {
       JobProgressReporter reporter = new JobProgressReporter();
       while (true) {
         List<MmaConfig.TableMigrationConfig> runningMigrationJobs = client.listMigrationJobs(
@@ -340,6 +398,25 @@ public class MmaClientFsImpl implements MmaClient {
         } catch (InterruptedException e) {
           System.err.println("Stop waiting, exit");
         }
+      }
+    } else if (cmd.hasOption(REMOVE_OPT)) {
+      String jobName = cmd.getOptionValue(REMOVE_OPT).trim();
+      int dotIdx = jobName.indexOf(".");
+      String db = jobName.substring(0, dotIdx);
+      String tbl = jobName.substring(dotIdx + 1);
+
+      client.removeMigrationJob(db, tbl);
+    } else if (cmd.hasOption(LIST_OPT)) {
+      String statusStr = cmd.getOptionValue(LIST_OPT).trim().toUpperCase();
+      MmaMetaManager.MigrationStatus status = MmaMetaManager.MigrationStatus.valueOf(statusStr);
+
+      List<MmaConfig.TableMigrationConfig> migrationJobs = client.listMigrationJobs(status);
+      for (MmaConfig.TableMigrationConfig tableMigrationConfig : migrationJobs) {
+        String sourceDb = tableMigrationConfig.getSourceDataBaseName();
+        String sourceTbl = tableMigrationConfig.getSourceTableName();
+        String destPjt = tableMigrationConfig.getDestProjectName();
+        String destTbl = tableMigrationConfig.getDestTableName();
+        System.err.println(String.format("%s.%s:%s.%s", sourceDb, sourceTbl, destPjt, destTbl));
       }
     } else {
       System.err.println("\nNo sub command specified, exiting");

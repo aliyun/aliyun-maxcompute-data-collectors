@@ -8,7 +8,7 @@ public class JobProgressReporter {
 
   private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
   private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
-  private static final String PROGRESS_STR_FORMAT = "%-50s: RUNNING%s   %s   %.2f%%\n";
+  private static final String PROGRESS_STR_FORMAT = "%-50s| RUNNING%s   %s   %.2f%%\n";
 
   private int numPrintedLines = 0;
   private int progressIndicatorIdx = 0;

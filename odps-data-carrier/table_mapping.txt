@@ -1,0 +1,4 @@
+# The following example represents a migration job. The source table is 'source_table' in Hive
+# database 'source_db' and the destination table is 'dest_table' in MaxCompute project 'dest_pjt'
+
+source_db.source_table:dest_pjt.dest_table

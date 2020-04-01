@@ -92,6 +92,12 @@ public class OdpsInput extends BaseStep implements StepInterface {
                 meta.getFields(data.outputRowMeta, getStepname(), null, null, this);
             }
 
+            if(data.tunnelRecordReader == null) {
+                logBasic("Input ODPS table is empty. setOutputDone.");
+                setOutputDone();
+                return false;
+            }
+
             ArrayRecord record = (ArrayRecord) (data.tunnelRecordReader.read());
             if (record != null) {
                 Object[] outputRow = RowDataUtil.allocateRowData(data.outputRowMeta.size());
@@ -160,7 +166,9 @@ public class OdpsInput extends BaseStep implements StepInterface {
 
                 long count = downloadSession.getRecordCount();
                 logBasic("count is: " + count);
-                data.tunnelRecordReader = downloadSession.openRecordReader(0L, count);
+                if(count > 0) {
+                    data.tunnelRecordReader = downloadSession.openRecordReader(0L, count);
+                }
                 return true;
             } catch (TunnelException e) {
                 logError(e.getMessage(), e);

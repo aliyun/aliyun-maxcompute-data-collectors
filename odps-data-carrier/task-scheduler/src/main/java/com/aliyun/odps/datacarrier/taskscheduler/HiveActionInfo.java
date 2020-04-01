@@ -1,5 +1,7 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 public class HiveActionInfo extends AbstractActionInfo {
@@ -26,6 +28,7 @@ public class HiveActionInfo extends AbstractActionInfo {
 
   public String getHiveActionInfoSummary() {
     final StringBuilder sb = new StringBuilder();
+    sb.append("\nDatetime: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
     sb.append("\nJobId=").append(jobId);
     sb.append("\nTrackingUrl=").append(trackingUrl);
     sb.append("\n");

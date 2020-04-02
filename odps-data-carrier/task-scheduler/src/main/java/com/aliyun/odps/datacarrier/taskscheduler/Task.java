@@ -18,14 +18,19 @@ class Task {
   protected Progress progress;
   MetaSource.TableMetaModel tableMetaModel;
   MmaConfig.AdditionalTableConfig tableConfig;
+  private MmaMetaManager mmaMetaManager;
 
-  public Task(String taskName, MetaSource.TableMetaModel tableMetaModel, MmaConfig.AdditionalTableConfig tableConfig) {
+  public Task(String taskName,
+              MetaSource.TableMetaModel tableMetaModel,
+              MmaConfig.AdditionalTableConfig tableConfig,
+              MmaMetaManager mmaMetaManager) {
     this.taskName = taskName;
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
     this.actionInfoMap = new ConcurrentHashMap<>();
     this.progress = Progress.NEW;
+    this.mmaMetaManager = mmaMetaManager;
   }
 
   protected void addActionInfo(Action action) {
@@ -45,7 +50,7 @@ class Task {
    * @param progress new progress
    */
   protected synchronized void updateActionProgress(Action action,
-                                                   Progress progress) {
+                                                   Progress progress) throws MmaException {
     if (!actionInfoMap.containsKey(action)) {
       return;
     }
@@ -61,7 +66,7 @@ class Task {
    * Update task progress, triggered by an action progress update
    * @param actionNewProgress the new action progress that triggers this update
    */
-  private void updateTaskProgress(Progress actionNewProgress) {
+  private void updateTaskProgress(Progress actionNewProgress) throws MmaException {
     boolean taskProgressChanged = false;
 
     switch (progress) {
@@ -103,7 +108,8 @@ class Task {
               .map(p -> p.partitionValues)
               .collect(Collectors.toList());
 
-          MmaMetaManagerFsImpl.getInstance().updateStatus(tableMetaModel.databaseName,
+          // TODO: retry
+          mmaMetaManager.updateStatus(tableMetaModel.databaseName,
               tableMetaModel.tableName,
               partitionValuesList,
               MmaMetaManager.MigrationStatus.SUCCEEDED);

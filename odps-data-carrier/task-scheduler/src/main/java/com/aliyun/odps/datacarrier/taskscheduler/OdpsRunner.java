@@ -65,7 +65,12 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", project: " + odps.getDefaultProject() +
                     ", sql: \n" + sql +
                     ", exception: " + e.toString());
-          task.updateActionProgress(action, Progress.FAILED);
+          try {
+            // TODO: should retry
+            task.updateActionProgress(action, Progress.FAILED);
+          } catch (MmaException ex) {
+            LOG.error(ex);
+          }
           return;
         } catch (RuntimeException e) {
           LOG.error("Submit ODPS Sql failed, task: " + task +
@@ -73,7 +78,12 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ", sql: \n" + sql +
                     ", exception: " + e.getMessage());
           e.printStackTrace();
-          task.updateActionProgress(action, Progress.FAILED);
+          try {
+            // TODO: should retry
+            task.updateActionProgress(action, Progress.FAILED);
+          } catch (MmaException ex) {
+            LOG.error(ex);
+          }
           return;
         }
 
@@ -84,7 +94,12 @@ public class OdpsRunner extends AbstractTaskRunner {
           LOG.error("Run ODPS Sql failed, task: " + task +
                     ", sql: \n" + sql +
                     ", exception: " + e.toString());
-          task.updateActionProgress(action, Progress.FAILED);
+          try {
+            // TODO: should retry
+            task.updateActionProgress(action, Progress.FAILED);
+          } catch (MmaException ex) {
+            LOG.error(ex);
+          }
           return;
         }
 
@@ -115,7 +130,12 @@ public class OdpsRunner extends AbstractTaskRunner {
         RUNNER_LOG.info("Task: {}, Action: {} {}",
             task, action, odpsExecutionInfo.getOdpsActionInfoSummary());
       }
-      task.updateActionProgress(action, Progress.SUCCEEDED);
+      try {
+        // TODO: should retry
+        task.updateActionProgress(action, Progress.SUCCEEDED);
+      } catch (MmaException e) {
+        LOG.error(e);
+      }
     }
   }
 
@@ -147,7 +167,7 @@ public class OdpsRunner extends AbstractTaskRunner {
   }
 
   @Override
-  public void submitExecutionTask(Task task, Action action) {
+  public void submitExecutionTask(Task task, Action action) throws MmaException {
     List<String> sqlStatements = getSqlStatements(task, action);
     LOG.info("SQL Statements: {}", String.join(", ", sqlStatements));
     if (sqlStatements.isEmpty()) {

@@ -242,7 +242,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   }
 
   @Override
-  public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs() {
+  public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs(int limit) {
     acquireLock();
     try {
       return listMigrationJobsInternal(null);
@@ -252,7 +252,8 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   }
 
   @Override
-  public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs(MigrationStatus status) {
+  public synchronized List<MmaConfig.TableMigrationConfig> listMigrationJobs(MigrationStatus status,
+                                                                             int limit) {
     if (status == null) {
       throw new IllegalArgumentException("'status' cannot be null");
     }
@@ -563,6 +564,11 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
   @Override
   public MetaSource.TableMetaModel getNextPendingTable() {
     throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void shutdown() {
+    metaSource.shutdown();
   }
 
   /**

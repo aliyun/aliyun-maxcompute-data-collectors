@@ -118,14 +118,24 @@ public class HiveRunner extends AbstractTaskRunner {
         LOG.error("Run HIVE Sql failed, {}, \nexception: {}", sql, ExceptionUtils.getStackTrace(e));
         if (task != null) {
           LOG.info("Hive SQL FAILED {}, {}", action, task.toString());
-          task.updateActionProgress(action, Progress.FAILED);
+          try {
+            // TODO: should retry
+            task.updateActionProgress(action, Progress.FAILED);
+          } catch (MmaException ex) {
+            LOG.error(ex);
+          }
         }
         return;
       }
 
       if (task != null) {
-        LOG.info("Hive SQL SUCCEEDED {}, {}, {}", action, task.toString());
-        task.updateActionProgress(action, Progress.SUCCEEDED);
+        LOG.info("Hive SQL SUCCEEDED {}, {}", action, task.toString());
+        try {
+          // TODO: should retry
+          task.updateActionProgress(action, Progress.SUCCEEDED);
+        } catch (MmaException e) {
+          LOG.error(e);
+        }
       }
     }
   }
@@ -154,7 +164,7 @@ public class HiveRunner extends AbstractTaskRunner {
   }
 
   @Override
-  public void submitExecutionTask(Task task, Action action) {
+  public void submitExecutionTask(Task task, Action action) throws MmaException {
     String sqlStatement = getSqlStatements(task, action);
     if (StringUtils.isNullOrEmpty(sqlStatement)) {
       task.updateActionProgress(action, Progress.SUCCEEDED);

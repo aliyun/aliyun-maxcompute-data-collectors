@@ -2,7 +2,6 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.List;
 
-// TODO: throw MmaException
 public interface MmaMetaManager {
 
   enum MigrationStatus {
@@ -56,7 +55,7 @@ public interface MmaMetaManager {
    *
    * @param config migration config
    */
-  void addMigrationJob(MmaConfig.TableMigrationConfig config);
+  void addMigrationJob(MmaConfig.TableMigrationConfig config) throws MmaException;
 
   /**
    * Remove migration job of given table.
@@ -64,7 +63,7 @@ public interface MmaMetaManager {
    * @param db database name
    * @param tbl table name
    */
-  void removeMigrationJob(String db, String tbl);
+  void removeMigrationJob(String db, String tbl) throws MmaException;
 
   /**
    * Check if a migration job exists.
@@ -72,20 +71,23 @@ public interface MmaMetaManager {
    * @param db database name
    * @param tbl table name
    */
-  boolean hasMigrationJob(String db, String tbl);
+  boolean hasMigrationJob(String db, String tbl) throws MmaException;
 
   /**
    * List migration jobs
    * @return all migration jobs
    */
-  List<MmaConfig.TableMigrationConfig> listMigrationJobs();
+  List<MmaConfig.TableMigrationConfig> listMigrationJobs(int limit) throws MmaException;
 
   /**
    * List migration jobs in given status
    * @param status migration status
    * @return migration jobs in given status
    */
-  List<MmaConfig.TableMigrationConfig> listMigrationJobs(MigrationStatus status);
+  List<MmaConfig.TableMigrationConfig> listMigrationJobs(
+      MigrationStatus status,
+      int limit)
+      throws MmaException;
 
   /**
    * Update the status of a migration job. If the new status is FAILED, but the failed times
@@ -95,7 +97,7 @@ public interface MmaMetaManager {
    * @param tbl table name
    * @param status migration status
    */
-  void updateStatus(String db, String tbl, MigrationStatus status);
+  void updateStatus(String db, String tbl, MigrationStatus status) throws MmaException;
 
   /**
    * Update status of a migration job. If all of the partitions succeeded, the status will be
@@ -105,10 +107,12 @@ public interface MmaMetaManager {
    * @param partitionValuesList list of partition values
    * @param status migration status
    */
-  void updateStatus(String db,
-                    String tbl,
-                    List<List<String>> partitionValuesList,
-                    MigrationStatus status);
+  void updateStatus(
+      String db,
+      String tbl,
+      List<List<String>> partitionValuesList,
+      MigrationStatus status)
+      throws MmaException;
 
   /**
    * Get status of a migration job.
@@ -117,7 +121,7 @@ public interface MmaMetaManager {
    * @param tbl table name
    * @return migration status
    */
-  MigrationStatus getStatus(String db, String tbl);
+  MigrationStatus getStatus(String db, String tbl) throws MmaException;
 
   /**
    * Get migration status of specified partition.
@@ -126,7 +130,11 @@ public interface MmaMetaManager {
    * @param tbl table name
    * @return migration status
    */
-  MigrationStatus getStatus(String db, String tbl, List<String> partitionValues);
+  MigrationStatus getStatus(
+      String db,
+      String tbl,
+      List<String> partitionValues)
+      throws MmaException;
 
   /**
    * Get migration progress.
@@ -135,7 +143,7 @@ public interface MmaMetaManager {
    * @return for partitioned tables, a {@link MigrationProgress} object will be returned. For
    * non-partitioned tables, null will be returned.
    */
-  MigrationProgress getProgress(String db, String tbl);
+  MigrationProgress getProgress(String db, String tbl) throws MmaException;
 
   /**
    * Get config of a migration job.
@@ -144,18 +152,20 @@ public interface MmaMetaManager {
    * @param tbl table name
    * @return migration config
    */
-  MmaConfig.TableMigrationConfig getConfig(String db, String tbl);
+  MmaConfig.TableMigrationConfig getConfig(String db, String tbl) throws MmaException;
 
   /**
    * Get pending migration jobs.
    * @return
    */
-  List<MetaSource.TableMetaModel> getPendingTables();
+  List<MetaSource.TableMetaModel> getPendingTables() throws MmaException;
 
 
   /**
    * Get next pending migration job.
    * @return
    */
-  MetaSource.TableMetaModel getNextPendingTable();
+  MetaSource.TableMetaModel getNextPendingTable() throws MmaException;
+
+  void shutdown() throws MmaException;
 }

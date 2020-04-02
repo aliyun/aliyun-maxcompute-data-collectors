@@ -183,4 +183,9 @@ public class HiveMetaSource implements MetaSource {
   public List<String> listDatabases() throws Exception {
     return hmsClient.getAllDatabases();
   }
+
+  @Override
+  public void shutdown() {
+    hmsClient.close();
+  }
 }

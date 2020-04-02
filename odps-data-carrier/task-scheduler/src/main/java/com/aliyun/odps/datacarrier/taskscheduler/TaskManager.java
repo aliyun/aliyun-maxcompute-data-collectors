@@ -5,6 +5,6 @@ import java.util.SortedSet;
 
 public interface TaskManager {
 
-  List<Task> generateTasks(SortedSet<Action> actions);
+  List<Task> generateTasks(SortedSet<Action> actions) throws MmaException;
 
 }

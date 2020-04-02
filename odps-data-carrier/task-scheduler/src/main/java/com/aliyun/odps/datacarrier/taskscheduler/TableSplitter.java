@@ -6,6 +6,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Random;
 import java.util.SortedSet;
 import java.util.stream.Collectors;
 
@@ -13,22 +14,25 @@ import com.google.common.annotations.VisibleForTesting;
 
 public class TableSplitter implements TaskManager {
 
+  private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  private static final Random RANDOM = new Random();
+
   private static final Logger LOG = LogManager.getLogger(TableSplitter.class);
   private List<MetaSource.TableMetaModel> tables;
   private List<Task> tasks = new LinkedList<>();
+  private MmaMetaManager mmaMetaManager;
 
-  public TableSplitter(List<MetaSource.TableMetaModel> tables) {
+  public TableSplitter(List<MetaSource.TableMetaModel> tables, MmaMetaManager mmaMetaManager) {
     this.tables = tables;
+    this.mmaMetaManager = mmaMetaManager;
   }
 
   @Override
-  public List<Task> generateTasks(SortedSet<Action> actions) {
+  public List<Task> generateTasks(SortedSet<Action> actions) throws MmaException {
     for (MetaSource.TableMetaModel tableMetaModel : this.tables) {
 
       MmaConfig.AdditionalTableConfig config =
-          MmaMetaManagerFsImpl
-              .getInstance()
-              .getConfig(tableMetaModel.databaseName, tableMetaModel.tableName)
+          mmaMetaManager.getConfig(tableMetaModel.databaseName, tableMetaModel.tableName)
               .getAdditionalTableConfig();
 
       // Empty partitions, means the table is non-partition table.
@@ -51,7 +55,7 @@ public class TableSplitter implements TaskManager {
                                                     SortedSet<Action> actions) {
 
     String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
-    Task task = new Task(taskName, tableMetaModel, config);
+    Task task = new Task(taskName, tableMetaModel, config, mmaMetaManager);
     for (Action action : actions) {
       if (Action.ODPS_ADD_PARTITION.equals(action)) {
         continue;
@@ -76,7 +80,7 @@ public class TableSplitter implements TaskManager {
                tableMetaModel.databaseName,
                tableMetaModel.tableName);
       String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
-      Task task = new Task(taskName, tableMetaModel.clone(), config);
+      Task task = new Task(taskName, tableMetaModel.clone(), config, mmaMetaManager);
       task.addActionInfo(Action.ODPS_CREATE_TABLE);
       ret.add(task);
       return ret;
@@ -97,6 +101,8 @@ public class TableSplitter implements TaskManager {
 
     int startIdx = 0;
     int taskIdx = 0;
+    String taskNamePrefix = getUniqueTaskName(tableMetaModel.databaseName,
+                                               tableMetaModel.tableName);
     while (startIdx < tableMetaModel.partitions.size()) {
       MetaSource.TableMetaModel clone = tableMetaModel.clone();
 
@@ -104,9 +110,8 @@ public class TableSplitter implements TaskManager {
       int endIdx = Math.min(tableMetaModel.partitions.size(), startIdx + partitionGroupSize);
       clone.partitions = new ArrayList<>(tableMetaModel.partitions.subList(startIdx, endIdx));
 
-      String taskName =
-          tableMetaModel.databaseName + "." + tableMetaModel.tableName + "." + taskIdx;
-      Task task = new Task(taskName, clone, config);
+      String taskName = taskNamePrefix + "." + taskIdx;
+      Task task = new Task(taskName, clone, config, mmaMetaManager);
       for (Action action : actions) {
         task.addActionInfo(action);
       }
@@ -117,5 +122,15 @@ public class TableSplitter implements TaskManager {
     }
 
     return ret;
+  }
+
+  private static String getUniqueTaskName(String db, String tbl) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(db).append(".").append(tbl).append(".");
+
+    for (int i = 0; i < 4; i++) {
+      sb.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
+    }
+    return sb.toString();
   }
 }

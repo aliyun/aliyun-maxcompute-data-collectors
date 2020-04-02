@@ -1,6 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -8,26 +7,27 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class MmaClientFsImpl implements MmaClient {
+public class MmaClientDbImpl implements MmaClient {
 
-  private static final Logger LOG = LogManager.getLogger(MmaClientFsImpl.class);
+  private static final Logger LOG = LogManager.getLogger(MmaClientDbImpl.class);
 
   private static final String ERROR_INDICATOR = "ERROR: ";
   private static final String WARNING_INDICATOR = "WARNING: ";
 
   private MetaSource metaSource;
+  private MmaMetaManager mmaMetaManager;
 
-  public MmaClientFsImpl(MmaClientConfig mmaClientConfig) throws MetaException, IOException {
+  public MmaClientDbImpl(MmaClientConfig mmaClientConfig) throws MetaException, MmaException {
     MmaConfig.HiveConfig hiveConfig = mmaClientConfig.getHiveConfig();
     metaSource = new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
                                     hiveConfig.getKrbPrincipal(),
                                     hiveConfig.getKeyTab(),
                                     hiveConfig.getKrbSystemProperties());
-    MmaMetaManagerFsImpl.init(null, metaSource);
+    mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource);
   }
 
   @Override
-  public void createMigrationJobs(MmaMigrationConfig mmaMigrationConfig) {
+  public void createMigrationJobs(MmaMigrationConfig mmaMigrationConfig) throws MmaException {
     // TODO: prevent user from creating too many migration jobs
     MmaConfig.AdditionalTableConfig globalAdditionalTableConfig =
         mmaMigrationConfig.getGlobalAdditionalTableConfig();
@@ -85,7 +85,7 @@ public class MmaClientFsImpl implements MmaClient {
         String table = tableMigrationConfig.getSourceTableName();
 
         if (databaseExists(database) && tableExists(database, table)) {
-          MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+          mmaMetaManager.addMigrationJob(tableMigrationConfig);
           LOG.info("Job submitted, database: {}, table: {}",
                    tableMigrationConfig.getSourceDataBaseName(),
                    tableMigrationConfig.getSourceTableName());
@@ -128,9 +128,11 @@ public class MmaClientFsImpl implements MmaClient {
     return true;
   }
 
-  private void createDatabaseMigrationJob(String database,
-                                          String project,
-                                          MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig) {
+  private void createDatabaseMigrationJob(
+      String database,
+      String project,
+      MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig) throws MmaException {
+
     List<String> tables;
     try {
       tables = metaSource.listTables(database);
@@ -150,55 +152,54 @@ public class MmaClientFsImpl implements MmaClient {
               table,
               databaseAdditionalTableConfig);
 
-      MmaMetaManagerFsImpl.getInstance().addMigrationJob(tableMigrationConfig);
+      mmaMetaManager.addMigrationJob(tableMigrationConfig);
       LOG.info("Job submitted, database: {}, table: {}", database, table);
     }
   }
 
   @Override
-  public void removeMigrationJob(String db, String tbl) {
-    if (MmaMetaManagerFsImpl.getInstance().hasMigrationJob(db, tbl)) {
-      MmaMetaManager.MigrationStatus status = MmaMetaManagerFsImpl.getInstance().getStatus(db, tbl);
-      if (MmaMetaManager.MigrationStatus.PENDING.equals(status)) {
-        String msg = String.format("Failed to remove migration job, database: %s, table: %s, "
-                                   + "reason: status is RUNNING", db, tbl);
-        LOG.error(msg);
-        throw new IllegalArgumentException(ERROR_INDICATOR + msg);
-      }
-      MmaMetaManagerFsImpl.getInstance().removeMigrationJob(db, tbl);
-    }
-
-  }
-
-  @Override
-  public MmaMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl) {
-    MmaMetaManager.MigrationStatus status =  MmaMetaManagerFsImpl.getInstance().getStatus(db, tbl);
-    LOG.info("Get migration status, db: {}, tbl: {}, status: {}", db, tbl, status);
-
-    return status;
-  }
-
-  @Override
-  public MmaMetaManager.MigrationProgress getMigrationProgress(String db, String tbl) {
-    MmaMetaManager.MigrationProgress progress =
-        MmaMetaManagerFsImpl.getInstance().getProgress(db, tbl);
-    LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}",
-             db, tbl, progress == null ? "N/A" : progress.toJson());
-
-    return progress;
-  }
-
-  @Override
   public List<MmaConfig.TableMigrationConfig> listMigrationJobs(
-      MmaMetaManager.MigrationStatus status) {
+      MmaMetaManager.MigrationStatus status) throws MmaException {
 
-    List<MmaConfig.TableMigrationConfig> ret =
-        MmaMetaManagerFsImpl.getInstance().listMigrationJobs(status, -1);
+    List<MmaConfig.TableMigrationConfig> ret = mmaMetaManager.listMigrationJobs(status, -1);
     LOG.info("Get migration job list, status: {}, ret: {}",
              status,
              ret.stream()
                  .map(c -> c.getSourceDataBaseName() + "." + c.getSourceTableName())
                  .collect(Collectors.joining(", ")));
     return ret;
+  }
+
+  @Override
+  public void removeMigrationJob(String db, String tbl) throws MmaException {
+    if (mmaMetaManager.hasMigrationJob(db, tbl)) {
+      MmaMetaManager.MigrationStatus status = mmaMetaManager.getStatus(db, tbl);
+      if (MmaMetaManager.MigrationStatus.PENDING.equals(status)) {
+        String msg = String.format("Failed to remove migration job, database: %s, table: %s, "
+                                   + "reason: status is RUNNING", db, tbl);
+        LOG.error(msg);
+        throw new IllegalArgumentException(ERROR_INDICATOR + msg);
+      }
+      mmaMetaManager.removeMigrationJob(db, tbl);
+    }
+  }
+
+  @Override
+  public MmaMetaManager.MigrationStatus getMigrationJobStatus(String db, String tbl)
+      throws MmaException {
+    MmaMetaManager.MigrationStatus status = mmaMetaManager.getStatus(db, tbl);
+    LOG.info("Get migration status, db: {}, tbl: {}, status: {}", db, tbl, status);
+
+    return status;
+  }
+
+  @Override
+  public MmaMetaManager.MigrationProgress getMigrationProgress(String db, String tbl)
+      throws MmaException {
+    MmaMetaManager.MigrationProgress progress = mmaMetaManager.getProgress(db, tbl);
+    LOG.info("Get migration progress, db: {}, tbl: {}, progress: {}",
+             db, tbl, progress == null ? "N/A" : progress.toJson());
+
+    return progress;
   }
 }

@@ -19,14 +19,14 @@ public class TestTableSplitter {
   private TaskScheduler taskScheduler;
 
   @Before
-  public void setup() throws IOException {
+  public void setup() throws IOException, MmaException {
     taskScheduler = new TaskScheduler();
     taskScheduler.initActions(DataSource.Hive);
   }
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithNonPartitionedTable() {
-    TableSplitter tableSplitter = new TableSplitter(null);
+    TableSplitter tableSplitter = new TableSplitter(null, null);
 
     MetaSource.TableMetaModel tableMetaModel =
         createNonPartitionedTableMetaModel("non_partitioned");
@@ -41,7 +41,7 @@ public class TestTableSplitter {
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable0() {
-    TableSplitter tableSplitter = new TableSplitter(null);
+    TableSplitter tableSplitter = new TableSplitter(null, null);
 
     MmaConfig.AdditionalTableConfig additionalTableConfig =
         createAdditionalTableConfig(1);
@@ -68,7 +68,7 @@ public class TestTableSplitter {
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable1() {
-    TableSplitter tableSplitter = new TableSplitter(null);
+    TableSplitter tableSplitter = new TableSplitter(null, null);
 
     MmaConfig.AdditionalTableConfig additionalTableConfig = createAdditionalTableConfig(10);
     MetaSource.TableMetaModel tableMetaModel =
@@ -93,7 +93,7 @@ public class TestTableSplitter {
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable2() {
-    TableSplitter tableSplitter = new TableSplitter(null);
+    TableSplitter tableSplitter = new TableSplitter(null, null);
 
     MmaConfig.AdditionalTableConfig additionalTableConfig = createAdditionalTableConfig(3);
     MetaSource.TableMetaModel tableMetaModel =
@@ -116,7 +116,7 @@ public class TestTableSplitter {
 
   @Test(timeout = 5000)
   public void testGenerateTasksWithPartitionedTable3() {
-    TableSplitter tableSplitter = new TableSplitter(null);
+    TableSplitter tableSplitter = new TableSplitter(null, null);
 
     MmaConfig.AdditionalTableConfig additionalTableConfig = createAdditionalTableConfig(4);
     MetaSource.TableMetaModel tableMetaModel =

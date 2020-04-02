@@ -99,4 +99,6 @@ public interface MetaSource {
 
    List<String> listDatabases() throws Exception;
 
+   void shutdown();
+
 }

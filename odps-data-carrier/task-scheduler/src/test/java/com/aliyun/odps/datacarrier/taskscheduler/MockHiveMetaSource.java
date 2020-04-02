@@ -1,6 +1,5 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -15,6 +14,8 @@ public class MockHiveMetaSource implements MetaSource {
   public static final String DB_NAME = "test";
   public static final String TBL_NON_PARTITIONED = "test_non_partitioned";
   public static final String TBL_PARTITIONED = "test_partitioned";
+  public static final List<String> TBL_PARTITIONED_PARTITION_VALUES =
+      Collections.singletonList("hello_world");
   public static final Map<String, TableMetaModel> TABLE_NAME_2_TABLE_META_MODEL = new HashMap<>();
   static {
     TABLE_NAME_2_TABLE_META_MODEL.put(TBL_NON_PARTITIONED,
@@ -61,7 +62,7 @@ public class MockHiveMetaSource implements MetaSource {
     testPartitioned.partitionColumns.add(pc);
 
     PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
-    partitionMetaModel.partitionValues.add("hello_world");
+    partitionMetaModel.partitionValues.addAll(TBL_PARTITIONED_PARTITION_VALUES);
     testPartitioned.partitions.add(partitionMetaModel);
 
     return testPartitioned;
@@ -154,5 +155,10 @@ public class MockHiveMetaSource implements MetaSource {
     List<String> ret = new LinkedList<>();
     ret.add(DB_NAME);
     return ret;
+  }
+
+  @Override
+  public void shutdown() {
+    // Ignore
   }
 }

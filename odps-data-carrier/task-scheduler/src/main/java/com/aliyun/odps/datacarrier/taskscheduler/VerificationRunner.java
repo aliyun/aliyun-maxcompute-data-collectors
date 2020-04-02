@@ -14,7 +14,7 @@ public class VerificationRunner extends AbstractTaskRunner {
   private static final Logger LOG = LogManager.getLogger(VerificationRunner.class);
 
   @Override
-  public void submitExecutionTask(Task task, Action action) {
+  public void submitExecutionTask(Task task, Action action) throws MmaException {
     if (!task.actionInfoMap.containsKey(Action.HIVE_VERIFICATION) ||
         !task.actionInfoMap.containsKey(Action.ODPS_VERIFICATION)) {
       LOG.warn("Can not find ODPS/Hive verification tasks, skip verification task {} result.", task.getName());

@@ -120,7 +120,7 @@ public class MmaMetaManagerFsImplTest {
   @Test
   public void testListJobs() {
     List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
-        MmaMetaManagerFsImpl.getInstance().listMigrationJobs();
+        MmaMetaManagerFsImpl.getInstance().listMigrationJobs(-1);
 
     assertEquals(MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.size(),
                  tableMigrationConfigs.size());
@@ -130,18 +130,18 @@ public class MmaMetaManagerFsImplTest {
   public void testListJobsWithStatus() {
     List<MmaConfig.TableMigrationConfig> tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
-        .listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING);
+        .listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING, -1);
     assertEquals(MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.size(),
                  tableMigrationConfigs.size());
 
     tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
-        .listMigrationJobs(MmaMetaManager.MigrationStatus.SUCCEEDED);
+        .listMigrationJobs(MmaMetaManager.MigrationStatus.SUCCEEDED, -1);
     assertEquals(0, tableMigrationConfigs.size());
 
     tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
-        .listMigrationJobs(MmaMetaManager.MigrationStatus.FAILED);
+        .listMigrationJobs(MmaMetaManager.MigrationStatus.FAILED, -1);
     assertEquals(0, tableMigrationConfigs.size());
   }
 

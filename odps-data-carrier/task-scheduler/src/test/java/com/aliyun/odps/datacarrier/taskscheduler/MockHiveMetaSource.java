@@ -1,30 +1,33 @@
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Lists;
+
 
 public class MockHiveMetaSource implements MetaSource {
 
-  private static final String DB_NAME = "test";
-  private static final String[] TABLE_NAMES = new String[] {"test_non_partitioned",
-                                                            "test_partitioned"};
-  private static final Map<String, TableMetaModel> TABLE_NAME_2_TABLE_META_MODEL = new HashMap<>();
+  public static final String DB_NAME = "test";
+  public static final String TBL_NON_PARTITIONED = "test_non_partitioned";
+  public static final String TBL_PARTITIONED = "test_partitioned";
+  public static final Map<String, TableMetaModel> TABLE_NAME_2_TABLE_META_MODEL = new HashMap<>();
   static {
-    TABLE_NAME_2_TABLE_META_MODEL.put("test_non_partitioned",
+    TABLE_NAME_2_TABLE_META_MODEL.put(TBL_NON_PARTITIONED,
                                       getTestNonPartitionedTableMetaModel());
-    TABLE_NAME_2_TABLE_META_MODEL.put("test_partitioned", getTestPartitionedTableMetaModel());
+    TABLE_NAME_2_TABLE_META_MODEL.put(TBL_PARTITIONED, getTestPartitionedTableMetaModel());
   }
 
   private static TableMetaModel getTestNonPartitionedTableMetaModel() {
     TableMetaModel testNonPartitioned = new TableMetaModel();
     testNonPartitioned.databaseName = DB_NAME;
     testNonPartitioned.odpsProjectName = DB_NAME;
-    testNonPartitioned.tableName = "test_non_partitioned";
-    testNonPartitioned.odpsTableName = "test_non_partitioned";
+    testNonPartitioned.tableName = TBL_NON_PARTITIONED;
+    testNonPartitioned.odpsTableName = TBL_NON_PARTITIONED;
 
     ColumnMetaModel c = new ColumnMetaModel();
     c.columnName = "foo";
@@ -40,8 +43,8 @@ public class MockHiveMetaSource implements MetaSource {
     TableMetaModel testPartitioned = new TableMetaModel();
     testPartitioned.databaseName = DB_NAME;
     testPartitioned.odpsProjectName = DB_NAME;
-    testPartitioned.tableName = "test_partitioned";
-    testPartitioned.odpsTableName = "test_partitioned";
+    testPartitioned.tableName = TBL_PARTITIONED;
+    testPartitioned.odpsTableName = TBL_PARTITIONED;
 
     ColumnMetaModel c = new ColumnMetaModel();
     c.columnName = "foo";
@@ -89,7 +92,7 @@ public class MockHiveMetaSource implements MetaSource {
     }
 
     TableMetaModel tableMetaModel;
-    if ("test_non_partitioned".equals(tableName)) {
+    if (TBL_NON_PARTITIONED.equals(tableName)) {
       tableMetaModel = getTestNonPartitionedTableMetaModel();
     } else {
       tableMetaModel = getTestPartitionedTableMetaModel();
@@ -143,7 +146,7 @@ public class MockHiveMetaSource implements MetaSource {
 
   @Override
   public List<String> listTables(String databaseName) throws Exception {
-    return Arrays.asList(TABLE_NAMES);
+    return Lists.newArrayList(TABLE_NAME_2_TABLE_META_MODEL.keySet());
   }
 
   @Override

@@ -80,7 +80,8 @@ public class HiveRunner extends AbstractTaskRunner {
                 parseLogSetExecutionInfo(line, hiveExecutionInfo);
               }
             } catch (SQLException e) {
-              LOG.warn("Fetching hive query log failed");
+              LOG.warn("Fetching hive query log failed", e);
+              break;
             }
           }
         };

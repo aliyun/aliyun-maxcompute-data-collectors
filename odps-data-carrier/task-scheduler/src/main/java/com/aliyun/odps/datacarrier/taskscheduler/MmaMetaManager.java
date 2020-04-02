@@ -12,7 +12,7 @@ public interface MmaMetaManager {
     FAILED,
   }
 
-  public static class MigrationProgress {
+  class MigrationProgress {
     private int numPendingPartitions;
     private int numRunningPartitions;
     private int numSucceededPartitions;
@@ -73,6 +73,19 @@ public interface MmaMetaManager {
    * @param tbl table name
    */
   boolean hasMigrationJob(String db, String tbl);
+
+  /**
+   * List migration jobs
+   * @return all migration jobs
+   */
+  List<MmaConfig.TableMigrationConfig> listMigrationJobs();
+
+  /**
+   * List migration jobs in given status
+   * @param status migration status
+   * @return migration jobs in given status
+   */
+  List<MmaConfig.TableMigrationConfig> listMigrationJobs(MigrationStatus status);
 
   /**
    * Update the status of a migration job. If the new status is FAILED, but the failed times

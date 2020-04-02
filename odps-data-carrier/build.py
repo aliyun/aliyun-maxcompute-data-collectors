@@ -86,6 +86,8 @@ if __name__ == '__main__':
     # conf
     shutil.copyfile("odps_config.ini", "odps-data-carrier/conf/odps_config.ini")
     shutil.copyfile("oss_config.ini", "odps-data-carrier/conf/oss_config.ini")
+    shutil.copyfile("hive_config.ini", "odps-data-carrier/conf/hive_config.ini")
+    shutil.copyfile("table_mapping.txt", "odps-data-carrier/conf/table_mapping.txt")
 
     # resource
     shutil.copyfile("mma_server_log4j2.xml", "odps-data-carrier/resource/mma_server_log4j2.xml")

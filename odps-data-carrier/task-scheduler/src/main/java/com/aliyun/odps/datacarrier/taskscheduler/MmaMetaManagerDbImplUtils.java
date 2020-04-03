@@ -23,6 +23,9 @@ public class MmaMetaManagerDbImplUtils {
 
   private static final Logger LOG = LogManager.getLogger(MmaMetaManagerDbImplUtils.class);
 
+  /**
+   * Represents a row in table meta
+   */
   public static class MigrationJobInfo {
     private String db;
     private String tbl;
@@ -77,6 +80,10 @@ public class MmaMetaManagerDbImplUtils {
     }
   }
 
+
+  /**
+   * Represents a row in partition meta
+   */
   public static class MigrationJobPtInfo {
     private List<String> partitionValues;
     private MmaMetaManager.MigrationStatus status;
@@ -153,7 +160,7 @@ public class MmaMetaManagerDbImplUtils {
   public static void createMmaPartitionMetaSchema(Connection conn, String db) throws SQLException {
     try (Statement stmt = conn.createStatement()) {
       String ddl = getCreateMmaPartitionMetaSchemaDdl(db);
-      LOG.info("Executing create table ddl: {}", ddl);
+      LOG.info("Executing create schema ddl: {}", ddl);
       stmt.execute(ddl);
     }
   }
@@ -162,8 +169,9 @@ public class MmaMetaManagerDbImplUtils {
                                             String db,
                                             String tbl) throws SQLException {
     try (Statement stmt = conn.createStatement()) {
-
-      stmt.execute(getCreateMmaPartitionMetaDdl(db, tbl));
+      String ddl = getCreateMmaPartitionMetaDdl(db, tbl);
+      LOG.info("Executing create schema ddl: {}", ddl);
+      stmt.execute(ddl);
     }
   }
 
@@ -183,6 +191,11 @@ public class MmaMetaManagerDbImplUtils {
       preparedStatement.setString(5, jobInfo.getStatus().toString());
       preparedStatement.setInt(6, jobInfo.getAttemptTimes());
       preparedStatement.setLong(7, jobInfo.getLastSuccTimestamp());
+
+      LOG.info("Executing DML: {}, arguments: {}",
+               dml,
+               GsonUtils.getFullConfigGson().toJson(jobInfo));
+
       preparedStatement.execute();
     }
   }
@@ -191,9 +204,14 @@ public class MmaMetaManagerDbImplUtils {
    * Delete from MMA_META
    */
   public static void deleteFromMmaMeta(Connection conn, String db, String tbl) throws SQLException {
-    String dml = String.format("DELETE FROM " + Constants.MMA_TBL_META_TBL_NAME +
-                               " WHERE db='%s' and tbl='%s'", db, tbl);
+    String dml = String.format("DELETE FROM %s WHERE %s='%s' and %s='%s'",
+                               Constants.MMA_TBL_META_TBL_NAME,
+                               Constants.MMA_TBL_META_COL_DB_NAME,
+                               db,
+                               Constants.MMA_TBL_META_COL_TBL_NAME,
+                               tbl);
     try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing DML: {}", dml);
       stmt.execute(dml);
     }
   }
@@ -212,6 +230,8 @@ public class MmaMetaManagerDbImplUtils {
                                tbl);
 
     try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing SQL: {}", sql);
+
       try (ResultSet rs = stmt.executeQuery(sql)) {
         if(!rs.next()) {
           return null;
@@ -240,14 +260,16 @@ public class MmaMetaManagerDbImplUtils {
                               Constants.MMA_PT_META_COL_STATUS,
                               status.toString()));
     }
-    if (limit > 0) {
-      sb.append(" LIMIT ").append(limit);
-    }
     sb.append(String.format(" ORDER BY %s, %s DESC",
                             Constants.MMA_TBL_META_COL_DB_NAME,
                             Constants.MMA_TBL_META_COL_TBL_NAME));
+    if (limit > 0) {
+      sb.append(" LIMIT ").append(limit);
+    }
 
     try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing SQL: {}", sb.toString());
+
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
         List<MigrationJobInfo> ret = new LinkedList<>();
         while (rs.next()) {
@@ -287,6 +309,9 @@ public class MmaMetaManagerDbImplUtils {
         preparedStatement.setInt(3, jobPtInfo.getAttemptTimes());
         preparedStatement.setLong(4, jobPtInfo.getLastSuccTimestamp());
         preparedStatement.addBatch();
+        LOG.info("Executing DML: {}, arguments: {}",
+                 dml,
+                 GsonUtils.getFullConfigGson().toJson(jobPtInfo));
       }
 
       preparedStatement.executeBatch();
@@ -302,6 +327,8 @@ public class MmaMetaManagerDbImplUtils {
 
     String ddl = "DROP TABLE " + schemaName + "." + tableName;
     try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing DDL: {}", ddl);
+
       stmt.execute(ddl);
     }
   }
@@ -321,7 +348,10 @@ public class MmaMetaManagerDbImplUtils {
                                schemaName,
                                tableName, Constants.MMA_PT_META_COL_PT_VALS,
                                GsonUtils.getFullConfigGson().toJson(partitionValues));
+
     try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing SQL: {}", sql);
+
       try (ResultSet rs = stmt.executeQuery(sql)) {
         if (!rs.next()) {
           return null;
@@ -345,8 +375,6 @@ public class MmaMetaManagerDbImplUtils {
       int limit)
       throws SQLException {
 
-
-
     String schemaName = String.format(Constants.MMA_PT_META_SCHEMA_NAME_FMT, db);
     String tableName = String.format(Constants.MMA_PT_META_TBL_NAME_FMT, tbl);
 
@@ -357,21 +385,24 @@ public class MmaMetaManagerDbImplUtils {
                               Constants.MMA_PT_META_COL_STATUS,
                               status.toString()));
     }
+    sb.append(" ORDER BY ").append(Constants.MMA_PT_META_COL_PT_VALS);
     if (limit > 0) {
       sb.append(" LIMIT ").append(limit);
     }
-    sb.append(" ORDER BY ").append(Constants.MMA_PT_META_COL_PT_VALS);
 
     Type type = new TypeToken<List<String>>() {}.getType();
     try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing SQL: {}", sb.toString());
+
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
         List<MigrationJobPtInfo> ret = new LinkedList<>();
         while (rs.next()) {
           MigrationJobPtInfo jobPtInfo =
-              new MigrationJobPtInfo(GsonUtils.getFullConfigGson().fromJson(rs.getString(1), type),
-                                     MmaMetaManager.MigrationStatus.valueOf(rs.getString(2)),
-                                     rs.getInt(3),
-                                     rs.getLong(4));
+              new MigrationJobPtInfo(
+                  GsonUtils.getFullConfigGson().fromJson(rs.getString(1), type),
+                  MmaMetaManager.MigrationStatus.valueOf(rs.getString(2)),
+                  rs.getInt(3),
+                  rs.getLong(4));
           ret.add(jobPtInfo);
         }
         return ret;
@@ -394,20 +425,24 @@ public class MmaMetaManagerDbImplUtils {
     String sql = "SELECT " + Constants.MMA_PT_META_COL_PT_VALS + " FROM " +
                  schemaName + "." + tableName;
     try (Statement stmt = conn.createStatement()) {
-      ResultSet rs = stmt.executeQuery(sql);
-      Set<String> managedPartitionValuesJsonSet = new HashSet<>();
-      while(rs.next()) {
-        managedPartitionValuesJsonSet.add(rs.getString(1));
+      LOG.info("Executing SQL: {}", sql);
+
+      try (ResultSet rs = stmt.executeQuery(sql)) {
+        Set<String> managedPartitionValuesJsonSet = new HashSet<>();
+        while (rs.next()) {
+          managedPartitionValuesJsonSet.add(rs.getString(1));
+        }
+
+        Type type = new TypeToken<List<String>>() {
+        }.getType();
+
+        // Filter out existing partitions
+        return candidates.stream()
+            .map(ptv -> GsonUtils.getFullConfigGson().toJson(ptv))
+            .filter(v -> !managedPartitionValuesJsonSet.contains(v))
+            .map(json -> (List<String>) GsonUtils.getFullConfigGson().fromJson(json, type))
+            .collect(Collectors.toList());
       }
-
-      Type type = new TypeToken<List<String>>() {}.getType();
-
-      // Filter out existing partitions
-      return candidates.stream()
-          .map(ptv -> GsonUtils.getFullConfigGson().toJson(ptv))
-          .filter(v -> !managedPartitionValuesJsonSet.contains(v))
-          .map(json -> (List<String>) GsonUtils.getFullConfigGson().fromJson(json, type))
-          .collect(Collectors.toList());
     }
   }
 }

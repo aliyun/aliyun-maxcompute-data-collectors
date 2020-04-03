@@ -25,31 +25,31 @@ import org.junit.runners.MethodSorters;
 public class MmaMetaManagerDbImplTest {
   public static final Path DEFAULT_MMA_PARENT_DIR =
       Paths.get(System.getProperty("user.dir")).toAbsolutePath();
-  private static final String DEFAULT_CONN_URL =
+  public static final String DEFAULT_CONN_URL =
       "jdbc:h2:file:" + Paths.get(DEFAULT_MMA_PARENT_DIR.toString(), Constants.DB_FILE_NAME);
 
-  private static final MmaConfig.AdditionalTableConfig DEFAULT_ADDITIONAL_TABLE_CONF =
+  public static final MmaConfig.AdditionalTableConfig DEFAULT_ADDITIONAL_TABLE_CONF =
       new MmaConfig.AdditionalTableConfig(
           null,
           null,
           10,
           1);
-  private static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_PARTITIONED =
+  public static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_PARTITIONED =
       new MmaConfig.TableMigrationConfig(
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
           DEFAULT_ADDITIONAL_TABLE_CONF);
-  private static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_NON_PARTITIONED =
+  public static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_NON_PARTITIONED =
       new MmaConfig.TableMigrationConfig(
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_NON_PARTITIONED,
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_NON_PARTITIONED,
           DEFAULT_ADDITIONAL_TABLE_CONF);
-  private static Connection conn;
 
+  private static Connection conn;
   private static MetaSource metaSource = new MockHiveMetaSource();
   private static MmaMetaManager mmaMetaManager;
 
@@ -60,7 +60,8 @@ public class MmaMetaManagerDbImplTest {
   }
 
   @AfterClass
-  public static void afterClass() throws MmaException {
+  public static void afterClass() throws MmaException, SQLException {
+    conn.close();
     mmaMetaManager.shutdown();
     File[] dbFiles = DEFAULT_MMA_PARENT_DIR
         .toFile()
@@ -161,8 +162,52 @@ public class MmaMetaManagerDbImplTest {
   }
 
   @Test
-  public void testAddExistingTerminatedMigrationJob() throws MmaException {
+  public void testAddExistingTerminatedMigrationJob() throws MmaException, SQLException {
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
 
+    // Update status to SUCCEEDED
+    mmaMetaManager.updateStatus(MockHiveMetaSource.DB_NAME,
+                                MockHiveMetaSource.TBL_NON_PARTITIONED,
+                                MmaMetaManager.MigrationStatus.SUCCEEDED);
+    mmaMetaManager.updateStatus(MockHiveMetaSource.DB_NAME,
+                                MockHiveMetaSource.TBL_PARTITIONED,
+                                MmaMetaManager.MigrationStatus.SUCCEEDED);
+
+    // Make sure the status is updated
+    try (Statement stmt = conn.createStatement()) {
+      String sql = "SELECT " + Constants.MMA_TBL_META_COL_STATUS + " FROM " +
+                   Constants.MMA_TBL_META_TBL_NAME;
+      try (ResultSet rs = stmt.executeQuery(sql)) {
+        while (rs.next()) {
+          Assert.assertEquals(MmaMetaManager.MigrationStatus.SUCCEEDED.toString(),
+                              rs.getString(1));
+        }
+      }
+    }
+
+    // Add migration job again
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
+
+    // Status should be PENDING
+    // Attempt times should be
+    // Last succ timestamp should be -1
+    try (Statement stmt = conn.createStatement()) {
+      String sql = String.format("SELECT %s, %s, %s FROM %s",
+                                 Constants.MMA_TBL_META_COL_STATUS,
+                                 Constants.MMA_TBL_META_COL_ATTEMPT_TIMES,
+                                 Constants.MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP,
+                                 Constants.MMA_TBL_META_TBL_NAME);
+      try (ResultSet rs = stmt.executeQuery(sql)) {
+        while (rs.next()) {
+          Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
+                              rs.getString(1));
+          Assert.assertEquals(0, rs.getInt(2));
+          Assert.assertEquals(-1L, rs.getLong(3));
+        }
+      }
+    }
   }
 
   @Test
@@ -189,27 +234,46 @@ public class MmaMetaManagerDbImplTest {
   }
 
   @Test
-  public void testRemoveExistingTerminatedMigrationJob() throws MmaException {
-//    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
-//    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
-//
-//    mmaMetaManager.updateStatus(TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceDataBaseName(),
-//                                TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceTableName(),
-//                                MmaMetaManager.MigrationStatus.SUCCEEDED);
-//
-//    mmaMetaManager.removeMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceDataBaseName(),
-//                                      TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceTableName());
-//    mmaMetaManager.remo
+  public void testRemoveExistingTerminatedMigrationJob() throws MmaException, SQLException {
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
+
+    mmaMetaManager.updateStatus(TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceDataBaseName(),
+                                TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceTableName(),
+                                MmaMetaManager.MigrationStatus.SUCCEEDED);
+
+    mmaMetaManager.removeMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceDataBaseName(),
+                                      TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceTableName());
+
+    try (Statement stmt = conn.createStatement()) {
+      String sql = "SELECT * FROM " + Constants.MMA_TBL_META_TBL_NAME;
+      try (ResultSet rs = stmt.executeQuery(sql)) {
+        Assert.assertFalse(rs.next());
+      }
+    }
   }
 
   @Test
   public void testRemoveExistingRunningMigrationJob() throws MmaException {
-
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
+    try {
+      mmaMetaManager.removeMigrationJob(
+          TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceDataBaseName(),
+          TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceTableName());
+      Assert.fail();
+    } catch (MmaException e) {
+      Assert.assertTrue(ExceptionUtils.getStackTrace(e).contains("Running migration job exists"));
+    }
   }
 
   @Test
   public void testRemoveNonExistingMigrationJob() {
-
+    try {
+      mmaMetaManager.removeMigrationJob(
+          TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceDataBaseName(),
+          TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getSourceTableName());
+    } catch (MmaException e) {
+      Assert.fail("Unexpected exception: " + ExceptionUtils.getStackTrace(e));
+    }
   }
 
   @Test
@@ -239,7 +303,9 @@ public class MmaMetaManagerDbImplTest {
                                 MockHiveMetaSource.TBL_NON_PARTITIONED,
                                 MmaMetaManager.MigrationStatus.SUCCEEDED);
 
-    String sql = "SELECT status FROM " + Constants.MMA_TBL_META_TBL_NAME;
+    String sql = String.format("SELECT %s FROM %s",
+                               Constants.MMA_TBL_META_COL_STATUS,
+                               Constants.MMA_TBL_META_TBL_NAME);
     try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
       Assert.assertTrue(rs.next());
       Assert.assertEquals(MmaMetaManager.MigrationStatus.SUCCEEDED.toString(),
@@ -255,7 +321,10 @@ public class MmaMetaManagerDbImplTest {
                                 MockHiveMetaSource.TBL_NON_PARTITIONED,
                                 MmaMetaManager.MigrationStatus.FAILED);
 
-    String sql = "SELECT status, attempt_times FROM " + Constants.MMA_TBL_META_TBL_NAME;
+    String sql = String.format("SELECT %s, %s FROM %s",
+                               Constants.MMA_TBL_META_COL_STATUS,
+                               Constants.MMA_TBL_META_COL_ATTEMPT_TIMES,
+                               Constants.MMA_TBL_META_TBL_NAME);
     try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
       Assert.assertTrue(rs.next());
       Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
@@ -300,7 +369,10 @@ public class MmaMetaManagerDbImplTest {
                                       MockHiveMetaSource.DB_NAME);
     String tableName = String.format(Constants.MMA_PT_META_TBL_NAME_FMT,
                                      MockHiveMetaSource.TBL_PARTITIONED);
-    String sql = "SELECT status FROM " + schemaName + "." + tableName;
+    String sql = String.format("SELECT %s FROM %s.%s",
+                               Constants.MMA_PT_META_COL_STATUS,
+                               schemaName,
+                               tableName);
     try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
       Assert.assertTrue(rs.next());
       Assert.assertEquals(MmaMetaManager.MigrationStatus.SUCCEEDED.toString(),
@@ -311,7 +383,7 @@ public class MmaMetaManagerDbImplTest {
   @Test
   public void testGetProgressExistingMigrationJob() throws MmaException {
     mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
-//    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
 
     MmaMetaManager.MigrationProgress progress =
         mmaMetaManager.getProgress(MockHiveMetaSource.DB_NAME, MockHiveMetaSource.TBL_PARTITIONED);
@@ -320,15 +392,14 @@ public class MmaMetaManagerDbImplTest {
     Assert.assertEquals(0, progress.getNumSucceededPartitions());
     Assert.assertEquals(0, progress.getNumFailedPartitions());
 
-//    Assert.assertNull(mmaMetaManager.getProgress(MockHiveMetaSource.DB_NAME,
-//                                                 MockHiveMetaSource.TBL_NON_PARTITIONED));
+    Assert.assertNull(mmaMetaManager.getProgress(MockHiveMetaSource.DB_NAME,
+                                                 MockHiveMetaSource.TBL_NON_PARTITIONED));
   }
 
   @Test
   public void testGetProgressNonExistingMigrationJob() throws MmaException {
     Assert.assertNull(mmaMetaManager.getProgress(MockHiveMetaSource.DB_NAME,
                                MockHiveMetaSource.TBL_NON_PARTITIONED));
-
   }
 
   @Test

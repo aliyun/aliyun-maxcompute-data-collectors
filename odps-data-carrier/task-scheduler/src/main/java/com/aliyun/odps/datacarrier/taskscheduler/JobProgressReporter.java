@@ -4,7 +4,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class JobProgressReporter {
+
+  private static final Logger LOG = LogManager.getLogger(JobProgressReporter.class);
 
   private static final int MMA_CLIENT_PROGRESS_BAR_LENGTH = 20;
   private static final String[] PROGRESS_INDICATOR = new String[] {".  ", ".. ", "..."};
@@ -19,31 +24,31 @@ public class JobProgressReporter {
     }
   }
 
-  public void report(String table, MmaMetaManager.MigrationProgress migrationProgress) {
+  public void report(String jobName, MmaMetaManager.MigrationProgress migrationProgress) {
     resetCursor();
 
-    String line = String.join("", getProgressStr(table, migrationProgress));
-    InPlaceUpdates.reprintMultiLine(System.err, line);
-    numPrintedLines++;
+    String line = String.join("", getProgressStr(jobName, migrationProgress));
+    numPrintedLines = InPlaceUpdates.reprintMultiLine(System.err, line);
   }
 
-  public void report(Map<String, MmaMetaManager.MigrationProgress> tableToMigrationProgress) {
+  public void report(Map<String, MmaMetaManager.MigrationProgress> jobNameToMigrationProgress) {
     resetCursor();
 
     List<String> lines = new LinkedList<>();
     for (Map.Entry<String, MmaMetaManager.MigrationProgress> entry :
-        tableToMigrationProgress.entrySet()) {
+        jobNameToMigrationProgress.entrySet()) {
 
       lines.add(getProgressStr(entry.getKey(), entry.getValue()));
-      numPrintedLines++;
     }
 
     lines.sort(String::compareToIgnoreCase);
 
-    InPlaceUpdates.reprintMultiLine(System.err, String.join("", lines));
+    numPrintedLines = InPlaceUpdates.reprintMultiLine(System.err, String.join("", lines));
   }
 
   private void resetCursor() {
+    LOG.info("Number of printed lines: {}", numPrintedLines);
+
     progressIndicatorIdx += 1;
 
     if (numPrintedLines > 0) {
@@ -53,7 +58,7 @@ public class JobProgressReporter {
     }
   }
 
-  private String getProgressStr(String table, MmaMetaManager.MigrationProgress progress) {
+  private String getProgressStr(String jobName, MmaMetaManager.MigrationProgress progress) {
     String curProgressIndicator =
         PROGRESS_INDICATOR[progressIndicatorIdx % PROGRESS_INDICATOR.length];
 
@@ -83,7 +88,7 @@ public class JobProgressReporter {
 
 
     return String.format(PROGRESS_STR_FORMAT,
-                         table,
+                         jobName,
                          curProgressIndicator,
                          progressBarBuilder.toString(),
                          succeededPercent * 100);

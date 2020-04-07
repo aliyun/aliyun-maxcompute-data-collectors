@@ -58,7 +58,7 @@ public class TestMmaConfig {
 
   @Test (timeout = 5000)
   public void testGenerateMmaClientConfig() throws IOException {
-    MmaConfigUtils.generateMmaClientConfig(hiveConfigPath);
+    MmaConfigUtils.generateMmaClientConfig(hiveConfigPath, "");
     MmaClientConfig mmaClientConfig = MmaClientConfig.fromFile(mmaClientConfigPath);
 
     // Datasource
@@ -74,7 +74,7 @@ public class TestMmaConfig {
 
   @Test (timeout = 5000)
   public void testGenerateMmaServerConfig() throws IOException {
-    MmaConfigUtils.generateMmaServerConfig(hiveConfigPath, odpsConfigPath);
+    MmaConfigUtils.generateMmaServerConfig(hiveConfigPath, odpsConfigPath, "");
     MmaServerConfig mmaServerConfig = MmaServerConfig.fromFile(mmaServerConfigPath);
 
     // Datasource
@@ -92,7 +92,7 @@ public class TestMmaConfig {
 
   @Test (timeout = 5000)
   public void testGenerateMmaMigrationConfig() throws IOException {
-    MmaConfigUtils.generateMmaMigrationConfig(tableMappingPath);
+    MmaConfigUtils.generateMmaMigrationConfig(tableMappingPath, "");
     MmaMigrationConfig mmaMigrationConfig = MmaMigrationConfig.fromFile(mmaMigrationConfigPath);
 
     assertNotNull(mmaMigrationConfig.getTableMigrationConfigs());

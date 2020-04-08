@@ -20,11 +20,15 @@ public class JobProgressReporter {
 
   public JobProgressReporter() {
     if (!InPlaceUpdates.isUnixTerminal()) {
-      throw new IllegalStateException("Cannot report progress, please use a UNIX terminal");
+      System.err.println("Cannot report progress, please use a UNIX terminal");
     }
   }
 
   public void report(String jobName, MmaMetaManager.MigrationProgress migrationProgress) {
+    if (!InPlaceUpdates.isUnixTerminal()) {
+      return;
+    }
+
     resetCursor();
 
     String line = String.join("", getProgressStr(jobName, migrationProgress));
@@ -32,6 +36,10 @@ public class JobProgressReporter {
   }
 
   public void report(Map<String, MmaMetaManager.MigrationProgress> jobNameToMigrationProgress) {
+    if (!InPlaceUpdates.isUnixTerminal()) {
+      return;
+    }
+
     resetCursor();
 
     List<String> lines = new LinkedList<>();

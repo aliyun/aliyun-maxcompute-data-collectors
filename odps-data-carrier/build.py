@@ -1,7 +1,20 @@
+# Copyright 1999-2019 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 import subprocess
-import re
 import shutil
 import sys
 import traceback
@@ -25,37 +38,25 @@ def execute(cmd: str, verbose=False) -> int:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='odps-data-carrier builder')
 
-    optional_tools = ["network-measurement-tool", "sql-checker"]
-
     parser.add_argument(
-        "--hive_version",
-        required=True,
-        help="hive-version")
-    parser.add_argument(
-        "--excluded_tools",
+        "--test",
         required=False,
-        help=("tools to be excluded, available values are: " + " ".join(optional_tools)),
-        nargs='*')
+        const=True,
+        default=False,
+        action='store_const',
+        help="include files for test")
     args = parser.parse_args()
+
+    is_test_package = args.test
 
     odps_data_carrier_dir = os.path.dirname(os.path.realpath(__file__))
     os.chdir(odps_data_carrier_dir)
 
+    # remove existing package
     if os.path.isdir("odps-data-carrier"):
         shutil.rmtree("odps-data-carrier")
     if os.path.exists("odps-data-carrier.tar.gz"):
         os.unlink("odps-data-carrier.tar.gz")
-
-    # replace hive version
-    # TODO: not this easy
-    with open("pom.xml", "r+") as fd:
-        content = fd.read()
-        content = re.sub("<hive.version>.*</hive.version>",
-                         "<hive.version>%s</hive.version>" % args.hive_version,
-                         content)
-        fd.seek(0)
-        fd.write(content)
-        fd.truncate()
 
     # build and make dirs
     ret = execute("mvn clean package -DskipTests")
@@ -68,7 +69,7 @@ if __name__ == '__main__':
     os.makedirs("odps-data-carrier/bin")
     os.makedirs("odps-data-carrier/lib")
     os.makedirs("odps-data-carrier/conf")
-    os.makedirs("odps-data-carrier/resource")
+    os.makedirs("odps-data-carrier/res")
 
     # task-scheduler
     jar_name = "task-scheduler-1.0-SNAPSHOT.jar"
@@ -82,6 +83,9 @@ if __name__ == '__main__':
     # lib
     task_scheduler_jar_name = "task-scheduler-1.0-SNAPSHOT.jar"
     shutil.copyfile("task-scheduler/target/" + jar_name, "odps-data-carrier/lib/" + jar_name)
+    udtf_jar_name = "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
+    shutil.copyfile("data-transfer-hive-udtf/target/" + udtf_jar_name,
+                    "odps-data-carrier/lib/" + udtf_jar_name)
 
     # conf
     shutil.copyfile("odps_config.ini", "odps-data-carrier/conf/odps_config.ini")
@@ -89,14 +93,15 @@ if __name__ == '__main__':
     shutil.copyfile("hive_config.ini", "odps-data-carrier/conf/hive_config.ini")
     shutil.copyfile("table_mapping.txt", "odps-data-carrier/conf/table_mapping.txt")
 
-    # resource
-    shutil.copyfile("mma_server_log4j2.xml", "odps-data-carrier/resource/mma_server_log4j2.xml")
-    shutil.copyfile("mma_client_log4j2.xml", "odps-data-carrier/resource/mma_client_log4j2.xml")
+    # res
+    shutil.copyfile("mma_server_log4j2.xml", "odps-data-carrier/res/mma_server_log4j2.xml")
+    shutil.copyfile("mma_client_log4j2.xml", "odps-data-carrier/res/mma_client_log4j2.xml")
+    if is_test_package:
+        shutil.copytree("resources/console", "odps-data-carrier/res/console")
 
-    # data-transfer-hive-udtf
-    udtf_jar_name = "data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar"
-    shutil.copyfile("data-transfer-hive-udtf/target/" + udtf_jar_name,
-                    "odps-data-carrier/lib/" + udtf_jar_name)
+    # test
+    if is_test_package:
+        shutil.copytree("test", "odps-data-carrier/test")
 
     execute("tar -zcpvf odps-data-carrier.tar.gz odps-data-carrier")
     shutil.rmtree("odps-data-carrier")

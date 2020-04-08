@@ -2,4 +2,5 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export MMA_HOME="$DIR/../"
 
+# TODO: ensure singleton
 java -Dlog4j.configurationFile="$MMA_HOME/res/mma_server_log4j2.xml" -cp "$MMA_HOME/lib/*" com.aliyun.odps.datacarrier.taskscheduler.TaskScheduler "$@"

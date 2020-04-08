@@ -105,7 +105,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
     HikariConfig hikariConfig = new HikariConfig();
     hikariConfig.setJdbcUrl(connectionUrl);
     hikariConfig.setUsername("mma");
-    hikariConfig.setPassword("");
+    hikariConfig.setPassword("mma");
     hikariConfig.setAutoCommit(false);
     hikariConfig.setMaximumPoolSize(10);
     hikariConfig.setMinimumIdle(1);

@@ -186,28 +186,37 @@ public class MmaConfigUtils {
     return tableMigrationConfigs;
   }
 
-  public static void generateMmaClientConfig(Path hiveConfigPath) throws IOException {
+  private static void help(Options options) {
+    HelpFormatter formatter = new HelpFormatter();
+    String cmdLineSyntax = "generate-config";
+    formatter.printHelp(cmdLineSyntax, options);
+  }
+
+  public static void generateMmaClientConfig(Path hiveConfigPath,
+                                             String prefix) throws IOException {
     String json = new MmaClientConfig(DataSource.Hive,
                                       null,
                                       parseHiveConfig(hiveConfigPath),
                                       null).toJson();
-    DirUtils.writeFile(Paths.get("mma_client_config.json"), json);
+    DirUtils.writeFile(Paths.get(prefix + "mma_client_config.json"), json);
   }
 
   public static void generateMmaServerConfig(Path hiveConfigPath,
-                                             Path odpsConfigPath) throws IOException {
+                                             Path odpsConfigPath,
+                                             String prefix) throws IOException {
     String json = new MmaServerConfig(DataSource.Hive,
                                    null,
                                    parseHiveConfig(hiveConfigPath),
                                    parseOdpsConfig(odpsConfigPath)).toJson();
-    DirUtils.writeFile(Paths.get("mma_server_config.json"), json);
+    DirUtils.writeFile(Paths.get(prefix + "mma_server_config.json"), json);
   }
 
-  public static void generateMmaMigrationConfig(Path tableMappingPath) throws IOException {
+  public static void generateMmaMigrationConfig(Path tableMappingPath,
+                                                String prefix) throws IOException {
     String json =  new MmaMigrationConfig("Jerry",
                                           parseTableMapping(tableMappingPath),
                                           DEFAULT_ADDITIONAL_TABLE_CONFIG).toJson();
-    DirUtils.writeFile(Paths.get("mma_migration_config.json"), json);
+    DirUtils.writeFile(Paths.get(prefix + "mma_migration_config.json"), json);
   }
 
   public static void generateSampleConfigs() throws IOException {
@@ -242,11 +251,11 @@ public class MmaConfigUtils {
         .builder("h")
         .longOpt(HELP)
         .argName(HELP)
-        .desc("Print help information")
+        .desc("print help information")
         .build();
 
     Option sampleOption = Option
-        .builder("sample")
+        .builder()
         .longOpt("sample")
         .hasArg(false)
         .desc("generate sample server, client and migration configs")
@@ -275,27 +284,35 @@ public class MmaConfigUtils {
         .build();
 
     Option hiveConfigOption = Option
-        .builder("hive_config")
+        .builder()
         .longOpt("hive_config")
         .hasArg()
-        .argName("Path to hive_config.ini")
-        .desc("Path to hive_config.ini")
+        .argName("hive_config.ini path")
+        .desc("hive_config.ini path")
         .build();
 
     Option odpsConfigOption = Option
-        .builder("odps_config")
+        .builder()
         .longOpt("odps_config")
         .hasArg()
-        .argName("Path to odps_config.ini")
-        .desc("Path to odps_config.ini")
+        .argName("odps_config.ini path")
+        .desc("odps_config.ini path")
         .build();
 
     Option tableMappingOption = Option
-        .builder("table_mapping")
+        .builder()
         .longOpt("table_mapping")
         .hasArg()
-        .argName("Path to table_mapping file")
-        .desc("Path to table_mapping file")
+        .argName("table_mapping.txt path")
+        .desc("table_mapping.txt path")
+        .build();
+
+    Option prefixOption = Option
+        .builder("p")
+        .longOpt("prefix")
+        .hasArg()
+        .argName("prefix")
+        .desc("prefix for generated files")
         .build();
 
     Options options = new Options()
@@ -306,13 +323,14 @@ public class MmaConfigUtils {
         .addOption(migrationOption)
         .addOption(hiveConfigOption)
         .addOption(odpsConfigOption)
-        .addOption(tableMappingOption);
+        .addOption(tableMappingOption)
+        .addOption(prefixOption);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
     if (cmd.hasOption(HELP)) {
-      logHelp(options);
+      help(options);
       System.exit(0);
     }
 
@@ -321,12 +339,17 @@ public class MmaConfigUtils {
       System.exit(0);
     }
 
+    String prefix = "";
+    if (cmd.hasOption("prefix")) {
+      prefix = cmd.getOptionValue("prefix").trim();
+    }
+
     if (cmd.hasOption("to_client_config")) {
       if (!cmd.hasOption("hive_config")) {
         throw new IllegalArgumentException("Requires '--hive_config'");
       }
 
-      generateMmaClientConfig(Paths.get(cmd.getOptionValue("hive_config")));
+      generateMmaClientConfig(Paths.get(cmd.getOptionValue("hive_config")), prefix);
     }
 
     if (cmd.hasOption("to_server_config")) {
@@ -335,7 +358,8 @@ public class MmaConfigUtils {
       }
 
       generateMmaServerConfig(Paths.get(cmd.getOptionValue("hive_config")),
-                              Paths.get(cmd.getOptionValue("odps_config")));
+                              Paths.get(cmd.getOptionValue("odps_config")),
+                              prefix);
     }
 
     if (cmd.hasOption("to_migration_config")) {
@@ -343,13 +367,7 @@ public class MmaConfigUtils {
         throw new IllegalArgumentException("Requires '--table_mapping'");
       }
 
-      generateMmaMigrationConfig(Paths.get(cmd.getOptionValue("table_mapping")));
+      generateMmaMigrationConfig(Paths.get(cmd.getOptionValue("table_mapping")), prefix);
     }
-  }
-
-  private static void logHelp(Options options) {
-    HelpFormatter formatter = new HelpFormatter();
-    String cmdLineSyntax = "generate-config --table-mapping <path to table mapping file> --odps-config <path to odps config>";
-    formatter.printHelp(cmdLineSyntax, options);
   }
 }

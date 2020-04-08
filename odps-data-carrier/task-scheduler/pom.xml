@@ -64,6 +64,18 @@
             <groupId>org.fusesource.jansi</groupId>
             <artifactId>jansi</artifactId>
         </dependency>
+        <!-- for MMA meta manager db impl -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>1.4.200</version>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>3.4.2</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>

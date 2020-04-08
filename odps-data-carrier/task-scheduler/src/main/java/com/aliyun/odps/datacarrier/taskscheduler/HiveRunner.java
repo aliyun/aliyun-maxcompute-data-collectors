@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.sql.Connection;
@@ -118,14 +137,24 @@ public class HiveRunner extends AbstractTaskRunner {
         LOG.error("Run HIVE Sql failed, {}, \nexception: {}", sql, ExceptionUtils.getStackTrace(e));
         if (task != null) {
           LOG.info("Hive SQL FAILED {}, {}", action, task.toString());
-          task.updateActionProgress(action, Progress.FAILED);
+          try {
+            // TODO: should retry
+            task.updateActionProgress(action, Progress.FAILED);
+          } catch (MmaException ex) {
+            LOG.error(ex);
+          }
         }
         return;
       }
 
       if (task != null) {
-        LOG.info("Hive SQL SUCCEEDED {}, {}, {}", action, task.toString());
-        task.updateActionProgress(action, Progress.SUCCEEDED);
+        LOG.info("Hive SQL SUCCEEDED {}, {}", action, task.toString());
+        try {
+          // TODO: should retry
+          task.updateActionProgress(action, Progress.SUCCEEDED);
+        } catch (MmaException e) {
+          LOG.error(e);
+        }
       }
     }
   }
@@ -154,7 +183,7 @@ public class HiveRunner extends AbstractTaskRunner {
   }
 
   @Override
-  public void submitExecutionTask(Task task, Action action) {
+  public void submitExecutionTask(Task task, Action action) throws MmaException {
     String sqlStatement = getSqlStatements(task, action);
     if (StringUtils.isNullOrEmpty(sqlStatement)) {
       task.updateActionProgress(action, Progress.SUCCEEDED);

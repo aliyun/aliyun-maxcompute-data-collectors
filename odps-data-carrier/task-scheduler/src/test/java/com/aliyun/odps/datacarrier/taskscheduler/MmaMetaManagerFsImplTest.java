@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 import static org.junit.Assert.assertEquals;
@@ -120,7 +139,7 @@ public class MmaMetaManagerFsImplTest {
   @Test
   public void testListJobs() {
     List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
-        MmaMetaManagerFsImpl.getInstance().listMigrationJobs();
+        MmaMetaManagerFsImpl.getInstance().listMigrationJobs(-1);
 
     assertEquals(MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.size(),
                  tableMigrationConfigs.size());
@@ -130,18 +149,18 @@ public class MmaMetaManagerFsImplTest {
   public void testListJobsWithStatus() {
     List<MmaConfig.TableMigrationConfig> tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
-        .listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING);
+        .listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING, -1);
     assertEquals(MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.size(),
                  tableMigrationConfigs.size());
 
     tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
-        .listMigrationJobs(MmaMetaManager.MigrationStatus.SUCCEEDED);
+        .listMigrationJobs(MmaMetaManager.MigrationStatus.SUCCEEDED, -1);
     assertEquals(0, tableMigrationConfigs.size());
 
     tableMigrationConfigs = MmaMetaManagerFsImpl
         .getInstance()
-        .listMigrationJobs(MmaMetaManager.MigrationStatus.FAILED);
+        .listMigrationJobs(MmaMetaManager.MigrationStatus.FAILED, -1);
     assertEquals(0, tableMigrationConfigs.size());
   }
 

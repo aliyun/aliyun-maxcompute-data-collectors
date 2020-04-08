@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package com.aliyun.odps.datacarrier.taskscheduler;
 
 
@@ -51,6 +70,7 @@ public class TaskScheduler {
   protected final AtomicInteger heartbeatIntervalMs;
   protected List<Task> tasks;
   private MmaServerConfig mmaServerConfig;
+  private MmaMetaManager mmaMetaManager;
 
   // This map indicates if a table succeeded in current round
   // database -> table -> status
@@ -82,7 +102,7 @@ public class TaskScheduler {
     this.tasks = new LinkedList<>();
   }
 
-  private void run(MmaServerConfig mmaServerConfig) throws TException, IOException {
+  private void run(MmaServerConfig mmaServerConfig) throws TException, MmaException {
 
     // TODO: check if datasource and metasource are valid
     this.mmaServerConfig = mmaServerConfig;
@@ -92,7 +112,7 @@ public class TaskScheduler {
                                                hiveConfig.getKrbPrincipal(),
                                                hiveConfig.getKeyTab(),
                                                hiveConfig.getKrbSystemProperties());
-    MmaMetaManagerFsImpl.init(null, metaSource);
+    mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource);
 
     initActions(mmaServerConfig.getDataSource());
     initTaskRunner();
@@ -102,9 +122,8 @@ public class TaskScheduler {
     while (keepRunning) {
       // Get tables to migrate
       LOG.info("Start to migrate data for the [{}] round", round);
-      List<MetaSource.TableMetaModel>
-          pendingTables =
-          MmaMetaManagerFsImpl.getInstance().getPendingTables();
+      // TODO: handle exceptions
+      List<MetaSource.TableMetaModel> pendingTables = mmaMetaManager.getPendingTables();
       LOG.info("Tables to migrate");
       for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
         LOG.info("Database: {}, table: {}",
@@ -115,7 +134,7 @@ public class TaskScheduler {
       // Init tableStatus
       initDatabaseTableStatus(pendingTables);
 
-      TableSplitter tableSplitter = new TableSplitter(pendingTables);
+      TableSplitter tableSplitter = new TableSplitter(pendingTables, mmaMetaManager);
       this.tasks.clear();
       this.tasks.addAll(tableSplitter.generateTasks(actions));
 
@@ -143,13 +162,13 @@ public class TaskScheduler {
       for (Map.Entry<String, Map<String, Boolean>> dbEntry: databaseTableStatus.entrySet()) {
         for (Map.Entry<String, Boolean> tableEntry : dbEntry.getValue().entrySet()) {
           if (tableEntry.getValue()) {
-            MmaMetaManagerFsImpl
-                .getInstance()
-                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MmaMetaManager.MigrationStatus.SUCCEEDED);
+            mmaMetaManager.updateStatus(dbEntry.getKey(),
+                                        tableEntry.getKey(),
+                                        MmaMetaManager.MigrationStatus.SUCCEEDED);
           } else {
-            MmaMetaManagerFsImpl
-                .getInstance()
-                .updateStatus(dbEntry.getKey(), tableEntry.getKey(), MmaMetaManager.MigrationStatus.FAILED);
+            mmaMetaManager.updateStatus(dbEntry.getKey(),
+                                        tableEntry.getKey(),
+                                        MmaMetaManager.MigrationStatus.FAILED);
           }
         }
       }
@@ -337,11 +356,16 @@ public class TaskScheduler {
         continue;
       }
 
-      task.updateActionProgress(action, Progress.RUNNING);
-      LOG.info("Task {} - Action {} submitted to task runner.",
-          task.getName(), action.name());
-      getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
-          .submitExecutionTask(task, action);
+      try {
+        task.updateActionProgress(action, Progress.RUNNING);
+        LOG.info("Task {} - Action {} submitted to task runner.",
+                 task.getName(),
+                 action.name());
+
+        getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action);
+      } catch (MmaException e) {
+        LOG.error("Submit task failed", e);
+      }
       actionScheduleInfo.concurrency++;
     }
   }

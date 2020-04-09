@@ -37,11 +37,7 @@ public class MmaClientFsImpl implements MmaClient {
   private MetaSource metaSource;
 
   public MmaClientFsImpl(MmaClientConfig mmaClientConfig) throws MetaException, IOException {
-    MmaConfig.HiveConfig hiveConfig = mmaClientConfig.getHiveConfig();
-    metaSource = new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
-                                    hiveConfig.getKrbPrincipal(),
-                                    hiveConfig.getKeyTab(),
-                                    hiveConfig.getKrbSystemProperties());
+    metaSource = CommonUtils.getMetaSource(mmaClientConfig);
     MmaMetaManagerFsImpl.init(null, metaSource);
   }
 

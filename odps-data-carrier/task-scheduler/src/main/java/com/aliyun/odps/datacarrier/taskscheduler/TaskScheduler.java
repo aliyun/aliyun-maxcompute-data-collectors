@@ -106,14 +106,7 @@ public class TaskScheduler {
 
     // TODO: check if datasource and metasource are valid
     this.mmaServerConfig = mmaServerConfig;
-
-    MmaConfig.HiveConfig hiveConfig = mmaServerConfig.getHiveConfig();
-    MetaSource metaSource = new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
-                                               hiveConfig.getKrbPrincipal(),
-                                               hiveConfig.getKeyTab(),
-                                               hiveConfig.getKrbSystemProperties());
-    mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource);
-
+    mmaMetaManager = new MmaMetaManagerDbImpl(null, CommonUtils.getMetaSource(mmaServerConfig));
     initActions(mmaServerConfig.getDataSource());
     initTaskRunner();
     updateConcurrencyThreshold();
@@ -180,16 +173,22 @@ public class TaskScheduler {
 
   @VisibleForTesting
   public void initActions(DataSource dataSource) {
-    if (DataSource.Hive.equals(dataSource)) {
-      actions.add(Action.ODPS_CREATE_TABLE);
-      actions.add(Action.ODPS_ADD_PARTITION);
-      actions.add(Action.HIVE_LOAD_DATA);
-      actions.add(Action.ODPS_VERIFICATION);
-      actions.add(Action.HIVE_VERIFICATION);
-      actions.add(Action.VERIFICATION);
-    } else {
-      throw new IllegalArgumentException("Unsupported datasource: " + dataSource);
+    actions.add(Action.ODPS_CREATE_TABLE);
+    actions.add(Action.ODPS_ADD_PARTITION);
+    switch (dataSource) {
+      case Hive:
+        actions.add(Action.HIVE_LOAD_DATA);
+        actions.add(Action.HIVE_SOURCE_VERIFICATION);
+        break;
+      case ODPS:
+        actions.add(Action.ODPS_LOAD_DATA);
+        actions.add(Action.ODPS_SOURCE_VERIFICATION);
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported datasource: " + dataSource);
     }
+    actions.add(Action.ODPS_DESTINATION_VERIFICATION);
+    actions.add(Action.VERIFICATION);
 
     LOG.info("Actions initialized");
   }
@@ -241,8 +240,9 @@ public class TaskScheduler {
                               new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.HIVE_LOAD_DATA,
                               new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.HIVE_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.ODPS_SOURCE_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.ODPS_DESTINATION_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(Action.HIVE_SOURCE_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
     actionScheduleInfoMap.put(Action.VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
     for (Map.Entry<Action, ActionScheduleInfo> entry : actionScheduleInfoMap.entrySet()) {
       LOG.info("Set concurrency limit for Action: {}, limit: {}",

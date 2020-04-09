@@ -38,11 +38,7 @@ public class MmaClientDbImpl implements MmaClient {
   private MmaMetaManager mmaMetaManager;
 
   public MmaClientDbImpl(MmaClientConfig mmaClientConfig) throws MetaException, MmaException {
-    MmaConfig.HiveConfig hiveConfig = mmaClientConfig.getHiveConfig();
-    metaSource = new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
-                                    hiveConfig.getKrbPrincipal(),
-                                    hiveConfig.getKeyTab(),
-                                    hiveConfig.getKrbSystemProperties());
+    metaSource = CommonUtils.getMetaSource(mmaClientConfig);
     mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource);
   }
 

@@ -114,6 +114,11 @@ public class OdpsMetaSource implements MetaSource {
     return null;
   }
 
+  @Override
+  public void shutdown() {
+    odps = null;
+  }
+
   private TableMetaModel getTableMetaInternal(String databaseName,
                                               String tableName,
                                               boolean withPartition) {

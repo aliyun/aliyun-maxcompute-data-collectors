@@ -77,7 +77,7 @@ public class HiveSqlUtils {
 
     sb.append("COUNT(1) FROM\n");
     sb.append(tableMetaModel.databaseName)
-        .append(".`").append(tableMetaModel.tableName).append("`");
+        .append(".`").append(tableMetaModel.tableName).append("`\n");
 
     if (tableMetaModel.partitionColumns.size() > 0) {
 

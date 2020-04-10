@@ -159,7 +159,7 @@ public class OdpsSqlUtils {
     return sb.toString();
   }
 
-  public static String getInsertColumnSql(MetaSource.TableMetaModel tableMetaModel) {
+  public static String getInsertTableStatement(MetaSource.TableMetaModel tableMetaModel) {
     StringBuilder sb = new StringBuilder();
     sb.append("INSERT OVERWRITE TABLE ")
         .append(tableMetaModel.odpsProjectName)

@@ -31,8 +31,6 @@ public class OdpsMetaSource implements MetaSource {
     odps = new Odps(account);
     odps.setEndpoint(endpoint);
     odps.setDefaultProject(defaultProject);
-    LOG.info("Create OdpsMetaSource with accessId:{}, accessKey:{}, endpoint:{}, default project:{}",
-        accessId, accessKey, endpoint, defaultProject);
   }
 
 
@@ -96,7 +94,6 @@ public class OdpsMetaSource implements MetaSource {
       }
       allPartitiionValues.add(partitionValues);
     }
-    // TODO: cache result
     return allPartitiionValues;
   }
 
@@ -105,13 +102,14 @@ public class OdpsMetaSource implements MetaSource {
                                              String tableName,
                                              List<String> partitionValues) {
     Table table = odps.tables().get(databaseName, tableName);
-    for (Partition partition : table.getPartitions()) {
-      PartitionMetaModel partitionMetaModel = getPartitionMetaModel(partition);
-      if (partitionValues.equals(partitionMetaModel.partitionValues)) {
-        return partitionMetaModel;
-      }
+    TableMetaModel tableMetaModel = getTableMeta(databaseName, tableName);
+    List<ColumnMetaModel> partitionColumns = tableMetaModel.partitionColumns;
+    PartitionSpec partitionSpec = new PartitionSpec();
+    for (int partIndex = 0; partIndex < partitionValues.size(); partIndex++) {
+      partitionSpec.set(partitionColumns.get(partIndex).columnName, partitionValues.get(partIndex));
     }
-    return null;
+    Partition partition = table.getPartition(partitionSpec);
+    return getPartitionMetaModelInternal(partition);
   }
 
   @Override
@@ -133,20 +131,20 @@ public class OdpsMetaSource implements MetaSource {
 
     TableSchema tableSchema = table.getSchema();
     for (Column column : tableSchema.getColumns()) {
-      tableMetaModel.columns.add(getColumnMetaModel(column));
+      tableMetaModel.columns.add(getColumnMetaModelInternal(column));
     }
     for (Column column : tableSchema.getPartitionColumns()) {
-      tableMetaModel.partitionColumns.add(getColumnMetaModel(column));
+      tableMetaModel.partitionColumns.add(getColumnMetaModelInternal(column));
     }
     if (withPartition) {
       for (Partition partition : table.getPartitions()) {
-        tableMetaModel.partitions.add(getPartitionMetaModel(partition));
+        tableMetaModel.partitions.add(getPartitionMetaModelInternal(partition));
       }
     }
     return tableMetaModel;
   }
 
-  private ColumnMetaModel getColumnMetaModel(Column column) {
+  private ColumnMetaModel getColumnMetaModelInternal(Column column) {
     ColumnMetaModel columnMetaModel = new ColumnMetaModel();
     columnMetaModel.columnName = column.getName();
     TypeInfo columnTypeInfo = column.getTypeInfo();
@@ -156,7 +154,7 @@ public class OdpsMetaSource implements MetaSource {
     return columnMetaModel;
   }
 
-  private PartitionMetaModel getPartitionMetaModel(Partition partition) {
+  private PartitionMetaModel getPartitionMetaModelInternal(Partition partition) {
     PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
     PartitionSpec partitionSpec = partition.getPartitionSpec();
     for (String key : partitionSpec.keys()) {

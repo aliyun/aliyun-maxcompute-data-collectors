@@ -38,7 +38,6 @@ import java.security.InvalidParameterException;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -148,7 +147,7 @@ public class RecordBuilder {
         }
 
 
-        Date readTime = DEFAULT_DATE_FORMATTER.parse(op.getTimestamp());
+        Timestamp readTime = Timestamp.valueOf(op.getTimestamp());
         Map<String, String> constMap = tableMapping.getConstColumnMappings();
         if (constMap != null && !constMap.isEmpty()) {
             for (Map.Entry<String, String> entry : constMap.entrySet()) {

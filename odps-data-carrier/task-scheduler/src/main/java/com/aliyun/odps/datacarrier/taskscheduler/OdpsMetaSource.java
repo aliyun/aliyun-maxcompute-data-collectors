@@ -102,7 +102,7 @@ public class OdpsMetaSource implements MetaSource {
                                              String tableName,
                                              List<String> partitionValues) {
     Table table = odps.tables().get(databaseName, tableName);
-    TableMetaModel tableMetaModel = getTableMeta(databaseName, tableName);
+    TableMetaModel tableMetaModel = getTableMetaInternal(table, true);
     List<ColumnMetaModel> partitionColumns = tableMetaModel.partitionColumns;
     PartitionSpec partitionSpec = new PartitionSpec();
     for (int partIndex = 0; partIndex < partitionValues.size(); partIndex++) {
@@ -121,9 +121,13 @@ public class OdpsMetaSource implements MetaSource {
                                               String tableName,
                                               boolean withPartition) {
     Table table = odps.tables().get(databaseName, tableName);
+    return getTableMetaInternal(table, withPartition);
+  }
+
+  private TableMetaModel getTableMetaInternal(Table table, boolean withPartition) {
     TableMetaModel tableMetaModel = new TableMetaModel();
-    tableMetaModel.databaseName = databaseName;
-    tableMetaModel.tableName = tableName;
+    tableMetaModel.databaseName = table.getProject();
+    tableMetaModel.tableName = table.getName();
     tableMetaModel.comment = table.getComment();
     tableMetaModel.location = table.getLocation();
     tableMetaModel.size = table.getSize();

@@ -23,35 +23,36 @@ import com.aliyun.odps.data.Record;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class VerificationRunner extends AbstractTaskRunner {
   private static final Logger LOG = LogManager.getLogger(VerificationRunner.class);
 
   @Override
   public void submitExecutionTask(Task task, Action action) throws MmaException {
-    if (!task.actionInfoMap.containsKey(Action.HIVE_VERIFICATION) ||
-        !task.actionInfoMap.containsKey(Action.ODPS_VERIFICATION)) {
+    if (!(task.actionInfoMap.containsKey(Action.HIVE_SOURCE_VERIFICATION) &&
+          task.actionInfoMap.containsKey(Action.ODPS_SOURCE_VERIFICATION))||
+        !task.actionInfoMap.containsKey(Action.ODPS_DESTINATION_VERIFICATION)) {
       LOG.warn("Can not find ODPS/Hive verification tasks, skip verification task {} result.", task.getName());
     }
 
-    List<Record> odpsResult =
-        ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_VERIFICATION)).getInfos().iterator().next().getResult();
-    List<List<String>> hiveResult = ((HiveActionInfo) task.actionInfoMap.get(Action.HIVE_VERIFICATION)).getResult();
+    List<Record> destinationTableResult =
+        ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_DESTINATION_VERIFICATION)).getInfos().iterator().next().getResult();
+    List<List<String>> sourceTableResult = getSourceTableVerificationResult(task);
 
     boolean compareResult;
-    if (odpsResult == null || hiveResult == null) {
+    if (destinationTableResult == null || sourceTableResult == null) {
       compareResult = false;
       LOG.error("Can not find ODPS/Hive verification results, verification task {} failed.", task.getName());
     } else {
       if (task.tableMetaModel.partitionColumns.isEmpty()) {
-        compareResult = compareNonPartitionedTableResult(task.getName(), odpsResult, hiveResult);
+        compareResult = compareNonPartitionedTableResult(task.getName(), destinationTableResult, sourceTableResult);
       } else {
-        compareResult = comparePartitionedTableResult(task, odpsResult, hiveResult);
+        compareResult = comparePartitionedTableResult(task, destinationTableResult, sourceTableResult);
       }
     }
     if (compareResult) {
@@ -61,10 +62,29 @@ public class VerificationRunner extends AbstractTaskRunner {
     }
   }
 
+  private List<List<String>> getSourceTableVerificationResult(Task task) {
+    List<List<String>> result = null;
+    if (task.actionInfoMap.containsKey(Action.HIVE_SOURCE_VERIFICATION)) {
+      result = ((HiveActionInfo) task.actionInfoMap.get(Action.HIVE_SOURCE_VERIFICATION)).getResult();
+    } else if (task.actionInfoMap.containsKey(Action.ODPS_SOURCE_VERIFICATION)) {
+      result = new ArrayList<>();
+      List<Record> records = ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_SOURCE_VERIFICATION))
+          .getInfos().iterator().next().getResult();
+      for (Record record : records) {
+        List<String> row = new ArrayList<>();
+        for (int i = 0; i < record.getColumnCount(); i++) {
+          row.add(record.get(i).toString());
+        }
+        result.add(row);
+      }
+    }
+    return result;
+  }
+
   private boolean compareNonPartitionedTableResult(String taskName, List<Record> odpsResult, List<List<String>> hiveResult) {
     if (odpsResult.size() == hiveResult.size() && odpsResult.size() == 1) {
-      long hiveTableCount = Long.valueOf(hiveResult.get(0).get(0));
-      long odpsTableCount = Long.valueOf(odpsResult.get(0).get(0).toString());
+      long hiveTableCount = Long.parseLong(hiveResult.get(0).get(0));
+      long odpsTableCount = Long.parseLong(odpsResult.get(0).get(0).toString());
       if (hiveTableCount == odpsTableCount) {
         LOG.info("Table {} pass data verification, hive table count: {}, odps table count: {}",
                  taskName, hiveTableCount, odpsTableCount);

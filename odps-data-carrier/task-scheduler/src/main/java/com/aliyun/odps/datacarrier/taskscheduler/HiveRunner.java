@@ -176,7 +176,7 @@ public class HiveRunner extends AbstractTaskRunner {
     switch (action) {
       case HIVE_LOAD_DATA:
         return HiveSqlUtils.getUdtfSql(task.tableMetaModel);
-      case HIVE_VERIFICATION:
+      case HIVE_SOURCE_VERIFICATION:
         return HiveSqlUtils.getVerifySql(task.tableMetaModel);
     }
     return "";

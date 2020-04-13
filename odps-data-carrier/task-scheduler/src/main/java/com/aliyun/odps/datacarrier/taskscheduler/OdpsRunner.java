@@ -178,8 +178,14 @@ public class OdpsRunner extends AbstractTaskRunner {
           sqlStatements.add(addPartitionStatement);
         }
         return sqlStatements;
-      case ODPS_VERIFICATION:
+      case ODPS_LOAD_DATA:
+        sqlStatements.add(OdpsSqlUtils.getInsertTableStatement(task.tableMetaModel));
+        return sqlStatements;
+      case ODPS_DESTINATION_VERIFICATION:
         sqlStatements.add(OdpsSqlUtils.getVerifySql(task.tableMetaModel));
+        return sqlStatements;
+      case ODPS_SOURCE_VERIFICATION:
+        sqlStatements.add(OdpsSqlUtils.getVerifySql(task.tableMetaModel, false));
         return sqlStatements;
     }
     return Collections.emptyList();

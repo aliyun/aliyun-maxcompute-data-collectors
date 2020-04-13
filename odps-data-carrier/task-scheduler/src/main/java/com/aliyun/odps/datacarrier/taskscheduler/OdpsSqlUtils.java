@@ -159,7 +159,35 @@ public class OdpsSqlUtils {
     return sb.toString();
   }
 
+  public static String getInsertTableStatement(MetaSource.TableMetaModel tableMetaModel) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("INSERT OVERWRITE TABLE ")
+        .append(tableMetaModel.odpsProjectName)
+        .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+    if (!tableMetaModel.partitionColumns.isEmpty()) {
+      sb.append("PARTITION (");
+      for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+        MetaSource.ColumnMetaModel c = tableMetaModel.partitionColumns.get(i);
+        sb.append("`").append(c.columnName).append("`");
+        if (i != tableMetaModel.partitionColumns.size() - 1) {
+          sb.append(", ");
+        }
+      }
+      sb.append(")\n");
+    }
+    sb.append("SELECT * FROM ")
+        .append(tableMetaModel.databaseName)
+        .append(".`").append(tableMetaModel.tableName).append("`").append("\n");
+    sb.append(getWhereCondition(tableMetaModel));
+    sb.append(";\n");
+    return sb.toString();
+  }
+
   public static String getVerifySql(MetaSource.TableMetaModel tableMetaModel) {
+    return getVerifySql(tableMetaModel, true);
+  }
+
+  public static String getVerifySql(MetaSource.TableMetaModel tableMetaModel, boolean verifyDestinationTable) {
     StringBuilder sb = new StringBuilder();
     sb.append("SELECT ");
 
@@ -172,8 +200,16 @@ public class OdpsSqlUtils {
     }
 
     sb.append("COUNT(1) FROM\n");
-    sb.append(tableMetaModel.odpsProjectName)
-        .append(".`").append(tableMetaModel.odpsTableName).append("`\n");
+    String database;
+    String table;
+    if (verifyDestinationTable) {
+      database = tableMetaModel.odpsProjectName;
+      table = tableMetaModel.odpsTableName;
+    } else {
+      database = tableMetaModel.databaseName;
+      table = tableMetaModel.tableName;
+    }
+    sb.append(database).append(".`").append(table).append("`\n");
 
     if (tableMetaModel.partitionColumns.size() > 0) {
       String whereCondition = getWhereCondition(tableMetaModel);

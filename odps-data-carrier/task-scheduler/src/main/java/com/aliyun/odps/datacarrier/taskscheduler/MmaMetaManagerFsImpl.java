@@ -115,7 +115,7 @@ public class MmaMetaManagerFsImpl implements MmaMetaManager {
     this.metaSource = metaSource;
 
     // Create lock file
-    LOG.info("lock path: {}", getLockPath().toString());
+    LOG.info("lock path: {}, workspace {}", getLockPath().toString(), workspace.toAbsolutePath());
     if (!getLockPath().toFile().exists()) {
       DirUtils.writeFile(getLockPath(), Long.toString(System.currentTimeMillis()));
     }

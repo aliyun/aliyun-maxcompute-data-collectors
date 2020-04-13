@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import org.apache.hadoop.hive.metastore.api.MetaException;
+
 // TODO: move to another util class
 public class CommonUtils {
 
@@ -29,16 +31,36 @@ public class CommonUtils {
       case ODPS_CREATE_EXTERNAL_TABLE:
       case ODPS_ADD_EXTERNAL_TABLE_PARTITION:
       case ODPS_LOAD_DATA:
-      case ODPS_VERIFICATION:
+      case ODPS_SOURCE_VERIFICATION:
+      case ODPS_DESTINATION_VERIFICATION:
         return RunnerType.ODPS;
       case HIVE_LOAD_DATA:
-      case HIVE_VERIFICATION:
+      case HIVE_SOURCE_VERIFICATION:
         return RunnerType.HIVE;
       case VERIFICATION:
         return RunnerType.VERIFICATION;
       case UNKNOWN:
       default:
         throw new RuntimeException("Unknown action: " + action.name());
+    }
+  }
+
+  public static MetaSource getMetaSource(MmaServerConfig config) throws MetaException {
+    DataSource dataSource = config.getDataSource();
+    if (DataSource.Hive.equals(dataSource)) {
+      MmaConfig.HiveConfig hiveConfig = config.getHiveConfig();
+      return new HiveMetaSource(hiveConfig.getHmsThriftAddr(),
+          hiveConfig.getKrbPrincipal(),
+          hiveConfig.getKeyTab(),
+          hiveConfig.getKrbSystemProperties());
+    } else if (DataSource.ODPS.equals(dataSource)) {
+      MmaConfig.OdpsConfig odpsConfig = config.getOdpsConfig();
+      return new OdpsMetaSource(odpsConfig.getAccessId(),
+          odpsConfig.getAccessKey(),
+          odpsConfig.getEndpoint(),
+          odpsConfig.getProjectName());
+    } else {
+      throw new IllegalArgumentException("Unsupported datasource: " + dataSource);
     }
   }
 }

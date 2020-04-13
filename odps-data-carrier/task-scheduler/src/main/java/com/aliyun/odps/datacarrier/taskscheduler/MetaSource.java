@@ -32,7 +32,7 @@ public interface MetaSource {
     public String tableName;
     public String odpsTableName;
     public String comment;
-    public Long size;
+    public Long size; // in Byte
     public String location;
     public String inputFormat;
     public String outputFormat;
@@ -109,14 +109,14 @@ public interface MetaSource {
    * @return Partition table left partitions need to migrate data.
    * @throws Exception
    */
-   List<List<String>> listPartitions(String databaseName,
-                                            String tableName) throws Exception;
+  List<List<String>> listPartitions(String databaseName,
+                                    String tableName) throws Exception;
 
   PartitionMetaModel getPartitionMeta(String databaseName,
                                       String tableName,
                                       List<String> partitionValues) throws Exception;
 
-   List<String> listDatabases() throws Exception;
+  List<String> listDatabases() throws Exception;
 
    void shutdown();
 

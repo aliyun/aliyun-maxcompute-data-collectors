@@ -238,7 +238,7 @@ public class DataHubWriter {
 
             if (putRecordsResult != null && putRecordsResult.getFailedRecordCount() == 0) {
                 logger.info("DataHubWriter Success, put records to DataHub Success, table: {}, topic: {}, recordNum: {}",
-                        oracleFullTableName, recordEntries.size(), tableMapping.getTopicName());
+                        oracleFullTableName, tableMapping.getTopicName(), recordEntries.size());
 
                 // save checkpoints
                 HandlerInfoManager.instance().saveHandlerInfos();

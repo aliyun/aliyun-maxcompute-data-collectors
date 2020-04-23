@@ -24,11 +24,40 @@ import java.util.Map;
 
 // TODO: Split this class into several classes
 import com.aliyun.odps.utils.StringUtils;
+import org.apache.commons.collections.MapUtils;
 
 public class MmaConfig {
 
   public interface Config {
     boolean validate();
+  }
+
+  public static class SQLSettingConfig {
+    Map<String, String> ddlSettings;
+    Map<String, String> migrationSettings;
+    Map<String, String> verifySettings;
+
+    public Map<String, String> getDDLSettings() {
+      return ddlSettings == null ? MapUtils.EMPTY_MAP : ddlSettings;
+    }
+
+    public Map<String, String> getMigrationSettings() {
+      return migrationSettings == null ? MapUtils.EMPTY_MAP : migrationSettings;
+    }
+
+    public Map<String, String> getVerifySettings() {
+      return verifySettings == null ? MapUtils.EMPTY_MAP : verifySettings;
+    }
+
+    @Override
+    public String toString() {
+      final StringBuilder sb = new StringBuilder("{");
+      sb.append("ddlSettings=").append(ddlSettings);
+      sb.append(", migrationSettings=").append(migrationSettings);
+      sb.append(", verifySettings=").append(verifySettings);
+      sb.append('}');
+      return sb.toString();
+    }
   }
 
   public static class OssConfig implements Config {
@@ -151,6 +180,9 @@ public class MmaConfig {
     private String endpoint;
     private String projectName;
     private String tunnelEndpoint;
+    private Map<String, String> globalSettings;
+    private SQLSettingConfig sourceTableSettings;
+    private SQLSettingConfig destinationTableSettings;
 
     public OdpsConfig(String accessId,
                       String accessKey,
@@ -184,6 +216,18 @@ public class MmaConfig {
       return tunnelEndpoint;
     }
 
+    public Map<String, String> getGlobalSettings() {
+      return globalSettings == null ? MapUtils.EMPTY_MAP : globalSettings;
+    }
+
+    public SQLSettingConfig getSourceTableSettings() {
+      return sourceTableSettings == null ? new SQLSettingConfig() : sourceTableSettings;
+    }
+
+    public SQLSettingConfig getDestinationTableSettings() {
+      return destinationTableSettings == null ? new SQLSettingConfig() : destinationTableSettings;
+    }
+
     @Override
     public boolean validate() {
       return (!StringUtils.isNullOrEmpty(accessId) &&
@@ -200,6 +244,9 @@ public class MmaConfig {
       sb.append(", endpoint='").append(endpoint).append('\'');
       sb.append(", projectName='").append(projectName).append('\'');
       sb.append(", tunnelEndpoint='").append(tunnelEndpoint).append('\'');
+      sb.append(", globalSettings=").append(globalSettings);
+      sb.append(", sourceTableSettings=").append(sourceTableSettings);
+      sb.append(", destinationTableSettings=").append(destinationTableSettings);
       sb.append('}');
       return sb.toString();
     }

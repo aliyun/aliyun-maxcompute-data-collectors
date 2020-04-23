@@ -43,17 +43,22 @@ public class OdpsRunner extends AbstractTaskRunner {
   private static final long TOKEN_EXPIRE_INTERVAL = 7 * 24; // hours
 
   private static Odps odps;
+  private static MmaConfig.OdpsConfig odpsConfig;
 
   public OdpsRunner(MmaConfig.OdpsConfig odpsConfiguration) {
     if (odpsConfiguration == null) {
       throw new IllegalArgumentException("'odpsConfiguration' cannot be null");
     }
 
+    odpsConfig = odpsConfiguration;
     AliyunAccount account = new AliyunAccount(odpsConfiguration.getAccessId(),
                                               odpsConfiguration.getAccessKey());
     odps = new Odps(account);
     odps.setEndpoint(odpsConfiguration.getEndpoint());
     odps.setDefaultProject(odpsConfiguration.getProjectName());
+    Map<String, String> globalSettings = odps.getGlobalSettings();
+    globalSettings.putAll(odpsConfiguration.getGlobalSettings());
+    odps.setGlobalSettings(globalSettings);
     LOG.info("Create OdpsRunner succeeded");
   }
 
@@ -71,13 +76,29 @@ public class OdpsRunner extends AbstractTaskRunner {
     @Override
     public void run() {
       Instance i;
-      OdpsActionInfo odpsExecutionInfo = (OdpsActionInfo) task.actionInfoMap.get(action);
       for (String sql : sqls) {
         // Submit
         try {
           Map<String, String> hints = new HashMap<>();
           hints.put("odps.sql.type.system.odps2", "true");
           hints.put("odps.sql.allow.fullscan", "true");
+          switch (action) {
+            case ODPS_CREATE_TABLE:
+            case ODPS_CREATE_EXTERNAL_TABLE:
+            case ODPS_ADD_PARTITION:
+            case ODPS_ADD_EXTERNAL_TABLE_PARTITION:
+              hints.putAll(odpsConfig.getDestinationTableSettings().getDDLSettings());
+              break;
+            case ODPS_LOAD_DATA:
+              hints.putAll(odpsConfig.getSourceTableSettings().getMigrationSettings());
+              break;
+            case ODPS_SOURCE_VERIFICATION:
+              hints.putAll(odpsConfig.getSourceTableSettings().getVerifySettings());
+            case ODPS_DESTINATION_VERIFICATION:
+              hints.putAll(odpsConfig.getDestinationTableSettings().getVerifySettings());
+            default:
+              break;
+          }
           i = SQLTask.run(odps, odps.getDefaultProject(), sql, hints, null);
         } catch (OdpsException e) {
           LOG.error("Submit ODPS Sql failed, task: " + task +
@@ -144,6 +165,7 @@ public class OdpsRunner extends AbstractTaskRunner {
                     ExceptionUtils.getStackTrace(e));
         }
 
+        OdpsActionInfo odpsExecutionInfo = (OdpsActionInfo) task.actionInfoMap.get(action);
         odpsExecutionInfo.addInfo(info);
         LOG.debug("Task: {}, {}", task, odpsExecutionInfo.getOdpsActionInfoSummary());
         RUNNER_LOG.info("Task: {}, Action: {} {}",

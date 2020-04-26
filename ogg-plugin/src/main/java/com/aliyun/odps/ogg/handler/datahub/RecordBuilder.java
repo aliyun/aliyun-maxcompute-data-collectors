@@ -79,7 +79,9 @@ public class RecordBuilder {
     public RecordEntry buildRecord(Op op, String opType, TableMapping tableMapping) throws ParseException {
         RecordEntry recordEntry = new RecordEntry();
 
-        logger.debug("BuildRecord, oracle table: {}, record: {}", tableMapping.getOracleFullTableName(), op.getRecord().toString());
+        if (logger.isDebugEnabled()) {
+            logger.debug("BuildRecord, oracle table: {}, record: {}", tableMapping.getOracleFullTableName(), op.getRecord().toString());
+        }
 
         if (tableMapping.getRecordSchema() == null) {
             // blob topic
@@ -173,7 +175,6 @@ public class RecordBuilder {
                 afterValue = dsColumn.getAfter() == null ? null : new String(dsColumn.getAfterValue().getBytes(charset));
                 beforeValue = dsColumn.getBefore() == null ? null : new String(dsColumn.getBeforeValue().getBytes(charset));
             }
-            logger.info("after {}, before {}", afterValue, beforeValue);
 
             String dest = columnMapping.getDest();
             if (StringUtils.isNotBlank(dest)) {

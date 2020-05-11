@@ -63,17 +63,32 @@ public class MmaConfig {
   public static class OssConfig implements Config {
     private String ossEndpoint;
     private String ossBucket;
+    private String ossRoleArn;
 
-    public OssConfig(String ossEndpoint, String ossBucket) {
+    public OssConfig(String ossEndpoint, String ossBucket, String roleArn) {
       this.ossEndpoint = ossEndpoint;
       this.ossBucket = ossBucket;
+      this.ossRoleArn = roleArn;
     }
 
     @Override
     public boolean validate() {
       // TODO: try to connect
       return (!StringUtils.isNullOrEmpty(ossEndpoint) &&
-          !StringUtils.isNullOrEmpty(ossBucket));
+          !StringUtils.isNullOrEmpty(ossBucket) &&
+          !StringUtils.isNullOrEmpty(ossRoleArn));
+    }
+
+    public String getOssEndpoint() {
+      return ossEndpoint;
+    }
+
+    public String getOssBucket() {
+      return ossBucket;
+    }
+
+    public String getOssRoleArn() {
+      return ossRoleArn;
     }
 
     @Override
@@ -81,6 +96,7 @@ public class MmaConfig {
       final StringBuilder sb = new StringBuilder("OssDataSource {");
       sb.append("ossEndpoint='").append(ossEndpoint).append('\'');
       sb.append(", ossBucket='").append(ossBucket).append('\'');
+      sb.append(", ossRoleArn='").append(ossRoleArn).append('\'');
       sb.append('}');
       return sb.toString();
     }
@@ -307,6 +323,7 @@ public class MmaConfig {
     private String sourceTableName;
     private String destProjectName;
     private String destTableName;
+    private String destTableStorage;
     private List<List<String>> partitionValuesList;
     private AdditionalTableConfig additionalTableConfig;
 
@@ -320,6 +337,7 @@ public class MmaConfig {
            destProjectName,
            destTableName,
            null,
+           null,
            additionalTableConfig);
     }
 
@@ -329,10 +347,26 @@ public class MmaConfig {
                                  String destTableName,
                                  List<List<String>> partitionValuesList,
                                  AdditionalTableConfig additionalTableConfig) {
+      this(sourceDataBaseName,
+          sourceTableName,
+          destProjectName, destTableName,
+          null,
+          partitionValuesList,
+          additionalTableConfig);
+    }
+
+    public TableMigrationConfig (String sourceDataBaseName,
+                                 String sourceTableName,
+                                 String destProjectName,
+                                 String destTableName,
+                                 String destTableStorage,
+                                 List<List<String>> partitionValuesList,
+                                 AdditionalTableConfig additionalTableConfig) {
       this.sourceDataBaseName = sourceDataBaseName;
       this.sourceTableName = sourceTableName;
       this.destProjectName = destProjectName;
       this.destTableName = destTableName;
+      this.destTableStorage = destTableStorage;
       this.partitionValuesList = partitionValuesList;
       this.additionalTableConfig = additionalTableConfig;
     }
@@ -353,6 +387,10 @@ public class MmaConfig {
       return destTableName;
     }
 
+    public String getDestTableStorage() {
+      return destTableStorage;
+    }
+
     public List<List<String>> getPartitionValuesList() {
       return partitionValuesList;
     }
@@ -369,6 +407,7 @@ public class MmaConfig {
       // TODO: use typeCustomizedConversion and columnNameCustomizedConversion
       tableMetaModel.odpsProjectName = destProjectName;
       tableMetaModel.odpsTableName = destTableName;
+      tableMetaModel.odpsTableStorage = destTableStorage;
       // TODO: should not init a hive type transformer here, looking for better design
       TypeTransformer typeTransformer = new HiveTypeTransformer();
 

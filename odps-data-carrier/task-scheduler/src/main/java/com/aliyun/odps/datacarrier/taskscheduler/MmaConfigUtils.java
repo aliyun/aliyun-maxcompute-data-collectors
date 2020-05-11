@@ -28,15 +28,21 @@ import static com.aliyun.odps.datacarrier.taskscheduler.Constants.TUNNEL_ENDPOIN
 
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -44,11 +50,13 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.tools.ant.filters.StringInputStream;
 
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.AdditionalTableConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.HiveConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.OdpsConfig;
 import com.aliyun.odps.utils.StringUtils;
+import com.csvreader.CsvReader;
 
 public class MmaConfigUtils {
 
@@ -88,6 +96,17 @@ public class MmaConfigUtils {
                      "project name",
                      null);
 
+  /*
+    Acceptable formats:
+        source_db.source_tbl:dest_db.dest_tbl
+        source_db.source_tbl("pt_val1", "pt_val2", ...):dest_db.dest_tbl
+   */
+  private static final Pattern TABLE_MAPPING_LINE_PATTERN;
+  static {
+    TABLE_MAPPING_LINE_PATTERN =
+        Pattern.compile("([^()]+)\\.([^()]+)(\\([^()]+\\))?:([^()]+)\\.([^()]+)");
+  }
+
   public static HiveConfig parseHiveConfig(Path hiveConfigPath) throws IOException {
     if (hiveConfigPath == null || !hiveConfigPath.toFile().exists()) {
       throw new IllegalArgumentException("Invalid path");
@@ -125,6 +144,81 @@ public class MmaConfigUtils {
                           tunnelEndpoint);
   }
 
+  public static List<MmaConfig.TableMigrationConfig> parseTableMapping(List<String> lines)
+      throws IOException {
+    // Used to remove duplications
+    Map<String, Map<String, MmaConfig.TableMigrationConfig>> dbToTableToConfig =
+        new LinkedHashMap<>();
+
+    for (String line : lines) {
+      // Skip empty line and comments
+      if (line == null || line.trim().isEmpty() || line.startsWith("#")) {
+        continue;
+      }
+
+      line = line.trim();
+
+      Matcher m = TABLE_MAPPING_LINE_PATTERN.matcher(line);
+      if (m.matches()) {
+        if (m.groupCount() != 5) {
+          System.err.println("[ERROR] Invalid line: " + line);
+          continue;
+        }
+
+        String sourceDb = Objects.requireNonNull(m.group(1));
+        String sourceTbl = Objects.requireNonNull(m.group(2));
+        String destDb = Objects.requireNonNull(m.group(4));
+        String destTbl = Objects.requireNonNull(m.group(5));
+        List<String> partitionValues = null;
+        if (m.group(3) != null) {
+          // Remove parentheses
+          String partitionValuesStr = m.group(3).substring(1, m.group(3).length() - 1);
+          StringInputStream sis = new StringInputStream(partitionValuesStr);
+          CsvReader csvReader = new CsvReader(sis, StandardCharsets.UTF_8);
+          if (csvReader.readRecord()) {
+            partitionValues = new LinkedList<>(Arrays.asList(csvReader.getValues()));
+          } else {
+            System.err.println("[ERROR] Invalid partition values: " + m.group(3));
+            continue;
+          }
+        }
+
+        Map<String, MmaConfig.TableMigrationConfig> tblToConfig =
+            dbToTableToConfig.computeIfAbsent(sourceDb, s -> new LinkedHashMap<>());
+        if (!tblToConfig.containsKey(sourceTbl)) {
+          MmaConfig.TableMigrationConfig tableMigrationConfig = new MmaConfig.TableMigrationConfig(
+              sourceDb,
+              sourceTbl,
+              destDb,
+              destTbl,
+              DEFAULT_ADDITIONAL_TABLE_CONFIG);
+
+          tblToConfig.put(sourceTbl, tableMigrationConfig);
+        }
+
+        MmaConfig.TableMigrationConfig tableMigrationConfig = tblToConfig.get(sourceTbl);
+
+        if (!destDb.equalsIgnoreCase(tableMigrationConfig.getDestProjectName()) ||
+            !destTbl.equalsIgnoreCase(tableMigrationConfig.getDestTableName())) {
+          System.err.println("[ERROR] Source table mapped to multiple dest tables: " + line);
+          continue;
+        }
+
+        if (partitionValues != null) {
+          tableMigrationConfig.addPartitionValues(partitionValues);
+        }
+      } else {
+        System.err.println("[WARN] Invalid line: " + line);
+      }
+    }
+
+    return dbToTableToConfig
+        .values()
+        .stream()
+        .flatMap(v -> v.values().stream())
+        .collect(Collectors.toList());
+  }
+
   public static List<MmaConfig.TableMigrationConfig> parseTableMapping(Path tableMappingPath)
       throws IOException {
     if (tableMappingPath == null || !tableMappingPath.toFile().exists()) {
@@ -132,58 +226,7 @@ public class MmaConfigUtils {
     }
 
     List<String> lines = DirUtils.readLines(tableMappingPath);
-    List<MmaConfig.TableMigrationConfig> tableMigrationConfigs = new LinkedList<>();
-    // Used to remove duplications
-    Map<String, String> sourceToDest = new HashMap<>();
-
-    for (String line : lines) {
-      line = line.trim();
-
-      // Skip empty line and comment
-      if (line.isEmpty() || line.startsWith("#")) {
-        continue;
-      }
-
-      String[] sourceAndDest = line.split(":");
-      if (sourceAndDest.length != 2) {
-        System.err.println("[WARN] Invalid line:" + line);
-        continue;
-      }
-
-      String[] source = sourceAndDest[0].split("\\.");
-      if (source.length != 2) {
-        System.err.println("[WARN] Invalid source:" + line);
-        continue;
-      }
-
-      String[] dest = sourceAndDest[1].split("\\.");
-      if (dest.length != 2) {
-        System.err.println("[WARN] Invalid destination:" + line);
-        continue;
-      }
-
-      if (sourceToDest.containsKey(sourceAndDest[0])) {
-        System.err.println("[WARN] Duplicated line:" + line);
-        continue;
-      }
-      sourceToDest.put(sourceAndDest[0], sourceAndDest[1]);
-
-      String sourceDataBase = source[0];
-      String sourceTable = source[1];
-      String destProject = dest[0];
-      String destTable = dest[1];
-
-      MmaConfig.TableMigrationConfig tableConfig =
-          new MmaConfig.TableMigrationConfig(sourceDataBase,
-                                             sourceTable,
-                                             destProject,
-                                             destTable,
-                                             DEFAULT_ADDITIONAL_TABLE_CONFIG);
-
-      tableMigrationConfigs.add(tableConfig);
-    }
-
-    return tableMigrationConfigs;
+    return parseTableMapping(lines);
   }
 
   private static void help(Options options) {

@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -359,6 +360,16 @@ public class MmaConfig {
 
     public AdditionalTableConfig getAdditionalTableConfig() {
       return additionalTableConfig;
+    }
+
+    public void addPartitionValues(List<String> partitionValues) {
+      if (partitionValuesList == null) {
+        partitionValuesList = new LinkedList<>();
+      }
+
+      if (!partitionValuesList.contains(partitionValues)) {
+        partitionValuesList.add(partitionValues);
+      }
     }
 
     public void setAdditionalTableConfig(AdditionalTableConfig additionalTableConfig) {

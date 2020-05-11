@@ -147,7 +147,8 @@ public class MmaConfigUtils {
   public static List<MmaConfig.TableMigrationConfig> parseTableMapping(List<String> lines)
       throws IOException {
     // Used to remove duplications
-    Map<String, Map<String, MmaConfig.TableMigrationConfig>> dbToTableToConfig = new LinkedHashMap<>();
+    Map<String, Map<String, MmaConfig.TableMigrationConfig>> dbToTableToConfig =
+        new LinkedHashMap<>();
 
     for (String line : lines) {
       // Skip empty line and comments
@@ -182,8 +183,9 @@ public class MmaConfigUtils {
           }
         }
 
-        dbToTableToConfig.computeIfAbsent(sourceDb, s -> new LinkedHashMap<>());
-        if (!dbToTableToConfig.get(sourceDb).containsKey(sourceTbl)) {
+        Map<String, MmaConfig.TableMigrationConfig> tblToConfig =
+            dbToTableToConfig.computeIfAbsent(sourceDb, s -> new LinkedHashMap<>());
+        if (!tblToConfig.containsKey(sourceTbl)) {
           MmaConfig.TableMigrationConfig tableMigrationConfig = new MmaConfig.TableMigrationConfig(
               sourceDb,
               sourceTbl,
@@ -191,11 +193,10 @@ public class MmaConfigUtils {
               destTbl,
               DEFAULT_ADDITIONAL_TABLE_CONFIG);
 
-          dbToTableToConfig.get(sourceDb).put(sourceTbl, tableMigrationConfig);
+          tblToConfig.put(sourceTbl, tableMigrationConfig);
         }
 
-        MmaConfig.TableMigrationConfig tableMigrationConfig =
-            dbToTableToConfig.get(sourceDb).get(sourceTbl);
+        MmaConfig.TableMigrationConfig tableMigrationConfig = tblToConfig.get(sourceTbl);
 
         if (!destDb.equalsIgnoreCase(tableMigrationConfig.getDestProjectName()) ||
             !destTbl.equalsIgnoreCase(tableMigrationConfig.getDestTableName())) {

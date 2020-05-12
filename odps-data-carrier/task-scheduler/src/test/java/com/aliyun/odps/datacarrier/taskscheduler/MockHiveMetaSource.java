@@ -160,6 +160,13 @@ public class MockHiveMetaSource implements MetaSource {
   }
 
   @Override
+  public boolean hasPartition(String databaseName, String tableName, List<String> partitionValues) {
+    return DB_NAME.equalsIgnoreCase(databaseName)
+           && TBL_PARTITIONED.equalsIgnoreCase(tableName)
+           && TBL_PARTITIONED_PARTITION_VALUES.equals(partitionValues);
+  }
+
+  @Override
   public boolean hasDatabase(String databaseName) throws Exception {
     return DB_NAME.equalsIgnoreCase(databaseName);
   }

@@ -117,16 +117,17 @@ public class MmaConfig {
 
     @Override
     public boolean validate() {
-      if (hiveJdbcExtraSettings == null || hiveJdbcExtraSettings.isEmpty()) {
-        return false;
-      }
-      for (String setting : hiveJdbcExtraSettings) {
-        if (StringUtils.isNullOrEmpty(setting)) {
-          return false;
+      if (hiveJdbcExtraSettings != null) {
+        for (String setting : hiveJdbcExtraSettings) {
+          if (StringUtils.isNullOrEmpty(setting)) {
+            return false;
+          }
         }
       }
       return (!StringUtils.isNullOrEmpty(jdbcConnectionUrl) &&
-              !StringUtils.isNullOrEmpty(hmsThriftAddr));
+              !StringUtils.isNullOrEmpty(hmsThriftAddr) &&
+              user != null &&
+              password != null);
     }
 
     public String getJdbcConnectionUrl() {

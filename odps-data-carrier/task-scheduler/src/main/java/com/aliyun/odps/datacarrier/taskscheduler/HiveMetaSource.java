@@ -164,6 +164,16 @@ public class HiveMetaSource implements MetaSource {
   }
 
   @Override
+  public boolean hasDatabase(String databaseName) throws Exception {
+    try {
+      hmsClient.getDatabase(databaseName);
+    } catch (NoSuchObjectException e) {
+      return false;
+    }
+    return true;
+  }
+
+  @Override
   public boolean hasTable(String databaseName, String tableName) throws Exception {
     try {
       hmsClient.getTable(databaseName, tableName);
@@ -174,14 +184,21 @@ public class HiveMetaSource implements MetaSource {
   }
 
   @Override
-  public boolean hasDatabase(String databaseName) throws Exception {
+  public boolean hasPartition(String databaseName, String tableName, List<String> partitionValues)
+      throws Exception {
     try {
-      hmsClient.getDatabase(databaseName);
+      hmsClient.getPartition(databaseName, tableName, partitionValues);
     } catch (NoSuchObjectException e) {
       return false;
     }
     return true;
   }
+
+  @Override
+  public List<String> listDatabases() throws Exception {
+    return hmsClient.getAllDatabases();
+  }
+
 
   @Override
   public List<String> listTables(String databaseName) throws Exception {
@@ -196,11 +213,6 @@ public class HiveMetaSource implements MetaSource {
       partitionValuesList.add(partition.getValues());
     }
     return partitionValuesList;
-  }
-
-  @Override
-  public List<String> listDatabases() throws Exception {
-    return hmsClient.getAllDatabases();
   }
 
   @Override

@@ -154,6 +154,11 @@ public class MockHiveMetaSource implements MetaSource {
   }
 
   @Override
+  public DataSource getDataSource() {
+    return DataSource.Hive;
+  }
+
+  @Override
   public boolean hasTable(String databaseName, String tableName) throws Exception {
     return DB_NAME.equalsIgnoreCase(databaseName)
            && (TABLE_NAME_2_TABLE_META_MODEL.containsKey(tableName.toLowerCase()));

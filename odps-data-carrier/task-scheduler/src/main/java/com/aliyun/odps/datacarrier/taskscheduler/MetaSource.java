@@ -31,6 +31,7 @@ public interface MetaSource {
     public String odpsProjectName;
     public String tableName;
     public String odpsTableName;
+    public String odpsTableStorage; // used for create external table, specify destination table storage, such as OSS
     public String comment;
     public Long size; // in Byte
     public String location;
@@ -54,6 +55,7 @@ public interface MetaSource {
       tableMetaModel.odpsProjectName = this.odpsProjectName;
       tableMetaModel.tableName = this.tableName;
       tableMetaModel.odpsTableName = this.odpsTableName;
+      tableMetaModel.odpsTableStorage = this.odpsTableStorage;
       tableMetaModel.comment = this.comment;
       tableMetaModel.size = this.size;
       tableMetaModel.location = this.location;
@@ -84,6 +86,7 @@ public interface MetaSource {
     public Integer createTime;
   }
 
+  DataSource getDataSource();
 
   boolean hasTable(String databaseName, String tableName) throws Exception;
 
@@ -118,6 +121,6 @@ public interface MetaSource {
 
   List<String> listDatabases() throws Exception;
 
-   void shutdown();
+  void shutdown();
 
 }

@@ -63,17 +63,32 @@ public class MmaConfig {
   public static class OssConfig implements Config {
     private String ossEndpoint;
     private String ossBucket;
+    private String ossRoleArn;
 
-    public OssConfig(String ossEndpoint, String ossBucket) {
+    public OssConfig(String ossEndpoint, String ossBucket, String roleArn) {
       this.ossEndpoint = ossEndpoint;
       this.ossBucket = ossBucket;
+      this.ossRoleArn = roleArn;
     }
 
     @Override
     public boolean validate() {
       // TODO: try to connect
       return (!StringUtils.isNullOrEmpty(ossEndpoint) &&
-          !StringUtils.isNullOrEmpty(ossBucket));
+          !StringUtils.isNullOrEmpty(ossBucket) &&
+          !StringUtils.isNullOrEmpty(ossRoleArn));
+    }
+
+    public String getOssEndpoint() {
+      return ossEndpoint;
+    }
+
+    public String getOssBucket() {
+      return ossBucket;
+    }
+
+    public String getOssRoleArn() {
+      return ossRoleArn;
     }
 
     @Override
@@ -81,6 +96,7 @@ public class MmaConfig {
       final StringBuilder sb = new StringBuilder("OssDataSource {");
       sb.append("ossEndpoint='").append(ossEndpoint).append('\'');
       sb.append(", ossBucket='").append(ossBucket).append('\'');
+      sb.append(", ossRoleArn='").append(ossRoleArn).append('\'');
       sb.append('}');
       return sb.toString();
     }
@@ -302,11 +318,54 @@ public class MmaConfig {
     }
   }
 
+  // used to backup odps managed table to external storage, such as OSS
+  public static class DatabaseBackupConfig implements Config {
+    private String sourceDatabaseName;
+    private String destProjectName;
+    private String destProjectStorage;
+    private AdditionalTableConfig additionalTableConfig;
+
+    public DatabaseBackupConfig(String sourceDatabaseName,
+                                String destProjectName,
+                                String destProjectStroage,
+                                AdditionalTableConfig additionalTableConfig) {
+      this.sourceDatabaseName = sourceDatabaseName;
+      this.destProjectName = destProjectName;
+      this.destProjectStorage = destProjectStroage;
+      this.additionalTableConfig = additionalTableConfig;
+    }
+
+    public String getSourceDatabaseName() {
+      return sourceDatabaseName;
+    }
+
+    public String getDestProjectName() {
+      return destProjectName;
+    }
+
+    public String getDestProjectStorage() {
+      return destProjectStorage;
+    }
+
+    public AdditionalTableConfig getAdditionalTableConfig() {
+      return additionalTableConfig;
+    }
+
+    @Override
+    public boolean validate() {
+      return !StringUtils.isNullOrEmpty(sourceDatabaseName)
+          && !StringUtils.isNullOrEmpty(destProjectName)
+          && !StringUtils.isNullOrEmpty(destProjectStorage)
+          && (additionalTableConfig == null || additionalTableConfig.validate());
+    }
+  }
+
   public static class TableMigrationConfig implements Config {
-    private String sourceDataBaseName;
+    private String sourceDatabaseName;
     private String sourceTableName;
     private String destProjectName;
     private String destTableName;
+    private String destTableStorage;
     private List<List<String>> partitionValuesList;
     private AdditionalTableConfig additionalTableConfig;
 
@@ -320,6 +379,7 @@ public class MmaConfig {
            destProjectName,
            destTableName,
            null,
+           null,
            additionalTableConfig);
     }
 
@@ -329,16 +389,32 @@ public class MmaConfig {
                                  String destTableName,
                                  List<List<String>> partitionValuesList,
                                  AdditionalTableConfig additionalTableConfig) {
-      this.sourceDataBaseName = sourceDataBaseName;
+      this(sourceDataBaseName,
+          sourceTableName,
+          destProjectName, destTableName,
+          null,
+          partitionValuesList,
+          additionalTableConfig);
+    }
+
+    public TableMigrationConfig (String sourceDatabaseName,
+                                 String sourceTableName,
+                                 String destProjectName,
+                                 String destTableName,
+                                 String destTableStorage,
+                                 List<List<String>> partitionValuesList,
+                                 AdditionalTableConfig additionalTableConfig) {
+      this.sourceDatabaseName = sourceDatabaseName;
       this.sourceTableName = sourceTableName;
       this.destProjectName = destProjectName;
       this.destTableName = destTableName;
+      this.destTableStorage = destTableStorage;
       this.partitionValuesList = partitionValuesList;
       this.additionalTableConfig = additionalTableConfig;
     }
 
     public String getSourceDataBaseName() {
-      return sourceDataBaseName;
+      return sourceDatabaseName;
     }
 
     public String getSourceTableName() {
@@ -353,12 +429,20 @@ public class MmaConfig {
       return destTableName;
     }
 
+    public String getDestTableStorage() {
+      return destTableStorage;
+    }
+
     public List<List<String>> getPartitionValuesList() {
       return partitionValuesList;
     }
 
     public AdditionalTableConfig getAdditionalTableConfig() {
       return additionalTableConfig;
+    }
+
+    public void setDestTableName(String destTableName) {
+      this.destTableName = destTableName;
     }
 
     public void setAdditionalTableConfig(AdditionalTableConfig additionalTableConfig) {
@@ -369,6 +453,7 @@ public class MmaConfig {
       // TODO: use typeCustomizedConversion and columnNameCustomizedConversion
       tableMetaModel.odpsProjectName = destProjectName;
       tableMetaModel.odpsTableName = destTableName;
+      tableMetaModel.odpsTableStorage = destTableStorage;
       // TODO: should not init a hive type transformer here, looking for better design
       TypeTransformer typeTransformer = new HiveTypeTransformer();
 
@@ -400,12 +485,18 @@ public class MmaConfig {
 
     @Override
     public boolean validate() {
-      return !StringUtils.isNullOrEmpty(sourceDataBaseName)
-             && !StringUtils.isNullOrEmpty(sourceTableName)
-             && !StringUtils.isNullOrEmpty(destProjectName)
-             && !StringUtils.isNullOrEmpty(destTableName)
-             && (partitionValuesList == null || partitionValuesList.stream().noneMatch(List::isEmpty))
-             && (additionalTableConfig == null || additionalTableConfig.validate());
+      if (!(!StringUtils.isNullOrEmpty(sourceDatabaseName)
+          && !StringUtils.isNullOrEmpty(destProjectName)
+          // when backup all tables in this project to OSS, sourceTableName and destTableName will be empty
+          && (StringUtils.isNullOrEmpty(sourceTableName) == StringUtils.isNullOrEmpty(destTableName))
+          && (partitionValuesList == null || partitionValuesList.stream().noneMatch(List::isEmpty))
+          && (additionalTableConfig == null || additionalTableConfig.validate()))) {
+        return false;
+      }
+      if (StringUtils.isNullOrEmpty(sourceTableName) && StringUtils.isNullOrEmpty(destTableStorage)) {
+        return false;
+      }
+      return true;
     }
   }
 

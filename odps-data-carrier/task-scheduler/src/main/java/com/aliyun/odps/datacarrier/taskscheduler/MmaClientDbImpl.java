@@ -88,6 +88,26 @@ public class MmaClientDbImpl implements MmaClient {
                                    databaseMigrationConfig.getDestProjectName(),
                                    databaseAdditionalTableConfig);
       }
+    } else if (mmaMigrationConfig.getDatabaseBackupConfigs() != null) {
+      for (MmaConfig.DatabaseBackupConfig databaseBackupConfig :
+          mmaMigrationConfig.getDatabaseBackupConfigs()) {
+        String database = databaseBackupConfig.getSourceDatabaseName();
+
+        if (!databaseExists(database)) {
+          continue;
+        }
+
+        MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig =
+            databaseBackupConfig.getAdditionalTableConfig();
+        if (databaseAdditionalTableConfig == null) {
+          databaseAdditionalTableConfig = globalAdditionalTableConfig;
+        }
+
+        createDatabaseBackupJob(database,
+            databaseBackupConfig.getDestProjectName(),
+            databaseBackupConfig.getDestProjectStorage(),
+            databaseAdditionalTableConfig);
+      }
     } else {
       for (MmaConfig.TableMigrationConfig tableMigrationConfig :
           mmaMigrationConfig.getTableMigrationConfigs()) {
@@ -166,6 +186,45 @@ public class MmaClientDbImpl implements MmaClient {
               table,
               project,
               table,
+              databaseAdditionalTableConfig);
+
+      mmaMetaManager.addMigrationJob(tableMigrationConfig);
+      LOG.info("Job submitted, database: {}, table: {}", database, table);
+    }
+  }
+
+  private void createDatabaseBackupJob(
+      String database,
+      String project,
+      String storage,
+      MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig) throws MmaException {
+    List<String> tables;
+    try {
+      if (!DataSource.ODPS.equals(metaSource.getDataSource())) {
+        String msg = "Failed to create backup jobs for database:" + database
+            + ", which is managed by " + metaSource.getDataSource();
+        System.err.println(ERROR_INDICATOR + msg);
+        LOG.error(msg);
+        return;
+      }
+      OdpsMetaSource odpsMetaSource = (OdpsMetaSource)metaSource;
+      tables = odpsMetaSource.listManagedTables(database);
+    } catch (Exception e) {
+      String msg = "Failed to create backup jobs for database:" + database;
+      System.err.println(ERROR_INDICATOR + msg);
+      LOG.error(msg, e);
+      return;
+    }
+
+    for (String table : tables) {
+      MmaConfig.TableMigrationConfig tableMigrationConfig =
+          new MmaConfig.TableMigrationConfig(
+              database,
+              table,
+              project,
+              table,
+              storage,
+              null,
               databaseAdditionalTableConfig);
 
       mmaMetaManager.addMigrationJob(tableMigrationConfig);

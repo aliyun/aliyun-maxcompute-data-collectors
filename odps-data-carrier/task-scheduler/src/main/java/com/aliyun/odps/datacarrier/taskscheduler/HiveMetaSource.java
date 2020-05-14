@@ -164,6 +164,11 @@ public class HiveMetaSource implements MetaSource {
   }
 
   @Override
+  public DataSource getDataSource() {
+    return DataSource.Hive;
+  }
+
+  @Override
   public boolean hasTable(String databaseName, String tableName) throws Exception {
     try {
       hmsClient.getTable(databaseName, tableName);

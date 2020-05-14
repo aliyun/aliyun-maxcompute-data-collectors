@@ -44,13 +44,16 @@ public class OdpsRunner extends AbstractTaskRunner {
 
   private static Odps odps;
   private static MmaConfig.OdpsConfig odpsConfig;
+  private static MmaConfig.OssConfig ossConfig; // used to create external tables which are stored in OSS
 
-  public OdpsRunner(MmaConfig.OdpsConfig odpsConfiguration) {
+  public OdpsRunner(MmaConfig.OdpsConfig odpsConfiguration,
+                    MmaConfig.OssConfig ossConfiguration) {
     if (odpsConfiguration == null) {
       throw new IllegalArgumentException("'odpsConfiguration' cannot be null");
     }
 
     odpsConfig = odpsConfiguration;
+    ossConfig = ossConfiguration;
     AliyunAccount account = new AliyunAccount(odpsConfiguration.getAccessId(),
                                               odpsConfiguration.getAccessKey());
     odps = new Odps(account);
@@ -180,22 +183,34 @@ public class OdpsRunner extends AbstractTaskRunner {
     }
   }
 
-  private List<String> getSqlStatements(Task task, Action action) {
+  private List<String> getSqlStatements(Task task, Action action) throws MmaException {
     List<String> sqlStatements = new LinkedList<>();
+    ExternalTableConfig externalTableConfig = null;
+    if (!StringUtils.isNullOrEmpty(task.tableMetaModel.odpsTableStorage)) {
+      if (ossConfig != null && ExternalTableStorage.OSS.name().equals(task.tableMetaModel.odpsTableStorage.toUpperCase())) {
+        externalTableConfig = new OssExternalTableConfig(ossConfig.getOssEndpoint(),
+                                                         ossConfig.getOssBucket(),
+                                                         ossConfig.getOssRoleArn());
+      } else {
+        LOG.error("unknown external table storage {}", task.tableMetaModel.odpsTableStorage);
+        task.updateActionProgress(action, Progress.FAILED);
+        throw new MmaException("Unknown external table storage " + task.tableMetaModel.odpsTableStorage + " when handle action " + action.name());
+      }
+    }
     switch (action) {
       case ODPS_CREATE_TABLE:
         if (task.tableMetaModel.partitionColumns.isEmpty()) {
           //Non-partition table should drop table at first.
           sqlStatements.add(OdpsSqlUtils.getDropTableStatement(task.tableMetaModel));
         }
-        sqlStatements.add(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel));
+        sqlStatements.add(OdpsSqlUtils.getCreateTableStatement(task.tableMetaModel, externalTableConfig));
         return sqlStatements;
       case ODPS_ADD_PARTITION:
         String dropPartitionStatement = OdpsSqlUtils.getDropPartitionStatement(task.tableMetaModel);
         if (!StringUtils.isNullOrEmpty(dropPartitionStatement)) {
           sqlStatements.add(dropPartitionStatement);
         }
-        String addPartitionStatement = OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel);
+        String addPartitionStatement = OdpsSqlUtils.getAddPartitionStatement(task.tableMetaModel, externalTableConfig);
         if (!StringUtils.isNullOrEmpty(addPartitionStatement)) {
           sqlStatements.add(addPartitionStatement);
         }

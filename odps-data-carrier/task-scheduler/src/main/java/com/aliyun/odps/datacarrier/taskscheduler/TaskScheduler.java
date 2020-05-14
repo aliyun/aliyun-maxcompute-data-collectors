@@ -214,7 +214,7 @@ public class TaskScheduler {
     if (RunnerType.HIVE.equals(runnerType)) {
       return new HiveRunner(this.mmaServerConfig.getHiveConfig());
     } else if (RunnerType.ODPS.equals(runnerType)) {
-      return new OdpsRunner(this.mmaServerConfig.getOdpsConfig());
+      return new OdpsRunner(this.mmaServerConfig.getOdpsConfig(), this.mmaServerConfig.getOssConfig());
     } else if (RunnerType.VERIFICATION.equals(runnerType)) {
       return new VerificationRunner();
     }
@@ -276,7 +276,7 @@ public class TaskScheduler {
             scheduleExecutionTask(action);
           }
         } catch (Throwable ex) {
-          LOG.error("Exception on heartbeat " + ex.getMessage());
+          LOG.error("Exception on heartbeat", ex);
           ex.printStackTrace();
           savedException = ex;
           // interrupt handler thread in case it waiting on the queue

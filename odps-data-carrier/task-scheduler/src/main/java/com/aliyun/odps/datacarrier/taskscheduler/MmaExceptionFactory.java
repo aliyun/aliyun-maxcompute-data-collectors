@@ -96,4 +96,5 @@ public class MmaExceptionFactory {
                       db, tbl, partitionValues);
     return new MmaException(errorMsg);
   }
+  //TODO: partition not found exception
 }

@@ -42,7 +42,7 @@ public class MmaClientDbImpl implements MmaClient {
   public MmaClientDbImpl(MmaClientConfig mmaClientConfig) throws MetaException, MmaException {
     metaSource = CommonUtils.getMetaSource(mmaClientConfig);
     dataSource = mmaClientConfig.getDataSource();
-    mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource);
+    mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource, false);
   }
 
   @Override
@@ -204,7 +204,8 @@ public class MmaClientDbImpl implements MmaClient {
     List<MmaConfig.TableMigrationConfig> ret = mmaMetaManager.listMigrationJobs(status, -1);
     LOG.info("Get migration job list, status: {}, ret: {}",
              status,
-             ret.stream()
+             ret
+                 .stream()
                  .map(c -> c.getSourceDataBaseName() + "." + c.getSourceTableName())
                  .collect(Collectors.joining(", ")));
     return ret;

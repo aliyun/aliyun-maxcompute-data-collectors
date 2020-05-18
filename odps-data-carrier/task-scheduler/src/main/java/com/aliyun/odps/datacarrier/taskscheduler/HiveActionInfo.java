@@ -29,8 +29,20 @@ public class HiveActionInfo extends AbstractActionInfo {
   private String trackingUrl;
   private List<List<String>> result;
 
+  public String getJobId() {
+    return jobId;
+  }
+
+  public String getTrackingUrl() {
+    return trackingUrl;
+  }
+
   public void setJobId(String jobId) {
     this.jobId = jobId;
+  }
+
+  public List<List<String>> getResult() {
+    return result;
   }
 
   public void setTrackingUrl(String trackingUrl) {
@@ -39,10 +51,6 @@ public class HiveActionInfo extends AbstractActionInfo {
 
   public void setResult(List<List<String>> result) {
     this.result = result;
-  }
-
-  public List<List<String>> getResult() {
-    return result;
   }
 
   public String getHiveActionInfoSummary() {

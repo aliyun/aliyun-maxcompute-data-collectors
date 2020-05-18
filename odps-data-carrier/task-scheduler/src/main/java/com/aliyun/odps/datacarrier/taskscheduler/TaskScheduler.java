@@ -22,9 +22,9 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import static com.aliyun.odps.datacarrier.taskscheduler.Constants.HELP;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -33,6 +33,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -40,6 +41,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,10 +54,12 @@ public class TaskScheduler {
 
   private static final Logger LOG = LogManager.getLogger(TaskScheduler.class);
 
-  private static final int GET_PENDING_TABLE_INTERVAL = 30000;
-  private static final int HEARTBEAT_INTERVAL_MS = 3000;
+  private static final int GET_PENDING_TABLE_INTERVAL_MS = 15000;
+  private static final int HEARTBEAT_INTERVAL_MS = 10000;
+  private static final int DROP_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
+  private static final int DROP_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = 10;
   private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
@@ -72,26 +76,6 @@ public class TaskScheduler {
   private MmaServerConfig mmaServerConfig;
   private MmaMetaManager mmaMetaManager;
 
-  // This map indicates if a table succeeded in current round
-  // database -> table -> status
-  private static Map<String, Map<String, Boolean>> databaseTableStatus = new ConcurrentHashMap<>();
-
-  private static void initDatabaseTableStatus(List<MetaSource.TableMetaModel> pendingTables) {
-    databaseTableStatus.clear();
-    for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
-      databaseTableStatus
-          .computeIfAbsent(tableMetaModel.databaseName, k -> new ConcurrentHashMap<>())
-          .put(tableMetaModel.tableName, true);
-    }
-  }
-
-  public static void markAsFailed(String db, String tbl) {
-    if (!databaseTableStatus.containsKey(db)) {
-      throw new IllegalStateException("Failed to update table status: table not found");
-    }
-    databaseTableStatus.get(db).put(tbl, false);
-  }
-
   public TaskScheduler() {
     this.heartbeatThread = new SchedulerHeartbeatThread();
     this.keepRunning = true;
@@ -99,81 +83,75 @@ public class TaskScheduler {
     this.actions = new TreeSet<>(new ActionComparator());
     this.taskRunnerMap = new ConcurrentHashMap<>();
     this.heartbeatIntervalMs = new AtomicInteger(HEARTBEAT_INTERVAL_MS);
-    this.tasks = new LinkedList<>();
+    this.tasks = Collections.synchronizedList(new LinkedList<>());
   }
 
   private void run(MmaServerConfig mmaServerConfig) throws TException, MmaException {
 
     // TODO: check if datasource and metasource are valid
     this.mmaServerConfig = mmaServerConfig;
-    mmaMetaManager = new MmaMetaManagerDbImpl(null, CommonUtils.getMetaSource(mmaServerConfig));
+    mmaMetaManager = new MmaMetaManagerDbImpl(null,
+                                              CommonUtils.getMetaSource(mmaServerConfig),
+                                              true);
     initActions(mmaServerConfig.getDataSource());
     initTaskRunner();
     updateConcurrencyThreshold();
     this.heartbeatThread.start();
-    int round = 1;
+
     while (keepRunning) {
-      // Get tables to migrate
-      LOG.info("Start to migrate data for the [{}] round", round);
-      // TODO: handle exceptions
-      List<MetaSource.TableMetaModel> pendingTables = mmaMetaManager.getPendingTables();
-      LOG.info("Tables to migrate");
-      for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
-        LOG.info("Database: {}, table: {}",
-                 tableMetaModel.databaseName,
-                 tableMetaModel.tableName);
-      }
-
-      // Init tableStatus
-      initDatabaseTableStatus(pendingTables);
-
-      TableSplitter tableSplitter = new TableSplitter(pendingTables, mmaMetaManager);
-      this.tasks.clear();
-      this.tasks.addAll(tableSplitter.generateTasks(actions));
-
-      if (this.tasks.isEmpty()) {
-        System.err.println("Waiting for migration jobs");
-        LOG.info("No tasks to schedule");
-        try {
-          Thread.sleep(GET_PENDING_TABLE_INTERVAL);
-        } catch (InterruptedException e) {
-          // ignore
-        }
-      } else {
-        LOG.info("Add {} tasks in the [{}] round", tasks.size(), round);
-      }
-
-      while (!isAllTasksFinished()) {
-        try {
-          Thread.sleep(HEARTBEAT_INTERVAL_MS);
-        } catch (InterruptedException e) {
-          // ignore
+      List<Task> tasksToRemove = new LinkedList<>();
+      for (Task task : tasks) {
+        if (Progress.SUCCEEDED.equals(task.getProgress())
+            || Progress.FAILED.equals(task.getProgress())) {
+          tasksToRemove.add(task);
         }
       }
 
-      // Update table status
-      for (Map.Entry<String, Map<String, Boolean>> dbEntry: databaseTableStatus.entrySet()) {
-        for (Map.Entry<String, Boolean> tableEntry : dbEntry.getValue().entrySet()) {
-          if (tableEntry.getValue()) {
-            mmaMetaManager.updateStatus(dbEntry.getKey(),
-                                        tableEntry.getKey(),
-                                        MmaMetaManager.MigrationStatus.SUCCEEDED);
-          } else {
-            mmaMetaManager.updateStatus(dbEntry.getKey(),
-                                        tableEntry.getKey(),
-                                        MmaMetaManager.MigrationStatus.FAILED);
+      for (Task task : tasksToRemove) {
+        LOG.info("Remove terminated task: {}, progress: {}",
+                 task.getName(),
+                 task.getProgress());
+        tasks.remove(task);
+      }
+
+      LOG.info("Looking for pending tables & partitions");
+      try {
+        List<MetaSource.TableMetaModel> pendingTables = mmaMetaManager.getPendingTables();
+
+        if (!pendingTables.isEmpty()) {
+          LOG.info("Tables to migrate");
+          for (MetaSource.TableMetaModel tableMetaModel : pendingTables) {
+            LOG.info("Database: {}, table: {}",
+                     tableMetaModel.databaseName,
+                     tableMetaModel.tableName);
           }
+        } else {
+          LOG.info("No pending table or partition found");
         }
+
+        TableSplitter tableSplitter = new TableSplitter(pendingTables, mmaMetaManager);
+        List<Task> newTasks = tableSplitter.generateTasks(actions);
+
+        tasks.addAll(newTasks);
+        LOG.info("Current Tasks: {}", tasks);
+
+        try {
+          Thread.sleep(GET_PENDING_TABLE_INTERVAL_MS);
+        } catch (InterruptedException e) {
+          LOG.warn("Task generating thread was interrupted");
+        }
+      } catch (MmaException e) {
+        LOG.error(ExceptionUtils.getStackTrace(e));
       }
-      LOG.info("All tasks finished");
-      round++;
     }
     shutdown();
   }
 
   @VisibleForTesting
   public void initActions(DataSource dataSource) {
+    actions.add(Action.ODPS_DROP_TABLE);
     actions.add(Action.ODPS_CREATE_TABLE);
+    actions.add(Action.ODPS_DROP_PARTITION);
     actions.add(Action.ODPS_ADD_PARTITION);
     switch (dataSource) {
       case Hive:
@@ -226,24 +204,43 @@ public class TaskScheduler {
   }
 
   private void updateConcurrencyThreshold() {
-    actionScheduleInfoMap.put(Action.ODPS_CREATE_TABLE,
-                              new ActionScheduleInfo(CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_CREATE_EXTERNAL_TABLE,
-                              new ActionScheduleInfo(
-                                  CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_ADD_PARTITION,
-                              new ActionScheduleInfo(ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION,
-                              new ActionScheduleInfo(
-                                  ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_LOAD_DATA,
-                              new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.HIVE_LOAD_DATA,
-                              new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_SOURCE_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.ODPS_DESTINATION_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.HIVE_SOURCE_VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
-    actionScheduleInfoMap.put(Action.VERIFICATION, new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_DROP_TABLE,
+        new ActionScheduleInfo(DROP_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_CREATE_TABLE,
+        new ActionScheduleInfo(CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_CREATE_EXTERNAL_TABLE,
+        new ActionScheduleInfo(CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_DROP_PARTITION,
+        new ActionScheduleInfo(DROP_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_ADD_PARTITION,
+        new ActionScheduleInfo(ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_ADD_EXTERNAL_TABLE_PARTITION,
+        new ActionScheduleInfo(ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_LOAD_DATA,
+        new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.HIVE_LOAD_DATA,
+        new ActionScheduleInfo(LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_SOURCE_VERIFICATION,
+        new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.ODPS_DESTINATION_VERIFICATION,
+        new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.HIVE_SOURCE_VERIFICATION,
+        new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+    actionScheduleInfoMap.put(
+        Action.VERIFICATION,
+        new ActionScheduleInfo(VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT));
+
     for (Map.Entry<Action, ActionScheduleInfo> entry : actionScheduleInfoMap.entrySet()) {
       LOG.info("Set concurrency limit for Action: {}, limit: {}",
                entry.getKey().name(),
@@ -294,57 +291,26 @@ public class TaskScheduler {
     }
   }
 
-  private boolean isAllTasksFinished() {
-    if (tasks.isEmpty()) {
-      LOG.info("None tasks to be scheduled.");
-      return true;
-    }
-
-    for (Task task : tasks) {
-      StringBuilder csb = new StringBuilder(task.getName());
-      StringBuilder sb = new StringBuilder(task.getName());
-      csb.append(":").append(task.progress.toColorString()).append("--> ");
-      sb.append(":").append(task.progress).append("--> ");
-      for (Action action : actions) {
-        if (!task.actionInfoMap.containsKey(action)) {
-          continue;
-        }
-
-        AbstractActionInfo executionInfo = task.actionInfoMap.get(action);
-        csb
-            .append(action.name())
-            .append("(").append(executionInfo.progress.toColorString()).append(") ");
-        sb
-            .append(action.name())
-            .append("(").append(executionInfo.progress).append(") ");
-      }
-      LOG.info(sb.toString());
-      System.err.print(csb.toString() + "\n");
-    }
-
-    return tasks.stream().allMatch(task -> Progress.FAILED.equals(task.progress)
-                                           || Progress.SUCCEEDED.equals(task.progress));
-  }
-
   private void scheduleExecutionTask(Action action) {
     ActionScheduleInfo actionScheduleInfo = actionScheduleInfoMap.get(action);
     if (actionScheduleInfo != null) {
-      // Get current concurrency
-      actionScheduleInfo.concurrency = Math.toIntExact(tasks.stream()
-          .filter(task -> task.actionInfoMap.containsKey(action)
-              && Progress.RUNNING.equals(task.actionInfoMap.get(action).progress))
-          .count());
-
-      LOG.info("Action: {}, concurrency: {}, concurrencyLimit: {}",
-               action.name(), actionScheduleInfo.concurrency, actionScheduleInfo.concurrencyLimit);
+      actionScheduleInfo.concurrency = Math.toIntExact(
+          tasks
+              .stream()
+              .filter(task -> task.actionInfoMap.containsKey(action)
+                              && Progress.RUNNING.equals(task.actionInfoMap.get(action).progress))
+              .count());
 
       // If current concurrency exceeds limitation, do not schedule this time
       if (actionScheduleInfo.concurrency >= actionScheduleInfo.concurrencyLimit) {
+        LOG.info("Concurrency limitation exceeded, action: {}, current: {}, limitation: {}",
+                 action.name(),
+                 actionScheduleInfo.concurrency,
+                 actionScheduleInfo.concurrencyLimit);
         return;
       }
     }
 
-    // Iterate over tasks, start actions and update status
     for (Task task : tasks) {
       // Skip if terminated
       if (Progress.SUCCEEDED.equals(task.progress) || Progress.FAILED.equals(task.progress)) {

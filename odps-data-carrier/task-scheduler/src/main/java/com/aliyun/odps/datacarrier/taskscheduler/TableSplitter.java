@@ -48,13 +48,26 @@ public class TableSplitter implements TaskManager {
 
   @Override
   public List<Task> generateTasks(SortedSet<Action> actions) throws MmaException {
+    // TODO: task generation should based on datasource, so the argument should be DataSource
     for (MetaSource.TableMetaModel tableMetaModel : this.tables) {
 
       MmaConfig.AdditionalTableConfig config =
           mmaMetaManager.getConfig(tableMetaModel.databaseName, tableMetaModel.tableName)
               .getAdditionalTableConfig();
 
-      // Empty partitions, means the table is non-partition table.
+      // Update table & partition status to running
+      mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                  tableMetaModel.tableName,
+                                  MmaMetaManager.MigrationStatus.RUNNING);
+      if (tableMetaModel.partitionColumns.size() > 0 && !tableMetaModel.partitions.isEmpty()) {
+        mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                    tableMetaModel.tableName,
+                                    tableMetaModel.partitions
+                                        .stream()
+                                        .map(p -> p.partitionValues)
+                                        .collect(Collectors.toList()),
+                                    MmaMetaManager.MigrationStatus.RUNNING);
+      }
       if (tableMetaModel.partitionColumns.isEmpty()) {
         tasks.add(generateTaskForNonPartitionedTable(tableMetaModel, config, actions));
       } else {
@@ -62,7 +75,7 @@ public class TableSplitter implements TaskManager {
       }
     }
 
-    LOG.warn("Tasks: {}",
+    LOG.info("Generated tasks: {}",
              tasks.stream().map(Task::getName).collect(Collectors.joining(", ")));
 
     return this.tasks;
@@ -76,7 +89,7 @@ public class TableSplitter implements TaskManager {
     String taskName = tableMetaModel.databaseName + "." + tableMetaModel.tableName;
     Task task = new Task(taskName, tableMetaModel, config, mmaMetaManager);
     for (Action action : actions) {
-      if (Action.ODPS_ADD_PARTITION.equals(action)) {
+      if (Action.ODPS_DROP_PARTITION.equals(action) || Action.ODPS_ADD_PARTITION.equals(action)) {
         continue;
       }
       task.addActionInfo(action);
@@ -132,6 +145,9 @@ public class TableSplitter implements TaskManager {
       String taskName = taskNamePrefix + "." + taskIdx;
       Task task = new Task(taskName, clone, config, mmaMetaManager);
       for (Action action : actions) {
+        if (Action.ODPS_DROP_TABLE.equals(action)) {
+          continue;
+        }
         task.addActionInfo(action);
       }
       ret.add(task);

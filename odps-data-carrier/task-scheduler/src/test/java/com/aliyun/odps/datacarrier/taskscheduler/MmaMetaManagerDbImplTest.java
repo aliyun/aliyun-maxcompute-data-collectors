@@ -29,6 +29,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.AfterClass;
@@ -74,8 +75,8 @@ public class MmaMetaManagerDbImplTest {
 
   @BeforeClass
   public static void beforeClass() throws MmaException, SQLException {
-    mmaMetaManager = new MmaMetaManagerDbImpl(DEFAULT_MMA_PARENT_DIR, metaSource);
-    conn = DriverManager.getConnection(DEFAULT_CONN_URL, "mma", "");
+    mmaMetaManager = new MmaMetaManagerDbImpl(DEFAULT_MMA_PARENT_DIR, metaSource, false);
+    conn = DriverManager.getConnection(DEFAULT_CONN_URL, "mma", "mma");
   }
 
   @AfterClass
@@ -316,6 +317,32 @@ public class MmaMetaManagerDbImplTest {
   }
 
   @Test
+  public void testUpdateExistingMigrationJobToRunning() throws Exception {
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
+    mmaMetaManager.updateStatus(MockHiveMetaSource.DB_NAME,
+                                MockHiveMetaSource.TBL_PARTITIONED,
+                                MmaMetaManager.MigrationStatus.RUNNING);
+
+    mmaMetaManager.updateStatus(MockHiveMetaSource.DB_NAME,
+                                MockHiveMetaSource.TBL_PARTITIONED,
+                                Collections.singletonList(MockHiveMetaSource.TBL_PARTITIONED_PARTITION_VALUES),
+                                MmaMetaManager.MigrationStatus.RUNNING);
+
+    for (int i = 0; i < 1000; i++) {
+      Assert.assertTrue(mmaMetaManager.getPendingTables().isEmpty());
+    }
+
+//    String sql = String.format("SELECT %s FROM %s",
+//                               Constants.MMA_TBL_META_COL_STATUS,
+//                               Constants.MMA_TBL_META_TBL_NAME);
+//    try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+//      Assert.assertTrue(rs.next());
+//      Assert.assertEquals(MmaMetaManager.MigrationStatus.SUCCEEDED.toString(),
+//                          rs.getString(1));
+//    }
+  }
+
+  @Test
   public void testUpdateExistingMigrationJobToSucceeded() throws Exception {
     mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
     mmaMetaManager.updateStatus(MockHiveMetaSource.DB_NAME,
@@ -444,25 +471,36 @@ public class MmaMetaManagerDbImplTest {
   @Test
   public void testGetPendingTables() throws MmaException {
     mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
 
     List<MetaSource.TableMetaModel> tableMetaModels = mmaMetaManager.getPendingTables();
 
-    Assert.assertEquals(1, tableMetaModels.size());
-    MetaSource.TableMetaModel expected =
+    Assert.assertEquals(2, tableMetaModels.size());
+
+    MetaSource.TableMetaModel nonPartitioned;
+    MetaSource.TableMetaModel partitioned;
+    nonPartitioned = tableMetaModels.get(0);
+    partitioned = tableMetaModels.get(1);
+
+    MetaSource.TableMetaModel expectedNonPartitioned =
+        MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.get(MockHiveMetaSource.TBL_NON_PARTITIONED);
+    Assert.assertEquals(expectedNonPartitioned.databaseName, nonPartitioned.databaseName);
+    Assert.assertEquals(expectedNonPartitioned.tableName, nonPartitioned.tableName);
+
+    MetaSource.TableMetaModel expectedPartitioned =
         MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.get(MockHiveMetaSource.TBL_PARTITIONED);
-    MetaSource.TableMetaModel actual = tableMetaModels.get(0);
-    Assert.assertEquals(expected.databaseName, actual.databaseName);
-    Assert.assertEquals(expected.tableName, actual.tableName);
-    Assert.assertEquals(1, actual.partitions.size());
-    Assert.assertEquals(MockHiveMetaSource.TBL_PARTITIONED_PARTITION_VALUES,
-                        actual.partitions.get(0).partitionValues);
+    Assert.assertEquals(expectedPartitioned.databaseName, partitioned.databaseName);
+    Assert.assertEquals(expectedPartitioned.tableName, partitioned.tableName);
+    Assert.assertEquals(1, partitioned.partitions.size());
+    Assert.assertEquals(expectedPartitioned.partitions.get(0).partitionValues,
+                        partitioned.partitions.get(0).partitionValues);
   }
 
   @Test
   public void testGetPendingTablesAfterMigrationJobSucceeded() throws MmaException {
-    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
+    mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
     mmaMetaManager.updateStatus(MockHiveMetaSource.DB_NAME,
-                                MockHiveMetaSource.TBL_PARTITIONED,
+                                MockHiveMetaSource.TBL_NON_PARTITIONED,
                                 MmaMetaManager.MigrationStatus.SUCCEEDED);
 
     List<MetaSource.TableMetaModel> tableMetaModels = mmaMetaManager.getPendingTables();
@@ -480,12 +518,6 @@ public class MmaMetaManagerDbImplTest {
 
     List<MetaSource.TableMetaModel> tableMetaModels = mmaMetaManager.getPendingTables();
 
-    Assert.assertEquals(1, tableMetaModels.size());
-    MetaSource.TableMetaModel expected =
-        MockHiveMetaSource.TABLE_NAME_2_TABLE_META_MODEL.get(MockHiveMetaSource.TBL_PARTITIONED);
-    MetaSource.TableMetaModel actual = tableMetaModels.get(0);
-    Assert.assertEquals(expected.databaseName, actual.databaseName);
-    Assert.assertEquals(expected.tableName, actual.tableName);
-    Assert.assertEquals(0, actual.partitions.size());
+    Assert.assertEquals(0, tableMetaModels.size());
   }
 }

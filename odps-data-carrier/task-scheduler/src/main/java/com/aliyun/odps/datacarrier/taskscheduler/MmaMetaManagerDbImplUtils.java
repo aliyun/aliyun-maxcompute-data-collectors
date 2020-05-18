@@ -25,6 +25,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -97,6 +98,18 @@ public class MmaMetaManagerDbImplUtils {
     public int getAttemptTimes() {
       return attemptTimes;
     }
+
+    public void setStatus(MmaMetaManager.MigrationStatus status) {
+      this.status = status;
+    }
+
+    public void setAttemptTimes(int attemptTimes) {
+      this.attemptTimes = attemptTimes;
+    }
+
+    public void setLastSuccTimestamp(long lastSuccTimestamp) {
+      this.lastSuccTimestamp = lastSuccTimestamp;
+    }
   }
 
 
@@ -133,6 +146,18 @@ public class MmaMetaManagerDbImplUtils {
 
     public long getLastSuccTimestamp() {
       return lastSuccTimestamp;
+    }
+
+    public void setStatus(MmaMetaManager.MigrationStatus status) {
+      this.status = status;
+    }
+
+    public void setAttemptTimes(int attemptTimes) {
+      this.attemptTimes = attemptTimes;
+    }
+
+    public void setLastSuccTimestamp(long lastSuccTimestamp) {
+      this.lastSuccTimestamp = lastSuccTimestamp;
     }
   }
 
@@ -429,13 +454,46 @@ public class MmaMetaManagerDbImplUtils {
     }
   }
 
+  public static Map<MmaMetaManager.MigrationStatus, Integer> getPartitionStatusDistribution(
+      Connection conn,
+      String db,
+      String tbl)
+      throws SQLException {
+
+    String schemaName = String.format(Constants.MMA_PT_META_SCHEMA_NAME_FMT, db);
+    String tableName = String.format(Constants.MMA_PT_META_TBL_NAME_FMT, tbl);
+
+    StringBuilder sb = new StringBuilder();
+    sb
+        .append("SELECT ")
+        .append(Constants.MMA_PT_META_COL_STATUS).append(", COUNT(1) as CNT FROM ")
+        .append(schemaName).append(".").append(tableName)
+        .append(" GROUP BY ").append(Constants.MMA_PT_META_COL_STATUS);
+
+    try (Statement stmt = conn.createStatement()) {
+      LOG.info("Executing SQL: {}", sb.toString());
+      Map<MmaMetaManager.MigrationStatus, Integer> ret = new HashMap<>();
+      try (ResultSet rs = stmt.executeQuery(sb.toString())) {
+        while (rs.next()) {
+          MmaMetaManager.MigrationStatus status =
+              MmaMetaManager.MigrationStatus.valueOf(rs.getString(1));
+          Integer count = rs.getInt(2);
+          ret.put(status, count);
+        }
+
+        return ret;
+      }
+    }
+  }
+
   /**
    * Filter out existing partitions from candidates
    */
-  public static List<List<String>> filterOutExistingPartitions(Connection conn,
-                                                               String db,
-                                                               String tbl,
-                                                               List<List<String>> candidates)
+  public static List<List<String>> filterOutExistingPartitions(
+      Connection conn,
+      String db,
+      String tbl,
+      List<List<String>> candidates)
       throws SQLException {
 
     String schemaName = String.format(Constants.MMA_PT_META_SCHEMA_NAME_FMT, db);
@@ -462,6 +520,37 @@ public class MmaMetaManagerDbImplUtils {
             .map(json -> (List<String>) GsonUtils.getFullConfigGson().fromJson(json, type))
             .collect(Collectors.toList());
       }
+    }
+  }
+
+  /**
+   *  Infer a migration job's status from the statuses of its partitions
+   */
+  public static MmaMetaManager.MigrationStatus inferPartitionedTableStatus(
+      Connection conn,
+      String db,
+      String tbl)
+      throws SQLException {
+
+    Map<MmaMetaManager.MigrationStatus, Integer> statusDistribution =
+        MmaMetaManagerDbImplUtils.getPartitionStatusDistribution(conn, db, tbl);
+    int total = statusDistribution.values().stream().reduce(0, Integer::sum);
+    int pending =
+        statusDistribution.getOrDefault(MmaMetaManager.MigrationStatus.PENDING, 0);
+    int succeeded =
+        statusDistribution.getOrDefault(MmaMetaManager.MigrationStatus.SUCCEEDED, 0);
+    int failed =
+        statusDistribution.getOrDefault(MmaMetaManager.MigrationStatus.FAILED, 0);
+
+    // Decide table status based on partition status
+    if (total == succeeded) {
+      return MmaMetaManager.MigrationStatus.SUCCEEDED;
+    } else if (total == succeeded + failed && failed != 0) {
+      return MmaMetaManager.MigrationStatus.FAILED;
+    } else if (total == pending) {
+      return MmaMetaManager.MigrationStatus.PENDING;
+    } else {
+      return MmaMetaManager.MigrationStatus.RUNNING;
     }
   }
 }

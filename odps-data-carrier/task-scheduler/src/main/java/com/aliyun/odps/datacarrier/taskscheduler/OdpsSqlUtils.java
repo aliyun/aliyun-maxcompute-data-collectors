@@ -138,13 +138,13 @@ public class OdpsSqlUtils {
     OssExternalTableConfig ossExternalTableConfig = (OssExternalTableConfig) externalTableConfig;
     sb.append("STORED AS TEXTFILE\n");
 
+    if (!StringUtils.isNullOrEmpty(ossExternalTableConfig.getRoleRan())) {
+      tableMetaModel.serDeProperties.put("odps.properties.rolearn", ossExternalTableConfig.getRoleRan());
+    }
     if (MapUtils.isNotEmpty(tableMetaModel.serDeProperties)) {
       sb.append("WITH SERDEPROPERTIES (").append("\n");
       List<String> propertyStrings = new LinkedList<>();
       for (Map.Entry<String, String> property : tableMetaModel.serDeProperties.entrySet()) {
-        if (property.getKey().equals("odps.properties.rolearn")) {
-          continue;
-        }
         if (!StringEscapeUtils.escapeJava(property.getValue()).startsWith("\\u")) {
           String propertyString = String.format("'%s'='%s'",
               StringEscapeUtils.escapeJava(property.getKey()),
@@ -152,9 +152,6 @@ public class OdpsSqlUtils {
           propertyStrings.add(propertyString);
         }
       }
-      String propertyString = String.format("'odps.properties.rolearn'='%s'",
-          StringEscapeUtils.escapeJava(ossExternalTableConfig.getRoleRan()));
-      propertyStrings.add(propertyString);
       sb.append(String.join(",\n", propertyStrings)).append(")\n");
     }
     sb.append("LOCATION '").append(getOssTablePath(tableMetaModel, ossExternalTableConfig)).append("';\n");

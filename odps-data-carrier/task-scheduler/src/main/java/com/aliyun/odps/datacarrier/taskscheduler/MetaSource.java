@@ -27,6 +27,7 @@ import java.util.Map;
 public interface MetaSource {
 
   class TableMetaModel implements Cloneable {
+
     public String databaseName;
     public String odpsProjectName;
     public String tableName;
@@ -73,6 +74,7 @@ public interface MetaSource {
   }
 
   class ColumnMetaModel {
+
     public String columnName;
     public String odpsColumnName;
     public String type;
@@ -81,46 +83,106 @@ public interface MetaSource {
   }
 
   class PartitionMetaModel {
+
     public List<String> partitionValues = new ArrayList<>();
     public String location;
     public Integer createTime;
   }
 
-  DataSource getDataSource();
-
-  boolean hasTable(String databaseName, String tableName) throws Exception;
-
+  /**
+   * Check database existence
+   *
+   * @param databaseName Database name
+   * @return True if the database exists, else false
+   * @throws Exception
+   */
   boolean hasDatabase(String databaseName) throws Exception;
 
   /**
+   * Check table existence
+   *
+   * @param databaseName Database name
+   * @param tableName    Table name
+   * @return True if the table exists, else false
+   * @throws Exception
+   */
+  boolean hasTable(String databaseName, String tableName) throws Exception;
+
+  /**
+   * Check partition existence
+   * @param databaseName Database name
+   * @param tableName Table name
+   * @param partitionValues partition values
+   * @return True if the partition exists, else false
+   * @throws Exception
+   */
+  boolean hasPartition(String databaseName, String tableName, List<String> partitionValues)
+      throws Exception;
+
+  /**
+   * Get database list
+   *
+   * @return List of database
+   * @throws Exception
+   */
+  List<String> listDatabases() throws Exception;
+
+  /**
    * Get table names in given database
-   * @param databaseName database name
-   * @return Non-partition tables need to migrate data.
+   *
+   * @param databaseName Database name
+   * @return List of table names
    * @throws Exception
    */
   List<String> listTables(String databaseName) throws Exception;
 
-  TableMetaModel getTableMeta(String databaseName, String tableName) throws Exception;
-
-  TableMetaModel getTableMetaWithoutPartitionMeta(String databaseName,
-                                                  String tableName) throws Exception;
-
   /**
-   * Get partition values list of given table
-   * @param databaseName database name
-   * @param tableName table name
-   * @return Partition table left partitions need to migrate data.
+   * Get partition list of specified table
+   *
+   * @param databaseName Database name
+   * @param tableName    Table name
+   * @return List of partition values of specified table
    * @throws Exception
    */
   List<List<String>> listPartitions(String databaseName,
                                     String tableName) throws Exception;
 
+  /**
+   * Get metadata of specified table
+   *
+   * @param databaseName Database name
+   * @param tableName    Table name
+   * @return Metadata of specified table
+   * @throws Exception
+   */
+  TableMetaModel getTableMeta(String databaseName, String tableName) throws Exception;
+
+  /**
+   * Get metadata of specified table
+   *
+   * @param databaseName Database name
+   * @param tableName    Table name
+   * @return Metadata of specified table, partition metadata not included
+   * @throws Exception
+   */
+  TableMetaModel getTableMetaWithoutPartitionMeta(String databaseName,
+                                                  String tableName) throws Exception;
+
+  /**
+   * Get metadata of specified partition
+   *
+   * @param databaseName    Database name
+   * @param tableName       Table name
+   * @param partitionValues Partition values
+   * @return Metadata of specified partition
+   * @throws Exception
+   */
   PartitionMetaModel getPartitionMeta(String databaseName,
                                       String tableName,
                                       List<String> partitionValues) throws Exception;
 
-  List<String> listDatabases() throws Exception;
-
+  /**
+   * Shutdown
+   */
   void shutdown();
-
 }

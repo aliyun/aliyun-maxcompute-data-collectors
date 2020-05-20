@@ -28,7 +28,6 @@ public class MmaMigrationConfig implements MmaConfig.Config {
   private MmaConfig.AdditionalTableConfig globalAdditionalTableConfig;
   private MmaConfig.ServiceMigrationConfig serviceMigrationConfig;
   private List<MmaConfig.DatabaseMigrationConfig> databaseMigrationConfigs;
-  private List<MmaConfig.DatabaseBackupConfig> databaseBackupConfigs;
   private List<MmaConfig.TableMigrationConfig> tableMigrationConfigs;
 
   public MmaMigrationConfig(String user,
@@ -45,28 +44,18 @@ public class MmaMigrationConfig implements MmaConfig.Config {
 
     if (serviceMigrationConfig != null) {
       if (databaseMigrationConfigs != null && !databaseMigrationConfigs.isEmpty()
-          || databaseBackupConfigs != null && !databaseBackupConfigs.isEmpty()
           || tableMigrationConfigs != null && !tableMigrationConfigs.isEmpty()) {
         throw new IllegalArgumentException(
             "Service migration config exists, please remove database and table migration configs");
       }
       valid = serviceMigrationConfig.validate();
     } else if (databaseMigrationConfigs != null) {
-      if (tableMigrationConfigs != null && !tableMigrationConfigs.isEmpty()
-          || databaseBackupConfigs != null && !databaseBackupConfigs.isEmpty()) {
+      if (tableMigrationConfigs != null && !tableMigrationConfigs.isEmpty()) {
         throw new IllegalArgumentException(
             "Database migration config exists, please remove table migration configs");
       }
       valid = databaseMigrationConfigs.stream()
           .allMatch(MmaConfig.DatabaseMigrationConfig::validate);
-    } else if (databaseBackupConfigs != null) {
-      if (tableMigrationConfigs != null && !tableMigrationConfigs.isEmpty()) {
-        throw new IllegalArgumentException(
-            "Database backup config exists, please remove table migration configs");
-      }
-
-      valid = databaseBackupConfigs.stream()
-          .allMatch(MmaConfig.DatabaseBackupConfig::validate);
     } else {
       if (tableMigrationConfigs == null) {
         throw new IllegalArgumentException("No migration config found");
@@ -88,10 +77,6 @@ public class MmaMigrationConfig implements MmaConfig.Config {
 
   public List<MmaConfig.DatabaseMigrationConfig> getDatabaseMigrationConfigs() {
     return databaseMigrationConfigs;
-  }
-
-  public List<MmaConfig.DatabaseBackupConfig> getDatabaseBackupConfigs() {
-    return databaseBackupConfigs;
   }
 
   public List<MmaConfig.TableMigrationConfig> getTableMigrationConfigs() {

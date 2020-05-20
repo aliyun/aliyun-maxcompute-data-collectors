@@ -22,6 +22,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.aliyun.odps.utils.StringUtils;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,10 +36,12 @@ public class MmaClientDbImpl implements MmaClient {
   private static final String WARNING_INDICATOR = "WARNING: ";
 
   private MetaSource metaSource;
+  private DataSource dataSource;
   private MmaMetaManager mmaMetaManager;
 
   public MmaClientDbImpl(MmaClientConfig mmaClientConfig) throws MetaException, MmaException {
     metaSource = CommonUtils.getMetaSource(mmaClientConfig);
+    dataSource = mmaClientConfig.getDataSource();
     mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource);
   }
 
@@ -65,6 +68,7 @@ public class MmaClientDbImpl implements MmaClient {
       for (String database : databases) {
         createDatabaseMigrationJob(database,
                                    serviceMigrationConfig.getDestProjectName(),
+                                   null,
                                    globalAdditionalTableConfig);
       }
     } else if (mmaMigrationConfig.getDatabaseMigrationConfigs() != null) {
@@ -86,27 +90,8 @@ public class MmaClientDbImpl implements MmaClient {
 
         createDatabaseMigrationJob(database,
                                    databaseMigrationConfig.getDestProjectName(),
+                                   databaseMigrationConfig.getDestProjectStorage(),
                                    databaseAdditionalTableConfig);
-      }
-    } else if (mmaMigrationConfig.getDatabaseBackupConfigs() != null) {
-      for (MmaConfig.DatabaseBackupConfig databaseBackupConfig :
-          mmaMigrationConfig.getDatabaseBackupConfigs()) {
-        String database = databaseBackupConfig.getSourceDatabaseName();
-
-        if (!databaseExists(database)) {
-          continue;
-        }
-
-        MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig =
-            databaseBackupConfig.getAdditionalTableConfig();
-        if (databaseAdditionalTableConfig == null) {
-          databaseAdditionalTableConfig = globalAdditionalTableConfig;
-        }
-
-        createDatabaseBackupJob(database,
-            databaseBackupConfig.getDestProjectName(),
-            databaseBackupConfig.getDestProjectStorage(),
-            databaseAdditionalTableConfig);
       }
     } else {
       for (MmaConfig.TableMigrationConfig tableMigrationConfig :
@@ -167,11 +152,24 @@ public class MmaClientDbImpl implements MmaClient {
   private void createDatabaseMigrationJob(
       String database,
       String project,
+      String storage,
       MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig) throws MmaException {
-
     List<String> tables;
     try {
-      tables = metaSource.listTables(database);
+      if (storage != null) {
+        // migrate database to external storage
+        if (!DataSource.ODPS.equals(dataSource)) {
+          String msg = "Failed to create backup jobs for database:" + database
+              + " to " + storage + ", which is managed by " + dataSource;
+          System.err.println(ERROR_INDICATOR + msg);
+          LOG.error(msg);
+          return;
+        }
+        OdpsMetaSource odpsMetaSource = (OdpsMetaSource)metaSource;
+        tables = odpsMetaSource.listManagedTables(database);
+      } else {
+        tables = metaSource.listTables(database);
+      }
     } catch (Exception e) {
       String msg = "Failed to create migration jobs for database:" + database;
       System.err.println(ERROR_INDICATOR + msg);
@@ -180,55 +178,22 @@ public class MmaClientDbImpl implements MmaClient {
     }
 
     for (String table : tables) {
-      MmaConfig.TableMigrationConfig tableMigrationConfig =
-          new MmaConfig.TableMigrationConfig(
-              database,
-              table,
-              project,
-              table,
-              databaseAdditionalTableConfig);
-
-      mmaMetaManager.addMigrationJob(tableMigrationConfig);
-      LOG.info("Job submitted, database: {}, table: {}", database, table);
-    }
-  }
-
-  private void createDatabaseBackupJob(
-      String database,
-      String project,
-      String storage,
-      MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig) throws MmaException {
-    List<String> tables;
-    try {
-      if (!DataSource.ODPS.equals(metaSource.getDataSource())) {
-        String msg = "Failed to create backup jobs for database:" + database
-            + ", which is managed by " + metaSource.getDataSource();
-        System.err.println(ERROR_INDICATOR + msg);
-        LOG.error(msg);
-        return;
+      String destTableName = table;
+      if (!StringUtils.isNullOrEmpty(storage)) {
+        destTableName = destTableName + "_migrate_to_external_table_" + storage + "_" + System.currentTimeMillis();
       }
-      OdpsMetaSource odpsMetaSource = (OdpsMetaSource)metaSource;
-      tables = odpsMetaSource.listManagedTables(database);
-    } catch (Exception e) {
-      String msg = "Failed to create backup jobs for database:" + database;
-      System.err.println(ERROR_INDICATOR + msg);
-      LOG.error(msg, e);
-      return;
-    }
-
-    for (String table : tables) {
       MmaConfig.TableMigrationConfig tableMigrationConfig =
           new MmaConfig.TableMigrationConfig(
               database,
               table,
               project,
-              table,
+              destTableName,
               storage,
               null,
               databaseAdditionalTableConfig);
 
       mmaMetaManager.addMigrationJob(tableMigrationConfig);
-      LOG.info("Job submitted, database: {}, table: {}", database, table);
+      LOG.info("Job submitted, migrate {}.{} to {}.{}", database, table, project, destTableName);
     }
   }
 

@@ -154,14 +154,16 @@ public class MockHiveMetaSource implements MetaSource {
   }
 
   @Override
-  public DataSource getDataSource() {
-    return DataSource.Hive;
-  }
-
-  @Override
   public boolean hasTable(String databaseName, String tableName) throws Exception {
     return DB_NAME.equalsIgnoreCase(databaseName)
            && (TABLE_NAME_2_TABLE_META_MODEL.containsKey(tableName.toLowerCase()));
+  }
+
+  @Override
+  public boolean hasPartition(String databaseName, String tableName, List<String> partitionValues) {
+    return DB_NAME.equalsIgnoreCase(databaseName)
+           && TBL_PARTITIONED.equalsIgnoreCase(tableName)
+           && TBL_PARTITIONED_PARTITION_VALUES.equals(partitionValues);
   }
 
   @Override

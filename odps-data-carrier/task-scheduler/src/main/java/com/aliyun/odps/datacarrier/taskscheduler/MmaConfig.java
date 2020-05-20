@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -132,16 +133,17 @@ public class MmaConfig {
 
     @Override
     public boolean validate() {
-      if (hiveJdbcExtraSettings == null || hiveJdbcExtraSettings.isEmpty()) {
-        return false;
-      }
-      for (String setting : hiveJdbcExtraSettings) {
-        if (StringUtils.isNullOrEmpty(setting)) {
-          return false;
+      if (hiveJdbcExtraSettings != null) {
+        for (String setting : hiveJdbcExtraSettings) {
+          if (StringUtils.isNullOrEmpty(setting)) {
+            return false;
+          }
         }
       }
       return (!StringUtils.isNullOrEmpty(jdbcConnectionUrl) &&
-              !StringUtils.isNullOrEmpty(hmsThriftAddr));
+              !StringUtils.isNullOrEmpty(hmsThriftAddr) &&
+              user != null &&
+              password != null);
     }
 
     public String getJdbcConnectionUrl() {
@@ -288,6 +290,7 @@ public class MmaConfig {
   public static class DatabaseMigrationConfig implements Config {
     private String sourceDatabaseName;
     private String destProjectName;
+    private String destProjectStorage;
     private AdditionalTableConfig additionalTableConfig;
 
     public DatabaseMigrationConfig (String sourceDatabaseName,
@@ -295,43 +298,7 @@ public class MmaConfig {
                                     AdditionalTableConfig additionalTableConfig) {
       this.sourceDatabaseName = sourceDatabaseName;
       this.destProjectName = destProjectName;
-      this.additionalTableConfig = additionalTableConfig;
-    }
-
-    public String getSourceDatabaseName() {
-      return sourceDatabaseName;
-    }
-
-    public String getDestProjectName() {
-      return destProjectName;
-    }
-
-    public AdditionalTableConfig getAdditionalTableConfig() {
-      return additionalTableConfig;
-    }
-
-    @Override
-    public boolean validate() {
-      return !StringUtils.isNullOrEmpty(sourceDatabaseName)
-             && !StringUtils.isNullOrEmpty(destProjectName)
-             && (additionalTableConfig == null || additionalTableConfig.validate());
-    }
-  }
-
-  // used to backup odps managed table to external storage, such as OSS
-  public static class DatabaseBackupConfig implements Config {
-    private String sourceDatabaseName;
-    private String destProjectName;
-    private String destProjectStorage;
-    private AdditionalTableConfig additionalTableConfig;
-
-    public DatabaseBackupConfig(String sourceDatabaseName,
-                                String destProjectName,
-                                String destProjectStroage,
-                                AdditionalTableConfig additionalTableConfig) {
-      this.sourceDatabaseName = sourceDatabaseName;
-      this.destProjectName = destProjectName;
-      this.destProjectStorage = destProjectStroage;
+      this.destProjectStorage = null;
       this.additionalTableConfig = additionalTableConfig;
     }
 
@@ -354,9 +321,8 @@ public class MmaConfig {
     @Override
     public boolean validate() {
       return !StringUtils.isNullOrEmpty(sourceDatabaseName)
-          && !StringUtils.isNullOrEmpty(destProjectName)
-          && !StringUtils.isNullOrEmpty(destProjectStorage)
-          && (additionalTableConfig == null || additionalTableConfig.validate());
+             && !StringUtils.isNullOrEmpty(destProjectName)
+             && (additionalTableConfig == null || additionalTableConfig.validate());
     }
   }
 
@@ -441,8 +407,14 @@ public class MmaConfig {
       return additionalTableConfig;
     }
 
-    public void setDestTableName(String destTableName) {
-      this.destTableName = destTableName;
+    public void addPartitionValues(List<String> partitionValues) {
+      if (partitionValuesList == null) {
+        partitionValuesList = new LinkedList<>();
+      }
+
+      if (!partitionValuesList.contains(partitionValues)) {
+        partitionValuesList.add(partitionValues);
+      }
     }
 
     public void setAdditionalTableConfig(AdditionalTableConfig additionalTableConfig) {

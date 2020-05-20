@@ -26,6 +26,8 @@ import static org.junit.Assert.assertNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -133,6 +135,84 @@ public class TestMmaConfig {
     assertEquals("mc_test_table2", tableMigrationConfig2.getDestTableName());
     checkAdditionalTableConfig(tableMigrationConfig2.getAdditionalTableConfig());
   }
+
+  @Test(timeout = 5000)
+  public void testParsingTableMappingSpecifyingPartitions() throws IOException {
+    List<String> lines = new LinkedList<>();
+    lines.add("source_db.source_tbl(\"ptv1\", \"ptv2\"):dest_db.dest_tbl");
+    lines.add("source_db.source_tbl(\"ptv3\", \"ptv4\"):dest_db.dest_tbl");
+    List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
+        MmaConfigUtils.parseTableMapping(lines);
+
+    assertEquals(1, tableMigrationConfigs.size());
+    MmaConfig.TableMigrationConfig tableMigrationConfig = tableMigrationConfigs.get(0);
+    assertEquals("source_db", tableMigrationConfig.getSourceDataBaseName());
+    assertEquals("source_tbl", tableMigrationConfig.getSourceTableName());
+    assertEquals("dest_db", tableMigrationConfig.getDestProjectName());
+    assertEquals("dest_tbl", tableMigrationConfig.getDestTableName());
+
+    List<List<String>> partitionValuesList = tableMigrationConfig.getPartitionValuesList();
+    assertEquals(2, partitionValuesList.size());
+    assertEquals(2, partitionValuesList.get(0).size());
+    assertEquals("ptv1", partitionValuesList.get(0).get(0));
+    assertEquals("ptv2", partitionValuesList.get(0).get(1));
+    assertEquals(2, partitionValuesList.get(1).size());
+    assertEquals("ptv3", partitionValuesList.get(1).get(0));
+    assertEquals("ptv4", partitionValuesList.get(1).get(1));
+  }
+
+  @Test(timeout = 5000)
+  public void testParsingConflictedTableMapping() throws IOException {
+    List<String> lines = new LinkedList<>();
+    lines.add("source_db.source_tbl(\"ptv1\", \"ptv2\"):dest_db.dest_tbl");
+    lines.add("source_db.source_tbl(\"ptv3\", \"ptv4\"):dest_db2.dest_tbl");
+    List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
+        MmaConfigUtils.parseTableMapping(lines);
+
+    assertEquals(1, tableMigrationConfigs.size());
+    MmaConfig.TableMigrationConfig tableMigrationConfig = tableMigrationConfigs.get(0);
+    assertEquals("source_db", tableMigrationConfig.getSourceDataBaseName());
+    assertEquals("source_tbl", tableMigrationConfig.getSourceTableName());
+    assertEquals("dest_db", tableMigrationConfig.getDestProjectName());
+    assertEquals("dest_tbl", tableMigrationConfig.getDestTableName());
+
+    List<List<String>> partitionValuesList = tableMigrationConfig.getPartitionValuesList();
+    assertEquals(1, partitionValuesList.size());
+  }
+
+  @Test(timeout = 5000)
+  public void testParsingInvalidTableMapping() throws IOException {
+    List<String> lines = new LinkedList<>();
+    lines.add("source_db.source_tbl(\"ptv1\", \"ptv2\"):dest_db");
+    List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
+        MmaConfigUtils.parseTableMapping(lines);
+
+    assertEquals(0, tableMigrationConfigs.size());
+  }
+
+  @Test(timeout = 5000)
+  public void testParsingDuplicatedPartitionSpecTableMapping() throws IOException {
+    List<String> lines = new LinkedList<>();
+    lines.add("source_db.source_tbl(\"ptv1\", \"ptv2\"):dest_db.dest_tbl");
+    lines.add("source_db.source_tbl(\"ptv1\", \"ptv2\"):dest_db.dest_tbl");
+    List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
+        MmaConfigUtils.parseTableMapping(lines);
+
+    assertEquals(1, tableMigrationConfigs.size());
+    assertEquals(1, tableMigrationConfigs.get(0).getPartitionValuesList().size());
+  }
+
+    @Test (timeout = 5000)
+    public void testParsingDuplicatedTableMapping() throws IOException {
+      List<String> lines = new LinkedList<>();
+      lines.add("source_db.source_tbl:dest_db.dest_tbl");
+      lines.add("source_db.source_tbl:dest_db.dest_tbl");
+      List<MmaConfig.TableMigrationConfig> tableMigrationConfigs =
+          MmaConfigUtils.parseTableMapping(lines);
+
+      assertEquals(1, tableMigrationConfigs.size());
+    }
+
 
   private void checkHiveConfig(MmaConfig.HiveConfig hiveConfig) {
     assertEquals("test_connection_url", hiveConfig.getJdbcConnectionUrl());

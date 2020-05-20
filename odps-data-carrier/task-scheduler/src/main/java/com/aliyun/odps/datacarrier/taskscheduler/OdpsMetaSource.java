@@ -2,6 +2,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import com.aliyun.odps.Column;
 import com.aliyun.odps.Odps;
+import com.aliyun.odps.OdpsException;
 import com.aliyun.odps.Partition;
 import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.Project;
@@ -50,11 +51,6 @@ public class OdpsMetaSource implements MetaSource {
   }
 
   @Override
-  public DataSource getDataSource() {
-    return DataSource.ODPS;
-  }
-
-  @Override
   public boolean hasTable(String databaseName, String tableName) throws Exception {
     return odps.tables().exists(databaseName, tableName);
   }
@@ -94,16 +90,29 @@ public class OdpsMetaSource implements MetaSource {
     return getTableMetaInternal(databaseName, tableName ,false);
   }
 
-  /**
-   * Get partition values list of given table
-   * @param databaseName database name
-   * @param tableName table name
-   * @return Partition table left partitions need to migrate data.
-   * @throws Exception
-   */
   @Override
-  public List<List<String>> listPartitions(String databaseName,
-                                           String tableName) {
+  public boolean hasPartition(String databaseName, String tableName, List<String> partitionValues)
+      throws OdpsException {
+    if (!odps.tables().exists(databaseName, tableName)) {
+      return false;
+    }
+
+    List<Column> partitionColumns =
+        odps.tables().get(databaseName, tableName).getSchema().getPartitionColumns();
+    if (partitionValues.size() != partitionColumns.size()) {
+      return false;
+    }
+
+    PartitionSpec partitionSpec = new PartitionSpec();
+    for (int i = 0; i < partitionValues.size(); i++) {
+      partitionSpec.set(partitionColumns.get(i).getName(), partitionValues.get(i));
+    }
+
+    return odps.tables().get(databaseName, tableName).hasPartition(partitionSpec);
+  }
+
+  @Override
+  public List<List<String>> listPartitions(String databaseName, String tableName) {
     List<List<String>> allPartitiionValues = new ArrayList<>();
     Table table = odps.tables().get(databaseName, tableName);
     for (Partition partition : table.getPartitions()) {

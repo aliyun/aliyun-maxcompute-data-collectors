@@ -163,7 +163,6 @@ public class HiveMetaSource implements MetaSource {
     return partitionMetaModel;
   }
 
-  @Override
   public boolean hasDatabase(String databaseName) throws Exception {
     try {
       hmsClient.getDatabase(databaseName);

@@ -58,7 +58,22 @@ public class OdpsMetaSource implements MetaSource {
   @Override
   public List<String> listTables(String databaseName) {
     List<String> tables = new ArrayList<>();
-    for (Table table : odps.tables()) {
+    Iterator<Table> iterator = odps.tables().iterator(databaseName);
+    while (iterator.hasNext()) {
+      Table table = iterator.next();
+      tables.add(table.getName());
+    }
+    return tables;
+  }
+
+  public List<String> listManagedTables(String databaseName) {
+    List<String> tables = new ArrayList<>();
+    Iterator<Table> iterator = odps.tables().iterator(databaseName);
+    while (iterator.hasNext()) {
+      Table table = iterator.next();
+      if (table.isExternalTable() || table.isVirtualView()) {
+        continue;
+      }
       tables.add(table.getName());
     }
     return tables;

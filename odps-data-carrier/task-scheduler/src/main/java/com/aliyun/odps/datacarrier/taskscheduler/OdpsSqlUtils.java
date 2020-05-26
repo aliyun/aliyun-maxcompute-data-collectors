@@ -19,7 +19,13 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import com.aliyun.odps.utils.StringUtils;
+import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
+
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 
 public class OdpsSqlUtils {
@@ -33,11 +39,18 @@ public class OdpsSqlUtils {
   }
 
   public static String getCreateTableStatement(MetaSource.TableMetaModel tableMetaModel) {
-    StringBuilder sb = new StringBuilder();
+    return getCreateTableStatement(tableMetaModel, null);
+  }
 
-    sb
-        .append("CREATE TABLE IF NOT EXISTS ")
-        .append(tableMetaModel.odpsProjectName).append(".")
+  public static String getCreateTableStatement(MetaSource.TableMetaModel tableMetaModel,
+                                               ExternalTableConfig externalTableConfig) {
+    StringBuilder sb = new StringBuilder();
+    if (externalTableConfig != null) {
+      sb.append("CREATE EXTERNAL TABLE IF NOT EXISTS ");
+    } else {
+      sb.append("CREATE TABLE IF NOT EXISTS ");
+    }
+    sb.append(tableMetaModel.odpsProjectName).append(".")
         .append("`").append(tableMetaModel.odpsTableName).append("` (\n");
 
     for (int i = 0; i < tableMetaModel.columns.size(); i++) {
@@ -78,10 +91,73 @@ public class OdpsSqlUtils {
       sb.append("\n)");
     }
 
+    if (externalTableConfig != null) {
+      switch (externalTableConfig.getStorage()) {
+        case OSS:
+          sb.append(getCreateOssExternalTableCondition(tableMetaModel, externalTableConfig));
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown external table storage: " + externalTableConfig.getStorage().name());
+      }
+    }
+
     sb.append(";\n");
 
     return sb.toString();
   }
+
+  private static String getOssTablePath(MetaSource.TableMetaModel tableMetaModel,
+                                        OssExternalTableConfig ossExternalTableConfig) {
+    String ossEndpoint = ossExternalTableConfig.getEndpoint();
+    String ossBucket = ossExternalTableConfig.getBucket();
+    if (StringUtils.isNullOrEmpty(ossEndpoint)
+        || StringUtils.isNullOrEmpty(ossBucket)) {
+      throw new IllegalArgumentException("Undefined OSS endpoint or OSS bucket");
+    }
+    StringBuilder locationBuilder = new StringBuilder();
+    if (!ossEndpoint.startsWith("oss://")) {
+      locationBuilder.append("oss://");
+    }
+    locationBuilder.append(ossEndpoint);
+    if (!ossEndpoint.endsWith("/")) {
+      locationBuilder.append("/");
+    }
+    locationBuilder.append(ossBucket);
+    if (!ossBucket.endsWith("/")) {
+      locationBuilder.append("/");
+    }
+    locationBuilder
+        .append(tableMetaModel.odpsProjectName).append(".db").append("/")
+        .append(tableMetaModel.odpsTableName).append("/");
+    return locationBuilder.toString();
+  }
+
+  private static String getCreateOssExternalTableCondition(MetaSource.TableMetaModel tableMetaModel,
+                                                           ExternalTableConfig externalTableConfig) {
+    StringBuilder sb = new StringBuilder();
+    OssExternalTableConfig ossExternalTableConfig = (OssExternalTableConfig) externalTableConfig;
+    sb.append("STORED AS TEXTFILE\n");
+
+    if (!StringUtils.isNullOrEmpty(ossExternalTableConfig.getRoleRan())) {
+      tableMetaModel.serDeProperties.put("odps.properties.rolearn", ossExternalTableConfig.getRoleRan());
+    }
+    if (MapUtils.isNotEmpty(tableMetaModel.serDeProperties)) {
+      sb.append("WITH SERDEPROPERTIES (").append("\n");
+      List<String> propertyStrings = new LinkedList<>();
+      for (Map.Entry<String, String> property : tableMetaModel.serDeProperties.entrySet()) {
+        if (!StringEscapeUtils.escapeJava(property.getValue()).startsWith("\\u")) {
+          String propertyString = String.format("'%s'='%s'",
+              StringEscapeUtils.escapeJava(property.getKey()),
+              StringEscapeUtils.escapeJava(property.getValue()));
+          propertyStrings.add(propertyString);
+        }
+      }
+      sb.append(String.join(",\n", propertyStrings)).append(")\n");
+    }
+    sb.append("LOCATION '").append(getOssTablePath(tableMetaModel, ossExternalTableConfig)).append("';\n");
+    return sb.toString();
+  }
+
 
   /**
    * Get drop partition statement
@@ -130,7 +206,13 @@ public class OdpsSqlUtils {
    * @return Add partition statement for multiple partitions
    * @throws IllegalArgumentException when input represents a non partitioned table
    */
+
   public static String getAddPartitionStatement(MetaSource.TableMetaModel tableMetaModel) {
+    return getAddPartitionStatement(tableMetaModel, null);
+  }
+
+  public static String getAddPartitionStatement(MetaSource.TableMetaModel tableMetaModel,
+                                                ExternalTableConfig externalTableConfig) {
     if (tableMetaModel.partitionColumns.size() == 0) {
       throw new IllegalArgumentException("Not a partitioned table");
     }
@@ -153,6 +235,17 @@ public class OdpsSqlUtils {
       String odpsPartitionSpec = getPartitionSpec(tableMetaModel.partitionColumns,
                                                   partitionMetaModel);
       sb.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
+      if (externalTableConfig != null) {
+        OssExternalTableConfig ossExternalTableConfig = (OssExternalTableConfig) externalTableConfig;
+        StringBuilder locationBuilder = new StringBuilder();
+        locationBuilder.append(getOssTablePath(tableMetaModel, ossExternalTableConfig));
+        for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+          MetaSource.ColumnMetaModel partitionColumn = tableMetaModel.partitionColumns.get(i);
+          String partitionValue = partitionMetaModel.partitionValues.get(i);
+          locationBuilder.append(partitionColumn.odpsColumnName).append("=").append(partitionValue).append("/");
+        }
+        sb.append("\nLOCATION '").append(locationBuilder.toString()).append("'");
+      }
     }
     sb.append(";\n");
 

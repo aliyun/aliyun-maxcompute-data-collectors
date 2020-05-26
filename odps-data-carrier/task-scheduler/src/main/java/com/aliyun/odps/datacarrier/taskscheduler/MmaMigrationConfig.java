@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
-import com.aliyun.odps.utils.StringUtils;
-
 public class MmaMigrationConfig implements MmaConfig.Config {
   private String user;
   private MmaConfig.AdditionalTableConfig globalAdditionalTableConfig;
@@ -54,9 +52,8 @@ public class MmaMigrationConfig implements MmaConfig.Config {
     } else if (databaseMigrationConfigs != null) {
       if (tableMigrationConfigs != null && !tableMigrationConfigs.isEmpty()) {
         throw new IllegalArgumentException(
-            "Service migration config exists, please remove table migration configs");
+            "Database migration config exists, please remove table migration configs");
       }
-
       valid = databaseMigrationConfigs.stream()
           .allMatch(MmaConfig.DatabaseMigrationConfig::validate);
     } else {

@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.transfer.converter;
 
+import java.sql.Date;
+
 import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.type.TypeInfo;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -33,7 +35,7 @@ public class HiveDateObjectConverter extends AbstractHiveObjectConverter {
     }
 
     DateObjectInspector dateObjectInspector = (DateObjectInspector) objectInspector;
-    java.sql.Date value = dateObjectInspector.getPrimitiveJavaObject(o);
+    java.sql.Date value = new Date(dateObjectInspector.getPrimitiveJavaObject(o).toEpochMilli());
     if (OdpsType.STRING.equals(odpsTypeInfo.getOdpsType())) {
       return value.toString();
     } else if (OdpsType.DATETIME.equals(odpsTypeInfo.getOdpsType())) {

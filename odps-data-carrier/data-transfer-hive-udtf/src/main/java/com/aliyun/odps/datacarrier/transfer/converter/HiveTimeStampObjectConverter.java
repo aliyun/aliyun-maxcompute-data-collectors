@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.transfer.converter;
 
+import java.sql.Timestamp;
+
 import com.aliyun.odps.type.TypeInfo;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
@@ -32,6 +34,10 @@ public class HiveTimeStampObjectConverter extends AbstractHiveObjectConverter {
     }
 
     TimestampObjectInspector timestampObjectInspector = (TimestampObjectInspector) objectInspector;
-    return timestampObjectInspector.getPrimitiveJavaObject(o);
+    org.apache.hadoop.hive.common.type.Timestamp apacheTimestamp =
+        timestampObjectInspector.getPrimitiveJavaObject(o);
+    Timestamp timestamp = new Timestamp(apacheTimestamp.toEpochMilli());
+    timestamp.setNanos(apacheTimestamp.getNanos());
+    return timestamp;
   }
 }

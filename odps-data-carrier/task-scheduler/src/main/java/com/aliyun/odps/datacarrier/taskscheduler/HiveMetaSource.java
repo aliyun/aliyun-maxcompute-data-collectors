@@ -61,6 +61,7 @@ public class HiveMetaSource implements MetaSource {
              keyTab,
              systemProperties != null ? String.join(" ", systemProperties) : "null");
 
+    //TODO: allow user defined configs
     HiveConf hiveConf = new HiveConf();
     hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, hmsAddr);
     if (!StringUtils.isNullOrEmpty(principal)) {
@@ -163,6 +164,7 @@ public class HiveMetaSource implements MetaSource {
     return partitionMetaModel;
   }
 
+  @Override
   public boolean hasDatabase(String databaseName) throws Exception {
     try {
       hmsClient.getDatabase(databaseName);

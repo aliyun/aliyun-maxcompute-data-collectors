@@ -19,7 +19,6 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -54,12 +53,13 @@ class Task {
 
   protected void addActionInfo(Action action) {
     RunnerType runnerType = CommonUtils.getRunnerTypeByAction(action);
+    // TODO: should be a switch statement instead of a bunch of if and else
     if (RunnerType.ODPS.equals(runnerType)) {
       actionInfoMap.put(action, new OdpsActionInfo());
     } else if (RunnerType.HIVE.equals(runnerType)) {
       actionInfoMap.put(action, new HiveActionInfo());
     } else {
-      actionInfoMap.put(action, new ValidateActionInfo());
+      actionInfoMap.put(action, new VerificationActionInfo());
     }
   }
 
@@ -111,29 +111,52 @@ class Task {
       default:
     }
 
-    // No need to update the table status when succeeded, since succeeded is default value
     if (taskProgressChanged) {
-      if (Progress.FAILED.equals(progress)) {
-        TaskScheduler.markAsFailed(tableMetaModel.databaseName, tableMetaModel.tableName);
-      }
-      //Partitioned table should update partition values when task.progress is Succeeded or failed in Action.VERIFICATION.
       if (!tableMetaModel.partitionColumns.isEmpty()) {
-        if (Progress.SUCCEEDED.equals(progress) ||
-            (Progress.FAILED.equals(progress) &&
-                actionInfoMap.containsKey(Action.VERIFICATION) &&
-                actionInfoMap.get(Action.VERIFICATION).progress.equals(Progress.FAILED))) {
-          List<List<String>> partitionValuesList = tableMetaModel.partitions
-              .stream()
-              .map(p -> p.partitionValues)
-              .collect(Collectors.toList());
-
+        if (Progress.SUCCEEDED.equals(progress)) {
           // TODO: retry
           mmaMetaManager.updateStatus(tableMetaModel.databaseName,
-              tableMetaModel.tableName,
-              partitionValuesList,
-              MmaMetaManager.MigrationStatus.SUCCEEDED);
-
-          partitionValuesList.forEach(partitionValues -> LOG.info("Partition succeeded: {}", String.join(", ", partitionValues)));
+                                      tableMetaModel.tableName,
+                                      tableMetaModel.partitions
+                                          .stream()
+                                          .map(p -> p.partitionValues)
+                                          .collect(Collectors.toList()),
+                                      MmaMetaManager.MigrationStatus.SUCCEEDED);
+        } else if (Progress.FAILED.equals(progress)) {
+          // Update the status of partition who have passed the verification to SUCCEEDED even the
+          // task failed
+          if (actionInfoMap.containsKey(Action.VERIFICATION)
+              && actionInfoMap.get(Action.VERIFICATION).progress.equals(Progress.FAILED)) {
+            VerificationActionInfo verificationActionInfo =
+                ((VerificationActionInfo) actionInfoMap.get(Action.VERIFICATION));
+            // TODO: retry
+            mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                        tableMetaModel.tableName,
+                                        verificationActionInfo.getSucceededPartitions(),
+                                        MmaMetaManager.MigrationStatus.SUCCEEDED);
+            mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                        tableMetaModel.tableName,
+                                        verificationActionInfo.getFailedPartitions(),
+                                        MmaMetaManager.MigrationStatus.FAILED);
+          } else {
+            mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                        tableMetaModel.tableName,
+                                        tableMetaModel.partitions
+                                            .stream()
+                                            .map(p -> p.partitionValues)
+                                            .collect(Collectors.toList()),
+                                        MmaMetaManager.MigrationStatus.FAILED);
+          }
+        }
+      } else {
+        if (Progress.SUCCEEDED.equals(progress)) {
+          mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                      tableMetaModel.tableName,
+                                      MmaMetaManager.MigrationStatus.SUCCEEDED);
+        } else if (Progress.FAILED.equals(progress)) {
+          mmaMetaManager.updateStatus(tableMetaModel.databaseName,
+                                      tableMetaModel.tableName,
+                                      MmaMetaManager.MigrationStatus.FAILED);
         }
       }
     }
@@ -171,6 +194,9 @@ class Task {
     return taskName;
   }
 
+  public Progress getProgress() {
+    return progress;
+  }
 
   public String getSourceDatabaseName() {
     return tableMetaModel.databaseName;

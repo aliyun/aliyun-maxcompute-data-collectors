@@ -86,7 +86,7 @@ public class HiveSqlUtilsTest {
     MetaSource.TableMetaModel nonPartitioned =
         metaSource.getTableMeta(DEFAULT_DB, "test_non_partitioned");
     String expected = "SELECT COUNT(1) FROM\n"
-                      + "test.`test_non_partitioned`\n";
+                      + "test.`test_non_partitioned`\n\n";
     String actual = HiveSqlUtils.getVerifySql(nonPartitioned);
     Assert.assertEquals(expected, actual);
 

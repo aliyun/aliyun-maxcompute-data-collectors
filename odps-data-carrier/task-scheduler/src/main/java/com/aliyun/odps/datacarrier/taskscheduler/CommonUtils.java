@@ -26,7 +26,9 @@ public class CommonUtils {
 
   public static RunnerType getRunnerTypeByAction(Action action) {
     switch (action) {
+      case ODPS_DROP_TABLE:
       case ODPS_CREATE_TABLE:
+      case ODPS_DROP_PARTITION:
       case ODPS_ADD_PARTITION:
       case ODPS_CREATE_EXTERNAL_TABLE:
       case ODPS_ADD_EXTERNAL_TABLE_PARTITION:

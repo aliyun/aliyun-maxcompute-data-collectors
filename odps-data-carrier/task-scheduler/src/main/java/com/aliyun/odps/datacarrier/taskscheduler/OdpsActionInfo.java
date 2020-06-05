@@ -19,55 +19,56 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.data.Record;
-
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.aliyun.odps.data.Record;
+
 public class OdpsActionInfo extends AbstractActionInfo {
-  private List<OdpsExecutionInfo> infos = new LinkedList<>();
+  private String instanceId;
+  private String logView;
+  private List<List<String>> result;
 
-  static class OdpsExecutionInfo {
-    private String instanceId;
-    private String logView;
-    private List<Record> result;
-
-    public void setInstanceId(String instanceId) {
-      this.instanceId = instanceId;
-    }
-
-    public void setLogView(String logView) {
-      this.logView = logView;
-    }
-
-    public void setResult(List<Record> result) {
-      this.result = result;
-    }
-
-    public List<Record> getResult() {
-      return result;
-    }
+  public String getInstanceId() {
+    return instanceId;
   }
 
-  public List<OdpsExecutionInfo> getInfos() {
-    return infos;
+  public String getLogView() {
+    return logView;
   }
 
-  public void addInfo(OdpsExecutionInfo info) {
-    this.infos.add(info);
+  public List<List<String>> getResult() {
+    return result;
+  }
+
+  public void setInstanceId(String instanceId) {
+    this.instanceId = instanceId;
+  }
+
+  public void setLogView(String logView) {
+    this.logView = logView;
+  }
+
+  public void setResult(List<Record> records) {
+    result = new LinkedList<>();
+    for(Record r : records) {
+      List<String> row = new LinkedList<>();
+      for (int i = 0; i < r.getColumnCount(); i++) {
+        row.add(r.getString(i));
+      }
+
+      result.add(row);
+    }
   }
 
   public String getOdpsActionInfoSummary() {
     final StringBuilder sb = new StringBuilder();
     sb.append("\nDatetime: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
-    for (OdpsExecutionInfo info : infos) {
-      sb.append("\nInstanceId= ").append(info.instanceId);
-      sb.append("\nLogView= ").append(info.logView);
-      sb.append("\n");
-    }
+    sb.append("\nInstanceId= ").append(instanceId);
+    sb.append("\nLogView= ").append(logView);
+    sb.append("\n");
     return sb.toString();
   }
 }

@@ -19,40 +19,45 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
-import com.aliyun.odps.data.Record;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class VerificationRunner extends AbstractTaskRunner {
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+// TODO: should be more general, not just between hive and odps
+// TODO: UT
+public class VerificationRunner implements TaskRunner {
   private static final Logger LOG = LogManager.getLogger(VerificationRunner.class);
 
   @Override
   public void submitExecutionTask(Task task, Action action) throws MmaException {
-    if (!(task.actionInfoMap.containsKey(Action.HIVE_SOURCE_VERIFICATION) &&
-          task.actionInfoMap.containsKey(Action.ODPS_SOURCE_VERIFICATION))||
-        !task.actionInfoMap.containsKey(Action.ODPS_DESTINATION_VERIFICATION)) {
-      LOG.warn("Can not find ODPS/Hive verification tasks, skip verification task {} result.", task.getName());
+    if (!task.actionInfoMap.containsKey(Action.HIVE_SOURCE_VERIFICATION)
+        || !task.actionInfoMap.containsKey(Action.ODPS_SOURCE_VERIFICATION)) {
+      LOG.warn("Can not find ODPS/Hive verification results of task {}, verification skipped",
+               task.getName());
     }
 
-    List<Record> destinationTableResult =
-        ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_DESTINATION_VERIFICATION)).getInfos().iterator().next().getResult();
+    List<List<String>> destinationTableResult =
+        ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_DESTINATION_VERIFICATION)).getResult();
     List<List<String>> sourceTableResult = getSourceTableVerificationResult(task);
 
     boolean compareResult;
     if (destinationTableResult == null || sourceTableResult == null) {
       compareResult = false;
-      LOG.error("Can not find ODPS/Hive verification results, verification task {} failed.", task.getName());
+      LOG.error("Can not find ODPS/Hive verification results of task {}, verification skipped",
+                task.getName());
     } else {
       if (task.tableMetaModel.partitionColumns.isEmpty()) {
-        compareResult = compareNonPartitionedTableResult(task.getName(), destinationTableResult, sourceTableResult);
+        compareResult = compareNonPartitionedTableResult(task.getName(),
+                                                         destinationTableResult,
+                                                         sourceTableResult);
       } else {
-        compareResult = comparePartitionedTableResult(task, destinationTableResult, sourceTableResult);
+        compareResult = comparePartitionedTableResult(task,
+                                                      destinationTableResult,
+                                                      sourceTableResult);
       }
     }
     if (compareResult) {
@@ -67,24 +72,18 @@ public class VerificationRunner extends AbstractTaskRunner {
     if (task.actionInfoMap.containsKey(Action.HIVE_SOURCE_VERIFICATION)) {
       result = ((HiveActionInfo) task.actionInfoMap.get(Action.HIVE_SOURCE_VERIFICATION)).getResult();
     } else if (task.actionInfoMap.containsKey(Action.ODPS_SOURCE_VERIFICATION)) {
-      result = new ArrayList<>();
-      List<Record> records = ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_SOURCE_VERIFICATION))
-          .getInfos().iterator().next().getResult();
-      for (Record record : records) {
-        List<String> row = new ArrayList<>();
-        for (int i = 0; i < record.getColumnCount(); i++) {
-          row.add(record.get(i).toString());
-        }
-        result.add(row);
-      }
+      result = ((OdpsActionInfo) task.actionInfoMap.get(Action.ODPS_SOURCE_VERIFICATION)).getResult();
     }
     return result;
   }
 
-  private boolean compareNonPartitionedTableResult(String taskName, List<Record> odpsResult, List<List<String>> hiveResult) {
+  private boolean compareNonPartitionedTableResult(
+      String taskName,
+      List<List<String>> odpsResult,
+      List<List<String>> hiveResult) {
     if (odpsResult.size() == hiveResult.size() && odpsResult.size() == 1) {
       long hiveTableCount = Long.parseLong(hiveResult.get(0).get(0));
-      long odpsTableCount = Long.parseLong(odpsResult.get(0).get(0).toString());
+      long odpsTableCount = Long.parseLong(odpsResult.get(0).get(0));
       if (hiveTableCount == odpsTableCount) {
         LOG.info("Table {} pass data verification, hive table count: {}, odps table count: {}",
                  taskName, hiveTableCount, odpsTableCount);
@@ -98,21 +97,28 @@ public class VerificationRunner extends AbstractTaskRunner {
     return false;
   }
 
-  private boolean comparePartitionedTableResult(Task task, List<Record> odpsResult, List<List<String>> hiveResult) {
-    boolean result = true;
+  private boolean comparePartitionedTableResult(
+      Task task,
+      List<List<String>> odpsResult,
+      List<List<String>> hiveResult) {
+    VerificationActionInfo actionInfo =
+        (VerificationActionInfo) task.actionInfoMap.get(Action.VERIFICATION);
+    List<List<String>> succeededPartitions = new LinkedList<>();
+    List<List<String>> failedPartitions = new LinkedList<>();
+
     int partitionColumnCount = task.tableMetaModel.partitionColumns.size();
 
     Map<String, Long> odpsPartitionCounts = new HashMap<>();
-    for (Record record : odpsResult) {
+    for (List<String> record : odpsResult) {
       StringBuilder partitionValues = new StringBuilder();
       for (int i = 0; i < partitionColumnCount; i++) {
         if (i != 0) {
           partitionValues.append(", ");
         }
-        partitionValues.append(record.getString(i));
+        partitionValues.append(record.get(i));
       }
       odpsPartitionCounts.put(partitionValues.toString(),
-                              Long.valueOf(record.get(partitionColumnCount).toString()));
+                              Long.valueOf(record.get(partitionColumnCount)));
     }
 
     Map<String, Long> hivePartitionCounts = new HashMap<>();
@@ -129,29 +135,28 @@ public class VerificationRunner extends AbstractTaskRunner {
     }
 
     // Compare results
-    Iterator<MetaSource.PartitionMetaModel> partitionValueIter =
-        task.tableMetaModel.partitions.iterator();
-    while (partitionValueIter.hasNext()) {
-      MetaSource.PartitionMetaModel partitionMetaModel = partitionValueIter.next();
+    boolean result = true;
+    for (MetaSource.PartitionMetaModel partitionMetaModel : task.tableMetaModel.partitions) {
       String partitionValues = String.join(", ", partitionMetaModel.partitionValues);
 
       if (!odpsPartitionCounts.containsKey(partitionValues)
           && !hivePartitionCounts.containsKey(partitionValues)) {
         // If a partition is empty, it will not be in the result set
         LOG.info("Partition verification passed, partition: {} is empty", partitionValues);
-        continue;
       } else if (odpsPartitionCounts.containsKey(partitionValues)
                  && hivePartitionCounts.containsKey(partitionValues)) {
         long odpsRecordCount = odpsPartitionCounts.get(partitionValues);
         long hiveRecordCount = hivePartitionCounts.get(partitionValues);
 
-        if(odpsRecordCount == hiveRecordCount) {
+        if (odpsRecordCount == hiveRecordCount) {
           LOG.info("Partition verification passed, partition: {} , record count: {}",
                    partitionValues, odpsRecordCount);
-          continue;
+          succeededPartitions.add(partitionMetaModel.partitionValues);
         } else {
           LOG.warn("Partition verification failed, partition: {}, hive: {}, ODPS: {}",
                    partitionValues, hiveRecordCount, odpsRecordCount);
+          failedPartitions.add(partitionMetaModel.partitionValues);
+          result = false;
         }
       } else {
         if (!odpsPartitionCounts.containsKey(partitionValues)) {
@@ -161,11 +166,12 @@ public class VerificationRunner extends AbstractTaskRunner {
           LOG.warn("Partition verification failed, partition: {} is not found in Hive "
                    + "(probably due to changes during migration)", partitionValues);
         }
+        failedPartitions.add(partitionMetaModel.partitionValues);
+        result = false;
       }
 
-      // Remove failed partitions from TableMetaModel, so that they won't be updated to succeeded
-      partitionValueIter.remove();
-      result = false;
+      actionInfo.setSucceededPartitions(succeededPartitions);
+      actionInfo.setFailedPartitions(failedPartitions);
     }
 
     return result;
@@ -173,6 +179,5 @@ public class VerificationRunner extends AbstractTaskRunner {
 
   @Override
   public void shutdown() {
-
   }
 }

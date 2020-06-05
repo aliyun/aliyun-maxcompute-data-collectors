@@ -156,10 +156,11 @@ public class MmaClientMain {
     while (true) {
       List<MmaConfig.TableMigrationConfig> runningMigrationJobs;
       try {
-        runningMigrationJobs = client.listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING);
+        runningMigrationJobs = client.listMigrationJobs(MmaMetaManager.MigrationStatus.RUNNING);
+        runningMigrationJobs.addAll(client.listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING));
 
         if (runningMigrationJobs.isEmpty()) {
-          System.err.println("\nAll migration jobs succeeded");
+          System.err.println("\nAll migration jobs terminated");
           return 0;
         }
 
@@ -210,7 +211,13 @@ public class MmaClientMain {
    * @return If list migration jobs successfully, returns 0, otherwise, returns 1.
    */
   private static int list(MmaClient client, String statusStr) {
-    MmaMetaManager.MigrationStatus status = MmaMetaManager.MigrationStatus.valueOf(statusStr);
+    MmaMetaManager.MigrationStatus status;
+    // TODO: list all should output migration job along with its status
+    if ("ALL".equalsIgnoreCase(statusStr)) {
+      status = null;
+    } else {
+      status = MmaMetaManager.MigrationStatus.valueOf(statusStr);
+    }
 
     List<MmaConfig.TableMigrationConfig> migrationJobs;
     try {
@@ -277,7 +284,7 @@ public class MmaClientMain {
         .builder(LIST_OPT)
         .longOpt(LIST_OPT)
         .hasArg()
-        .argName("PENDING | RUNNING | SUCCEEDED | FAILED")
+        .argName("ALL | PENDING | RUNNING | SUCCEEDED | FAILED")
         .desc("List migration jobs in given status")
         .build();
 

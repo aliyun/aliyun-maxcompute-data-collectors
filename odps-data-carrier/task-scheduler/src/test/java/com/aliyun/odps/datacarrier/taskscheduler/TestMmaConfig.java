@@ -77,38 +77,38 @@ public class TestMmaConfig {
     assert !mmaMigrationConfigPath.toFile().exists() || mmaMigrationConfigPath.toFile().delete();
   }
 
-  @Test (timeout = 5000)
-  public void testGenerateMmaClientConfig() throws IOException {
-    MmaConfigUtils.generateMmaClientConfig(hiveConfigPath, "");
-    MmaClientConfig mmaClientConfig = MmaClientConfig.fromFile(mmaClientConfigPath);
-
-    // Datasource
-    assertEquals(DataSource.Hive, mmaClientConfig.getDataSource());
-
-    // Hive config
-    checkHiveConfig(mmaClientConfig.getHiveConfig());
-
-    // ODPS config and OSS config should be null
-    assertNull(mmaClientConfig.getOdpsConfig());
-    assertNull(mmaClientConfig.getOssConfig());
-  }
+//  @Test (timeout = 5000)
+//  public void testGenerateMmaClientConfig() throws IOException {
+//    MmaConfigUtils.generateMmaClientConfig(hiveConfigPath, "");
+//    MmaClientConfig mmaClientConfig = MmaClientConfig.fromFile(mmaClientConfigPath);
+//
+//    // Datasource
+//    assertEquals(DataSource.Hive, mmaClientConfig.getDataSource());
+//
+//    // Hive config
+//    checkHiveConfig(mmaClientConfig.getHiveConfig());
+//
+//    // ODPS config and OSS config should be null
+//    assertNull(mmaClientConfig.getOdpsConfig());
+//    assertNull(mmaClientConfig.getOssConfig());
+//  }
 
   @Test (timeout = 5000)
   public void testGenerateMmaServerConfig() throws IOException {
     MmaConfigUtils.generateMmaServerConfig(hiveConfigPath, odpsConfigPath, "");
-    MmaServerConfig mmaServerConfig = MmaServerConfig.fromFile(mmaServerConfigPath);
+    MmaServerConfig.init(mmaServerConfigPath);
 
     // Datasource
-    assertEquals(DataSource.Hive, mmaServerConfig.getDataSource());
+    assertEquals(DataSource.Hive, MmaServerConfig.getInstance().getDataSource());
 
     // Hive config
-    checkHiveConfig(mmaServerConfig.getHiveConfig());
+    checkHiveConfig(MmaServerConfig.getInstance().getHiveConfig());
 
     // ODPS config
-    checkOdpsConfig(mmaServerConfig.getOdpsConfig());
+    checkOdpsConfig(MmaServerConfig.getInstance().getOdpsConfig());
 
     // OSS config should be null
-    assertNull(mmaServerConfig.getOssConfig());
+    assertNull(MmaServerConfig.getInstance().getOssConfig());
   }
 
   @Test (timeout = 5000)
@@ -234,10 +234,8 @@ public class TestMmaConfig {
   }
 
   private void checkAdditionalTableConfig(MmaConfig.AdditionalTableConfig additionalTableConfig) {
-    assertEquals(3, additionalTableConfig.getRetryTimesLimit());
-    assertEquals(100, additionalTableConfig.getPartitionGroupSize());
-    assertNull(additionalTableConfig.getColumnNameCustomizedConversion());
-    assertNull(additionalTableConfig.getTypeCustomizedConversion());
+    assertEquals(1, additionalTableConfig.getRetryTimesLimit());
+    assertEquals(1000, additionalTableConfig.getPartitionGroupSize());
   }
 
   // TODO: add test for MmaMigrationConfig, MmaClientConfig and MmaServerConfig

@@ -28,15 +28,17 @@ import org.apache.logging.log4j.Logger;
 public class MmaServerConfig {
   private static final Logger LOG = LogManager.getLogger(MmaServerConfig.class);
 
+  private static MmaServerConfig instance;
+
   private DataSource dataSource;
   private MmaConfig.OssConfig ossConfig;
   private MmaConfig.HiveConfig hiveConfig;
   private MmaConfig.OdpsConfig odpsConfig;
 
-  public MmaServerConfig(DataSource dataSource,
-                         MmaConfig.OssConfig ossConfig,
-                         MmaConfig.HiveConfig hiveConfig,
-                         MmaConfig.OdpsConfig odpsConfig) {
+  MmaServerConfig(DataSource dataSource,
+                  MmaConfig.OssConfig ossConfig,
+                  MmaConfig.HiveConfig hiveConfig,
+                  MmaConfig.OdpsConfig odpsConfig) {
     this.dataSource = dataSource;
     this.ossConfig = ossConfig;
     this.hiveConfig = hiveConfig;
@@ -79,6 +81,10 @@ public class MmaServerConfig {
           LOG.error("Validate MetaConfiguration failed due to {}", this.ossConfig);
         }
         break;
+      case ODPS:
+        break;
+      default:
+          throw new IllegalArgumentException("Unsupported datasource");
     }
 
     if (!odpsConfig.validate()) {
@@ -89,12 +95,25 @@ public class MmaServerConfig {
     return valid;
   }
 
-  public static MmaServerConfig fromFile(Path path) throws IOException {
+  public static void init(Path path) throws IOException {
     if (!path.toFile().exists()) {
       throw new IllegalArgumentException("File not found: " + path);
     }
 
     String content = DirUtils.readFile(path);
-    return GsonUtils.getFullConfigGson().fromJson(content, MmaServerConfig.class);
+    MmaServerConfig mmaServerConfig =
+        GsonUtils.getFullConfigGson().fromJson(content, MmaServerConfig.class);
+    if (!mmaServerConfig.validate()) {
+    } else {
+      instance = mmaServerConfig;
+    }
+  }
+
+  public static MmaServerConfig getInstance() {
+    if (instance == null) {
+      throw new IllegalStateException("MmaServerConfig not initialized");
+    }
+
+    return instance;
   }
 }

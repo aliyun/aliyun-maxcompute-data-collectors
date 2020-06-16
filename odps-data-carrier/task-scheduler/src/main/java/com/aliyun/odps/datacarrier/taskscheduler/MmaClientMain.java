@@ -36,6 +36,8 @@ import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.log4j.BasicConfigurator;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
+
 public class MmaClientMain {
   private static final long MMA_CLIENT_WAIT_INTERVAL = 5000;
 
@@ -320,11 +322,7 @@ public class MmaClientMain {
     }
 
     Path mmaClientConfigFilePath = Paths.get(cmd.getOptionValue(CONFIG_OPT));
-    MmaClientConfig mmaClientConfig = MmaClientConfig.fromFile(mmaClientConfigFilePath);
-    if (!mmaClientConfig.validate()) {
-      System.err.println("Invalid mma client config: " + mmaClientConfig.toJson());
-      System.exit(1);
-    }
+    MmaServerConfig.init(mmaClientConfigFilePath);
 
     // Check if more than one sub command is given
     int numSubCommands = 0;
@@ -340,7 +338,7 @@ public class MmaClientMain {
 
     MmaClient client;
     try {
-      client = new MmaClientDbImpl(mmaClientConfig);
+      client = new MmaClientDbImpl();
 
       if (cmd.hasOption(START_OPT)) {
         System.exit(start(client, cmd.getOptionValue(START_OPT).trim()));

@@ -24,6 +24,8 @@ import java.util.LinkedList;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
+
 // TODO: use interfaces provided by odps sdk to create table and partitions
 public class OdpsSqlUtilsTest {
 

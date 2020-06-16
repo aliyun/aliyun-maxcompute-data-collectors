@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -106,8 +107,10 @@ public class OdpsSqlUtils {
     return sb.toString();
   }
 
-  private static String getOssTablePath(MetaSource.TableMetaModel tableMetaModel,
-                                        OssExternalTableConfig ossExternalTableConfig) {
+  private static String getOssTablePath(
+      MetaSource.TableMetaModel tableMetaModel,
+      OssExternalTableConfig ossExternalTableConfig) {
+
     String ossEndpoint = ossExternalTableConfig.getEndpoint();
     String ossBucket = ossExternalTableConfig.getBucket();
     if (StringUtils.isNullOrEmpty(ossEndpoint)
@@ -132,15 +135,26 @@ public class OdpsSqlUtils {
     return locationBuilder.toString();
   }
 
+//  private static String getOssPartitionPath(
+//      MetaSource.TableMetaModel tableMetaModel,
+//      MetaSource.PartitionMetaModel partitionMetaModel,
+//      OssExternalTableConfig ossExternalTableConfig) {
+//
+//
+//
+//  }
+
   private static String getCreateOssExternalTableCondition(MetaSource.TableMetaModel tableMetaModel,
                                                            ExternalTableConfig externalTableConfig) {
     StringBuilder sb = new StringBuilder();
     OssExternalTableConfig ossExternalTableConfig = (OssExternalTableConfig) externalTableConfig;
-    sb.append("STORED AS TEXTFILE\n");
 
     if (!StringUtils.isNullOrEmpty(ossExternalTableConfig.getRoleRan())) {
-      tableMetaModel.serDeProperties.put("odps.properties.rolearn", ossExternalTableConfig.getRoleRan());
+      tableMetaModel.serDeProperties.put("odps.properties.rolearn",
+                                         ossExternalTableConfig.getRoleRan());
     }
+
+    sb.append("ROW FORMAT serde 'org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe'\n");
     if (MapUtils.isNotEmpty(tableMetaModel.serDeProperties)) {
       sb.append("WITH SERDEPROPERTIES (").append("\n");
       List<String> propertyStrings = new LinkedList<>();
@@ -154,10 +168,15 @@ public class OdpsSqlUtils {
       }
       sb.append(String.join(",\n", propertyStrings)).append(")\n");
     }
+
+    // TODO: support other formats
+    sb.append("STORED AS INPUTFORMAT\n");
+    sb.append("'org.apache.hadoop.hive.ql.io.RCFileInputFormat'\n");
+    sb.append("OUTPUTFORMAT\n");
+    sb.append("'org.apache.hadoop.hive.ql.io.RCFileOutputFormat'\n");
     sb.append("LOCATION '").append(getOssTablePath(tableMetaModel, ossExternalTableConfig)).append("';\n");
     return sb.toString();
   }
-
 
   /**
    * Get drop partition statement
@@ -235,24 +254,24 @@ public class OdpsSqlUtils {
       String odpsPartitionSpec = getPartitionSpec(tableMetaModel.partitionColumns,
                                                   partitionMetaModel);
       sb.append("\nPARTITION (").append(odpsPartitionSpec).append(")");
-      if (externalTableConfig != null) {
-        OssExternalTableConfig ossExternalTableConfig = (OssExternalTableConfig) externalTableConfig;
-        StringBuilder locationBuilder = new StringBuilder();
-        locationBuilder.append(getOssTablePath(tableMetaModel, ossExternalTableConfig));
-        for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
-          MetaSource.ColumnMetaModel partitionColumn = tableMetaModel.partitionColumns.get(i);
-          String partitionValue = partitionMetaModel.partitionValues.get(i);
-          locationBuilder.append(partitionColumn.odpsColumnName).append("=").append(partitionValue).append("/");
-        }
-        sb.append("\nLOCATION '").append(locationBuilder.toString()).append("'");
-      }
+//      if (externalTableConfig != null) {
+//        OssExternalTableConfig ossExternalTableConfig = (OssExternalTableConfig) externalTableConfig;
+//        StringBuilder locationBuilder = new StringBuilder();
+//        locationBuilder.append(getOssTablePath(tableMetaModel, ossExternalTableConfig));
+//        for (int i = 0; i < tableMetaModel.partitionColumns.size(); i++) {
+//          MetaSource.ColumnMetaModel partitionColumn = tableMetaModel.partitionColumns.get(i);
+//          String partitionValue = partitionMetaModel.partitionValues.get(i);
+//          locationBuilder.append(partitionColumn.odpsColumnName).append("=").append(partitionValue).append("/");
+//        }
+//        sb.append("\nLOCATION '").append(locationBuilder.toString()).append("'");
+//      }
     }
     sb.append(";\n");
 
     return sb.toString();
   }
 
-  public static String getInsertTableStatement(MetaSource.TableMetaModel tableMetaModel) {
+  public static String getInsertOverwriteTableStatement(MetaSource.TableMetaModel tableMetaModel) {
     StringBuilder sb = new StringBuilder();
     sb.append("INSERT OVERWRITE TABLE ")
         .append(tableMetaModel.odpsProjectName)

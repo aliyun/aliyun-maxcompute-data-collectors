@@ -22,6 +22,8 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
+
 public class HiveSqlUtils {
 
   public static String getUdtfSql(MetaSource.TableMetaModel tableMetaModel) {

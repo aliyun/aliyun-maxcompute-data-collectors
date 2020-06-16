@@ -73,11 +73,7 @@ public class MmaConfigUtils {
   };
 
   public static final AdditionalTableConfig DEFAULT_ADDITIONAL_TABLE_CONFIG =
-      new AdditionalTableConfig(
-          null,
-          null,
-          100,
-          3);
+      new AdditionalTableConfig(1000, 1);
 
   public static final HiveConfig SAMPLE_HIVE_CONFIG =
       new HiveConfig("jdbc:hive2://127.0.0.1:10000/default",
@@ -235,22 +231,13 @@ public class MmaConfigUtils {
     formatter.printHelp(cmdLineSyntax, options);
   }
 
-  public static void generateMmaClientConfig(Path hiveConfigPath,
-                                             String prefix) throws IOException {
-    String json = new MmaClientConfig(DataSource.Hive,
-                                      null,
-                                      parseHiveConfig(hiveConfigPath),
-                                      null).toJson();
-    DirUtils.writeFile(Paths.get(prefix + "mma_client_config.json"), json);
-  }
-
   public static void generateMmaServerConfig(Path hiveConfigPath,
                                              Path odpsConfigPath,
                                              String prefix) throws IOException {
     String json = new MmaServerConfig(DataSource.Hive,
-                                   null,
-                                   parseHiveConfig(hiveConfigPath),
-                                   parseOdpsConfig(odpsConfigPath)).toJson();
+                                      null,
+                                      parseHiveConfig(hiveConfigPath),
+                                      parseOdpsConfig(odpsConfigPath)).toJson();
     DirUtils.writeFile(Paths.get(prefix + "mma_server_config.json"), json);
   }
 
@@ -263,10 +250,6 @@ public class MmaConfigUtils {
   }
 
   public static void generateSampleConfigs() throws IOException {
-    MmaClientConfig mmaClientConfig = new MmaClientConfig(DataSource.Hive,
-                                                          null,
-                                                          SAMPLE_HIVE_CONFIG,
-                                                          null);
     MmaServerConfig mmaServerConfig = new MmaServerConfig(DataSource.Hive,
                                                           null,
                                                           SAMPLE_HIVE_CONFIG,
@@ -285,7 +268,7 @@ public class MmaConfigUtils {
                                DEFAULT_ADDITIONAL_TABLE_CONFIG);
 
     DirUtils.writeFile(Paths.get("mma_server_config.json"), mmaServerConfig.toJson());
-    DirUtils.writeFile(Paths.get("mma_client_config.json"), mmaClientConfig.toJson());
+//    DirUtils.writeFile(Paths.get("mma_client_config.json"), mmaClientConfig.toJson());
     DirUtils.writeFile(Paths.get("mma_migration_config.json"), mmaMigrationConfig.toJson());
   }
 
@@ -392,7 +375,7 @@ public class MmaConfigUtils {
         throw new IllegalArgumentException("Requires '--hive_config'");
       }
 
-      generateMmaClientConfig(Paths.get(cmd.getOptionValue("hive_config")), prefix);
+//      generateMmaClientConfig(Paths.get(cmd.getOptionValue("hive_config")), prefix);
     }
 
     if (cmd.hasOption("to_server_config")) {

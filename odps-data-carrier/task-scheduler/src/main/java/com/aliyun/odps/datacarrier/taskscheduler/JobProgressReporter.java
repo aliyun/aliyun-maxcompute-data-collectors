@@ -26,6 +26,8 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
+
 public class JobProgressReporter {
 
   private static final Logger LOG = LogManager.getLogger(JobProgressReporter.class);

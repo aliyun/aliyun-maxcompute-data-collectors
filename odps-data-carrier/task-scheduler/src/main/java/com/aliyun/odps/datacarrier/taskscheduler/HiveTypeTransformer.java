@@ -33,7 +33,6 @@ public class HiveTypeTransformer implements TypeTransformer {
   private static final String STRING_INCOMPATIBILITY_REASON =
       "String in ODPS cannot exceed 8MB";
 
-  //TODO: support odps1.0
   /**
    * Numeric types
    */

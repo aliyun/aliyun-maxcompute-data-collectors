@@ -24,6 +24,8 @@ import java.util.LinkedList;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
+
 public class HiveSqlUtilsTest {
 
   private static final String DEFAULT_DB = "test";

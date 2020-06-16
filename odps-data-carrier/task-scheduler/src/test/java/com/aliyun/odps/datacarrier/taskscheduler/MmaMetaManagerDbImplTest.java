@@ -29,7 +29,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.AfterClass;
@@ -40,6 +39,10 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImpl;
+
 
 @FixMethodOrder (MethodSorters.NAME_ASCENDING)
 public class MmaMetaManagerDbImplTest {
@@ -48,26 +51,20 @@ public class MmaMetaManagerDbImplTest {
   public static final String DEFAULT_CONN_URL =
       "jdbc:h2:file:" + Paths.get(DEFAULT_MMA_PARENT_DIR.toString(), Constants.DB_FILE_NAME);
 
-  public static final MmaConfig.AdditionalTableConfig DEFAULT_ADDITIONAL_TABLE_CONF =
-      new MmaConfig.AdditionalTableConfig(
-          null,
-          null,
-          10,
-          1);
   public static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_PARTITIONED =
       new MmaConfig.TableMigrationConfig(
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
-          DEFAULT_ADDITIONAL_TABLE_CONF);
+          MmaConfigUtils.DEFAULT_ADDITIONAL_TABLE_CONFIG);
   public static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_NON_PARTITIONED =
       new MmaConfig.TableMigrationConfig(
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_NON_PARTITIONED,
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_NON_PARTITIONED,
-          DEFAULT_ADDITIONAL_TABLE_CONF);
+          MmaConfigUtils.DEFAULT_ADDITIONAL_TABLE_CONFIG);
 
   private static Connection conn;
   private static MetaSource metaSource = new MockHiveMetaSource();

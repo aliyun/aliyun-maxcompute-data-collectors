@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 // TODO: Split this class into several classes
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.commons.collections.MapUtils;
 
@@ -234,6 +235,7 @@ public class MmaConfig {
       return tunnelEndpoint;
     }
 
+    // TODO: not used
     public Map<String, String> getGlobalSettings() {
       return globalSettings == null ? MapUtils.EMPTY_MAP : globalSettings;
     }
@@ -473,29 +475,12 @@ public class MmaConfig {
   }
 
   public static class AdditionalTableConfig implements Config {
-    //key: original data type, value: current data type.
-    private Map<String, String> typeCustomizedConversion;
-    //key: original column name, value: current column name.
-    private Map<String, String> columnNameCustomizedConversion;
     private int partitionGroupSize;
     private int retryTimesLimit;
 
-    public AdditionalTableConfig(Map<String, String> typeCustomizedConversion,
-                                 Map<String, String> columnNameCustomizedConversion,
-                                 int partitionGroupSize,
-                                 int retryTimesLimit) {
-      this.typeCustomizedConversion = typeCustomizedConversion;
-      this.columnNameCustomizedConversion = columnNameCustomizedConversion;
+    public AdditionalTableConfig(int partitionGroupSize, int retryTimesLimit) {
       this.partitionGroupSize = partitionGroupSize;
       this.retryTimesLimit = retryTimesLimit;
-    }
-
-    public Map<String, String> getTypeCustomizedConversion() {
-      return typeCustomizedConversion;
-    }
-
-    public Map<String, String> getColumnNameCustomizedConversion() {
-      return columnNameCustomizedConversion;
     }
 
     public int getPartitionGroupSize() {
@@ -508,7 +493,12 @@ public class MmaConfig {
 
     @Override
     public boolean validate() {
-      // TODO: validate arguments
+      if (retryTimesLimit < 0) {
+        return false;
+      }
+      if (partitionGroupSize <= 0) {
+        return false;
+      }
       return true;
     }
   }

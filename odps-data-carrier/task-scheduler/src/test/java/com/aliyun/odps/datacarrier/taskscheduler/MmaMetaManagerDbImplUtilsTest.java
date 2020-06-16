@@ -36,6 +36,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImplUtils;
+
 public class MmaMetaManagerDbImplUtilsTest {
   private static final Path PARENT_DIR = Paths.get(System.getProperty("user.dir")).toAbsolutePath();
   private static final String CONN_URL =

@@ -21,6 +21,9 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 import java.util.List;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
+
+// TODO: could remove
 public interface MmaClient {
 
   void createMigrationJobs(MmaMigrationConfig mmaMigrationConfig) throws MmaException;

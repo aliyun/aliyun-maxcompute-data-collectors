@@ -35,7 +35,7 @@ public class Constants {
   /*
     Constants of MmaMetaManagerDbImpl
    */
-  protected static final String DB_FILE_NAME = ".MmaMeta";
+  public static final String DB_FILE_NAME = ".MmaMeta";
 
   // Types
   public static final String VARCHAR_255 = "VARCHAR(255)";

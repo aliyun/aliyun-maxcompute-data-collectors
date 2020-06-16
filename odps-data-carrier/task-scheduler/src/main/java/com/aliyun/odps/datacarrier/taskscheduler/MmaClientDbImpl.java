@@ -22,6 +22,11 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSourceFactory;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImpl;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.OdpsMetaSource;
 import com.aliyun.odps.utils.StringUtils;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.logging.log4j.LogManager;
@@ -39,9 +44,9 @@ public class MmaClientDbImpl implements MmaClient {
   private DataSource dataSource;
   private MmaMetaManager mmaMetaManager;
 
-  public MmaClientDbImpl(MmaClientConfig mmaClientConfig) throws MetaException, MmaException {
-    metaSource = CommonUtils.getMetaSource(mmaClientConfig);
-    dataSource = mmaClientConfig.getDataSource();
+  public MmaClientDbImpl() throws MetaException, MmaException {
+    metaSource = MetaSourceFactory.getMetaSource();
+    dataSource = MmaServerConfig.getInstance().getDataSource();
     mmaMetaManager = new MmaMetaManagerDbImpl(null, metaSource, false);
   }
 

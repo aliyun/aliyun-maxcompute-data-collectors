@@ -22,6 +22,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -61,8 +62,9 @@ public class HiveMetaSource implements MetaSource {
              keyTab,
              systemProperties != null ? String.join(" ", systemProperties) : "null");
 
-    //TODO: allow user defined configs
-    HiveConf hiveConf = new HiveConf();
+    Configuration conf = new Configuration();
+    //TODO: support user defined hadoop configurations, e.g. HADOOP_RPC_PROTECTION=privacy
+    HiveConf hiveConf = new HiveConf(conf, Configuration.class);
     hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, hmsAddr);
     if (!StringUtils.isNullOrEmpty(principal)) {
       LOG.info("Set {} to true", HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL);

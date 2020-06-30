@@ -76,7 +76,7 @@ public class MmaConfigUtils {
       new AdditionalTableConfig(
           null,
           null,
-          100,
+          1000,
           3);
 
   public static final HiveConfig SAMPLE_HIVE_CONFIG =

@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -112,6 +113,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
     ds = new HikariDataSource(hikariConfig);
   }
 
+  @Override
   public void shutdown() {
     LOG.info("Enter shutdown");
     metaSource.shutdown();
@@ -206,7 +208,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
             newPartitionValuesList = metaSource.listPartitions(db, tbl);
           }
 
-          newPartitionValuesList = MmaMetaManagerDbImplUtils.filterOutExistingPartitions(
+          newPartitionValuesList = MmaMetaManagerDbImplUtils.filterOutPartitions(
               conn, db, tbl, newPartitionValuesList);
 
           List<MigrationJobPtInfo> migrationJobPtInfos = newPartitionValuesList
@@ -510,10 +512,10 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
             }
             case FAILED: {
               int attemptTimes = jobPtInfo.getAttemptTimes() + 1;
+              jobPtInfo.setStatus(status);
               if (attemptTimes <= retryTimesLimit) {
                 jobPtInfo.setStatus(MigrationStatus.PENDING);
               }
-              jobPtInfo.setStatus(status);
               jobPtInfo.setAttemptTimes(attemptTimes);
               jobPtInfo.setLastSuccTimestamp(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
               LOG.info(GsonUtils.getFullConfigGson().toJson(jobPtInfo));
@@ -702,6 +704,16 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
       for (MigrationJobInfo jobInfo : jobInfos) {
         String db = jobInfo.getDb();
         String tbl = jobInfo.getTbl();
+
+        MetaSource.TableMetaModel tableMetaModel;
+        try {
+          tableMetaModel = metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
+        } catch (Exception e) {
+          LOG.warn("Failed to get metadata of db: {}, tbl: {}", db, tbl);
+          updateStatusInternal(db, tbl, MigrationStatus.FAILED);
+          continue;
+        }
+
         if (jobInfo.isPartitioned()) {
           List<MigrationJobPtInfo> jobPtInfos =
               MmaMetaManagerDbImplUtils.selectFromMmaPartitionMeta(conn,
@@ -710,20 +722,21 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
                                                                    MigrationStatus.PENDING,
                                                                    -1);
           if (!jobPtInfos.isEmpty()) {
-            MetaSource.TableMetaModel tableMetaModel =
-                metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
             List<MetaSource.PartitionMetaModel> partitionMetaModels = new LinkedList<>();
             for (MigrationJobPtInfo jobPtInfo : jobPtInfos) {
-              partitionMetaModels.add(
-                  metaSource.getPartitionMeta(db, tbl, jobPtInfo.getPartitionValues()));
+              try {
+                partitionMetaModels.add(
+                    metaSource.getPartitionMeta(db, tbl, jobPtInfo.getPartitionValues()));
+              } catch (Exception e) {
+                LOG.warn("Failed to get metadata of db: {}, tbl: {}, pt: {}", db, tbl, jobPtInfo.getPartitionValues());
+                updateStatusInternal(db, tbl, Collections.singletonList(jobPtInfo.getPartitionValues()), MigrationStatus.FAILED);
+              }
             }
             tableMetaModel.partitions = partitionMetaModels;
             jobInfo.getMigrationConfig().apply(tableMetaModel);
             ret.add(tableMetaModel);
           }
         } else if (MigrationStatus.PENDING.equals(jobInfo.getStatus())) {
-          MetaSource.TableMetaModel tableMetaModel =
-              metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
           jobInfo.getMigrationConfig().apply(tableMetaModel);
           ret.add(tableMetaModel);
         }

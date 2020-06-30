@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.aliyun.odps.datacarrier.taskscheduler.MmaMetaManager.MigrationStatus;
 import com.google.gson.reflect.TypeToken;
 
 public class MmaMetaManagerDbImplUtils {
@@ -487,9 +488,9 @@ public class MmaMetaManagerDbImplUtils {
   }
 
   /**
-   * Filter out existing partitions from candidates
+   * Filter out succeeded partitions from candidates
    */
-  public static List<List<String>> filterOutExistingPartitions(
+  public static List<List<String>> filterOutPartitions(
       Connection conn,
       String db,
       String tbl,
@@ -499,15 +500,20 @@ public class MmaMetaManagerDbImplUtils {
     String schemaName = String.format(Constants.MMA_PT_META_SCHEMA_NAME_FMT, db);
     String tableName = String.format(Constants.MMA_PT_META_TBL_NAME_FMT, tbl);
 
-    String sql = "SELECT " + Constants.MMA_PT_META_COL_PT_VALS + " FROM " +
-                 schemaName + "." + tableName;
+    String sql = String.format("SELECT %s FROM %s.%s WHERE %s='%s'",
+                               Constants.MMA_PT_META_COL_PT_VALS,
+                               schemaName,
+                               tableName,
+                               Constants.MMA_PT_META_COL_STATUS,
+                               MigrationStatus.SUCCEEDED.name());
+
     try (Statement stmt = conn.createStatement()) {
       LOG.info("Executing SQL: {}", sql);
 
       try (ResultSet rs = stmt.executeQuery(sql)) {
-        Set<String> managedPartitionValuesJsonSet = new HashSet<>();
+        Set<String> managedSucceededPartitionValuesJsonSet = new HashSet<>();
         while (rs.next()) {
-          managedPartitionValuesJsonSet.add(rs.getString(1));
+          managedSucceededPartitionValuesJsonSet.add(rs.getString(1));
         }
 
         Type type = new TypeToken<List<String>>() {
@@ -516,7 +522,7 @@ public class MmaMetaManagerDbImplUtils {
         // Filter out existing partitions
         return candidates.stream()
             .map(ptv -> GsonUtils.getFullConfigGson().toJson(ptv))
-            .filter(v -> !managedPartitionValuesJsonSet.contains(v))
+            .filter(v -> !managedSucceededPartitionValuesJsonSet.contains(v))
             .map(json -> (List<String>) GsonUtils.getFullConfigGson().fromJson(json, type))
             .collect(Collectors.toList());
       }

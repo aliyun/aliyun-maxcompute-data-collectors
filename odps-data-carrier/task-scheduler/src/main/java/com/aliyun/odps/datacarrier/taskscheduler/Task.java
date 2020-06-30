@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -46,7 +48,7 @@ class Task {
     this.tableMetaModel = tableMetaModel;
     this.tableConfig = tableConfig;
     this.updateTime = System.currentTimeMillis();
-    this.actionInfoMap = new ConcurrentHashMap<>();
+    this.actionInfoMap = Collections.synchronizedMap(new LinkedHashMap<>());
     this.progress = Progress.NEW;
     this.mmaMetaManager = mmaMetaManager;
   }

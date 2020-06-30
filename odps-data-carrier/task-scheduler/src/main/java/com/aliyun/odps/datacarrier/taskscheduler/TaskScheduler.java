@@ -54,16 +54,16 @@ public class TaskScheduler {
 
   private static final Logger LOG = LogManager.getLogger(TaskScheduler.class);
 
-  private static final int GET_PENDING_TABLE_INTERVAL_MS = 15000;
+  private static final int GET_PENDING_TABLE_INTERVAL_MS = 20000;
   private static final int HEARTBEAT_INTERVAL_MS = 10000;
-  private static final int DROP_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int DROP_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = 10;
-  private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = 10;
+  private static final int DROP_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int CREATE_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int CREATE_EXTERNAL_TABLE_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int DROP_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int ADD_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int ADD_EXTERNAL_TABLE_PARTITION_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int LOAD_DATA_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final int VALIDATE_CONCURRENCY_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
   private Map<Action, ActionScheduleInfo> actionScheduleInfoMap;
   private SortedSet<Action> actions;
@@ -72,7 +72,7 @@ public class TaskScheduler {
   private volatile boolean keepRunning;
   private volatile Throwable savedException;
   protected final AtomicInteger heartbeatIntervalMs;
-  protected List<Task> tasks;
+  protected final List<Task> tasks;
   private MmaServerConfig mmaServerConfig;
   private MmaMetaManager mmaMetaManager;
 
@@ -100,10 +100,20 @@ public class TaskScheduler {
 
     while (keepRunning) {
       List<Task> tasksToRemove = new LinkedList<>();
-      for (Task task : tasks) {
-        if (Progress.SUCCEEDED.equals(task.getProgress())
-            || Progress.FAILED.equals(task.getProgress())) {
-          tasksToRemove.add(task);
+      synchronized (tasks) {
+        InPlaceUpdates.resetScreen(System.out);
+        for (Task task : tasks) {
+          String detailedProgress =
+              String.join("->",
+                          task.actionInfoMap.entrySet().stream().map(
+                              e -> "[" + e.getKey().name() + " " + e.getValue().progress
+                                  .toColorString() + "]").collect(Collectors.toList()));
+          System.out.println(task.getName() + " " + detailedProgress + "\n");
+
+          if (Progress.SUCCEEDED.equals(task.getProgress())
+              || Progress.FAILED.equals(task.getProgress())) {
+            tasksToRemove.add(task);
+          }
         }
       }
 
@@ -265,12 +275,18 @@ public class TaskScheduler {
       super("scheduler thread");
     }
 
+    @Override
     public void run() {
       LOG.info("Heartbeat thread starts");
       while (keepRunning) {
         try {
-          for (Action action : actions) {
-            scheduleExecutionTask(action);
+          synchronized (tasks) {
+            for (Action action : actions) {
+              LOG.info("Scheduling action: {}, concurrency: {}",
+                       action,
+                       actionScheduleInfoMap.get(action).concurrency);
+              scheduleExecutionTask(action);
+            }
           }
         } catch (Throwable ex) {
           LOG.error("Exception on heartbeat", ex);
@@ -298,7 +314,7 @@ public class TaskScheduler {
           tasks
               .stream()
               .filter(task -> task.actionInfoMap.containsKey(action)
-                              && Progress.RUNNING.equals(task.actionInfoMap.get(action).progress))
+                  && Progress.RUNNING.equals(task.actionInfoMap.get(action).progress))
               .count());
 
       // If current concurrency exceeds limitation, do not schedule this time
@@ -328,7 +344,8 @@ public class TaskScheduler {
                  task.getName(),
                  action.name());
 
-        getTaskRunner(CommonUtils.getRunnerTypeByAction(action)).submitExecutionTask(task, action);
+        getTaskRunner(CommonUtils.getRunnerTypeByAction(action))
+            .submitExecutionTask(task, action);
       } catch (MmaException e) {
         LOG.error("Submit task failed", e);
       }

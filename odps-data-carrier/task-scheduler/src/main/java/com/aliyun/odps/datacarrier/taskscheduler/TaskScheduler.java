@@ -21,8 +21,10 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -99,12 +101,6 @@ public class TaskScheduler {
         LOG.info("New tasks: {}", pendingTasks);
         tasks.addAll(pendingTasks);
 
-        InPlaceUpdates.resetScreen(System.out);
-        synchronized (tasks) {
-          for (Task t : tasks) {
-            System.out.println(t.toString());
-          }
-        }
         LOG.info("Current tasks: {}", tasks);
 
         try {
@@ -200,6 +196,17 @@ public class TaskScheduler {
         }
       }
     }
+  }
+
+  public Map<String, TaskProgress> summary() {
+    Map<String, TaskProgress> ret = new LinkedHashMap<>();
+    synchronized (tasks) {
+      for (Task task : tasks) {
+        ret.put(task.getId(), task.getProgress());
+      }
+    }
+
+    return ret;
   }
 
   public void shutdown() {

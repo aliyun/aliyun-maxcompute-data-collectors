@@ -6,6 +6,9 @@ import java.util.stream.Collectors;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DirectedAcyclicGraph;
 
+import com.aliyun.odps.datacarrier.taskscheduler.event.MmaEventManager;
+import com.aliyun.odps.datacarrier.taskscheduler.event.MmaJobFailedEvent;
+import com.aliyun.odps.datacarrier.taskscheduler.event.MmaJobSuccceedEvent;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource.TableMetaModel;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
@@ -47,7 +50,14 @@ public class MigrationTask extends AbstractTask {
                                         .map(p -> p.partitionValues)
                                         .collect(Collectors.toList()),
                                     MmaMetaManager.MigrationStatus.SUCCEEDED);
+        MmaJobSuccceedEvent e = new MmaJobSuccceedEvent(tableMetaModel.databaseName,
+                                                        tableMetaModel.tableName);
+        MmaEventManager.getInstance().send(e);
       } else if (TaskProgress.FAILED.equals(progress)) {
+        MmaJobFailedEvent e = new MmaJobFailedEvent(tableMetaModel.databaseName,
+                                                      tableMetaModel.tableName);
+        MmaEventManager.getInstance().send(e);
+
         // Update the status of partition who have passed the verification to SUCCEEDED even when
         // the task failed
         Action verificationAction = null;
@@ -81,10 +91,18 @@ public class MigrationTask extends AbstractTask {
       }
     } else {
       if (TaskProgress.SUCCEEDED.equals(progress)) {
+        MmaJobSuccceedEvent e = new MmaJobSuccceedEvent(tableMetaModel.databaseName,
+                                                        tableMetaModel.tableName);
+        MmaEventManager.getInstance().send(e);
+
         mmaMetaManager.updateStatus(tableMetaModel.databaseName,
                                     tableMetaModel.tableName,
                                     MmaMetaManager.MigrationStatus.SUCCEEDED);
       } else if (TaskProgress.FAILED.equals(progress)) {
+        MmaJobFailedEvent e = new MmaJobFailedEvent(tableMetaModel.databaseName,
+                                                    tableMetaModel.tableName);
+        MmaEventManager.getInstance().send(e);
+
         mmaMetaManager.updateStatus(tableMetaModel.databaseName,
                                     tableMetaModel.tableName,
                                     MmaMetaManager.MigrationStatus.FAILED);

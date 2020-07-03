@@ -58,6 +58,12 @@ if __name__ == '__main__':
     if os.path.exists("odps-data-carrier.tar.gz"):
         os.unlink("odps-data-carrier.tar.gz")
 
+    # install dingtalk jars
+    ret = execute("mvn install:install-file -Dfile=task-scheduler/resource/taobao-sdk-java-auto_1479188381469-20200701.jar -DgroupId=com.dingtalk -DartifactId=dingtalk-sdk -Dversion=1.0 -Dpackaging=jar")
+    if ret != 0:
+        print("Build failed, exit")
+        sys.exit(1)
+
     # build and make dirs
     ret = execute("mvn clean package -DskipTests")
     if ret != 0:
@@ -79,6 +85,7 @@ if __name__ == '__main__':
     shutil.copyfile("bin/mma-server", "odps-data-carrier/bin/mma-server")
     shutil.copyfile("bin/mma-client", "odps-data-carrier/bin/mma-client")
     shutil.copyfile("bin/generate-config", "odps-data-carrier/bin/generate-config")
+    shutil.copyfile("bin/hive_to_mc_quickstart", "odps-data-carrier/bin/hive_to_mc_quickstart")
 
     # lib
     task_scheduler_jar_name = "task-scheduler-1.0-SNAPSHOT.jar"

@@ -98,6 +98,31 @@ public class MmaClientDbImpl implements MmaClient {
                                    databaseMigrationConfig.getDestProjectStorage(),
                                    databaseAdditionalTableConfig);
       }
+    } else if (mmaMigrationConfig.getObjectExportConfigs() != null) {
+      for(MmaConfig.ObjectExportConfig objectExportConfig : mmaMigrationConfig.getObjectExportConfigs()) {
+        if (objectExportConfig.getAdditionalTableConfig() == null) {
+          objectExportConfig.setAdditionalTableConfig(globalAdditionalTableConfig);
+        }
+        mmaMetaManager.addBackupJob(objectExportConfig);
+      }
+    } else if (mmaMigrationConfig.getDatabaseExportConfigs() != null) {
+      for (MmaConfig.DatabaseExportConfig databaseExportConfig :
+          mmaMigrationConfig.getDatabaseExportConfigs()) {
+        String database = databaseExportConfig.getDatabaseName();
+        if (!databaseExists(database)) {
+          continue;
+        }
+
+        // TODO: merge additional table config
+        // Use global additional table config if database migration config doesn't contain one
+        MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig =
+            databaseExportConfig.getAdditionalTableConfig();
+        if (databaseAdditionalTableConfig == null) {
+          databaseAdditionalTableConfig = globalAdditionalTableConfig;
+        }
+
+        createDatabaseExportJob(database, databaseExportConfig.getExportTypes(), databaseAdditionalTableConfig);
+      }
     } else {
       for (MmaConfig.TableMigrationConfig tableMigrationConfig :
           mmaMigrationConfig.getTableMigrationConfigs()) {
@@ -202,16 +227,52 @@ public class MmaClientDbImpl implements MmaClient {
     }
   }
 
-  @Override
-  public List<MmaConfig.TableMigrationConfig> listMigrationJobs(
-      MmaMetaManager.MigrationStatus status) throws MmaException {
+  private void createDatabaseExportJob(String database,
+                                       List<MmaConfig.ObjectType> types,
+                                       MmaConfig.AdditionalTableConfig additionalTableConfig) throws MmaException {
+    if (!DataSource.ODPS.equals(dataSource)) {
+      String msg = "Failed to create backup jobs for database:" + database + " to oss, which is managed by " + dataSource;
+      System.err.println(ERROR_INDICATOR + msg);
+      LOG.error(msg);
+      return;
+    }
+    OdpsMetaSource odpsMetaSource = (OdpsMetaSource)metaSource;
+    for(MmaConfig.ObjectType type : types) {
+      switch (type) {
+        case TABLE:
+          List<String> tables = odpsMetaSource.listTables(database);
+          for(String tableName : tables) {
+            mmaMetaManager.addBackupJob(
+                new MmaConfig.ObjectExportConfig(database, tableName, type, additionalTableConfig));
+          }
+          break;
+        case RESOURCE:
+          List<String> resources = odpsMetaSource.listResources(database);
+          for(String resourceName : resources) {
+            mmaMetaManager.addBackupJob(
+                new MmaConfig.ObjectExportConfig(database, resourceName, type, additionalTableConfig));
+          }
+          break;
+        case FUNCTION:
+          List<String> functions = odpsMetaSource.listFunctions(database);
+          for(String functionName : functions) {
+            mmaMetaManager.addBackupJob(
+                new MmaConfig.ObjectExportConfig(database, functionName, type, additionalTableConfig));
+          }
+          break;
+        default:
+          LOG.error("Unsupported type {} when export database {}", type, database);
+      }
+    }
+  }
 
-    List<MmaConfig.TableMigrationConfig> ret = mmaMetaManager.listMigrationJobs(status, -1);
+  @Override
+  public List<MmaConfig.JobConfig> listJobs(MmaMetaManager.MigrationStatus status) throws MmaException {
+
+    List<MmaConfig.JobConfig> ret = mmaMetaManager.listMigrationJobs(status, -1);
     LOG.info("Get migration job list, status: {}, ret: {}",
              status,
-             ret
-                 .stream()
-                 .map(c -> c.getSourceDataBaseName() + "." + c.getSourceTableName())
+             ret.stream().map(c -> c.getDatabaseName() + "." + c.getName())
                  .collect(Collectors.joining(", ")));
     return ret;
   }

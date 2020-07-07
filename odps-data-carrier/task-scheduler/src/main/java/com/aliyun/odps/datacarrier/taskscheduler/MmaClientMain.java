@@ -156,22 +156,32 @@ public class MmaClientMain {
   private static int waitAll(MmaClient client) {
     JobProgressReporter reporter = new JobProgressReporter();
     while (true) {
-      List<MmaConfig.TableMigrationConfig> runningMigrationJobs;
+      List<MmaConfig.JobConfig> runningJobs;
       try {
-        runningMigrationJobs = client.listMigrationJobs(MmaMetaManager.MigrationStatus.RUNNING);
-        runningMigrationJobs.addAll(client.listMigrationJobs(MmaMetaManager.MigrationStatus.PENDING));
+        runningJobs = client.listJobs(MmaMetaManager.MigrationStatus.RUNNING);
+        runningJobs.addAll(client.listJobs(MmaMetaManager.MigrationStatus.PENDING));
 
-        if (runningMigrationJobs.isEmpty()) {
+        if (runningJobs.isEmpty()) {
           System.err.println("\nAll migration jobs terminated");
           return 0;
         }
 
         Map<String, MmaMetaManager.MigrationProgress> tableToProgress = new HashMap<>();
-        for (MmaConfig.TableMigrationConfig tableMigrationConfig : runningMigrationJobs) {
-          String db = tableMigrationConfig.getSourceDataBaseName();
-          String tbl = tableMigrationConfig.getSourceTableName();
-          MmaMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
-          tableToProgress.put(db + "." + tbl, progress);
+        for (MmaConfig.JobConfig config : runningJobs) {
+          if (MmaConfig.JobType.TABLE_MIGRATE.equals(config.getJobType())) {
+            MmaConfig.TableMigrationConfig tableMigrationConfig =
+                MmaConfig.TableMigrationConfig.fromJson(config.getDescription());
+            String db = tableMigrationConfig.getSourceDataBaseName();
+            String tbl = tableMigrationConfig.getSourceTableName();
+            MmaMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
+            tableToProgress.put(db + "." + tbl, progress);
+          } else if (MmaConfig.JobType.META_BACKUP.equals(config.getJobType())) {
+            MmaConfig.ObjectExportConfig objectExportConfig =
+                MmaConfig.ObjectExportConfig.fromJson(config.getDescription());
+            String db = objectExportConfig.getDatabaseName();
+            String tbl = objectExportConfig.getMetaName();
+            tableToProgress.put(db + "." + tbl, null);
+          }
         }
 
         reporter.report(tableToProgress);
@@ -221,20 +231,31 @@ public class MmaClientMain {
       status = MmaMetaManager.MigrationStatus.valueOf(statusStr);
     }
 
-    List<MmaConfig.TableMigrationConfig> migrationJobs;
+    List<MmaConfig.JobConfig> allJobs;
     try {
-      migrationJobs = client.listMigrationJobs(status);
+      allJobs = client.listJobs(status);
     } catch (MmaException e) {
       e.printStackTrace();
       return 1;
     }
 
-    for (MmaConfig.TableMigrationConfig tableMigrationConfig : migrationJobs) {
-      String sourceDb = tableMigrationConfig.getSourceDataBaseName();
-      String sourceTbl = tableMigrationConfig.getSourceTableName();
-      String destPjt = tableMigrationConfig.getDestProjectName();
-      String destTbl = tableMigrationConfig.getDestTableName();
-      System.err.println(String.format("%s.%s:%s.%s", sourceDb, sourceTbl, destPjt, destTbl));
+    for (MmaConfig.JobConfig config : allJobs) {
+      if (MmaConfig.JobType.TABLE_MIGRATE.equals(config.getJobType())) {
+        MmaConfig.TableMigrationConfig tableMigrationConfig =
+            MmaConfig.TableMigrationConfig.fromJson(config.getDescription());
+        System.err.println(String.format("[TableMigration] %s.%s:%s.%s",
+            tableMigrationConfig.getSourceDataBaseName(),
+            tableMigrationConfig.getSourceTableName(),
+            tableMigrationConfig.getDestProjectName(),
+            tableMigrationConfig.getDestTableName()));
+      } else if (MmaConfig.JobType.META_BACKUP.equals(config.getJobType())) {
+        MmaConfig.ObjectExportConfig objectExportConfig =
+            MmaConfig.ObjectExportConfig.fromJson(config.getDescription());
+        System.err.println(String.format("[MetaBackup] %s: %s.%s",
+            objectExportConfig.getMetaType(),
+            objectExportConfig.getDatabaseName(),
+            objectExportConfig.getMetaName()));
+      }
     }
 
     return 0;

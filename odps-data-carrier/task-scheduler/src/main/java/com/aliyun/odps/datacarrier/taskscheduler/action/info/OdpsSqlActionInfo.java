@@ -1,13 +1,20 @@
 package com.aliyun.odps.datacarrier.taskscheduler.action.info;
 
-import java.util.List;
-
 import com.aliyun.odps.utils.StringUtils;
 
 public class OdpsSqlActionInfo extends AbstractActionInfo {
+  /**
+   * the result of some query cannot be parsed as columns, such as SHOW CREATE TABLE xxx
+   * in this case, raw data result should be return
+   */
+  public enum ResultType {
+    COLUMNS,
+    RAW_DATA
+  }
+
   private String instanceId;
   private String logView;
-  private List<List<String>> result;
+  ResultType resultType = ResultType.COLUMNS;
 
   public synchronized String getInstanceId() {
     return instanceId;
@@ -25,12 +32,12 @@ public class OdpsSqlActionInfo extends AbstractActionInfo {
     this.logView = logView;
   }
 
-  public synchronized void setResult(List<List<String>> result) {
-    this.result = result;
+  public synchronized void setResultType(ResultType type) {
+    this.resultType = type;
   }
 
-  public synchronized List<List<String>> getResult() {
-    return result;
+  public synchronized ResultType getResultType() {
+    return this.resultType;
   }
 
   @Override

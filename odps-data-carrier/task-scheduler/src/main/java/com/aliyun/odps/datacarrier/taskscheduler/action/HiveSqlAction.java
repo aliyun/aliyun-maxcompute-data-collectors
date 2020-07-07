@@ -23,10 +23,6 @@ abstract class HiveSqlAction extends AbstractAction {
   }
 
   @Override
-  public void beforeExecution() {
-  }
-
-  @Override
   public void execute() throws MmaException {
     setProgress(ActionProgress.RUNNING);
 

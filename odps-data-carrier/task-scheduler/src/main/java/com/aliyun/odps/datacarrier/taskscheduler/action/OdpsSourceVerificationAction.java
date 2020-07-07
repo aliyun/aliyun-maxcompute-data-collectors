@@ -36,7 +36,7 @@ public class OdpsSourceVerificationAction extends OdpsSqlAction {
   @Override
   public void afterExecution() throws MmaException {
     try {
-      List<List<String>> rows = future.get();
+      List<List<String>> rows = (List<List<String>>) future.get();
       actionExecutionContext.setSourceVerificationResult(rows);
       setProgress(ActionProgress.SUCCEEDED);
     } catch (Exception e) {

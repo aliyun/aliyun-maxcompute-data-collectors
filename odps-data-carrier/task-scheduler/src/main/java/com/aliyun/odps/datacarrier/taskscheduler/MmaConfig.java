@@ -64,25 +64,47 @@ public class MmaConfig {
 
   public static class OssConfig implements Config {
     private String ossEndpoint;
+    private String ossLocalEndpoint;
     private String ossBucket;
     private String ossRoleArn;
+    private String ossAccessId;
+    private String ossAccessKey;
 
-    public OssConfig(String ossEndpoint, String ossBucket, String roleArn) {
+    public OssConfig(String ossEndpoint, String ossLocalEndpoint, String ossBucket, String roleArn, String accessId, String accessKey) {
       this.ossEndpoint = ossEndpoint;
+      this.ossLocalEndpoint = ossLocalEndpoint;
       this.ossBucket = ossBucket;
       this.ossRoleArn = roleArn;
+      this.ossAccessId = accessId;
+      this.ossAccessKey = accessKey;
     }
 
     @Override
     public boolean validate() {
       // TODO: try to connect
-      return (!StringUtils.isNullOrEmpty(ossEndpoint) &&
-          !StringUtils.isNullOrEmpty(ossBucket) &&
-          !StringUtils.isNullOrEmpty(ossRoleArn));
+      if (StringUtils.isNullOrEmpty(ossEndpoint) ||
+          StringUtils.isNullOrEmpty(ossLocalEndpoint) ||
+          StringUtils.isNullOrEmpty(ossBucket)) {
+        return false;
+      }
+      // arn、accessId and accessKey should not both empty
+      if (StringUtils.isNullOrEmpty(ossRoleArn) &&
+          StringUtils.isNullOrEmpty(ossAccessId) &&
+          StringUtils.isNullOrEmpty(ossAccessKey)) {
+        return false;
+      }
+      if (StringUtils.isNullOrEmpty(ossAccessId) != StringUtils.isNullOrEmpty(ossAccessKey)) {
+        return false;
+      }
+      return true;
     }
 
     public String getOssEndpoint() {
       return ossEndpoint;
+    }
+
+    public String getOssLocalEndpoint() {
+      return ossLocalEndpoint;
     }
 
     public String getOssBucket() {
@@ -93,10 +115,19 @@ public class MmaConfig {
       return ossRoleArn;
     }
 
+    public String getOssAccessId() {
+      return ossAccessId;
+    }
+
+    public String getOssAccessKey() {
+      return ossAccessKey;
+    }
+
     @Override
     public String toString() {
       final StringBuilder sb = new StringBuilder("OssDataSource {");
       sb.append("ossEndpoint='").append(ossEndpoint).append('\'');
+      sb.append(", ossLocalEndpoint='").append(ossLocalEndpoint).append('\'');
       sb.append(", ossBucket='").append(ossBucket).append('\'');
       sb.append(", ossRoleArn='").append(ossRoleArn).append('\'');
       sb.append('}');
@@ -328,6 +359,34 @@ public class MmaConfig {
     }
   }
 
+  public static class DatabaseExportConfig implements Config {
+    private String databaseName;
+    private List<ObjectType> exportTypes;
+    private AdditionalTableConfig additionalTableConfig;
+
+    DatabaseExportConfig(String databaseName, List<ObjectType> types) {
+      this.databaseName = databaseName;
+      this.exportTypes = types;
+    }
+
+    public String getDatabaseName() {
+      return databaseName;
+    }
+
+    public List<ObjectType> getExportTypes() {
+      return exportTypes;
+    }
+
+    public AdditionalTableConfig getAdditionalTableConfig() {
+      return additionalTableConfig;
+    }
+
+    @Override
+    public boolean validate() {
+      return !StringUtils.isNullOrEmpty(databaseName) && exportTypes != null;
+    }
+  }
+
   public static class TableMigrationConfig implements Config {
     private String sourceDatabaseName;
     private String sourceTableName;
@@ -474,6 +533,53 @@ public class MmaConfig {
     }
   }
 
+  public enum ObjectType {
+    TABLE,
+    RESOURCE,
+    FUNCTION;
+  }
+
+  // Table/View/Resource/Function backup config
+  public static class ObjectExportConfig extends TableMigrationConfig {
+    private String databaseName;
+    private String metaName;
+    private ObjectType metaType;
+
+    ObjectExportConfig(String databaseName, String metaName, ObjectType type, AdditionalTableConfig additionalTableConfig) {
+      super(databaseName, metaName, null, null, additionalTableConfig);
+      this.databaseName = databaseName;
+      this.metaName = metaName;
+      this.metaType = type;
+    }
+
+    public String getDatabaseName() {
+      return databaseName;
+    }
+
+    public String getMetaName() {
+      return metaName;
+    }
+
+    public ObjectType getMetaType() {
+      return metaType;
+    }
+
+    public static ObjectExportConfig fromJson(String json) {
+      return GsonUtils.getFullConfigGson().fromJson(json, ObjectExportConfig.class);
+    }
+
+    public static String toJson(ObjectExportConfig config) {
+      return GsonUtils.getFullConfigGson().toJson(config);
+    }
+
+    @Override
+    public boolean validate() {
+      return !StringUtils.isNullOrEmpty(databaseName) &&
+             !StringUtils.isNullOrEmpty(metaName) &&
+              metaType != null;
+    }
+  }
+
   public static class AdditionalTableConfig implements Config {
     private int partitionGroupSize;
     private int retryTimesLimit;
@@ -500,6 +606,51 @@ public class MmaConfig {
         return false;
       }
       return true;
+    }
+  }
+
+  public enum JobType {
+    TABLE_MIGRATE,
+    META_BACKUP;
+  }
+
+  /**
+   * Used to record job description and transfer from MmaClient to MmaServer
+   */
+  public static class JobConfig {
+    private JobType jobType;
+    private String databaseName;
+    private String name; // name of table to be migrated or resource/function to be backup
+    private String description;
+    private AdditionalTableConfig additionalTableConfig;
+
+    public JobConfig(String databaseName, String name, JobType type,
+                     String desc, AdditionalTableConfig additionalTableConfig) {
+      this.jobType = type;
+      this.databaseName = databaseName;
+      this.name = name;
+      this.description = desc;
+      this.additionalTableConfig = additionalTableConfig;
+    }
+
+    public JobType getJobType() {
+      return this.jobType;
+    }
+
+    public String getDatabaseName() {
+      return this.databaseName;
+    }
+
+    public String getName() {
+      return this.name;
+    }
+
+    public String getDescription() {
+      return this.description;
+    }
+
+    public AdditionalTableConfig getAdditionalTableConfig() {
+      return this.additionalTableConfig;
     }
   }
 }

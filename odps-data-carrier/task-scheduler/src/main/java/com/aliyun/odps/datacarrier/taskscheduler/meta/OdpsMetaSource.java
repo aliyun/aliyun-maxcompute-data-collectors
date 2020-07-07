@@ -1,11 +1,13 @@
 package com.aliyun.odps.datacarrier.taskscheduler.meta;
 
 import com.aliyun.odps.Column;
+import com.aliyun.odps.Function;
 import com.aliyun.odps.Odps;
 import com.aliyun.odps.OdpsException;
 import com.aliyun.odps.Partition;
 import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.Project;
+import com.aliyun.odps.Resource;
 import com.aliyun.odps.Table;
 import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.account.Account;
@@ -65,6 +67,26 @@ public class OdpsMetaSource implements MetaSource {
       tables.add(table.getName());
     }
     return tables;
+  }
+
+  public List<String> listFunctions(String databaseName) {
+    List<String> functions = new ArrayList<>();
+    Iterator<Function> iterator = odps.functions().iterator(databaseName);
+    while (iterator.hasNext()) {
+      Function func = iterator.next();
+      functions.add(func.getName());
+    }
+    return functions;
+  }
+
+  public List<String> listResources(String databaseName) {
+    List<String> resources = new ArrayList<>();
+    Iterator<Resource> iterator = odps.resources().iterator(databaseName);
+    while (iterator.hasNext()) {
+      Resource resource = iterator.next();
+      resources.add(resource.getName());
+    }
+    return resources;
   }
 
   public List<String> listManagedTables(String databaseName) {

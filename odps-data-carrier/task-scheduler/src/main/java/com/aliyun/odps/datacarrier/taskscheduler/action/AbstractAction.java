@@ -1,7 +1,9 @@
 package com.aliyun.odps.datacarrier.taskscheduler.action;
 
 import java.util.Objects;
+import java.util.concurrent.Future;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -16,6 +18,8 @@ public abstract class AbstractAction implements Action {
 
   private ActionProgress progress;
   private ActionProgressListener actionProgressListener;
+
+  protected Future<Object> future;
 
   /**
    * Used by sub classes
@@ -42,6 +46,33 @@ public abstract class AbstractAction implements Action {
   @Override
   public AbstractActionInfo getActionInfo() {
     return actionInfo;
+  }
+
+  @Override
+  public void afterExecution() throws MmaException {
+    try {
+      future.get();
+      setProgress(ActionProgress.SUCCEEDED);
+    } catch (Exception e) {
+      LOG.error("Action failed, actionId: {}, stack trace: {}",
+                id,
+                ExceptionUtils.getFullStackTrace(e));
+      setProgress(ActionProgress.FAILED);
+    }
+  }
+
+  @Override
+  public boolean executionFinished() {
+    if (ActionProgress.FAILED.equals(getProgress())
+        || ActionProgress.SUCCEEDED.equals(getProgress())) {
+      return true;
+    }
+
+    if (future == null) {
+      throw new IllegalStateException("Action not executed, actionId: " + id);
+    }
+
+    return future.isDone();
   }
 
   void setProgress(ActionProgress progress) throws MmaException {

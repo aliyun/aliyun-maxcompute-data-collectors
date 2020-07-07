@@ -40,7 +40,6 @@ import org.apache.logging.log4j.Logger;
 import com.aliyun.odps.datacarrier.taskscheduler.Constants;
 import com.aliyun.odps.datacarrier.taskscheduler.GsonUtils;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig;
-import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 import com.google.gson.reflect.TypeToken;
 
 public class MmaMetaManagerDbImplUtils {
@@ -50,26 +49,26 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Represents a row in table meta
    */
-  public static class MigrationJobInfo {
+  public static class UserJobInfo {
     private String db;
     private String tbl;
     private boolean isPartitioned;
-    private TableMigrationConfig migrationConfig;
+    private MmaConfig.JobConfig jobConfig;
     private MmaMetaManager.MigrationStatus status;
     private int attemptTimes;
     private long lastSuccTimestamp;
 
-    public MigrationJobInfo(String db,
-                            String tbl,
-                            boolean isPartitioned,
-                            TableMigrationConfig migrationConfig,
-                            MmaMetaManager.MigrationStatus status,
-                            int attemptTimes,
-                            long lastSuccTimestamp) {
+    public UserJobInfo(String db,
+                       String tbl,
+                       boolean isPartitioned,
+                       MmaConfig.JobConfig jobConfig,
+                       MmaMetaManager.MigrationStatus status,
+                       int attemptTimes,
+                       long lastSuccTimestamp) {
       this.db = Objects.requireNonNull(db);
       this.tbl = Objects.requireNonNull(tbl);
       this.isPartitioned = isPartitioned;
-      this.migrationConfig = Objects.requireNonNull(migrationConfig);
+      this.jobConfig = Objects.requireNonNull(jobConfig);
       this.status = Objects.requireNonNull(status);
       this.attemptTimes = attemptTimes;
       this.lastSuccTimestamp = lastSuccTimestamp;
@@ -95,8 +94,8 @@ public class MmaMetaManagerDbImplUtils {
       return status;
     }
 
-    public TableMigrationConfig getMigrationConfig() {
-      return migrationConfig;
+    public MmaConfig.JobConfig getJobConfig() {
+      return jobConfig;
     }
 
     public int getAttemptTimes() {
@@ -226,7 +225,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Insert into or update (A.K.A Upsert) MMA_TBL_META
    */
-  public static void mergeIntoMmaTableMeta(Connection conn, MigrationJobInfo jobInfo)
+  public static void mergeIntoMmaTableMeta(Connection conn, UserJobInfo jobInfo)
       throws SQLException {
 
     String dml = "MERGE INTO " + Constants.MMA_TBL_META_TBL_NAME + " VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -235,7 +234,7 @@ public class MmaMetaManagerDbImplUtils {
       preparedStatement.setString(2, jobInfo.getTbl());
       preparedStatement.setBoolean(3, jobInfo.isPartitioned());
       preparedStatement.setString(4,
-                                  MmaConfig.TableMigrationConfig.toJson(jobInfo.getMigrationConfig()));
+                                  GsonUtils.getFullConfigGson().toJson(jobInfo.getJobConfig()));
       preparedStatement.setString(5, jobInfo.getStatus().toString());
       preparedStatement.setInt(6, jobInfo.getAttemptTimes());
       preparedStatement.setLong(7, jobInfo.getLastSuccTimestamp());
@@ -267,7 +266,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Return a record from MMA_TBL_META if it exists, else null
    */
-  public static MigrationJobInfo selectFromMmaTableMeta(Connection conn, String db, String tbl)
+  public static UserJobInfo selectFromMmaTableMeta(Connection conn, String db, String tbl)
       throws SQLException {
 
     String sql = String.format("SELECT * FROM %s WHERE %s='%s' and %s='%s'",
@@ -284,10 +283,10 @@ public class MmaMetaManagerDbImplUtils {
         if(!rs.next()) {
           return null;
         }
-        return new MigrationJobInfo(db,
+        return new UserJobInfo(db,
                                 tbl,
                                 rs.getBoolean(3),
-                                MmaConfig.TableMigrationConfig.fromJson(rs.getString(4)),
+                                GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
                                 MmaMetaManager.MigrationStatus.valueOf(rs.getString(5)),
                                 rs.getInt(6),
                                 rs.getLong(7));
@@ -298,9 +297,9 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Return records from MMA_TBL_META
    */
-  public static List<MigrationJobInfo> selectFromMmaTableMeta(Connection conn,
-                                                              MmaMetaManager.MigrationStatus status,
-                                                              int limit) throws SQLException {
+  public static List<UserJobInfo> selectFromMmaTableMeta(Connection conn,
+                                                         MmaMetaManager.MigrationStatus status,
+                                                         int limit) throws SQLException {
     StringBuilder sb = new StringBuilder();
     sb.append(String.format("SELECT * FROM %s", Constants.MMA_TBL_META_TBL_NAME));
     if (status != null) {
@@ -319,13 +318,13 @@ public class MmaMetaManagerDbImplUtils {
       LOG.info("Executing SQL: {}", sb.toString());
 
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
-        List<MigrationJobInfo> ret = new LinkedList<>();
+        List<UserJobInfo> ret = new LinkedList<>();
         while (rs.next()) {
-          MigrationJobInfo jobInfo =
-              new MigrationJobInfo(rs.getString(1),
+          UserJobInfo jobInfo =
+              new UserJobInfo(rs.getString(1),
                                    rs.getString(2),
                                    rs.getBoolean(3),
-                                   MmaConfig.TableMigrationConfig.fromJson(rs.getString(4)),
+                                   GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
                                    MmaMetaManager.MigrationStatus.valueOf(rs.getString(5)),
                                    rs.getInt(6),
                                    rs.getLong(7));

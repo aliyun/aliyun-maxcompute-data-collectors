@@ -108,6 +108,7 @@ public abstract class AbstractTask implements Task {
       throws MmaException {
 
     boolean taskProgressChanged = false;
+    TaskProgress currentProgress = progress;
 
     switch (progress) {
       case PENDING:
@@ -136,6 +137,7 @@ public abstract class AbstractTask implements Task {
     }
 
     if (taskProgressChanged) {
+      LOG.info("Task {} change progress from {} to {}", id, currentProgress, progress);
       updateMetadata();
     }
   }

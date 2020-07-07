@@ -39,6 +39,14 @@ public class MmaExceptionFactory {
     return new MmaException(errorMsg, e);
   }
 
+   public static MmaException getFailedToAddBackupJobException(String db,
+                                                               String tbl,
+                                                               MmaConfig.ObjectType type,
+                                                               Throwable e) {
+    String errorMsg = String.format("Failed to add backup job, db: %s, tbl: %s, type: %s", db, tbl, type.name());
+    return new MmaException(errorMsg, e);
+  }
+
   public static MmaException getFailedToRemoveMigrationJobException(String db,
                                                                     String tbl,
                                                                     Throwable e) {

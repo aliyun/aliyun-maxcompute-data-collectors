@@ -29,6 +29,8 @@ public class MmaMigrationConfig implements MmaConfig.Config {
   private MmaConfig.ServiceMigrationConfig serviceMigrationConfig;
   private List<MmaConfig.DatabaseMigrationConfig> databaseMigrationConfigs;
   private List<MmaConfig.TableMigrationConfig> tableMigrationConfigs;
+  private List<MmaConfig.ObjectExportConfig> objectExportConfigs;
+  private List<MmaConfig.DatabaseExportConfig> databaseExportConfigs;
 
   public MmaMigrationConfig(String user,
                             List<MmaConfig.TableMigrationConfig> tableMigrationConfigs,
@@ -56,12 +58,14 @@ public class MmaMigrationConfig implements MmaConfig.Config {
       }
       valid = databaseMigrationConfigs.stream()
           .allMatch(MmaConfig.DatabaseMigrationConfig::validate);
-    } else {
-      if (tableMigrationConfigs == null) {
-        throw new IllegalArgumentException("No migration config found");
-      }
-
+    } else if (tableMigrationConfigs != null) {
       valid = tableMigrationConfigs.stream().allMatch(MmaConfig.TableMigrationConfig::validate);
+    } else if (objectExportConfigs != null) {
+      valid = objectExportConfigs.stream().allMatch(MmaConfig.ObjectExportConfig::validate);
+    } else if (databaseExportConfigs != null) {
+      valid = databaseExportConfigs.stream().allMatch(MmaConfig.DatabaseExportConfig::validate);
+    } else {
+      throw new IllegalArgumentException("No migration config found");
     }
 
     return valid && (globalAdditionalTableConfig == null || globalAdditionalTableConfig.validate());
@@ -81,6 +85,14 @@ public class MmaMigrationConfig implements MmaConfig.Config {
 
   public List<MmaConfig.TableMigrationConfig> getTableMigrationConfigs() {
     return tableMigrationConfigs;
+  }
+
+  public List<MmaConfig.ObjectExportConfig> getObjectExportConfigs() {
+    return objectExportConfigs;
+  }
+
+  public List<MmaConfig.DatabaseExportConfig> getDatabaseExportConfigs() {
+    return databaseExportConfigs;
   }
 
   public MmaConfig.AdditionalTableConfig getGlobalAdditionalTableConfig() {

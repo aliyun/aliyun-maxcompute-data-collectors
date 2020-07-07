@@ -154,12 +154,12 @@ public class MmaMetaManagerDbImplUtilsTest {
   @Test
   public void testMergeIntoMmaTableMeta() throws SQLException {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
-    MmaMetaManagerDbImplUtils.MigrationJobInfo jobInfo =
-        new MmaMetaManagerDbImplUtils.MigrationJobInfo(
+    MmaMetaManagerDbImplUtils.UserJobInfo jobInfo =
+        new MmaMetaManagerDbImplUtils.UserJobInfo(
             MockHiveMetaSource.DB_NAME,
             MockHiveMetaSource.TBL_PARTITIONED,
             true,
-            MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED,
+            MmaMetaManagerDbImplTest.PARTITIONED_TABLE_MIGRATION_JOB_CONFIG,
             MmaMetaManager.MigrationStatus.PENDING,
             Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
             Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
@@ -193,12 +193,12 @@ public class MmaMetaManagerDbImplUtilsTest {
   @Test
   public void testDeleteFromMmaMeta() throws SQLException {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
-    MmaMetaManagerDbImplUtils.MigrationJobInfo jobInfo =
-        new MmaMetaManagerDbImplUtils.MigrationJobInfo(
+    MmaMetaManagerDbImplUtils.UserJobInfo jobInfo =
+        new MmaMetaManagerDbImplUtils.UserJobInfo(
             MockHiveMetaSource.DB_NAME,
             MockHiveMetaSource.TBL_PARTITIONED,
             true,
-            MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED,
+            MmaMetaManagerDbImplTest.PARTITIONED_TABLE_MIGRATION_JOB_CONFIG,
             MmaMetaManager.MigrationStatus.PENDING,
             Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
             Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
@@ -220,7 +220,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
 
     String migrationConfigJson = GsonUtils.getFullConfigGson().toJson(
-        MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED);
+        MmaMetaManagerDbImplTest.PARTITIONED_TABLE_MIGRATION_JOB_CONFIG);
     try (Statement stmt = conn.createStatement()) {
       String dml = String.format("INSERT INTO %s VALUES('%s', '%s', %b, '%s', '%s', %d, %d)",
                                  Constants.MMA_TBL_META_TBL_NAME,
@@ -234,7 +234,7 @@ public class MmaMetaManagerDbImplUtilsTest {
       stmt.execute(dml);
     }
 
-    MmaMetaManagerDbImplUtils.MigrationJobInfo migrationJobInfo =
+    MmaMetaManagerDbImplUtils.UserJobInfo migrationJobInfo =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(
             conn,
             MockHiveMetaSource.DB_NAME,
@@ -245,7 +245,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     Assert.assertEquals(MockHiveMetaSource.TBL_PARTITIONED, migrationJobInfo.getTbl());
     Assert.assertTrue(migrationJobInfo.isPartitioned());
     Assert.assertEquals(migrationConfigJson,
-                        GsonUtils.getFullConfigGson().toJson(migrationJobInfo.getMigrationConfig()));
+                        GsonUtils.getFullConfigGson().toJson(migrationJobInfo.getJobConfig()));
     Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING, migrationJobInfo.getStatus());
     Assert.assertEquals(Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
                         migrationJobInfo.getAttemptTimes());
@@ -258,7 +258,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
 
 
-    MmaMetaManagerDbImplUtils.MigrationJobInfo migrationJobInfo =
+    MmaMetaManagerDbImplUtils.UserJobInfo migrationJobInfo =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(
             conn,
             MockHiveMetaSource.DB_NAME,
@@ -272,7 +272,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
 
     String migrationConfigJson = GsonUtils.getFullConfigGson().toJson(
-        MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED);
+        MmaMetaManagerDbImplTest.PARTITIONED_TABLE_MIGRATION_JOB_CONFIG);
     try (Statement stmt = conn.createStatement()) {
       String dml = String.format("INSERT INTO %s VALUES('%s', '%s', %b, '%s', '%s', %d, %d)",
                                  Constants.MMA_TBL_META_TBL_NAME,
@@ -286,18 +286,18 @@ public class MmaMetaManagerDbImplUtilsTest {
       stmt.execute(dml);
     }
 
-    List<MmaMetaManagerDbImplUtils.MigrationJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null,  -1);
 
     Assert.assertEquals(1, migrationJobInfos.size());
-    MmaMetaManagerDbImplUtils.MigrationJobInfo migrationJobInfo = migrationJobInfos.get(0);
+    MmaMetaManagerDbImplUtils.UserJobInfo migrationJobInfo = migrationJobInfos.get(0);
 
     Assert.assertNotNull(migrationJobInfo);
     Assert.assertEquals(MockHiveMetaSource.DB_NAME, migrationJobInfo.getDb());
     Assert.assertEquals(MockHiveMetaSource.TBL_PARTITIONED, migrationJobInfo.getTbl());
     Assert.assertTrue(migrationJobInfo.isPartitioned());
     Assert.assertEquals(migrationConfigJson,
-                        GsonUtils.getFullConfigGson().toJson(migrationJobInfo.getMigrationConfig()));
+                        GsonUtils.getFullConfigGson().toJson(migrationJobInfo.getJobConfig()));
     Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING, migrationJobInfo.getStatus());
     Assert.assertEquals(Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
                         migrationJobInfo.getAttemptTimes());
@@ -309,7 +309,7 @@ public class MmaMetaManagerDbImplUtilsTest {
   public void testSelectRecordsFromMmaTableMetaEmpty() throws SQLException {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
 
-    List<MmaMetaManagerDbImplUtils.MigrationJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null,  -1);
 
     Assert.assertEquals(0, migrationJobInfos.size());
@@ -334,7 +334,7 @@ public class MmaMetaManagerDbImplUtilsTest {
       stmt.execute(dml);
     }
 
-    List<MmaMetaManagerDbImplUtils.MigrationJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn,
                                                          MmaMetaManager.MigrationStatus.SUCCEEDED,
                                                          -1);
@@ -364,7 +364,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     }
 
 
-    List<MmaMetaManagerDbImplUtils.MigrationJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null, 1);
 
     Assert.assertEquals(1, migrationJobInfos.size());

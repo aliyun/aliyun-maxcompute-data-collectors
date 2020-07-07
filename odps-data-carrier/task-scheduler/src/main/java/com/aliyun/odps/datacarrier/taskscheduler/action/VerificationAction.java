@@ -21,10 +21,6 @@ public class VerificationAction extends AbstractAction {
   }
 
   @Override
-  public void beforeExecution() {
-  }
-
-  @Override
   public void execute() throws MmaException {
     List<List<String>> sourceVerificationResult =
         actionExecutionContext.getSourceVerificationResult();

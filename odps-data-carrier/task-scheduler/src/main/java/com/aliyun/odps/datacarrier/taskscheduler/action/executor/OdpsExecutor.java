@@ -8,47 +8,36 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
+import com.aliyun.odps.datacarrier.taskscheduler.OdpsUtils;
+import com.aliyun.odps.datacarrier.taskscheduler.action.OdpsNoSqlAction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.aliyun.odps.Instance;
 import com.aliyun.odps.Odps;
 import com.aliyun.odps.OdpsException;
-import com.aliyun.odps.account.Account;
-import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.odps.data.Record;
-import com.aliyun.odps.datacarrier.taskscheduler.MmaServerConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.action.info.OdpsSqlActionInfo;
 import com.aliyun.odps.task.SQLTask;
 
-public class OdpsSqlExecutor extends AbstractActionExecutor {
+public class OdpsExecutor extends AbstractActionExecutor {
 
-  private static final Logger LOG = LogManager.getLogger(OdpsSqlExecutor.class);
+  private static final Logger LOG = LogManager.getLogger(OdpsExecutor.class);
 
-  private static class OdpsSqlCallable implements Callable<List<List<String>>> {
-
-    private String endpoint;
-    private String accessId;
-    private String accessKey;
-    private String project;
+  private static class OdpsSqlCallable implements Callable {
+    private Odps odps;
     private String sql;
     private Map<String, String> settings;
     private String actionId;
     private OdpsSqlActionInfo odpsSqlActionInfo;
 
     OdpsSqlCallable(
-        String endpoint,
-        String accessId,
-        String accessKey,
-        String project,
+        Odps odps,
         String sql,
         Map<String, String> settings,
         String actionId,
         OdpsSqlActionInfo odpsSqlActionInfo) {
-      this.endpoint = Objects.requireNonNull(endpoint);
-      this.accessId = Objects.requireNonNull(accessId);
-      this.accessKey = Objects.requireNonNull(accessKey);
-      this.project = Objects.requireNonNull(project);
+      this.odps = odps;
       this.sql = Objects.requireNonNull(sql);
       this.settings = Objects.requireNonNull(settings);
       this.actionId = Objects.requireNonNull(actionId);
@@ -56,13 +45,8 @@ public class OdpsSqlExecutor extends AbstractActionExecutor {
     }
 
     @Override
-    public List<List<String>> call() throws Exception {
+    public Object call() throws Exception {
       LOG.info("Executing sql: {}", sql);
-
-      Account account = new AliyunAccount(accessId, accessKey);
-      Odps odps = new Odps(account);
-      odps.setEndpoint(endpoint);
-      odps.setDefaultProject(project);
 
       Instance i = SQLTask.run(odps, odps.getDefaultProject(), sql, settings, null);
 
@@ -76,12 +60,19 @@ public class OdpsSqlExecutor extends AbstractActionExecutor {
 
       i.waitForSuccess();
 
-      return parseResult(i);
+      if (OdpsSqlActionInfo.ResultType.COLUMNS.equals(odpsSqlActionInfo.getResultType())) {
+        return parseResult(i);
+      }
+      List<Object> ret = new LinkedList<>();
+      List<String> row = new ArrayList<>(1);
+      row.add(i.getTaskResults().get("AnonymousSQLTask"));
+      ret.add(row);
+      return ret;
     }
 
-    private List<List<String>> parseResult(Instance instance) throws OdpsException {
+    private List<Object> parseResult(Instance instance) throws OdpsException {
       List<Record> records = SQLTask.getResult(instance);
-      List<List<String>> ret = new LinkedList<>();
+      List<Object> ret = new LinkedList<>();
 
       int columnCount;
       if (records.isEmpty()) {
@@ -102,7 +93,21 @@ public class OdpsSqlExecutor extends AbstractActionExecutor {
     }
   }
 
-  public Future<List<List<String>>> execute(
+  private static class OdpsNoSqlRunnable implements Callable {
+    OdpsNoSqlAction action;
+
+    OdpsNoSqlRunnable(OdpsNoSqlAction action) {
+      this.action = action;
+    }
+
+    @Override
+    public Object call() throws Exception {
+      action.doAction();
+      return null;
+    }
+  }
+
+  public Future<Object> execute(
       String sql,
       Map<String, String> settings,
       String actionId,
@@ -110,15 +115,16 @@ public class OdpsSqlExecutor extends AbstractActionExecutor {
     // TODO: endpoint, ak, project name should come with tableMigrationConfig
 
     OdpsSqlCallable callable = new OdpsSqlCallable(
-        MmaServerConfig.getInstance().getOdpsConfig().getEndpoint(),
-        MmaServerConfig.getInstance().getOdpsConfig().getAccessId(),
-        MmaServerConfig.getInstance().getOdpsConfig().getAccessKey(),
-        MmaServerConfig.getInstance().getOdpsConfig().getProjectName(),
+        OdpsUtils.getInstance(),
         sql,
         settings,
         actionId,
         odpsSqlActionInfo);
 
     return executor.submit(callable);
+  }
+
+  public Future<Object> execute(OdpsNoSqlAction action) {
+    return executor.submit(new OdpsNoSqlRunnable(action));
   }
 }

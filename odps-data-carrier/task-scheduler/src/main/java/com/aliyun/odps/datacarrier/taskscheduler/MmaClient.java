@@ -28,7 +28,7 @@ public interface MmaClient {
 
   void createMigrationJobs(MmaMigrationConfig mmaMigrationConfig) throws MmaException;
 
-  List<MmaConfig.TableMigrationConfig> listMigrationJobs(
+  List<MmaConfig.JobConfig> listJobs(
       MmaMetaManager.MigrationStatus status)
       throws MmaException;
 

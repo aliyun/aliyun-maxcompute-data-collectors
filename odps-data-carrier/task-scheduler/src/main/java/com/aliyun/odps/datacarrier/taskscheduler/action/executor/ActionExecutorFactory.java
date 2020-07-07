@@ -3,7 +3,7 @@ package com.aliyun.odps.datacarrier.taskscheduler.action.executor;
 public class ActionExecutorFactory {
 
   private static HiveSqlExecutor hiveSqlExecutor = null;
-  private static OdpsSqlExecutor odpsSqlExecutor = null;
+  private static OdpsExecutor odpsSqlExecutor = null;
 
   public static HiveSqlExecutor getHiveSqlExecutor() {
     if (hiveSqlExecutor == null) {
@@ -13,9 +13,9 @@ public class ActionExecutorFactory {
     return hiveSqlExecutor;
   }
 
-  public static OdpsSqlExecutor getOdpsSqlExecutor() {
+  public static OdpsExecutor getOdpsSqlExecutor() {
     if (odpsSqlExecutor == null) {
-      odpsSqlExecutor = new OdpsSqlExecutor();
+      odpsSqlExecutor = new OdpsExecutor();
     }
 
     return odpsSqlExecutor;

@@ -66,6 +66,20 @@ public class MmaMetaManagerDbImplTest {
           MockHiveMetaSource.TBL_NON_PARTITIONED,
           MmaConfigUtils.DEFAULT_ADDITIONAL_TABLE_CONFIG);
 
+  public static final MmaConfig.JobConfig PARTITIONED_TABLE_MIGRATION_JOB_CONFIG =
+      new MmaConfig.JobConfig(MockHiveMetaSource.DB_NAME,
+          MockHiveMetaSource.TBL_PARTITIONED,
+          MmaConfig.JobType.TABLE_MIGRATE,
+          MmaConfig.TableMigrationConfig.toJson(MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED),
+          MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED.getAdditionalTableConfig());
+
+  public static final MmaConfig.JobConfig NON_PARTITIONED_TABLE_MIGRATION_JOB_CONFIG =
+      new MmaConfig.JobConfig(MockHiveMetaSource.DB_NAME,
+          MockHiveMetaSource.TBL_NON_PARTITIONED,
+          MmaConfig.JobType.TABLE_MIGRATE,
+          MmaConfig.TableMigrationConfig.toJson(MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_NON_PARTITIONED),
+          MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getAdditionalTableConfig());
+
   private static Connection conn;
   private static MetaSource metaSource = new MockHiveMetaSource();
   private static MmaMetaManager mmaMetaManager;
@@ -129,7 +143,7 @@ public class MmaMetaManagerDbImplTest {
         Assert.assertEquals(MockHiveMetaSource.DB_NAME, rs.getString(1));
         Assert.assertEquals(MockHiveMetaSource.TBL_PARTITIONED, rs.getString(2));
         Assert.assertTrue(rs.getBoolean(3));
-        Assert.assertEquals(MmaConfig.TableMigrationConfig.toJson(TABLE_MIGRATION_CONFIG_PARTITIONED),
+        Assert.assertEquals(GsonUtils.getFullConfigGson().toJson(PARTITIONED_TABLE_MIGRATION_JOB_CONFIG),
                             rs.getString(4));
         Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                             rs.getString(5));
@@ -141,7 +155,7 @@ public class MmaMetaManagerDbImplTest {
         Assert.assertEquals(MockHiveMetaSource.DB_NAME, rs.getString(1));
         Assert.assertEquals(MockHiveMetaSource.TBL_NON_PARTITIONED, rs.getString(2));
         Assert.assertFalse(rs.getBoolean(3));
-        Assert.assertEquals(MmaConfig.TableMigrationConfig.toJson(TABLE_MIGRATION_CONFIG_NON_PARTITIONED),
+        Assert.assertEquals(GsonUtils.getFullConfigGson().toJson(NON_PARTITIONED_TABLE_MIGRATION_JOB_CONFIG),
                             rs.getString(4));
         Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                             rs.getString(5));
@@ -241,13 +255,13 @@ public class MmaMetaManagerDbImplTest {
     mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_NON_PARTITIONED);
     mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
 
-    List<MmaConfig.TableMigrationConfig> configs = mmaMetaManager.listMigrationJobs(-1);
+    List<MmaConfig.JobConfig> configs = mmaMetaManager.listMigrationJobs(-1);
     Assert.assertEquals(2, configs.size());
 
-    Assert.assertEquals(MmaConfig.TableMigrationConfig.toJson(TABLE_MIGRATION_CONFIG_PARTITIONED),
-                        MmaConfig.TableMigrationConfig.toJson(configs.get(0)));
-    Assert.assertEquals(MmaConfig.TableMigrationConfig.toJson(TABLE_MIGRATION_CONFIG_NON_PARTITIONED),
-                        MmaConfig.TableMigrationConfig.toJson(configs.get(1)));
+    Assert.assertEquals(GsonUtils.getFullConfigGson().toJson(PARTITIONED_TABLE_MIGRATION_JOB_CONFIG),
+                        GsonUtils.getFullConfigGson().toJson(configs.get(0)));
+    Assert.assertEquals(GsonUtils.getFullConfigGson().toJson(NON_PARTITIONED_TABLE_MIGRATION_JOB_CONFIG),
+                        GsonUtils.getFullConfigGson().toJson(configs.get(1)));
   }
 
   @Test
@@ -449,10 +463,10 @@ public class MmaMetaManagerDbImplTest {
   public void testGetConfigExistingMigrationJob() throws MmaException {
     mmaMetaManager.addMigrationJob(TABLE_MIGRATION_CONFIG_PARTITIONED);
 
-    MmaConfig.TableMigrationConfig config =
+    MmaConfig.JobConfig config =
         mmaMetaManager.getConfig(MockHiveMetaSource.DB_NAME, MockHiveMetaSource.TBL_PARTITIONED);
-    Assert.assertEquals(MmaConfig.TableMigrationConfig.toJson(TABLE_MIGRATION_CONFIG_PARTITIONED),
-                        MmaConfig.TableMigrationConfig.toJson(config));
+    Assert.assertEquals(GsonUtils.getFullConfigGson().toJson(PARTITIONED_TABLE_MIGRATION_JOB_CONFIG),
+                        GsonUtils.getFullConfigGson().toJson(config));
   }
 
   @Test

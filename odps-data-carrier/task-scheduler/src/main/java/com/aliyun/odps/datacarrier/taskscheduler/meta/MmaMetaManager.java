@@ -22,6 +22,8 @@ package com.aliyun.odps.datacarrier.taskscheduler.meta;
 import java.util.List;
 
 import com.aliyun.odps.datacarrier.taskscheduler.GsonUtils;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ObjectExportConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaException;
 
@@ -81,6 +83,13 @@ public interface MmaMetaManager {
   void addMigrationJob(TableMigrationConfig config) throws MmaException;
 
   /**
+   * Add a backup job of give table.
+   * @param config backup config
+   * @throws MmaException
+   */
+  void addBackupJob(ObjectExportConfig config) throws MmaException;
+
+  /**
    * Remove migration job of given table.
    *
    * @param db database name
@@ -100,14 +109,14 @@ public interface MmaMetaManager {
    * List migration jobs
    * @return all migration jobs
    */
-  List<TableMigrationConfig> listMigrationJobs(int limit) throws MmaException;
+  List<MmaConfig.JobConfig> listMigrationJobs(int limit) throws MmaException;
 
   /**
    * List migration jobs in given status
    * @param status migration status
    * @return migration jobs in given status
    */
-  List<TableMigrationConfig> listMigrationJobs(
+  List<MmaConfig.JobConfig> listMigrationJobs(
       MigrationStatus status,
       int limit)
       throws MmaException;
@@ -175,14 +184,13 @@ public interface MmaMetaManager {
    * @param tbl table name
    * @return migration config
    */
-  TableMigrationConfig getConfig(String db, String tbl) throws MmaException;
+  MmaConfig.JobConfig getConfig(String db, String tbl) throws MmaException;
 
   /**
    * Get pending migration jobs.
    * @return
    */
   List<MetaSource.TableMetaModel> getPendingTables() throws MmaException;
-
 
   /**
    * Get next pending migration job.

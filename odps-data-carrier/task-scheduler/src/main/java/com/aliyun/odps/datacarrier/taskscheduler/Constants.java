@@ -89,4 +89,11 @@ public class Constants {
   // Constant values
   public static final int MMA_PT_META_INIT_ATTEMPT_TIMES = 0;
   public static final long MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP = -1;
+
+  public static final String OSS_ROOT_FOLDER_NAME = "ODPS_MMA/";
+  public static final String EXPORT_FUNCTION_DDL_FOLDER_NAME = "export_functions_ddl/";
+  public static final String EXPORT_RESOURCE_DDL_FOLDER_NAME = "export_resources_ddl/";
+  public static final String EXPORT_RESOURCE_OBJECT_FOLDER_NAME = "export_resources_objects/";
+  public static final String EXPORT_TABLE_DDL_FOLDER_NAME = "export_tables_ddl/";
+  public static final String EXPORT_DDL_FILE_NAME = "DDL";
 }

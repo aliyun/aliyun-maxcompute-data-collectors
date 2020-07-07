@@ -13,8 +13,6 @@ public interface Action {
 
   AbstractActionInfo getActionInfo();
 
-  void beforeExecution();
-
   void execute() throws MmaException;
 
   void afterExecution() throws MmaException;

@@ -230,15 +230,21 @@ public class OdpsSqlUtils {
     return getAddPartitionStatement(tableMetaModel, null);
   }
 
+   public static String getAddPartitionStatement(MetaSource.TableMetaModel tableMetaModel,
+                                                 ExternalTableConfig externalTableConfig) {
+     return getAddPartitionStatement(tableMetaModel, ADD_PARTITION_BATCH_SIZE, externalTableConfig);
+   }
+
   public static String getAddPartitionStatement(MetaSource.TableMetaModel tableMetaModel,
+                                                int addPartitionBatchSize,
                                                 ExternalTableConfig externalTableConfig) {
     if (tableMetaModel.partitionColumns.size() == 0) {
       throw new IllegalArgumentException("Not a partitioned table");
     }
 
-    if (tableMetaModel.partitions.size() > ADD_PARTITION_BATCH_SIZE) {
+    if (tableMetaModel.partitions.size() > addPartitionBatchSize) {
       throw new IllegalArgumentException(
-          "Partition batch size exceeds upper bound: " + ADD_PARTITION_BATCH_SIZE);
+          "Partition batch size exceeds upper bound: " + addPartitionBatchSize);
     }
 
     StringBuilder sb = new StringBuilder();
@@ -353,6 +359,30 @@ public class OdpsSqlUtils {
     sb.append(";\n");
 
     return sb.toString();
+  }
+
+  public static String getDDLSql(MetaSource.TableMetaModel tableMetaModel) {
+    return "SHOW CREATE TABLE " + tableMetaModel.databaseName
+           + ".`" + tableMetaModel.tableName + "`;\n";
+  }
+
+  public static String getCreateViewStatement(String db, String tbl, String viewText) {
+    return "CREATE VIEW IF NOT EXISTS " + db + ".`" + tbl + "` AS " + viewText + ";\n";
+  }
+
+  public static String getAddResourceStatement(String resourceType, String filePath, String resourceName, String comment) {
+    String result = "ADD " + resourceType + " " + filePath + " AS " + resourceName;
+    if (!StringUtils.isNullOrEmpty(comment)) {
+      result = result + " COMMENT '" + comment + "'";
+    }
+    return result + ";\n";
+  }
+
+  public static String getCreateFunctionStatement(String name,
+                                                  String classPath,
+                                                  List<String> resources) {
+    return "CREATE FUNCTION " + name + " as '" + classPath +
+        "' USING '" + String.join(",", resources) + "';\n";
   }
 
   private static String getPartitionSpec(List<MetaSource.ColumnMetaModel> partitionColumns,

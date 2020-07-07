@@ -174,10 +174,12 @@ public class TaskScheduler {
     public void run() {
       List<Action> finishedActions = new LinkedList<>();
       while (keepRunning) {
+        LOG.info("Handle finished action");
         synchronized (executingActions) {
           for (Action action : executingActions) {
             if (action.executionFinished()) {
               try {
+                LOG.info("Action {} execute finish", action.getId());
                 action.afterExecution();
               } catch (MmaException e) {
                 // TODO: fatal errors -> stop the scheduler; other errors -> handlers

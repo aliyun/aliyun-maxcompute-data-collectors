@@ -284,7 +284,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
         newPartitionValuesList = metaSource.listPartitions(db, tbl);
       }
 
-      newPartitionValuesList = MmaMetaManagerDbImplUtils.filterOutExistingPartitions(
+      newPartitionValuesList = MmaMetaManagerDbImplUtils.filterOutPartitions(
           conn, db, tbl, newPartitionValuesList);
 
       List<MigrationJobPtInfo> migrationJobPtInfos = newPartitionValuesList
@@ -567,10 +567,10 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
             }
             case FAILED: {
               int attemptTimes = jobPtInfo.getAttemptTimes() + 1;
+              jobPtInfo.setStatus(status);
               if (attemptTimes <= retryTimesLimit) {
                 jobPtInfo.setStatus(MigrationStatus.PENDING);
               }
-              jobPtInfo.setStatus(status);
               jobPtInfo.setAttemptTimes(attemptTimes);
               jobPtInfo.setLastSuccTimestamp(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
               LOG.info(GsonUtils.getFullConfigGson().toJson(jobPtInfo));

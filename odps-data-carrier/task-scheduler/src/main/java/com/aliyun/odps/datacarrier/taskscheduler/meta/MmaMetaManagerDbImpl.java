@@ -777,9 +777,9 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
         } catch (Exception e) {
           // Table could be deleted after the task is submitted. In this case,
           // metaSource.getTableMetaWithoutPartitionMeta# will fail.
-          LOG.warn("Failed to get metadata, db: {}, tbl: {}", db, tbl);
+          LOG.warn("Failed to get metadata, db: {}, tbl: {}, stacktrace: {}",
+                   db, tbl, ExceptionUtils.getStackTrace(e));
           updateStatusInternal(db, tbl, MigrationStatus.FAILED);
-          // TODO: Should throw MMA meta exception here and stop the task scheduler
           continue;
         }
 
@@ -799,8 +799,8 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
             } catch (Exception e) {
               // Partitions could be deleted after the task is submitted. In this case,
               // metaSource.getPartitionMeta# will fail.
-              LOG.warn("Failed to get metadata, db: {}, tbl: {}, pt: {}",
-                       db, tbl, jobPtInfo.getPartitionValues());
+              LOG.warn("Failed to get metadata, db: {}, tbl: {}, pt: {}, stacktrace: {}",
+                       db, tbl, jobPtInfo.getPartitionValues(), ExceptionUtils.getStackTrace(e));
               updateStatusInternal(
                   db,
                   tbl,

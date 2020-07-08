@@ -19,10 +19,12 @@
 
 package com.aliyun.odps.datacarrier.transfer;
 
+import com.aliyun.odps.Column;
 import com.aliyun.odps.Odps;
 import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.account.AliyunAccount;
+import com.aliyun.odps.data.ArrayRecord;
 import com.aliyun.odps.data.Record;
 import com.aliyun.odps.data.RecordWriter;
 import com.aliyun.odps.datacarrier.transfer.converter.HiveObjectConverter;
@@ -170,7 +172,8 @@ public class OdpsDataTransferUDTF extends GenericUDTF {
       }
 
       if (reusedRecord == null) {
-        reusedRecord = currentUploadSession.newRecord();
+        Column[] columns = currentUploadSession.getSchema().getColumns().toArray(new Column[0]);
+        reusedRecord = new ArrayRecord(columns, false);
       }
 
       for (int i = 0; i < odpsColumnNames.size(); i++) {

@@ -709,7 +709,8 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
         try {
           tableMetaModel = metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
         } catch (Exception e) {
-          LOG.warn("Failed to get metadata of db: {}, tbl: {}", db, tbl);
+          LOG.warn("Failed to get metadata of db: {}, tbl: {}, stacktrace: ",
+                   db, tbl, ExceptionUtils.getStackTrace(e));
           updateStatusInternal(db, tbl, MigrationStatus.FAILED);
           continue;
         }
@@ -728,8 +729,12 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
                 partitionMetaModels.add(
                     metaSource.getPartitionMeta(db, tbl, jobPtInfo.getPartitionValues()));
               } catch (Exception e) {
-                LOG.warn("Failed to get metadata of db: {}, tbl: {}, pt: {}", db, tbl, jobPtInfo.getPartitionValues());
-                updateStatusInternal(db, tbl, Collections.singletonList(jobPtInfo.getPartitionValues()), MigrationStatus.FAILED);
+                LOG.warn("Failed to get metadata of db: {}, tbl: {}, pt: {}, stacktrace: {}",
+                         db, tbl, jobPtInfo.getPartitionValues(), ExceptionUtils.getStackTrace(e));
+                updateStatusInternal(db,
+                                     tbl,
+                                     Collections.singletonList(jobPtInfo.getPartitionValues()),
+                                     MigrationStatus.FAILED);
               }
             }
             tableMetaModel.partitions = partitionMetaModels;

@@ -156,6 +156,12 @@
         <artifactId>jgrapht-core</artifactId>
         <version>1.4.0</version>
       </dependency>
+      <!-- dingtalk sdk -->
+      <dependency>
+        <groupId>com.dingtalk</groupId>
+        <artifactId>dingtalk-sdk</artifactId>
+        <version>1.0</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 

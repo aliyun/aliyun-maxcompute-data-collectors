@@ -34,15 +34,18 @@ public class MmaServerConfig {
   private MmaConfig.OssConfig ossConfig;
   private MmaConfig.HiveConfig hiveConfig;
   private MmaConfig.OdpsConfig odpsConfig;
+  private MmaEventConfig eventConfig;
 
   MmaServerConfig(DataSource dataSource,
                   MmaConfig.OssConfig ossConfig,
                   MmaConfig.HiveConfig hiveConfig,
-                  MmaConfig.OdpsConfig odpsConfig) {
+                  MmaConfig.OdpsConfig odpsConfig,
+                  MmaEventConfig eventConfig) {
     this.dataSource = dataSource;
     this.ossConfig = ossConfig;
     this.hiveConfig = hiveConfig;
     this.odpsConfig = odpsConfig;
+    this.eventConfig = eventConfig;
   }
 
   public DataSource getDataSource() {
@@ -59,6 +62,10 @@ public class MmaServerConfig {
 
   public MmaConfig.OssConfig getOssConfig() {
     return ossConfig;
+  }
+
+  public MmaEventConfig getEventConfig() {
+    return eventConfig;
   }
 
   public String toJson() {

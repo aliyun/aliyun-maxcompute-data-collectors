@@ -3,6 +3,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -14,6 +15,10 @@ import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.log4j.BasicConfigurator;
 
+import com.aliyun.odps.datacarrier.taskscheduler.MmaEventConfig.MmaEventSenderConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.event.MmaEventManager;
+import com.aliyun.odps.datacarrier.taskscheduler.event.MmaEventSenderFactory;
+import com.aliyun.odps.datacarrier.taskscheduler.event.MmaEventType;
 
 
 public class MmaServerMain {
@@ -71,8 +76,27 @@ public class MmaServerMain {
       System.exit(help(options));
     }
 
+    // Setup MmaServerConfig singleton
     Path mmaServerConfigPath = Paths.get(cmd.getOptionValue("config"));
     MmaServerConfig.init(mmaServerConfigPath);
+
+    // Setup MmaEventManager singleton
+    if (MmaServerConfig.getInstance().getEventConfig() != null) {
+      for (MmaEventSenderConfig eventSenderConfig : MmaServerConfig.getInstance()
+                                                                   .getEventConfig()
+                                                                   .getEventSenderConfigs()) {
+        MmaEventManager.getInstance().register(MmaEventSenderFactory.get(eventSenderConfig));
+      }
+
+      List<MmaEventType> whitelist = MmaServerConfig.getInstance().getEventConfig().getWhitelist();
+      List<MmaEventType> blacklist = MmaServerConfig.getInstance().getEventConfig().getBlacklist();
+      if (whitelist != null) {
+        whitelist.forEach(eventType -> MmaEventManager.getInstance().whitelist(eventType));
+      }
+      if (blacklist != null) {
+        blacklist.forEach(eventType -> MmaEventManager.getInstance().blacklist(eventType));
+      }
+    }
 
     MmaServer mmaServer = new MmaServer();
     try {
@@ -80,5 +104,7 @@ public class MmaServerMain {
     } finally {
       mmaServer.shutdown();
     }
+
+    MmaEventManager.getInstance().shutdown();
   }
 }

@@ -237,7 +237,8 @@ public class MmaConfigUtils {
     String json = new MmaServerConfig(DataSource.Hive,
                                       null,
                                       parseHiveConfig(hiveConfigPath),
-                                      parseOdpsConfig(odpsConfigPath)).toJson();
+                                      parseOdpsConfig(odpsConfigPath),
+                                      null).toJson();
     DirUtils.writeFile(Paths.get(prefix + "mma_server_config.json"), json);
   }
 
@@ -253,7 +254,8 @@ public class MmaConfigUtils {
     MmaServerConfig mmaServerConfig = new MmaServerConfig(DataSource.Hive,
                                                           null,
                                                           SAMPLE_HIVE_CONFIG,
-                                                          SAMPLE_ODPS_CONFIG);
+                                                          SAMPLE_ODPS_CONFIG,
+                                                          null);
 
     MmaConfig.TableMigrationConfig tableMigrationConfig =
         new MmaConfig.TableMigrationConfig("source DB",

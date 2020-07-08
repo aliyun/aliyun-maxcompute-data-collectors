@@ -84,9 +84,8 @@
             <artifactId>jgrapht-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.aliyun.odps</groupId>
-            <artifactId>data-transfer-hive-udtf</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <groupId>com.dingtalk</groupId>
+            <artifactId>dingtalk-sdk</artifactId>
         </dependency>
     </dependencies>
     <build>

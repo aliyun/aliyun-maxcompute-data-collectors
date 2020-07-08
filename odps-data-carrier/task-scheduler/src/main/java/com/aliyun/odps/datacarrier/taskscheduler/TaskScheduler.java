@@ -101,7 +101,6 @@ public class TaskScheduler {
     while (keepRunning) {
       List<Task> tasksToRemove = new LinkedList<>();
       synchronized (tasks) {
-        InPlaceUpdates.resetScreen(System.out);
         for (Task task : tasks) {
           String detailedProgress =
               String.join("->",

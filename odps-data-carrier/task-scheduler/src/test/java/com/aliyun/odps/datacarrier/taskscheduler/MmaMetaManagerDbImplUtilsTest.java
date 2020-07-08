@@ -41,6 +41,8 @@ public class MmaMetaManagerDbImplUtilsTest {
   private static final String CONN_URL =
       "jdbc:h2:file:" + Paths.get(PARENT_DIR.toString(), "MmaMetaManagerDbImplUtilsTest")
       + ";AUTO_SERVER=TRUE";
+  private static final long MMA_TBL_META_LAST_MODIFIED_TIME = -1L;
+  private static final long MMA_PT_META_LAST_MODIFIED_TIME = -1L;
 
   private static Connection conn;
 
@@ -159,7 +161,7 @@ public class MmaMetaManagerDbImplUtilsTest {
             MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED,
             MmaMetaManager.MigrationStatus.PENDING,
             Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-            Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+            MMA_TBL_META_LAST_MODIFIED_TIME);
 
     MmaMetaManagerDbImplUtils.mergeIntoMmaTableMeta(conn, jobInfo);
 
@@ -177,7 +179,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                               rs.getString(5));
           Assert.assertEquals(Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
                               rs.getInt(6));
-          Assert.assertEquals(Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP,
+          Assert.assertEquals(MMA_TBL_META_LAST_MODIFIED_TIME,
                               rs.getLong(7));
           rowCount += 1;
         }
@@ -198,7 +200,7 @@ public class MmaMetaManagerDbImplUtilsTest {
             MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED,
             MmaMetaManager.MigrationStatus.PENDING,
             Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-            Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+            MMA_TBL_META_LAST_MODIFIED_TIME);
 
     MmaMetaManagerDbImplUtils.mergeIntoMmaTableMeta(conn, jobInfo);
     MmaMetaManagerDbImplUtils.deleteFromMmaMeta(conn, MockHiveMetaSource.DB_NAME,
@@ -227,7 +229,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                  migrationConfigJson,
                                  MmaMetaManager.MigrationStatus.PENDING.toString(),
                                  Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-                                 Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+                                 MMA_TBL_META_LAST_MODIFIED_TIME);
       stmt.execute(dml);
     }
 
@@ -246,8 +248,8 @@ public class MmaMetaManagerDbImplUtilsTest {
     Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING, migrationJobInfo.getStatus());
     Assert.assertEquals(Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
                         migrationJobInfo.getAttemptTimes());
-    Assert.assertEquals(Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP,
-                        migrationJobInfo.getLastSuccTimestamp());
+    Assert.assertEquals(MMA_TBL_META_LAST_MODIFIED_TIME,
+                        migrationJobInfo.getLastModifiedTime());
   }
 
   @Test
@@ -279,7 +281,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                  migrationConfigJson,
                                  MmaMetaManager.MigrationStatus.PENDING.toString(),
                                  Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-                                 Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+                                 MMA_TBL_META_LAST_MODIFIED_TIME);
       stmt.execute(dml);
     }
 
@@ -298,8 +300,8 @@ public class MmaMetaManagerDbImplUtilsTest {
     Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING, migrationJobInfo.getStatus());
     Assert.assertEquals(Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
                         migrationJobInfo.getAttemptTimes());
-    Assert.assertEquals(Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP,
-                        migrationJobInfo.getLastSuccTimestamp());
+    Assert.assertEquals(MMA_TBL_META_LAST_MODIFIED_TIME,
+                        migrationJobInfo.getLastModifiedTime());
   }
 
   @Test
@@ -327,7 +329,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                  migrationConfigJson,
                                  MmaMetaManager.MigrationStatus.PENDING.toString(),
                                  Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-                                 Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+                                 MMA_TBL_META_LAST_MODIFIED_TIME);
       stmt.execute(dml);
     }
 
@@ -355,7 +357,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                    migrationConfigJson,
                                    MmaMetaManager.MigrationStatus.PENDING.toString(),
                                    Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-                                   Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+                                   MMA_TBL_META_LAST_MODIFIED_TIME);
         stmt.execute(dml);
       }
     }
@@ -380,7 +382,7 @@ public class MmaMetaManagerDbImplUtilsTest {
             MockHiveMetaSource.TBL_PARTITIONED_PARTITION_VALUES,
             MmaMetaManager.MigrationStatus.PENDING,
             Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
-            Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
+            MMA_PT_META_LAST_MODIFIED_TIME);
     MmaMetaManagerDbImplUtils.mergeIntoMmaPartitionMeta(conn,
                                                         MockHiveMetaSource.DB_NAME,
                                                         MockHiveMetaSource.TBL_PARTITIONED,
@@ -402,7 +404,7 @@ public class MmaMetaManagerDbImplUtilsTest {
           Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                               rs.getString(2));
           Assert.assertEquals(Constants.MMA_PT_META_INIT_ATTEMPT_TIMES, rs.getInt(3));
-          Assert.assertEquals(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP,
+          Assert.assertEquals(MMA_PT_META_LAST_MODIFIED_TIME,
                               rs.getLong(4));
           rowCount += 1;
         }
@@ -457,7 +459,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                  partitionValuesJson,
                                  MmaMetaManager.MigrationStatus.PENDING.toString(),
                                  Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
-                                 Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
+                                 MMA_PT_META_LAST_MODIFIED_TIME);
       stmt.execute(dml);
     }
 
@@ -475,8 +477,8 @@ public class MmaMetaManagerDbImplUtilsTest {
                         jobPtInfo.getStatus());
     Assert.assertEquals(Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
                         jobPtInfo.getAttemptTimes());
-    Assert.assertEquals(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP,
-                        jobPtInfo.getLastSuccTimestamp());
+    Assert.assertEquals(MMA_PT_META_LAST_MODIFIED_TIME,
+                        jobPtInfo.getLastModifiedTime().longValue());
   }
 
   @Test
@@ -516,7 +518,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                  partitionValuesJson,
                                  MmaMetaManager.MigrationStatus.PENDING.toString(),
                                  Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
-                                 Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
+                                 MMA_PT_META_LAST_MODIFIED_TIME);
       stmt.execute(dml);
     }
 
@@ -536,8 +538,8 @@ public class MmaMetaManagerDbImplUtilsTest {
     Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING, migrationJobPtInfo.getStatus());
     Assert.assertEquals(Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
                         migrationJobPtInfo.getAttemptTimes());
-    Assert.assertEquals(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP,
-                        migrationJobPtInfo.getLastSuccTimestamp());
+    Assert.assertEquals(MMA_PT_META_LAST_MODIFIED_TIME,
+                        migrationJobPtInfo.getLastModifiedTime().longValue());
   }
 
   @Test
@@ -577,7 +579,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                  partitionValuesJson,
                                  MmaMetaManager.MigrationStatus.PENDING.toString(),
                                  Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
-                                 Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
+                                 MMA_PT_META_LAST_MODIFIED_TIME);
       stmt.execute(dml);
     }
 
@@ -610,7 +612,7 @@ public class MmaMetaManagerDbImplUtilsTest {
                                    GsonUtils.getFullConfigGson().toJson(Collections.singletonList(Integer.toString(i))),
                                    MmaMetaManager.MigrationStatus.PENDING.toString(),
                                    Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
-                                   Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
+                                   MMA_PT_META_LAST_MODIFIED_TIME);
         stmt.execute(dml);
       }
     }

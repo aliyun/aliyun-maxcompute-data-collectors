@@ -52,7 +52,7 @@ public class Constants {
   public static final String MMA_TBL_META_COL_MIGRATION_CONF = "migration_config";
   public static final String MMA_TBL_META_COL_STATUS = "status";
   public static final String MMA_TBL_META_COL_ATTEMPT_TIMES = "attempt_times";
-  public static final String MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP = "last_succ_timestamp";
+  public static final String MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP = "last_mod_timestamp";
   public static final Map<String, String> MMA_TBL_META_COL_TO_TYPE;
   static {
     Map<String, String> temp = new LinkedHashMap<>();
@@ -67,7 +67,6 @@ public class Constants {
   }
   // Constant values
   public static final int MMA_TBL_META_INIT_ATTEMPT_TIMES = 0;
-  public static final long MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP = -1;
 
   // Schema: [db], table: [tbl],
   public static final String MMA_PT_META_SCHEMA_NAME_FMT = "MMA_PT_META_DB_%s";
@@ -76,7 +75,7 @@ public class Constants {
   public static final String MMA_PT_META_COL_PT_VALS = "pt_vals";
   public static final String MMA_PT_META_COL_STATUS = "status";
   public static final String MMA_PT_META_COL_ATTEMPT_TIMES = "attempt_times";
-  public static final String MMA_PT_META_COL_LAST_SUCC_TIMESTAMP = "last_succ_timestamp";
+  public static final String MMA_PT_META_COL_LAST_SUCC_TIMESTAMP = "last_mod_timestamp";
   public static final Map<String, String> MMA_PT_META_COL_TO_TYPE;
   static {
     Map<String, String> temp = new LinkedHashMap<>();
@@ -88,5 +87,4 @@ public class Constants {
   }
   // Constant values
   public static final int MMA_PT_META_INIT_ATTEMPT_TIMES = 0;
-  public static final long MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP = -1;
 }

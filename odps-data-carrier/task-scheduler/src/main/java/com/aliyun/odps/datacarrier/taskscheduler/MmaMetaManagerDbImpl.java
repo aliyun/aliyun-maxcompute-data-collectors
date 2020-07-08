@@ -37,6 +37,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.aliyun.odps.datacarrier.taskscheduler.MetaSource.PartitionMetaModel;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -171,6 +172,13 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
     try (Connection conn = ds.getConnection()) {
       try {
 
+        MigrationJobInfo currentJobInfo =
+            MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        if (currentJobInfo != null
+            && MigrationStatus.RUNNING.equals(currentJobInfo.getStatus())) {
+          throw MmaExceptionFactory.getRunningMigrationJobExistsException(db, tbl);
+        }
+
         MetaSource.TableMetaModel tableMetaModel =
             metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
         boolean isPartitioned = tableMetaModel.partitionColumns.size() > 0;
@@ -183,42 +191,84 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
             config,
             MigrationStatus.PENDING,
             Constants.MMA_TBL_META_INIT_ATTEMPT_TIMES,
-            Constants.MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP);
+            tableMetaModel.lastModifiedTime);
 
         MmaMetaManagerDbImplUtils.mergeIntoMmaTableMeta(conn, jobInfo);
 
         // Create or update mma partition meta
+        // If partitions are specified, MMA will only create or update these partition. Else, MMA
+        // will fetch all the partitions, then create meta for new partitions, reset meta for failed
+        // partitions and modified succeeded partitions.
+        // TODO: this behavior should be configurable
         if (isPartitioned) {
           MmaMetaManagerDbImplUtils.createMmaPartitionMetaSchema(conn, db);
           MmaMetaManagerDbImplUtils.createMmaPartitionMeta(conn, db, tbl);
 
-          List<List<String>> newPartitionValuesList;
+          List<MigrationJobPtInfo> jobPtInfosToMerge = new LinkedList<>();
           if (config.getPartitionValuesList() != null) {
-            // If partitions are specified, check their existence
-            newPartitionValuesList = config.getPartitionValuesList();
-
-            for (List<String> partitionValues : newPartitionValuesList) {
+            for (List<String> partitionValues : config.getPartitionValuesList()) {
+              // Check if user specified partitions exist
               if (!metaSource.hasPartition(db, tbl, partitionValues)) {
-                // TODO: refine exception
-                throw new MmaException("Partition not exists: " + partitionValues);
+                throw new MmaException("Partition does not exist: " + partitionValues);
+              } else {
+                PartitionMetaModel partitionMetaModel =
+                    metaSource.getPartitionMeta(db, tbl, partitionValues);
+                jobPtInfosToMerge.add(new MigrationJobPtInfo(
+                    partitionValues,
+                    MigrationStatus.PENDING,
+                    Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
+                    partitionMetaModel.lastModifiedTime));
               }
             }
           } else {
-            // If partitions not specified, get the latest metadata from metasouce
-            newPartitionValuesList = metaSource.listPartitions(db, tbl);
+            List<MigrationJobPtInfo> jobPtInfos =
+                MmaMetaManagerDbImplUtils.selectFromMmaPartitionMeta(conn, db, tbl, null, -1);
+            List<List<String>> totalPartitionValuesList = metaSource.listPartitions(db, tbl);
+
+            for (List<String> partitionValues : totalPartitionValuesList) {
+              MigrationJobPtInfo jobPtInfo = jobPtInfos
+                  .stream()
+                  .filter(info -> info.getPartitionValues().equals(partitionValues))
+                  .findAny()
+                  .orElse(null);
+              PartitionMetaModel partitionMetaModel =
+                  metaSource.getPartitionMeta(db, tbl, partitionValues);
+
+              if (jobPtInfo == null
+                  ||MigrationStatus.FAILED.equals(jobPtInfo.getStatus())) {
+                if (jobPtInfo == null) {
+                  LOG.info("Found new partition: {}", partitionValues);
+                } else {
+                  LOG.info("Found failed partition: {}", partitionValues);
+                }
+                // New partition or failed partition
+                jobPtInfosToMerge.add(new MigrationJobPtInfo(
+                    partitionValues,
+                    MigrationStatus.PENDING,
+                    Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
+                    partitionMetaModel.lastModifiedTime));
+              } else if (MigrationStatus.SUCCEEDED.equals(jobPtInfo.getStatus())){
+                // Modified succeeded partitions
+                if (jobPtInfo.getLastModifiedTime() == null
+                    || partitionMetaModel.lastModifiedTime == null) {
+                  LOG.warn("Partition {} doesn't have last modified time", partitionValues);
+                } else if (partitionMetaModel.lastModifiedTime > jobPtInfo.getLastModifiedTime()) {
+                  LOG.info("Found partition modified after success, {}, old mtime: {}, new mtime: {}",
+                           partitionValues,
+                           jobPtInfo.getLastModifiedTime(),
+                           partitionMetaModel.lastModifiedTime);
+
+                  jobPtInfosToMerge.add(new MigrationJobPtInfo(
+                      partitionValues,
+                      MigrationStatus.PENDING,
+                      Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
+                      partitionMetaModel.lastModifiedTime));
+                }
+              }
+            }
           }
 
-          newPartitionValuesList = MmaMetaManagerDbImplUtils.filterOutPartitions(
-              conn, db, tbl, newPartitionValuesList);
-
-          List<MigrationJobPtInfo> migrationJobPtInfos = newPartitionValuesList
-              .stream()
-              .map(ptv -> new MigrationJobPtInfo(ptv,
-                                                 MigrationStatus.PENDING,
-                                                 Constants.MMA_PT_META_INIT_ATTEMPT_TIMES,
-                                                 Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP))
-              .collect(Collectors.toList());
-          MmaMetaManagerDbImplUtils.mergeIntoMmaPartitionMeta(conn, db, tbl, migrationJobPtInfos);
+          MmaMetaManagerDbImplUtils.mergeIntoMmaPartitionMeta(conn, db, tbl, jobPtInfosToMerge);
         }
 
         conn.commit();
@@ -406,12 +456,11 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
 
         jobInfo.setStatus(status);
         // For a partitioned table, its migration status is inferred from its partitions' migration
-        // statuses. And it does not have table level attr 'attemptTimes' or 'lastSuccTimestamp'.
+        // statuses. And it does not have table level attr 'attemptTimes'.
         if (!jobInfo.isPartitioned()) {
           switch (status) {
             case SUCCEEDED: {
               jobInfo.setAttemptTimes(jobInfo.getAttemptTimes() + 1);
-              jobInfo.setLastSuccTimestamp(System.currentTimeMillis());
               break;
             }
             case FAILED: {
@@ -425,7 +474,6 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
               }
               jobInfo.setStatus(status);
               jobInfo.setAttemptTimes(attemptTimes);
-              jobInfo.setLastSuccTimestamp(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
               break;
             }
             case RUNNING:
@@ -507,7 +555,6 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
           switch (status) {
             case SUCCEEDED: {
               jobPtInfo.setAttemptTimes(jobPtInfo.getAttemptTimes() + 1);
-              jobPtInfo.setLastSuccTimestamp(System.currentTimeMillis());
               break;
             }
             case FAILED: {
@@ -517,7 +564,6 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
                 jobPtInfo.setStatus(MigrationStatus.PENDING);
               }
               jobPtInfo.setAttemptTimes(attemptTimes);
-              jobPtInfo.setLastSuccTimestamp(Constants.MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP);
               LOG.info(GsonUtils.getFullConfigGson().toJson(jobPtInfo));
               break;
             }

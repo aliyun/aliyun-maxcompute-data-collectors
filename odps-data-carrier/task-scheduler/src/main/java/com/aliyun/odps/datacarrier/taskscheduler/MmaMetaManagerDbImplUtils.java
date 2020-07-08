@@ -54,7 +54,7 @@ public class MmaMetaManagerDbImplUtils {
     private MmaConfig.TableMigrationConfig migrationConfig;
     private MmaMetaManager.MigrationStatus status;
     private int attemptTimes;
-    private long lastSuccTimestamp;
+    private Long lastModifiedTime;
 
     public MigrationJobInfo(String db,
                             String tbl,
@@ -62,14 +62,14 @@ public class MmaMetaManagerDbImplUtils {
                             MmaConfig.TableMigrationConfig migrationConfig,
                             MmaMetaManager.MigrationStatus status,
                             int attemptTimes,
-                            long lastSuccTimestamp) {
+                            long lastModifiedTime) {
       this.db = Objects.requireNonNull(db);
       this.tbl = Objects.requireNonNull(tbl);
       this.isPartitioned = isPartitioned;
       this.migrationConfig = Objects.requireNonNull(migrationConfig);
       this.status = Objects.requireNonNull(status);
       this.attemptTimes = attemptTimes;
-      this.lastSuccTimestamp = lastSuccTimestamp;
+      this.lastModifiedTime = lastModifiedTime;
     }
 
     public String getDb() {
@@ -84,8 +84,8 @@ public class MmaMetaManagerDbImplUtils {
       return isPartitioned;
     }
 
-    public long getLastSuccTimestamp() {
-      return lastSuccTimestamp;
+    public long getLastModifiedTime() {
+      return lastModifiedTime;
     }
 
     public MmaMetaManager.MigrationStatus getStatus() {
@@ -108,8 +108,8 @@ public class MmaMetaManagerDbImplUtils {
       this.attemptTimes = attemptTimes;
     }
 
-    public void setLastSuccTimestamp(long lastSuccTimestamp) {
-      this.lastSuccTimestamp = lastSuccTimestamp;
+    public void setLastModifiedTime(long lastModifiedTime) {
+      this.lastModifiedTime = lastModifiedTime;
     }
   }
 
@@ -121,16 +121,16 @@ public class MmaMetaManagerDbImplUtils {
     private List<String> partitionValues;
     private MmaMetaManager.MigrationStatus status;
     private int attemptTimes;
-    private long lastSuccTimestamp;
+    private Long lastModifiedTime;
 
     public MigrationJobPtInfo(List<String> partitionValues,
                               MmaMetaManager.MigrationStatus status,
                               int attemptTimes,
-                              long lastSuccTimestamp) {
+                              long lastModifiedTime) {
       this.partitionValues = Objects.requireNonNull(partitionValues);
       this.status = Objects.requireNonNull(status);
       this.attemptTimes = attemptTimes;
-      this.lastSuccTimestamp = lastSuccTimestamp;
+      this.lastModifiedTime = lastModifiedTime;
     }
 
     public List<String> getPartitionValues() {
@@ -145,8 +145,8 @@ public class MmaMetaManagerDbImplUtils {
       return attemptTimes;
     }
 
-    public long getLastSuccTimestamp() {
-      return lastSuccTimestamp;
+    public Long getLastModifiedTime() {
+      return lastModifiedTime;
     }
 
     public void setStatus(MmaMetaManager.MigrationStatus status) {
@@ -157,8 +157,8 @@ public class MmaMetaManagerDbImplUtils {
       this.attemptTimes = attemptTimes;
     }
 
-    public void setLastSuccTimestamp(long lastSuccTimestamp) {
-      this.lastSuccTimestamp = lastSuccTimestamp;
+    public void setLastModifiedTime(Long lastModifiedTime) {
+      this.lastModifiedTime = lastModifiedTime;
     }
   }
 
@@ -235,7 +235,7 @@ public class MmaMetaManagerDbImplUtils {
                                   MmaConfig.TableMigrationConfig.toJson(jobInfo.getMigrationConfig()));
       preparedStatement.setString(5, jobInfo.getStatus().toString());
       preparedStatement.setInt(6, jobInfo.getAttemptTimes());
-      preparedStatement.setLong(7, jobInfo.getLastSuccTimestamp());
+      preparedStatement.setLong(7, jobInfo.getLastModifiedTime());
 
       LOG.info("Executing DML: {}, arguments: {}",
                dml,
@@ -352,7 +352,7 @@ public class MmaMetaManagerDbImplUtils {
         preparedStatement.setString(1, partitionValuesJson);
         preparedStatement.setString(2, jobPtInfo.getStatus().toString());
         preparedStatement.setInt(3, jobPtInfo.getAttemptTimes());
-        preparedStatement.setLong(4, jobPtInfo.getLastSuccTimestamp());
+        preparedStatement.setLong(4, jobPtInfo.getLastModifiedTime());
         preparedStatement.addBatch();
         LOG.info("Executing DML: {}, arguments: {}",
                  dml,

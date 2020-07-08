@@ -48,6 +48,7 @@ public class MockHiveMetaSource implements MetaSource {
     testNonPartitioned.odpsProjectName = DB_NAME;
     testNonPartitioned.tableName = TBL_NON_PARTITIONED;
     testNonPartitioned.odpsTableName = TBL_NON_PARTITIONED;
+    testNonPartitioned.lastModifiedTime = 0L;
 
     ColumnMetaModel c = new ColumnMetaModel();
     c.columnName = "foo";
@@ -65,6 +66,7 @@ public class MockHiveMetaSource implements MetaSource {
     testPartitioned.odpsProjectName = DB_NAME;
     testPartitioned.tableName = TBL_PARTITIONED;
     testPartitioned.odpsTableName = TBL_PARTITIONED;
+    testPartitioned.lastModifiedTime = 0L;
 
     ColumnMetaModel c = new ColumnMetaModel();
     c.columnName = "foo";
@@ -81,6 +83,7 @@ public class MockHiveMetaSource implements MetaSource {
     testPartitioned.partitionColumns.add(pc);
 
     PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
+    partitionMetaModel.lastModifiedTime = 0L;
     partitionMetaModel.partitionValues.addAll(TBL_PARTITIONED_PARTITION_VALUES);
     testPartitioned.partitions.add(partitionMetaModel);
 

@@ -34,9 +34,12 @@ public class MockHiveMetaSource implements MetaSource {
   public static final String DB_NAME = "test";
   public static final String TBL_NON_PARTITIONED = "test_non_partitioned";
   public static final String TBL_PARTITIONED = "test_partitioned";
+  public static final Long TBL_LAST_MODIFIED_TIME = 1594201002L;
+  public static final Long PT_LAST_MODIFIED_TIME = 1594201002L;
   public static final List<String> TBL_PARTITIONED_PARTITION_VALUES =
       Collections.singletonList("hello_world");
-  public static final Map<String, TableMetaModel> TABLE_NAME_2_TABLE_META_MODEL = new HashMap<>();
+  public static final Map<String, TableMetaModel> TABLE_NAME_2_TABLE_META_MODEL =
+      new HashMap<>();
   static {
     TABLE_NAME_2_TABLE_META_MODEL.put(TBL_NON_PARTITIONED,
                                       getTestNonPartitionedTableMetaModel());
@@ -49,6 +52,7 @@ public class MockHiveMetaSource implements MetaSource {
     testNonPartitioned.odpsProjectName = DB_NAME;
     testNonPartitioned.tableName = TBL_NON_PARTITIONED;
     testNonPartitioned.odpsTableName = TBL_NON_PARTITIONED;
+    testNonPartitioned.lastModifiedTime = TBL_LAST_MODIFIED_TIME;
 
     ColumnMetaModel c = new ColumnMetaModel();
     c.columnName = "foo";
@@ -66,6 +70,7 @@ public class MockHiveMetaSource implements MetaSource {
     testPartitioned.odpsProjectName = DB_NAME;
     testPartitioned.tableName = TBL_PARTITIONED;
     testPartitioned.odpsTableName = TBL_PARTITIONED;
+    testPartitioned.lastModifiedTime = TBL_LAST_MODIFIED_TIME;
 
     ColumnMetaModel c = new ColumnMetaModel();
     c.columnName = "foo";
@@ -82,6 +87,7 @@ public class MockHiveMetaSource implements MetaSource {
     testPartitioned.partitionColumns.add(pc);
 
     PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
+    partitionMetaModel.lastModifiedTime = PT_LAST_MODIFIED_TIME;
     partitionMetaModel.partitionValues.addAll(TBL_PARTITIONED_PARTITION_VALUES);
     testPartitioned.partitions.add(partitionMetaModel);
 

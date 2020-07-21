@@ -183,6 +183,8 @@ public class OdpsMetaSource implements MetaSource {
     tableMetaModel.comment = table.getComment();
     tableMetaModel.location = table.getLocation();
     tableMetaModel.size = table.getSize();
+    tableMetaModel.createTime = table.getCreatedTime().getTime() / 1000;
+    tableMetaModel.lastModifiedTime = table.getLastDataModifiedTime().getTime() / 1000;
 
     if (table.getSerDeProperties() != null) {
       tableMetaModel.serDeProperties.putAll(table.getSerDeProperties());
@@ -215,6 +217,8 @@ public class OdpsMetaSource implements MetaSource {
 
   private PartitionMetaModel getPartitionMetaModelInternal(Partition partition) {
     PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
+    partitionMetaModel.createTime = partition.getCreatedTime().getTime() / 1000;
+    partitionMetaModel.lastModifiedTime = partition.getLastDataModifiedTime().getTime() / 1000;
     PartitionSpec partitionSpec = partition.getPartitionSpec();
     for (String key : partitionSpec.keys()) {
       partitionMetaModel.partitionValues.add(partitionSpec.get(key));

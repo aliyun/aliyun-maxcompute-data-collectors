@@ -39,6 +39,9 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.JobConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.JobType;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImpl;
@@ -51,6 +54,7 @@ public class MmaMetaManagerDbImplTest {
   public static final String DEFAULT_CONN_URL =
       "jdbc:h2:file:" + Paths.get(DEFAULT_MMA_PARENT_DIR.toString(), Constants.DB_FILE_NAME);
 
+
   public static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_PARTITIONED =
       new MmaConfig.TableMigrationConfig(
           MockHiveMetaSource.DB_NAME,
@@ -58,6 +62,12 @@ public class MmaMetaManagerDbImplTest {
           MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
           MmaConfigUtils.DEFAULT_ADDITIONAL_TABLE_CONFIG);
+  public static final MmaConfig.JobConfig JOB_CONFIG =
+      new JobConfig(MockHiveMetaSource.DB_NAME,
+                    MockHiveMetaSource.TBL_PARTITIONED,
+                    JobType.MIGRATION,
+                    TableMigrationConfig.toJson(TABLE_MIGRATION_CONFIG_PARTITIONED),
+                    MmaConfigUtils.DEFAULT_ADDITIONAL_TABLE_CONFIG);
   public static final MmaConfig.TableMigrationConfig TABLE_MIGRATION_CONFIG_NON_PARTITIONED =
       new MmaConfig.TableMigrationConfig(
           MockHiveMetaSource.DB_NAME,
@@ -69,14 +79,14 @@ public class MmaMetaManagerDbImplTest {
   public static final MmaConfig.JobConfig PARTITIONED_TABLE_MIGRATION_JOB_CONFIG =
       new MmaConfig.JobConfig(MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
-          MmaConfig.JobType.TABLE_MIGRATE,
+          MmaConfig.JobType.MIGRATION,
           MmaConfig.TableMigrationConfig.toJson(MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED),
           MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED.getAdditionalTableConfig());
 
   public static final MmaConfig.JobConfig NON_PARTITIONED_TABLE_MIGRATION_JOB_CONFIG =
       new MmaConfig.JobConfig(MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_NON_PARTITIONED,
-          MmaConfig.JobType.TABLE_MIGRATE,
+          MmaConfig.JobType.MIGRATION,
           MmaConfig.TableMigrationConfig.toJson(MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_NON_PARTITIONED),
           MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getAdditionalTableConfig());
 
@@ -148,7 +158,8 @@ public class MmaMetaManagerDbImplTest {
         Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                             rs.getString(5));
         Assert.assertEquals(0, rs.getInt(6));
-        Assert.assertEquals(-1L, rs.getLong(7));
+        Assert.assertEquals(MockHiveMetaSource.TBL_LAST_MODIFIED_TIME.longValue(),
+                            rs.getLong(7));
 
         // test.test_non_partitioned
         Assert.assertTrue(rs.next());
@@ -160,7 +171,8 @@ public class MmaMetaManagerDbImplTest {
         Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                             rs.getString(5));
         Assert.assertEquals(0, rs.getInt(6));
-        Assert.assertEquals(-1L, rs.getLong(7));
+        Assert.assertEquals(MockHiveMetaSource.TBL_LAST_MODIFIED_TIME.longValue(),
+                            rs.getLong(7));
       }
 
       // check mma_meta_pt_test_test_partitioned
@@ -176,7 +188,8 @@ public class MmaMetaManagerDbImplTest {
         Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                             rs.getString(2));
         Assert.assertEquals(0, rs.getInt(3));
-        Assert.assertEquals(-1L, rs.getInt(4));
+        Assert.assertEquals(MockHiveMetaSource.PT_LAST_MODIFIED_TIME.longValue(),
+                            rs.getInt(4));
       }
     }
   }
@@ -223,19 +236,19 @@ public class MmaMetaManagerDbImplTest {
 
     // Status should be PENDING
     // Attempt times should be
-    // Last succ timestamp should be -1
     try (Statement stmt = conn.createStatement()) {
       String sql = String.format("SELECT %s, %s, %s FROM %s",
                                  Constants.MMA_TBL_META_COL_STATUS,
                                  Constants.MMA_TBL_META_COL_ATTEMPT_TIMES,
-                                 Constants.MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP,
+                                 Constants.MMA_TBL_META_COL_LAST_MODIFIED_TIME,
                                  Constants.MMA_TBL_META_TBL_NAME);
       try (ResultSet rs = stmt.executeQuery(sql)) {
         while (rs.next()) {
           Assert.assertEquals(MmaMetaManager.MigrationStatus.PENDING.toString(),
                               rs.getString(1));
           Assert.assertEquals(0, rs.getInt(2));
-          Assert.assertEquals(-1L, rs.getLong(3));
+          Assert.assertEquals(MockHiveMetaSource.TBL_LAST_MODIFIED_TIME.longValue(),
+                              rs.getLong(3));
         }
       }
     }

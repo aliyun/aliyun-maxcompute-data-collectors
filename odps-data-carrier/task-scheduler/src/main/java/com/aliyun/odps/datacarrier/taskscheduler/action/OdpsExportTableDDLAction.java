@@ -50,7 +50,7 @@ public class OdpsExportTableDDLAction extends OdpsSqlAction {
         return;
       }
       MetaSource.TableMetaModel tableMetaModel = actionExecutionContext.getTableMetaModel();
-      String query = rows.get(0).get(0);;
+      String query = rows.get(0).get(0);
       if (!tableMetaModel.partitionColumns.isEmpty()) {
         tableMetaModel.odpsProjectName = tableMetaModel.databaseName;
         tableMetaModel.odpsTableName = tableMetaModel.tableName;

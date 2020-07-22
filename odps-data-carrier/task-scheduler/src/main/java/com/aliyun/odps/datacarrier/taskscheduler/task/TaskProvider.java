@@ -76,16 +76,16 @@ public class TaskProvider {
           mmaMetaManager.getConfig(tableMetaModel.databaseName, tableMetaModel.tableName);
 
       MmaConfig.JobType jobType = config.getJobType();
-      if (MmaConfig.JobType.TABLE_MIGRATE.equals(jobType)) {
+      if (MmaConfig.JobType.MIGRATION.equals(jobType)) {
         TableMigrationConfig tableMigrationConfig = TableMigrationConfig.fromJson(config.getDescription());
         if (tableMetaModel.partitionColumns.isEmpty()) {
           ret.add(generateNonPartitionedTableMigrationTask(datasource, tableMetaModel, tableMigrationConfig));
         } else {
           ret.addAll(generatePartitionedTableMigrationTask(datasource, tableMetaModel, tableMigrationConfig));
         }
-      } else if (MmaConfig.JobType.META_BACKUP.equals(jobType)) {
+      } else if (MmaConfig.JobType.BACKUP.equals(jobType)) {
         MmaConfig.ObjectExportConfig backupConf = MmaConfig.ObjectExportConfig.fromJson(config.getDescription());
-        switch (backupConf.getMetaType()) {
+        switch (backupConf.getObjectType()) {
           case TABLE: {
             Task task = generateTableExportTask(tableMetaModel);
             if (task != null) {
@@ -109,7 +109,7 @@ public class TaskProvider {
           }
           default:
             LOG.error("Unsupported meta type {} when backup {}.{} to OSS",
-                backupConf.getMetaType(), backupConf.getDatabaseName(), backupConf.getMetaName());
+                      backupConf.getObjectType(), backupConf.getDatabaseName(), backupConf.getObjectName());
         }
       } else {
         LOG.error("Unsupported job type {} for {}.{}", jobType, tableMetaModel.databaseName, tableMetaModel.tableName);

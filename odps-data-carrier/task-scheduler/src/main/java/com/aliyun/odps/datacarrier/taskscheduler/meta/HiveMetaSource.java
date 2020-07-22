@@ -21,6 +21,7 @@ package com.aliyun.odps.datacarrier.taskscheduler.meta;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -118,9 +119,18 @@ public class HiveMetaSource implements MetaSource {
     tableMetaModel.inputFormat = table.getSd().getInputFormat();
     tableMetaModel.outputFormat = table.getSd().getOutputFormat();
     tableMetaModel.serDe = table.getSd().getSerdeInfo().getSerializationLib();
-
-    if (table.getSd().getSerdeInfo().getParameters() != null) {
+    if (table.getSd().getSerdeInfo().isSetParameters()) {
       tableMetaModel.serDeProperties.putAll(table.getSd().getSerdeInfo().getParameters());
+    }
+    if (table.isSetParameters()) {
+      Map<String, String> parameters = table.getParameters();
+      if (parameters.containsKey("transient_lastDdlTime")) {
+        try {
+          tableMetaModel.lastModifiedTime =
+              Long.parseLong(parameters.get("transient_lastDdlTime"));
+        } catch (NumberFormatException ignore) {
+        }
+      }
     }
     // TODO: get size from hdfs
 
@@ -147,7 +157,7 @@ public class HiveMetaSource implements MetaSource {
       List<Partition> partitions = hmsClient.listPartitions(databaseName, tableName, (short) -1);
       for (Partition partition : partitions) {
         PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
-        partitionMetaModel.createTime = partition.getCreateTime();
+        partitionMetaModel.createTime = (long) partition.getCreateTime();
         partitionMetaModel.location = partition.getSd().getLocation();
         partitionMetaModel.partitionValues = partition.getValues();
         tableMetaModel.partitions.add(partitionMetaModel);
@@ -162,7 +172,18 @@ public class HiveMetaSource implements MetaSource {
                                              List<String> partitionValues) throws Exception {
     PartitionMetaModel partitionMetaModel = new PartitionMetaModel();
     Partition partition = hmsClient.getPartition(databaseName, tableName, partitionValues);
-    partitionMetaModel.createTime = partition.getCreateTime();
+
+    partitionMetaModel.createTime = (long) partition.getCreateTime();
+    if (partition.isSetParameters()) {
+      Map<String, String> parameters = partition.getParameters();
+      if (parameters.containsKey("transient_lastDdlTime")) {
+        try {
+          partitionMetaModel.lastModifiedTime =
+              Long.parseLong(parameters.get("transient_lastDdlTime"));
+        } catch (NumberFormatException ignore) {
+        }
+      }
+    }
     partitionMetaModel.location = partition.getSd().getLocation();
     partitionMetaModel.partitionValues = partition.getValues();
 

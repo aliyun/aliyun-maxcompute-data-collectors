@@ -49,29 +49,29 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Represents a row in table meta
    */
-  public static class UserJobInfo {
+  public static class JobInfo {
     private String db;
     private String tbl;
     private boolean isPartitioned;
     private MmaConfig.JobConfig jobConfig;
     private MmaMetaManager.MigrationStatus status;
     private int attemptTimes;
-    private long lastSuccTimestamp;
+    private Long lastModifiedTime;
 
-    public UserJobInfo(String db,
-                       String tbl,
-                       boolean isPartitioned,
-                       MmaConfig.JobConfig jobConfig,
-                       MmaMetaManager.MigrationStatus status,
-                       int attemptTimes,
-                       long lastSuccTimestamp) {
+    public JobInfo(String db,
+                   String tbl,
+                   boolean isPartitioned,
+                   MmaConfig.JobConfig jobConfig,
+                   MmaMetaManager.MigrationStatus status,
+                   int attemptTimes,
+                   long lastModifiedTime) {
       this.db = Objects.requireNonNull(db);
       this.tbl = Objects.requireNonNull(tbl);
       this.isPartitioned = isPartitioned;
       this.jobConfig = Objects.requireNonNull(jobConfig);
       this.status = Objects.requireNonNull(status);
       this.attemptTimes = attemptTimes;
-      this.lastSuccTimestamp = lastSuccTimestamp;
+      this.lastModifiedTime = lastModifiedTime;
     }
 
     public String getDb() {
@@ -86,8 +86,8 @@ public class MmaMetaManagerDbImplUtils {
       return isPartitioned;
     }
 
-    public long getLastSuccTimestamp() {
-      return lastSuccTimestamp;
+    public long getLastModifiedTime() {
+      return lastModifiedTime;
     }
 
     public MmaMetaManager.MigrationStatus getStatus() {
@@ -110,8 +110,8 @@ public class MmaMetaManagerDbImplUtils {
       this.attemptTimes = attemptTimes;
     }
 
-    public void setLastSuccTimestamp(long lastSuccTimestamp) {
-      this.lastSuccTimestamp = lastSuccTimestamp;
+    public void setLastModifiedTime(long lastModifiedTime) {
+      this.lastModifiedTime = lastModifiedTime;
     }
   }
 
@@ -123,16 +123,16 @@ public class MmaMetaManagerDbImplUtils {
     private List<String> partitionValues;
     private MmaMetaManager.MigrationStatus status;
     private int attemptTimes;
-    private long lastSuccTimestamp;
+    private Long lastModifiedTime;
 
     public MigrationJobPtInfo(List<String> partitionValues,
                               MmaMetaManager.MigrationStatus status,
                               int attemptTimes,
-                              long lastSuccTimestamp) {
+                              long lastModifiedTime) {
       this.partitionValues = Objects.requireNonNull(partitionValues);
       this.status = Objects.requireNonNull(status);
       this.attemptTimes = attemptTimes;
-      this.lastSuccTimestamp = lastSuccTimestamp;
+      this.lastModifiedTime = lastModifiedTime;
     }
 
     public List<String> getPartitionValues() {
@@ -147,8 +147,8 @@ public class MmaMetaManagerDbImplUtils {
       return attemptTimes;
     }
 
-    public long getLastSuccTimestamp() {
-      return lastSuccTimestamp;
+    public Long getLastModifiedTime() {
+      return lastModifiedTime;
     }
 
     public void setStatus(MmaMetaManager.MigrationStatus status) {
@@ -159,8 +159,8 @@ public class MmaMetaManagerDbImplUtils {
       this.attemptTimes = attemptTimes;
     }
 
-    public void setLastSuccTimestamp(long lastSuccTimestamp) {
-      this.lastSuccTimestamp = lastSuccTimestamp;
+    public void setLastModifiedTime(Long lastModifiedTime) {
+      this.lastModifiedTime = lastModifiedTime;
     }
   }
 
@@ -199,7 +199,7 @@ public class MmaMetaManagerDbImplUtils {
   public static void createMmaTableMeta(Connection conn) throws SQLException {
     try (Statement stmt = conn.createStatement()) {
       String ddl = getCreateMmaTableMetaDdl();
-      LOG.info("Executing create table ddl: {}", ddl);
+      LOG.debug("Executing create table ddl: {}", ddl);
       stmt.execute(ddl);
     }
   }
@@ -207,7 +207,7 @@ public class MmaMetaManagerDbImplUtils {
   public static void createMmaPartitionMetaSchema(Connection conn, String db) throws SQLException {
     try (Statement stmt = conn.createStatement()) {
       String ddl = getCreateMmaPartitionMetaSchemaDdl(db);
-      LOG.info("Executing create schema ddl: {}", ddl);
+      LOG.debug("Executing create schema ddl: {}", ddl);
       stmt.execute(ddl);
     }
   }
@@ -217,7 +217,7 @@ public class MmaMetaManagerDbImplUtils {
                                             String tbl) throws SQLException {
     try (Statement stmt = conn.createStatement()) {
       String ddl = getCreateMmaPartitionMetaDdl(db, tbl);
-      LOG.info("Executing create schema ddl: {}", ddl);
+      LOG.debug("Executing create schema ddl: {}", ddl);
       stmt.execute(ddl);
     }
   }
@@ -225,7 +225,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Insert into or update (A.K.A Upsert) MMA_TBL_META
    */
-  public static void mergeIntoMmaTableMeta(Connection conn, UserJobInfo jobInfo)
+  public static void mergeIntoMmaTableMeta(Connection conn, JobInfo jobInfo)
       throws SQLException {
 
     String dml = "MERGE INTO " + Constants.MMA_TBL_META_TBL_NAME + " VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -237,9 +237,9 @@ public class MmaMetaManagerDbImplUtils {
                                   GsonUtils.getFullConfigGson().toJson(jobInfo.getJobConfig()));
       preparedStatement.setString(5, jobInfo.getStatus().toString());
       preparedStatement.setInt(6, jobInfo.getAttemptTimes());
-      preparedStatement.setLong(7, jobInfo.getLastSuccTimestamp());
+      preparedStatement.setLong(7, jobInfo.getLastModifiedTime());
 
-      LOG.info("Executing DML: {}, arguments: {}",
+      LOG.debug("Executing DML: {}, arguments: {}",
                dml,
                GsonUtils.getFullConfigGson().toJson(jobInfo));
 
@@ -258,7 +258,7 @@ public class MmaMetaManagerDbImplUtils {
                                Constants.MMA_TBL_META_COL_TBL_NAME,
                                tbl);
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing DML: {}", dml);
+      LOG.debug("Executing DML: {}", dml);
       stmt.execute(dml);
     }
   }
@@ -266,7 +266,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Return a record from MMA_TBL_META if it exists, else null
    */
-  public static UserJobInfo selectFromMmaTableMeta(Connection conn, String db, String tbl)
+  public static JobInfo selectFromMmaTableMeta(Connection conn, String db, String tbl)
       throws SQLException {
 
     String sql = String.format("SELECT * FROM %s WHERE %s='%s' and %s='%s'",
@@ -277,19 +277,19 @@ public class MmaMetaManagerDbImplUtils {
                                tbl);
 
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing SQL: {}", sql);
+      LOG.debug("Executing SQL: {}", sql);
 
       try (ResultSet rs = stmt.executeQuery(sql)) {
         if(!rs.next()) {
           return null;
         }
-        return new UserJobInfo(db,
-                                tbl,
-                                rs.getBoolean(3),
-                                GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
-                                MmaMetaManager.MigrationStatus.valueOf(rs.getString(5)),
-                                rs.getInt(6),
-                                rs.getLong(7));
+        return new JobInfo(db,
+                           tbl,
+                           rs.getBoolean(3),
+                           GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
+                           MmaMetaManager.MigrationStatus.valueOf(rs.getString(5)),
+                           rs.getInt(6),
+                           rs.getLong(7));
       }
     }
   }
@@ -297,9 +297,9 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Return records from MMA_TBL_META
    */
-  public static List<UserJobInfo> selectFromMmaTableMeta(Connection conn,
-                                                         MmaMetaManager.MigrationStatus status,
-                                                         int limit) throws SQLException {
+  public static List<JobInfo> selectFromMmaTableMeta(Connection conn,
+                                                     MmaMetaManager.MigrationStatus status,
+                                                     int limit) throws SQLException {
     StringBuilder sb = new StringBuilder();
     sb.append(String.format("SELECT * FROM %s", Constants.MMA_TBL_META_TBL_NAME));
     if (status != null) {
@@ -315,19 +315,19 @@ public class MmaMetaManagerDbImplUtils {
     }
 
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing SQL: {}", sb.toString());
+      LOG.debug("Executing SQL: {}", sb.toString());
 
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
-        List<UserJobInfo> ret = new LinkedList<>();
+        List<JobInfo> ret = new LinkedList<>();
         while (rs.next()) {
-          UserJobInfo jobInfo =
-              new UserJobInfo(rs.getString(1),
-                                   rs.getString(2),
-                                   rs.getBoolean(3),
-                                   GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
-                                   MmaMetaManager.MigrationStatus.valueOf(rs.getString(5)),
-                                   rs.getInt(6),
-                                   rs.getLong(7));
+          JobInfo jobInfo =
+              new JobInfo(rs.getString(1),
+                          rs.getString(2),
+                          rs.getBoolean(3),
+                          GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
+                          MmaMetaManager.MigrationStatus.valueOf(rs.getString(5)),
+                          rs.getInt(6),
+                          rs.getLong(7));
           ret.add(jobInfo);
         }
         return ret;
@@ -354,9 +354,9 @@ public class MmaMetaManagerDbImplUtils {
         preparedStatement.setString(1, partitionValuesJson);
         preparedStatement.setString(2, jobPtInfo.getStatus().toString());
         preparedStatement.setInt(3, jobPtInfo.getAttemptTimes());
-        preparedStatement.setLong(4, jobPtInfo.getLastSuccTimestamp());
+        preparedStatement.setLong(4, jobPtInfo.getLastModifiedTime());
         preparedStatement.addBatch();
-        LOG.info("Executing DML: {}, arguments: {}",
+        LOG.debug("Executing DML: {}, arguments: {}",
                  dml,
                  GsonUtils.getFullConfigGson().toJson(jobPtInfo));
       }
@@ -374,7 +374,7 @@ public class MmaMetaManagerDbImplUtils {
 
     String ddl = "DROP TABLE " + schemaName + "." + tableName;
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing DDL: {}", ddl);
+      LOG.debug("Executing DDL: {}", ddl);
 
       stmt.execute(ddl);
     }
@@ -397,7 +397,7 @@ public class MmaMetaManagerDbImplUtils {
                                GsonUtils.getFullConfigGson().toJson(partitionValues));
 
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing SQL: {}", sql);
+      LOG.debug("Executing SQL: {}", sql);
 
       try (ResultSet rs = stmt.executeQuery(sql)) {
         if (!rs.next()) {
@@ -439,7 +439,7 @@ public class MmaMetaManagerDbImplUtils {
 
     Type type = new TypeToken<List<String>>() {}.getType();
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing SQL: {}", sb.toString());
+      LOG.debug("Executing SQL: {}", sb.toString());
 
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
         List<MigrationJobPtInfo> ret = new LinkedList<>();
@@ -474,7 +474,7 @@ public class MmaMetaManagerDbImplUtils {
         .append(" GROUP BY ").append(Constants.MMA_PT_META_COL_STATUS);
 
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing SQL: {}", sb.toString());
+      LOG.debug("Executing SQL: {}", sb.toString());
       Map<MmaMetaManager.MigrationStatus, Integer> ret = new HashMap<>();
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
         while (rs.next()) {
@@ -510,7 +510,7 @@ public class MmaMetaManagerDbImplUtils {
                                    MmaMetaManager.MigrationStatus.SUCCEEDED.name());
 
     try (Statement stmt = conn.createStatement()) {
-      LOG.info("Executing SQL: {}", sql);
+      LOG.debug("Executing SQL: {}", sql);
 
       try (ResultSet rs = stmt.executeQuery(sql)) {
         Set<String> managedPartitionValuesJsonSet = new HashSet<>();

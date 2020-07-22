@@ -483,7 +483,6 @@ public class MmaConfig {
     }
 
     public void apply(MetaSource.TableMetaModel tableMetaModel) {
-      // TODO: use typeCustomizedConversion and columnNameCustomizedConversion
       tableMetaModel.odpsProjectName = destProjectName;
       tableMetaModel.odpsTableName = destTableName;
       tableMetaModel.odpsTableStorage = destTableStorage;
@@ -542,26 +541,26 @@ public class MmaConfig {
   // Table/View/Resource/Function backup config
   public static class ObjectExportConfig extends TableMigrationConfig {
     private String databaseName;
-    private String metaName;
-    private ObjectType metaType;
+    private String objectName;
+    private ObjectType objectType;
 
-    ObjectExportConfig(String databaseName, String metaName, ObjectType type, AdditionalTableConfig additionalTableConfig) {
-      super(databaseName, metaName, null, null, additionalTableConfig);
+    ObjectExportConfig(String databaseName, String objectName, ObjectType type, AdditionalTableConfig additionalTableConfig) {
+      super(databaseName, objectName, null, null, additionalTableConfig);
       this.databaseName = databaseName;
-      this.metaName = metaName;
-      this.metaType = type;
+      this.objectName = objectName;
+      this.objectType = type;
     }
 
     public String getDatabaseName() {
       return databaseName;
     }
 
-    public String getMetaName() {
-      return metaName;
+    public String getObjectName() {
+      return objectName;
     }
 
-    public ObjectType getMetaType() {
-      return metaType;
+    public ObjectType getObjectType() {
+      return objectType;
     }
 
     public static ObjectExportConfig fromJson(String json) {
@@ -575,8 +574,8 @@ public class MmaConfig {
     @Override
     public boolean validate() {
       return !StringUtils.isNullOrEmpty(databaseName) &&
-             !StringUtils.isNullOrEmpty(metaName) &&
-              metaType != null;
+             !StringUtils.isNullOrEmpty(objectName) &&
+              objectType != null;
     }
   }
 
@@ -610,8 +609,8 @@ public class MmaConfig {
   }
 
   public enum JobType {
-    TABLE_MIGRATE,
-    META_BACKUP;
+    MIGRATION,
+    BACKUP
   }
 
   /**

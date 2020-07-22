@@ -130,19 +130,10 @@ public class OdpsSqlUtils {
       locationBuilder.append("/");
     }
     locationBuilder
-        .append(tableMetaModel.odpsProjectName).append(".db").append("/")
-        .append(tableMetaModel.odpsTableName).append("/");
+        .append(tableMetaModel.databaseName).append(".db").append("/")
+        .append(tableMetaModel.tableName).append("/");
     return locationBuilder.toString();
   }
-
-//  private static String getOssPartitionPath(
-//      MetaSource.TableMetaModel tableMetaModel,
-//      MetaSource.PartitionMetaModel partitionMetaModel,
-//      OssExternalTableConfig ossExternalTableConfig) {
-//
-//
-//
-//  }
 
   private static String getCreateOssExternalTableCondition(MetaSource.TableMetaModel tableMetaModel,
                                                            ExternalTableConfig externalTableConfig) {

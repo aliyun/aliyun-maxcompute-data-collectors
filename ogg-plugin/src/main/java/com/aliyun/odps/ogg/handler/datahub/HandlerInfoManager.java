@@ -23,7 +23,12 @@ import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.Charset;
 
 /**
@@ -92,15 +97,13 @@ public class HandlerInfoManager {
             out.writeInt(sendPosition.length());
             out.writeBytes(sendPosition);
         } catch (IOException e) {
-            logger.error("Error writing handler info file. recordId=" + recordId + ", "
-                    + "sendPosition=" + sendPosition, e);
+            logger.error("Error writing handler info file. recordId: {}, sendPosition: {}.", recordId, sendPosition, e);
         } finally {
             if (out != null) {
                 try {
                     out.close();
                 } catch (IOException e) {
-                    logger.error("Close handler info file failed. recordId=" + recordId + ", "
-                            + "sendPosition=" + sendPosition, e);
+                    logger.error("Close handler info file failed. recordId: {}, sendPosition: {}.", recordId, sendPosition, e);
                 }
             }
         }
@@ -110,7 +113,7 @@ public class HandlerInfoManager {
         this.configure = configure;
         handlerInfoFileName = configure.getCheckPointFileName();
         restoreHandlerInfos(handlerInfoFileName);
-        logger.info("initial recordId: " + recordId + ", sendPosition: " + sendPosition);
+        logger.info("initial recordId: {}, sendPosition: {}", recordId, sendPosition);
     }
 
     private void restoreHandlerInfos(String fileName) {

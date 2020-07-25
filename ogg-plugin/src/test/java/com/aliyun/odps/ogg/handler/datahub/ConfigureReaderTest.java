@@ -45,14 +45,19 @@ public class ConfigureReaderTest {
         Assert.assertTrue(configure.isEnablePb());
         Assert.assertEquals(configure.getCompressType(), "LZ4");
         Assert.assertEquals(configure.getBatchSize(), 1111);
+        Assert.assertEquals(configure.getBatchTimeoutMs(), 5000);
         Assert.assertTrue(configure.isDirtyDataContinue());
         Assert.assertEquals(configure.getDirtyDataFile(), "datahub_ogg_plugin.dirty.test");
         Assert.assertEquals(configure.getDirtyDataFileMaxSize(), 200 * 1000000);
         Assert.assertEquals(configure.getRetryTimes(), 35);
-        Assert.assertEquals(configure.getRetryInterval(), 1000);
+        Assert.assertEquals(configure.getRetryIntervalMs(), 1000);
         Assert.assertEquals(configure.getCheckPointFileName(), "datahub_ogg_plugin.chk.test");
         Assert.assertEquals(configure.getCharsetName(), "utf-8");
         Assert.assertTrue(configure.isCheckPointFileDisable());
+        Assert.assertTrue(configure.isCommitFlush());
+        Assert.assertFalse(configure.isReportMetric());
+        Assert.assertEquals(configure.getReportMetricIntervalMs(), 5 * 60 * 1000);
+
         Map<String, TableMapping> tableMappingMap = configure.getTableMappings();
         Assert.assertEquals(tableMappingMap.size(), 2);
         Assert.assertEquals(tableMappingMap.keySet(), Sets.newHashSet("ogg_test.test2", "t_schema.t_person"));
@@ -118,10 +123,10 @@ public class ConfigureReaderTest {
         Assert.assertTrue(table2.getConstColumnMappings().isEmpty());
 
         columns = table2.getColumnMappings();
-        Assert.assertEquals(columns.size(),2);
+        Assert.assertEquals(columns.size(), 2);
         column1 = columns.get("c1");
-        Assert.assertEquals(column1.getDest(),"c1");
-        Assert.assertEquals(column1.getDateFormat(),"yyyy-MM-dd");
+        Assert.assertEquals(column1.getDest(), "c1");
+        Assert.assertEquals(column1.getDateFormat(), "yyyy-MM-dd");
         Assert.assertNull(column1.getDestOld());
         column2 = columns.get("c2");
         Assert.assertNull(column2.getDateFormat());
@@ -134,8 +139,8 @@ public class ConfigureReaderTest {
         try {
             ConfigureReader.reader("src/test/resources/configure_miss_topic.xml");
             Assert.fail();
-        }catch (Exception e){
-            Assert.assertEquals(e.getMessage(),"mappings.mapping.datahubTopic is null");
+        } catch (Exception e) {
+            Assert.assertEquals(e.getMessage(), "mappings.mapping.datahubTopic is null");
         }
     }
 
@@ -144,8 +149,8 @@ public class ConfigureReaderTest {
         try {
             ConfigureReader.reader("src/test/resources/configure_miss_default_datahub.xml");
             Assert.fail();
-        }catch (Exception e){
-            Assert.assertEquals(e.getMessage(),"defaultDatahubConfigure is null");
+        } catch (Exception e) {
+            Assert.assertEquals(e.getMessage(), "defaultDatahubConfigure is null");
         }
     }
 
@@ -154,8 +159,8 @@ public class ConfigureReaderTest {
         try {
             ConfigureReader.reader("src/test/resources/configure_miss_default_oracle.xml");
             Assert.fail();
-        }catch (Exception e){
-            Assert.assertEquals(e.getMessage(),"defaultOracleConfigure is null");
+        } catch (Exception e) {
+            Assert.assertEquals(e.getMessage(), "defaultOracleConfigure is null");
         }
     }
 
@@ -164,8 +169,8 @@ public class ConfigureReaderTest {
         try {
             ConfigureReader.reader("src/test/resources/configure_miss_map.xml");
             Assert.fail();
-        }catch (Exception e){
-            Assert.assertEquals(e.getMessage(),"mappings.mapping is null");
+        } catch (Exception e) {
+            Assert.assertEquals(e.getMessage(), "mappings.mapping is null");
         }
     }
 

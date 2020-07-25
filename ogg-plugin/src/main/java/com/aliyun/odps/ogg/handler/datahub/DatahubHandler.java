@@ -20,10 +20,16 @@
 package com.aliyun.odps.ogg.handler.datahub;
 
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
+import com.aliyun.odps.ogg.handler.datahub.modle.MetricHelper;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandler;
 import com.aliyun.odps.ogg.handler.datahub.operations.OperationHandlerManager;
-import oracle.goldengate.datasource.*;
+import oracle.goldengate.datasource.AbstractHandler;
+import oracle.goldengate.datasource.DsConfiguration;
+import oracle.goldengate.datasource.DsEvent;
+import oracle.goldengate.datasource.DsOperation;
+import oracle.goldengate.datasource.DsTransaction;
+import oracle.goldengate.datasource.GGDataSource;
 import oracle.goldengate.datasource.GGDataSource.Status;
 import oracle.goldengate.datasource.meta.DsMetaData;
 import oracle.goldengate.datasource.adapt.Op;
@@ -50,11 +56,13 @@ public class DatahubHandler extends AbstractHandler {
             RecordBuilder.init(configure);
             logger.info("Init RecordBuilder success");
 
-            DataHubWriter.init(configure);
-            logger.info("Init DataHubWriter success");
-
             OperationHandlerManager.init();
             logger.info("Init OperationHandlerManager success");
+
+            if (configure.isReportMetric()) {
+                MetricHelper.init(configure);
+            }
+
         } catch (Exception e) {
             logger.error("Init error", e);
             throw new RuntimeException("init error:" + e.getMessage());
@@ -63,21 +71,18 @@ public class DatahubHandler extends AbstractHandler {
 
     @Override
     public GGDataSource.Status metaDataChanged(DsEvent e, DsMetaData meta) {
-
         return super.metaDataChanged(e, meta);
     }
 
     @Override
     public Status transactionBegin(DsEvent e, DsTransaction tx) {
-
-
-
         PluginStatictics.setSendTimesInTx(0);
         return super.transactionBegin(e, tx);
     }
 
     @Override
     public Status operationAdded(DsEvent e, DsTransaction tx, DsOperation dsOperation) {
+        long startTime = System.currentTimeMillis();
         if (logger.isDebugEnabled()) {
             logger.debug(e.toString());
             logger.debug(tx.toString());
@@ -112,29 +117,30 @@ public class DatahubHandler extends AbstractHandler {
                 status = Status.ABEND;
             }
         } else {
-            String msg = "Unable to instantiate operation handler. Transaction ID: " + tx.getTranID()
-                    + ". Operation type: " + dsOperation.getOperationType().toString();
-            logger.error(msg);
+            logger.error("Unable to instantiate operation handler. Transaction ID: {}, Operation type: {}",
+                    tx.getTranID(), dsOperation.getOperationType().toString());
             status = Status.ABEND;
+        }
+
+        if (configure.isReportMetric()) {
+            MetricHelper.instance().addHandleTime(System.currentTimeMillis() - startTime);
+            MetricHelper.instance().addRecord();
         }
         return status;
     }
 
     @Override
     public Status transactionCommit(DsEvent e, DsTransaction tx) {
-        Status status = super.transactionCommit(e, tx);
-        try {
-            DataHubWriter.instance().flushAll();
-        } catch (Exception e1) {
-            status = Status.ABEND;
-            logger.error("Unable to deliver records", e1);
+        long startTime = System.currentTimeMillis();
+        if (configure.isCommitFlush()) {
+            RecordBuilder.instance().flushAll();
         }
 
-        // save checkpoints
-        HandlerInfoManager.instance().saveHandlerInfos();
-
-        PluginStatictics.addTotalTxns();
-        return status;
+        if (configure.isReportMetric()) {
+            MetricHelper.instance().addCommitTime(System.currentTimeMillis() - startTime);
+            MetricHelper.instance().addCommit();
+        }
+        return super.transactionCommit(e, tx);
     }
 
     @Override
@@ -153,6 +159,9 @@ public class DatahubHandler extends AbstractHandler {
     @Override
     public void destroy() {
         logger.warn("Handler destroying...");
+        HandlerInfoManager.instance().saveHandlerInfos();
+        RecordBuilder.destroy();
+        MetricHelper.destroy();
         super.destroy();
     }
 

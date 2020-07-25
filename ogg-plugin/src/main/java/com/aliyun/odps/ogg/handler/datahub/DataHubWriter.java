@@ -25,7 +25,17 @@ import com.aliyun.datahub.client.auth.AliyunAccount;
 import com.aliyun.datahub.client.common.DatahubConfig;
 import com.aliyun.datahub.client.exception.DatahubClientException;
 import com.aliyun.datahub.client.http.HttpConfig;
-import com.aliyun.datahub.client.model.*;
+import com.aliyun.datahub.client.model.Field;
+import com.aliyun.datahub.client.model.FieldType;
+import com.aliyun.datahub.client.model.GetTopicResult;
+import com.aliyun.datahub.client.model.ListShardResult;
+import com.aliyun.datahub.client.model.PutErrorEntry;
+import com.aliyun.datahub.client.model.PutRecordsResult;
+import com.aliyun.datahub.client.model.RecordEntry;
+import com.aliyun.datahub.client.model.RecordSchema;
+import com.aliyun.datahub.client.model.RecordType;
+import com.aliyun.datahub.client.model.ShardEntry;
+import com.aliyun.datahub.client.model.ShardState;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
@@ -36,8 +46,12 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
+@Deprecated
 public class DataHubWriter {
     private static final Logger logger = LoggerFactory.getLogger(DataHubWriter.class);
 
@@ -289,9 +303,9 @@ public class DataHubWriter {
                     }
                 }
                 logger.warn("DataHubWriter, put records to DataHub failed, will retry after {} ms, table: {}, topic: {}",
-                        configure.getRetryInterval(), oracleFullTableName, tableMapping.getTopicName());
+                        configure.getRetryIntervalMs(), oracleFullTableName, tableMapping.getTopicName());
                 try {
-                    Thread.sleep(configure.getRetryInterval());
+                    Thread.sleep(configure.getRetryIntervalMs());
                 } catch (InterruptedException e1) {
                     // Do nothing
                 }
@@ -329,7 +343,6 @@ public class DataHubWriter {
             retryCount++;
         }
     }
-
 
     /**
      * only used in unit test

@@ -40,6 +40,7 @@ public class Configure {
     private String compressType;
 
     private int batchSize = 1000;
+    private int batchTimeoutMs = 5000;
 
     private boolean dirtyDataContinue = false;
 
@@ -49,7 +50,7 @@ public class Configure {
 
     private int retryTimes = -1;
 
-    private int retryInterval = 3000;
+    private int retryIntervalMs = 3000;
 
     private String checkPointFileName = "datahub_ogg_plugin.chk";
 
@@ -58,6 +59,20 @@ public class Configure {
     private boolean isCheckPointFileDisable = false;
 
     private String charsetName = "UTF-8";
+
+    private int buildRecordQueueSize = 1024;
+
+    private int buildRecordQueueTimeoutMs = 1000;
+
+    private int putRecordQueueSize = 1024;
+
+    private int putRecordQueueTimeoutMs = 1000;
+
+    private boolean commitFlush = true;
+
+    private boolean reportMetric = false;
+
+    private int reportMetricIntervalMs = 5 * 60 * 1000;
 
     public String getOracleSid() {
         return oracleSid;
@@ -115,6 +130,15 @@ public class Configure {
         this.batchSize = batchSize;
     }
 
+    public int getBatchTimeoutMs() {
+        return batchTimeoutMs;
+    }
+
+    public Configure setBatchTimeoutMs(int batchTimeoutMs) {
+        this.batchTimeoutMs = batchTimeoutMs;
+        return this;
+    }
+
     public boolean isDirtyDataContinue() {
         return dirtyDataContinue;
     }
@@ -147,12 +171,12 @@ public class Configure {
         this.retryTimes = retryTimes;
     }
 
-    public int getRetryInterval() {
-        return retryInterval;
+    public int getRetryIntervalMs() {
+        return retryIntervalMs;
     }
 
-    public void setRetryInterval(int retryInterval) {
-        this.retryInterval = retryInterval;
+    public void setRetryIntervalMs(int retryIntervalMs) {
+        this.retryIntervalMs = retryIntervalMs;
     }
 
     public String getCheckPointFileName() {
@@ -199,5 +223,64 @@ public class Configure {
         return this.tableMappings.get(oracleFullTableName);
     }
 
+    public int getBuildRecordQueueSize() {
+        return buildRecordQueueSize;
+    }
 
+    public Configure setBuildRecordQueueSize(int buildRecordQueueSize) {
+        this.buildRecordQueueSize = buildRecordQueueSize;
+        return this;
+    }
+
+    public int getBuildRecordQueueTimeoutMs() {
+        return buildRecordQueueTimeoutMs;
+    }
+
+    public Configure setBuildRecordQueueTimeoutMs(int buildRecordQueueTimeoutMs) {
+        this.buildRecordQueueTimeoutMs = buildRecordQueueTimeoutMs;
+        return this;
+    }
+
+    public int getPutRecordQueueSize() {
+        return putRecordQueueSize;
+    }
+
+    public Configure setPutRecordQueueSize(int putRecordQueueSize) {
+        this.putRecordQueueSize = putRecordQueueSize;
+        return this;
+    }
+
+    public int getPutRecordQueueTimeoutMs() {
+        return putRecordQueueTimeoutMs;
+    }
+
+    public Configure setPutRecordQueueTimeoutMs(int putRecordQueueTimeoutMs) {
+        this.putRecordQueueTimeoutMs = putRecordQueueTimeoutMs;
+        return this;
+    }
+
+    public boolean isCommitFlush() {
+        return commitFlush;
+    }
+
+    public Configure setCommitFlush(boolean commitFlush) {
+        this.commitFlush = commitFlush;
+        return this;
+    }
+
+    public boolean isReportMetric() {
+        return reportMetric;
+    }
+
+    public void setReportMetric(boolean reportMetric) {
+        this.reportMetric = reportMetric;
+    }
+
+    public int getReportMetricIntervalMs() {
+        return reportMetricIntervalMs;
+    }
+
+    public void setReportMetricIntervalMs(int reportMetricIntervalMs) {
+        this.reportMetricIntervalMs = reportMetricIntervalMs;
+    }
 }

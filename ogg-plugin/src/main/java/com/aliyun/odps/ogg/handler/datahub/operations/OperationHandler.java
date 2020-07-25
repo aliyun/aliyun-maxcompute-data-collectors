@@ -19,12 +19,9 @@
 
 package com.aliyun.odps.ogg.handler.datahub.operations;
 
-import com.aliyun.datahub.client.model.RecordEntry;
-import com.aliyun.odps.ogg.handler.datahub.BadOperateWriter;
-import com.aliyun.odps.ogg.handler.datahub.DataHubWriter;
+import com.aliyun.odps.ogg.handler.datahub.HandlerInfoManager;
 import com.aliyun.odps.ogg.handler.datahub.RecordBuilder;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
-import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
 import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,46 +29,24 @@ import org.slf4j.LoggerFactory;
 public abstract class OperationHandler {
 
     private final static Logger logger = LoggerFactory.getLogger(OperationHandler.class);
+    private final static int ADD_RECORD_RETRY_INTERVAL_MS = 1000;
 
     public abstract void process(Op op, Configure configure)
             throws Exception;
 
     public abstract String getOperateType();
 
-    protected void processOperation(Op op, Configure configure) throws Exception {
-        String oracleFullTableName = op.getTableName().getFullName().toLowerCase();
+    protected void processOperation(Op op, Configure configure) {
 
-        TableMapping tableMapping = configure.getTableMapping(oracleFullTableName);
-
-        if(tableMapping != null){
-            RecordEntry record;
+        while (!RecordBuilder.instance().buildRecord(op, getOperateType(),
+                Long.toString(HandlerInfoManager.instance().getRecordId()))) {
+            logger.warn("add record to record build failed, will retry after [{}] ms, table: {}.",
+                    ADD_RECORD_RETRY_INTERVAL_MS, op.getTableName().getFullName().toLowerCase());
 
             try {
-                record = RecordBuilder.instance().buildRecord(op,
-                        getOperateType(),
-                        tableMapping);
-            } catch (Exception e){
-                logger.error("dirty data : {}", op.toString(), e);
-
-                if(configure.isDirtyDataContinue()){
-
-                    BadOperateWriter.write(op,
-                            oracleFullTableName,
-                            tableMapping.getTopicName(),
-                            configure.getDirtyDataFile(),
-                            configure.getDirtyDataFileMaxSize(),
-                            e.getMessage());
-
-                    return;
-                } else{
-                    throw e;
-                }
+                Thread.sleep(ADD_RECORD_RETRY_INTERVAL_MS);
+            } catch (InterruptedException ignored) {
             }
-            DataHubWriter.instance().addRecord(tableMapping.getOracleFullTableName(), record);
-
-        } else{
-            logger.warn("oracle table: {} not config",oracleFullTableName);
         }
-
     }
 }

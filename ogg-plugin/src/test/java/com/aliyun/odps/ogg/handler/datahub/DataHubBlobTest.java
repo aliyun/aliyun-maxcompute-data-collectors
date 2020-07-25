@@ -20,8 +20,6 @@ import org.testng.annotations.Test;
 import java.util.ArrayList;
 
 public class DataHubBlobTest {
-
-
     private DatahubHandler datahubHandler;
 
     private Configure configure;
@@ -115,7 +113,7 @@ public class DataHubBlobTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 

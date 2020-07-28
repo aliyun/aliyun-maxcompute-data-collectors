@@ -9,13 +9,13 @@ import org.jgrapht.graph.DirectedAcyclicGraph;
 
 import java.util.Objects;
 
-public class MetaBackupTask extends AbstractTask {
+public class ObjectExportAndRestoreTask extends AbstractTask {
   private MetaSource.TableMetaModel tableMetaModel;
 
-  public MetaBackupTask(String id,
-                        MetaSource.TableMetaModel tableMetaModel,
-                        DirectedAcyclicGraph<Action, DefaultEdge> dag,
-                        MmaMetaManager mmaMetaManager) {
+  public ObjectExportAndRestoreTask(String id,
+                                    MetaSource.TableMetaModel tableMetaModel,
+                                    DirectedAcyclicGraph<Action, DefaultEdge> dag,
+                                    MmaMetaManager mmaMetaManager) {
     super(id, dag, mmaMetaManager);
     this.tableMetaModel = Objects.requireNonNull(tableMetaModel);
     actionExecutionContext.setTableMetaModel(this.tableMetaModel);

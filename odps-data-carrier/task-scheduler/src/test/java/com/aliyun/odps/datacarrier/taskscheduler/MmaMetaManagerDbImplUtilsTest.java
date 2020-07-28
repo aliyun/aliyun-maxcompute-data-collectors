@@ -154,8 +154,8 @@ public class MmaMetaManagerDbImplUtilsTest {
   @Test
   public void testMergeIntoMmaTableMeta() throws SQLException {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
-    MmaMetaManagerDbImplUtils.UserJobInfo jobInfo =
-        new MmaMetaManagerDbImplUtils.UserJobInfo(
+    MmaMetaManagerDbImplUtils.JobInfo jobInfo =
+        new MmaMetaManagerDbImplUtils.JobInfo(
             MockHiveMetaSource.DB_NAME,
             MockHiveMetaSource.TBL_PARTITIONED,
             true,
@@ -193,8 +193,8 @@ public class MmaMetaManagerDbImplUtilsTest {
   @Test
   public void testDeleteFromMmaMeta() throws SQLException {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
-    MmaMetaManagerDbImplUtils.UserJobInfo jobInfo =
-        new MmaMetaManagerDbImplUtils.UserJobInfo(
+    MmaMetaManagerDbImplUtils.JobInfo jobInfo =
+        new MmaMetaManagerDbImplUtils.JobInfo(
             MockHiveMetaSource.DB_NAME,
             MockHiveMetaSource.TBL_PARTITIONED,
             true,
@@ -234,7 +234,7 @@ public class MmaMetaManagerDbImplUtilsTest {
       stmt.execute(dml);
     }
 
-    MmaMetaManagerDbImplUtils.UserJobInfo migrationJobInfo =
+    MmaMetaManagerDbImplUtils.JobInfo migrationJobInfo =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(
             conn,
             MockHiveMetaSource.DB_NAME,
@@ -258,7 +258,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
 
 
-    MmaMetaManagerDbImplUtils.UserJobInfo migrationJobInfo =
+    MmaMetaManagerDbImplUtils.JobInfo migrationJobInfo =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(
             conn,
             MockHiveMetaSource.DB_NAME,
@@ -286,11 +286,11 @@ public class MmaMetaManagerDbImplUtilsTest {
       stmt.execute(dml);
     }
 
-    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.JobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null,  -1);
 
     Assert.assertEquals(1, migrationJobInfos.size());
-    MmaMetaManagerDbImplUtils.UserJobInfo migrationJobInfo = migrationJobInfos.get(0);
+    MmaMetaManagerDbImplUtils.JobInfo migrationJobInfo = migrationJobInfos.get(0);
 
     Assert.assertNotNull(migrationJobInfo);
     Assert.assertEquals(MockHiveMetaSource.DB_NAME, migrationJobInfo.getDb());
@@ -309,7 +309,7 @@ public class MmaMetaManagerDbImplUtilsTest {
   public void testSelectRecordsFromMmaTableMetaEmpty() throws SQLException {
     MmaMetaManagerDbImplUtils.createMmaTableMeta(conn);
 
-    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.JobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null,  -1);
 
     Assert.assertEquals(0, migrationJobInfos.size());
@@ -334,7 +334,7 @@ public class MmaMetaManagerDbImplUtilsTest {
       stmt.execute(dml);
     }
 
-    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.JobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn,
                                                          MmaMetaManager.MigrationStatus.SUCCEEDED,
                                                          -1);
@@ -364,7 +364,7 @@ public class MmaMetaManagerDbImplUtilsTest {
     }
 
 
-    List<MmaMetaManagerDbImplUtils.UserJobInfo> migrationJobInfos =
+    List<MmaMetaManagerDbImplUtils.JobInfo> migrationJobInfos =
         MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null, 1);
 
     Assert.assertEquals(1, migrationJobInfos.size());

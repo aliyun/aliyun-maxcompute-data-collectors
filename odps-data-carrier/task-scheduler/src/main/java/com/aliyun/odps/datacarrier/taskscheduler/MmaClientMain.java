@@ -168,18 +168,24 @@ public class MmaClientMain {
 
         Map<String, MmaMetaManager.MigrationProgress> tableToProgress = new HashMap<>();
         for (MmaConfig.JobConfig config : runningJobs) {
-          if (MmaConfig.JobType.TABLE_MIGRATE.equals(config.getJobType())) {
+          if (MmaConfig.JobType.MIGRATION.equals(config.getJobType())) {
             MmaConfig.TableMigrationConfig tableMigrationConfig =
                 MmaConfig.TableMigrationConfig.fromJson(config.getDescription());
             String db = tableMigrationConfig.getSourceDataBaseName();
             String tbl = tableMigrationConfig.getSourceTableName();
             MmaMetaManager.MigrationProgress progress = client.getMigrationProgress(db, tbl);
             tableToProgress.put(db + "." + tbl, progress);
-          } else if (MmaConfig.JobType.META_BACKUP.equals(config.getJobType())) {
+          } else if (MmaConfig.JobType.BACKUP.equals(config.getJobType())) {
             MmaConfig.ObjectExportConfig objectExportConfig =
                 MmaConfig.ObjectExportConfig.fromJson(config.getDescription());
             String db = objectExportConfig.getDatabaseName();
-            String tbl = objectExportConfig.getMetaName();
+            String tbl = objectExportConfig.getObjectName();
+            tableToProgress.put(db + "." + tbl, null);
+          } else if (MmaConfig.JobType.RESTORE.equals(config.getJobType())) {
+             MmaConfig.ObjectRestoreConfig objectRestoreConfig =
+                MmaConfig.ObjectRestoreConfig.fromJson(config.getDescription());
+            String db = objectRestoreConfig.getDestinationDatabaseName();
+            String tbl = objectRestoreConfig.getObjectName();
             tableToProgress.put(db + "." + tbl, null);
           }
         }
@@ -240,7 +246,7 @@ public class MmaClientMain {
     }
 
     for (MmaConfig.JobConfig config : allJobs) {
-      if (MmaConfig.JobType.TABLE_MIGRATE.equals(config.getJobType())) {
+      if (MmaConfig.JobType.MIGRATION.equals(config.getJobType())) {
         MmaConfig.TableMigrationConfig tableMigrationConfig =
             MmaConfig.TableMigrationConfig.fromJson(config.getDescription());
         System.err.println(String.format("[TableMigration] %s.%s:%s.%s",
@@ -248,13 +254,20 @@ public class MmaClientMain {
             tableMigrationConfig.getSourceTableName(),
             tableMigrationConfig.getDestProjectName(),
             tableMigrationConfig.getDestTableName()));
-      } else if (MmaConfig.JobType.META_BACKUP.equals(config.getJobType())) {
+      } else if (MmaConfig.JobType.BACKUP.equals(config.getJobType())) {
         MmaConfig.ObjectExportConfig objectExportConfig =
             MmaConfig.ObjectExportConfig.fromJson(config.getDescription());
         System.err.println(String.format("[MetaBackup] %s: %s.%s",
-            objectExportConfig.getMetaType(),
+            objectExportConfig.getObjectType(),
             objectExportConfig.getDatabaseName(),
-            objectExportConfig.getMetaName()));
+            objectExportConfig.getObjectName()));
+      } else if (MmaConfig.JobType.RESTORE.equals(config.getJobType())) {
+        MmaConfig.ObjectRestoreConfig objectRestoreConfig =
+            MmaConfig.ObjectRestoreConfig.fromJson(config.getDescription());
+        System.err.println(String.format("[Restore] %s: %s.%s",
+            objectRestoreConfig.getObjectType(),
+            objectRestoreConfig.getDestinationDatabaseName(),
+            objectRestoreConfig.getObjectName()));
       }
     }
 

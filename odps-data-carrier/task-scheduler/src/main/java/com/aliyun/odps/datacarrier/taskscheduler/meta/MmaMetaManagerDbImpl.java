@@ -19,7 +19,7 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler.meta;
 
-import static com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImplUtils.UserJobInfo;
+import static com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImplUtils.JobInfo;
 import static com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImplUtils.MigrationJobPtInfo;
 
 import java.nio.file.Path;
@@ -130,10 +130,10 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
   private void recover() throws SQLException, MmaException {
     LOG.info("Enter recover");
     try (Connection conn = ds.getConnection()) {
-      List<UserJobInfo> jobInfos =
+      List<JobInfo> jobInfos =
           MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, null, -1);
 
-      for (UserJobInfo jobInfo : jobInfos) {
+      for (JobInfo jobInfo : jobInfos) {
         if (MigrationStatus.RUNNING.equals(jobInfo.getStatus())) {
           updateStatusInternal(jobInfo.getDb(), jobInfo.getTbl(), MigrationStatus.PENDING);
         }
@@ -174,18 +174,27 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
     String tbl = config.getSourceTableName().toLowerCase();
     LOG.info("Add migration job, db: {}, tbl: {}", db, tbl);
 
-    mergeJobInfoIntoMetaDB(db, tbl, true, MmaConfig.JobType.TABLE_MIGRATE, TableMigrationConfig.toJson(config),
+    mergeJobInfoIntoMetaDB(db, tbl, true, MmaConfig.JobType.MIGRATION, TableMigrationConfig.toJson(config),
         config.getAdditionalTableConfig(), config.getPartitionValuesList());
   }
 
   @Override
   public void addBackupJob(MmaConfig.ObjectExportConfig config) throws MmaException {
     String db = config.getDatabaseName().toLowerCase();
-    String meta = config.getMetaName().toLowerCase();
-    LOG.info("Add backup job, db: {}, tbl: {}, type: {}", db, meta, config.getMetaType().name());
+    String meta = config.getObjectName().toLowerCase();
+    LOG.info("Add backup job, db: {}, tbl: {}, type: {}", db, meta, config.getObjectType().name());
+    mergeJobInfoIntoMetaDB(db, meta, MmaConfig.ObjectType.TABLE.equals(config.getObjectType()),
+        MmaConfig.JobType.BACKUP, MmaConfig.ObjectExportConfig.toJson(config),
+        config.getAdditionalTableConfig(), config.getPartitionValuesList());
+  }
 
-    mergeJobInfoIntoMetaDB(db, meta, MmaConfig.ObjectType.TABLE.equals(config.getMetaType()),
-        MmaConfig.JobType.META_BACKUP, MmaConfig.ObjectExportConfig.toJson(config),
+  @Override
+  public void addRestoreJob(MmaConfig.ObjectRestoreConfig config) throws MmaException {
+    String db = config.getDestinationDatabaseName().toLowerCase();
+    String meta = config.getObjectName().toLowerCase();
+    LOG.info("Add restore job, from {} to {}, object: {}, type: {}",
+        config.getOriginDatabaseName(), config.getDestinationDatabaseName(), meta, config.getObjectType().name());
+    mergeJobInfoIntoMetaDB(db, meta, false, MmaConfig.JobType.RESTORE, MmaConfig.ObjectRestoreConfig.toJson(config),
         config.getAdditionalTableConfig(), config.getPartitionValuesList());
   }
 
@@ -215,8 +224,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
           }
         }
 
-        MmaException mmaException =
-            MmaExceptionFactory.getFailedToAddMigrationJobException(db, name, e);
+        MmaException mmaException = MmaExceptionFactory.getFailedToAddMigrationJobException(db, name, e);
         LOG.error(e);
         throw mmaException;
       }
@@ -238,7 +246,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
         type,
         jobDescription,
         additionalTableConfig);
-    UserJobInfo jobInfo = new UserJobInfo(
+    JobInfo jobInfo = new JobInfo(
         db,
         metaName,
         isPartitioned,
@@ -312,7 +320,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
 
     try (Connection conn = ds.getConnection()) {
       try {
-        UserJobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        JobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
         if (jobInfo == null) {
           return;
         } else {
@@ -399,11 +407,11 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
 
     try (Connection conn = ds.getConnection()) {
       try {
-        List<UserJobInfo> jobInfos =
+        List<JobInfo> jobInfos =
             MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, status, limit);
         List<MmaConfig.JobConfig> migrationConfigs = new LinkedList<>();
 
-        for (UserJobInfo jobInfo : jobInfos) {
+        for (JobInfo jobInfo : jobInfos) {
           if (status == null) {
             migrationConfigs.add(jobInfo.getJobConfig());
           } else {
@@ -454,7 +462,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
       throws MmaException {
     try (Connection conn = ds.getConnection()) {
       try {
-        UserJobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        JobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
         if (jobInfo == null) {
           throw MmaExceptionFactory.getMigrationJobNotExistedException(db, tbl);
         }
@@ -540,7 +548,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
       throws MmaException {
     try (Connection conn = ds.getConnection()) {
       try {
-        UserJobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        JobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
         if (jobInfo == null) {
           throw MmaExceptionFactory.getMigrationJobNotExistedException(db, tbl);
         }
@@ -626,7 +634,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
 
     try (Connection conn = ds.getConnection()) {
       try {
-        UserJobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        JobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
         if (jobInfo == null) {
           throw MmaExceptionFactory.getMigrationJobNotExistedException(db, tbl);
         }
@@ -693,7 +701,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
 
     try (Connection conn = ds.getConnection()) {
       try {
-        UserJobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        JobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
         if (jobInfo == null) {
           throw MmaExceptionFactory.getMigrationJobNotExistedException(db, tbl);
         }
@@ -732,7 +740,7 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
 
     try (Connection conn = ds.getConnection()) {
       try {
-        UserJobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
+        JobInfo jobInfo = MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, db, tbl);
         if (jobInfo == null) {
           throw MmaExceptionFactory.getMigrationJobNotExistedException(db, tbl);
         }
@@ -753,31 +761,42 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
     LOG.info("Enter getPendingTables");
 
     try (Connection conn = ds.getConnection()) {
-      List<UserJobInfo> jobInfos =
+      List<JobInfo> jobInfos =
           MmaMetaManagerDbImplUtils.selectFromMmaTableMeta(conn, MigrationStatus.PENDING, -1);
       List<MetaSource.TableMetaModel> ret = new LinkedList<>();
-      for (UserJobInfo jobInfo : jobInfos) {
+      for (JobInfo jobInfo : jobInfos) {
         String db = jobInfo.getDb();
         String tbl = jobInfo.getTbl();
 
         MetaSource.TableMetaModel tableMetaModel;
         try {
-          if (MmaConfig.JobType.META_BACKUP.equals(jobInfo.getJobConfig().getJobType())) {
+          MmaConfig.JobType jobType = jobInfo.getJobConfig().getJobType();
+          if (MmaConfig.JobType.BACKUP.equals(jobType)) {
             MmaConfig.ObjectExportConfig config =
                 MmaConfig.ObjectExportConfig.fromJson(jobInfo.getJobConfig().getDescription());
-            if (!MmaConfig.ObjectType.TABLE.equals(config.getMetaType())) {
+            if (!MmaConfig.ObjectType.TABLE.equals(config.getObjectType())) {
               tableMetaModel = new MetaSource.TableMetaModel();
               tableMetaModel.databaseName = config.getDatabaseName();
-              tableMetaModel.tableName = config.getMetaName();
+              tableMetaModel.tableName = config.getObjectName();
               ret.add(tableMetaModel);
               continue;
             }
+          } else if (MmaConfig.JobType.RESTORE.equals(jobType)) {
+            MmaConfig.ObjectRestoreConfig config =
+                MmaConfig.ObjectRestoreConfig.fromJson(jobInfo.getJobConfig().getDescription());
+            tableMetaModel = new MetaSource.TableMetaModel();
+            tableMetaModel.databaseName = config.getOriginDatabaseName();
+            tableMetaModel.odpsProjectName = config.getDestinationDatabaseName();
+            tableMetaModel.tableName = config.getObjectName();
+            tableMetaModel.odpsTableName = config.getObjectName();
+            ret.add(tableMetaModel);
+            continue;
           }
           tableMetaModel = metaSource.getTableMetaWithoutPartitionMeta(db, tbl);
         } catch (Exception e) {
           // Table could be deleted after the task is submitted. In this case,
           // metaSource.getTableMetaWithoutPartitionMeta# will fail.
-          LOG.warn("Failed to get metadata, db: {}, tbl: {}", db, tbl);
+          LOG.warn("Failed to get metadata, db: {}, tbl: {}", db, tbl, e);
           updateStatusInternal(db, tbl, MigrationStatus.FAILED);
           // TODO: Should throw MMA meta exception here and stop the task scheduler
           continue;
@@ -812,14 +831,16 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
           tableMetaModel.partitions = partitionMetaModels;
         }
 
-        if (MmaConfig.JobType.TABLE_MIGRATE.equals(jobInfo.getJobConfig().getJobType())) {
+        if (MmaConfig.JobType.MIGRATION.equals(jobInfo.getJobConfig().getJobType())) {
           TableMigrationConfig tableMigrationConfig =
               TableMigrationConfig.fromJson(jobInfo.getJobConfig().getDescription());
           tableMigrationConfig.apply(tableMetaModel);
-        } else if (MmaConfig.JobType.META_BACKUP.equals(jobInfo.getJobConfig().getJobType())) {
+        } else if (MmaConfig.JobType.BACKUP.equals(jobInfo.getJobConfig().getJobType())) {
           MmaConfig.ObjectExportConfig objectExportConfig =
               MmaConfig.ObjectExportConfig.fromJson(jobInfo.getJobConfig().getDescription());
           objectExportConfig.apply(tableMetaModel);
+          tableMetaModel.odpsProjectName = objectExportConfig.getDatabaseName();
+          tableMetaModel.odpsTableName = objectExportConfig.getObjectName() + "_" + objectExportConfig.getTaskName();
         }
         ret.add(tableMetaModel);
       }

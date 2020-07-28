@@ -5,8 +5,8 @@ public class OssExternalTableConfig extends ExternalTableConfig {
   private String bucket;
   private String roleRan;
 
-  public OssExternalTableConfig(String endpoint, String bucket, String roleRan) {
-    super(ExternalTableStorage.OSS);
+  public OssExternalTableConfig(String endpoint, String bucket, String roleRan, String location) {
+    super(ExternalTableStorage.OSS, location);
     this.endpoint = endpoint;
     this.bucket = bucket;
     this.roleRan = roleRan;

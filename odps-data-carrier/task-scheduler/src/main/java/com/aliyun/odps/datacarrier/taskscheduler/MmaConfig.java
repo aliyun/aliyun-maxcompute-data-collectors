@@ -362,11 +362,13 @@ public class MmaConfig {
   public static class DatabaseExportConfig implements Config {
     private String databaseName;
     private List<ObjectType> exportTypes;
+    private String taskName;
     private AdditionalTableConfig additionalTableConfig;
 
-    DatabaseExportConfig(String databaseName, List<ObjectType> types) {
+    DatabaseExportConfig(String databaseName, List<ObjectType> types, String taskName) {
       this.databaseName = databaseName;
       this.exportTypes = types;
+      this.taskName = taskName;
     }
 
     public String getDatabaseName() {
@@ -377,13 +379,69 @@ public class MmaConfig {
       return exportTypes;
     }
 
+    public String getTaskName() {
+      return taskName;
+    }
+
     public AdditionalTableConfig getAdditionalTableConfig() {
       return additionalTableConfig;
     }
 
+    public void setAdditionalTableConfig(AdditionalTableConfig additionalTableConfig) {
+      this.additionalTableConfig = additionalTableConfig;
+    }
+
     @Override
     public boolean validate() {
-      return !StringUtils.isNullOrEmpty(databaseName) && exportTypes != null;
+      return !StringUtils.isNullOrEmpty(databaseName) &&
+             !StringUtils.isNullOrEmpty(taskName) &&
+             exportTypes != null;
+    }
+  }
+
+  public static class DatabaseRestoreConfig implements Config {
+    private String databaseName;
+    private List<ObjectType> restoreTypes;
+    private String taskName;
+    private boolean update = true;
+    private AdditionalTableConfig additionalTableConfig;
+
+    DatabaseRestoreConfig(String databaseName, List<ObjectType> types, boolean update, String taskName) {
+      this.databaseName = databaseName;
+      this.restoreTypes = types;
+      this.taskName = taskName;
+      this.update = update;
+    }
+
+    public String getDatabaseName() {
+      return databaseName;
+    }
+
+    public List<ObjectType> getRestoreTypes() {
+      return restoreTypes;
+    }
+
+    public String getTaskName() {
+      return taskName;
+    }
+
+    public boolean isUpdate() {
+      return update;
+    }
+
+    public AdditionalTableConfig getAdditionalTableConfig() {
+      return additionalTableConfig;
+    }
+
+    public void setAdditionalTableConfig(AdditionalTableConfig additionalTableConfig) {
+      this.additionalTableConfig = additionalTableConfig;
+    }
+
+    @Override
+    public boolean validate() {
+      return !StringUtils.isNullOrEmpty(databaseName) &&
+             !StringUtils.isNullOrEmpty(taskName) &&
+             restoreTypes != null;
     }
   }
 
@@ -408,20 +466,6 @@ public class MmaConfig {
            null,
            null,
            additionalTableConfig);
-    }
-
-    public TableMigrationConfig (String sourceDataBaseName,
-                                 String sourceTableName,
-                                 String destProjectName,
-                                 String destTableName,
-                                 List<List<String>> partitionValuesList,
-                                 AdditionalTableConfig additionalTableConfig) {
-      this(sourceDataBaseName,
-          sourceTableName,
-          destProjectName, destTableName,
-          null,
-          partitionValuesList,
-          additionalTableConfig);
     }
 
     public TableMigrationConfig (String sourceDatabaseName,
@@ -535,6 +579,7 @@ public class MmaConfig {
 
   public enum ObjectType {
     TABLE,
+    VIEW,
     RESOURCE,
     FUNCTION;
   }
@@ -542,26 +587,36 @@ public class MmaConfig {
   // Table/View/Resource/Function backup config
   public static class ObjectExportConfig extends TableMigrationConfig {
     private String databaseName;
-    private String metaName;
-    private ObjectType metaType;
+    private String objectName;
+    private ObjectType objectType;
+    private String taskName;
 
-    ObjectExportConfig(String databaseName, String metaName, ObjectType type, AdditionalTableConfig additionalTableConfig) {
-      super(databaseName, metaName, null, null, additionalTableConfig);
+    ObjectExportConfig(String databaseName,
+                       String objectName,
+                       ObjectType type,
+                       String taskName,
+                       AdditionalTableConfig additionalTableConfig) {
+      super(databaseName, objectName, databaseName, objectName + "_" + taskName, additionalTableConfig);
       this.databaseName = databaseName;
-      this.metaName = metaName;
-      this.metaType = type;
+      this.objectName = objectName;
+      this.objectType = type;
+      this.taskName = taskName;
     }
 
     public String getDatabaseName() {
       return databaseName;
     }
 
-    public String getMetaName() {
-      return metaName;
+    public String getObjectName() {
+      return objectName;
     }
 
-    public ObjectType getMetaType() {
-      return metaType;
+    public ObjectType getObjectType() {
+      return objectType;
+    }
+
+    public String getTaskName() {
+      return taskName;
     }
 
     public static ObjectExportConfig fromJson(String json) {
@@ -575,8 +630,82 @@ public class MmaConfig {
     @Override
     public boolean validate() {
       return !StringUtils.isNullOrEmpty(databaseName) &&
-             !StringUtils.isNullOrEmpty(metaName) &&
-              metaType != null;
+             !StringUtils.isNullOrEmpty(objectName) &&
+             !StringUtils.isNullOrEmpty(taskName) &&
+              objectType != null;
+    }
+  }
+
+  public static class ObjectRestoreConfig extends TableMigrationConfig {
+    private String originDatabaseName;
+    private String destinationDatabaseName;
+    private String objectName;
+    private ObjectType objectType;
+    private boolean update;
+    private String taskName;
+    private Map<String, String> settings;
+
+    ObjectRestoreConfig(String originDatabaseName,
+                        String destinationDatabaseName,
+                        String objectName,
+                        ObjectType type,
+                        boolean update,
+                        String taskName,
+                        AdditionalTableConfig additionalTableConfig,
+                        Map<String, String> settings) {
+      super(originDatabaseName, objectName, null, null, additionalTableConfig);
+      this.originDatabaseName = originDatabaseName;
+      this.destinationDatabaseName = destinationDatabaseName;
+      this.objectName = objectName;
+      this.objectType = type;
+      this.update = update;
+      this.taskName = taskName;
+      this.settings = settings;
+    }
+
+    public String getOriginDatabaseName() {
+      return originDatabaseName;
+    }
+
+    public String getDestinationDatabaseName() {
+      return destinationDatabaseName;
+    }
+
+    public String getObjectName() {
+      return objectName;
+    }
+
+    public ObjectType getObjectType() {
+      return objectType;
+    }
+
+    public boolean isUpdate() {
+      return update;
+    }
+
+    public String getTaskName() {
+      return taskName;
+    }
+
+    public Map<String, String> getSettings() {
+      return settings;
+    }
+
+    public static ObjectRestoreConfig fromJson(String json) {
+      return GsonUtils.getFullConfigGson().fromJson(json, ObjectRestoreConfig.class);
+    }
+
+    public static String toJson(ObjectRestoreConfig config) {
+      return GsonUtils.getFullConfigGson().toJson(config);
+    }
+
+    @Override
+    public boolean validate() {
+      return !StringUtils.isNullOrEmpty(originDatabaseName) &&
+             !StringUtils.isNullOrEmpty(destinationDatabaseName) &&
+             !StringUtils.isNullOrEmpty(objectName) &&
+             !StringUtils.isNullOrEmpty(taskName) &&
+              objectType != null;
     }
   }
 
@@ -610,8 +739,9 @@ public class MmaConfig {
   }
 
   public enum JobType {
-    TABLE_MIGRATE,
-    META_BACKUP;
+    MIGRATION,
+    BACKUP,
+    RESTORE
   }
 
   /**

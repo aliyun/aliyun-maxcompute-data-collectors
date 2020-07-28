@@ -90,10 +90,14 @@ public class Constants {
   public static final int MMA_PT_META_INIT_ATTEMPT_TIMES = 0;
   public static final long MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP = -1;
 
-  public static final String OSS_ROOT_FOLDER_NAME = "ODPS_MMA/";
-  public static final String EXPORT_FUNCTION_DDL_FOLDER_NAME = "export_functions_ddl/";
-  public static final String EXPORT_RESOURCE_DDL_FOLDER_NAME = "export_resources_ddl/";
-  public static final String EXPORT_RESOURCE_OBJECT_FOLDER_NAME = "export_resources_objects/";
-  public static final String EXPORT_TABLE_DDL_FOLDER_NAME = "export_tables_ddl/";
-  public static final String EXPORT_DDL_FILE_NAME = "DDL";
+  public static final String OSS_ROOT_FOLDER = "odps_mma/";
+  public static final String EXPORT_OBJECT_ROOT_FOLDER = OSS_ROOT_FOLDER + "export_objects/";
+  public static final String EXPORT_FUNCTION_FOLDER = "functions/";
+  public static final String EXPORT_RESOURCE_FOLDER = "resources/";
+  public static final String EXPORT_TABLE_FOLDER = "tables/";
+  public static final String EXPORT_TABLE_DATA_FOLDER = "data/";
+  public static final String EXPORT_VIEW_FOLDER = "views/";
+  public static final String EXPORT_META_FILE_NAME = "meta";
+  public static final String EXPORT_PARTITION_SPEC_FILE_NAME = "partition_spec";
+  public static final String EXPORT_OBJECT_FILE_NAME = "object";
 }

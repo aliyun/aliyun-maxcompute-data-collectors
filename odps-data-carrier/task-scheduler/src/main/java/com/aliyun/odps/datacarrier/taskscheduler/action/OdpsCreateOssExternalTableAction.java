@@ -15,9 +15,11 @@ public class OdpsCreateOssExternalTableAction extends OdpsSqlAction {
 
   private static final Logger LOG = LogManager.getLogger(OdpsCreateOssExternalTableAction.class);
 
+  String ossFolder; // relative path from bucket, such as a/b/
 
-  public OdpsCreateOssExternalTableAction(String id) {
+  public OdpsCreateOssExternalTableAction(String id, String ossFolder) {
     super(id);
+    this.ossFolder =  ossFolder;
   }
 
   @Override
@@ -26,7 +28,8 @@ public class OdpsCreateOssExternalTableAction extends OdpsSqlAction {
     OssExternalTableConfig ossExternalTableConfig = new OssExternalTableConfig(
         ossConfig.getOssEndpoint(),
         ossConfig.getOssBucket(),
-        ossConfig.getOssRoleArn());
+        ossConfig.getOssRoleArn(),
+        ossFolder);
 
     LOG.info("OSS external table config: {}", GsonUtils.getFullConfigGson().toJson(ossExternalTableConfig));
 
@@ -43,4 +46,5 @@ public class OdpsCreateOssExternalTableAction extends OdpsSqlAction {
         .getDestinationTableSettings()
         .getDDLSettings();
   }
+
 }

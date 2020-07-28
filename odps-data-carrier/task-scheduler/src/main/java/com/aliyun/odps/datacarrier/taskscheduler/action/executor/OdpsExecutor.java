@@ -46,7 +46,11 @@ public class OdpsExecutor extends AbstractActionExecutor {
 
     @Override
     public Object call() throws Exception {
-      LOG.info("Executing sql: {}", sql);
+      LOG.info("Executing sql: {}, settings {}", sql, settings);
+
+      if (sql.isEmpty()) {
+        throw new OdpsException("Empty sql script for action: " + actionId);
+      }
 
       Instance i = SQLTask.run(odps, odps.getDefaultProject(), sql, settings, null);
 

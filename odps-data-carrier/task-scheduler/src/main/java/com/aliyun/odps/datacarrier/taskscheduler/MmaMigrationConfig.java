@@ -19,6 +19,8 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import com.google.inject.internal.util.$Nullable;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -30,7 +32,9 @@ public class MmaMigrationConfig implements MmaConfig.Config {
   private List<MmaConfig.DatabaseMigrationConfig> databaseMigrationConfigs;
   private List<MmaConfig.TableMigrationConfig> tableMigrationConfigs;
   private List<MmaConfig.ObjectExportConfig> objectExportConfigs;
+  private List<MmaConfig.ObjectRestoreConfig> objectRestoreConfigs;
   private List<MmaConfig.DatabaseExportConfig> databaseExportConfigs;
+  private List<MmaConfig.DatabaseRestoreConfig> databaseRestoreConfigs;
 
   public MmaMigrationConfig(String user,
                             List<MmaConfig.TableMigrationConfig> tableMigrationConfigs,
@@ -62,8 +66,12 @@ public class MmaMigrationConfig implements MmaConfig.Config {
       valid = tableMigrationConfigs.stream().allMatch(MmaConfig.TableMigrationConfig::validate);
     } else if (objectExportConfigs != null) {
       valid = objectExportConfigs.stream().allMatch(MmaConfig.ObjectExportConfig::validate);
+    } else if (objectRestoreConfigs != null) {
+      valid = objectRestoreConfigs.stream().allMatch(MmaConfig.ObjectRestoreConfig::validate);
     } else if (databaseExportConfigs != null) {
       valid = databaseExportConfigs.stream().allMatch(MmaConfig.DatabaseExportConfig::validate);
+    } else if (databaseRestoreConfigs != null) {
+      valid = databaseRestoreConfigs.stream().allMatch(MmaConfig.DatabaseRestoreConfig::validate);
     } else {
       throw new IllegalArgumentException("No migration config found");
     }
@@ -89,6 +97,10 @@ public class MmaMigrationConfig implements MmaConfig.Config {
 
   public List<MmaConfig.ObjectExportConfig> getObjectExportConfigs() {
     return objectExportConfigs;
+  }
+
+  public List<MmaConfig.ObjectRestoreConfig> getObjectRestoreConfigs() {
+    return objectRestoreConfigs;
   }
 
   public List<MmaConfig.DatabaseExportConfig> getDatabaseExportConfigs() {

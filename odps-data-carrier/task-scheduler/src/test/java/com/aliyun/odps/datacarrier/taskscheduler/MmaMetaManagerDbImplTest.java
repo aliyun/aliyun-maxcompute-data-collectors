@@ -69,14 +69,14 @@ public class MmaMetaManagerDbImplTest {
   public static final MmaConfig.JobConfig PARTITIONED_TABLE_MIGRATION_JOB_CONFIG =
       new MmaConfig.JobConfig(MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_PARTITIONED,
-          MmaConfig.JobType.TABLE_MIGRATE,
+          MmaConfig.JobType.MIGRATION,
           MmaConfig.TableMigrationConfig.toJson(MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED),
           MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_PARTITIONED.getAdditionalTableConfig());
 
   public static final MmaConfig.JobConfig NON_PARTITIONED_TABLE_MIGRATION_JOB_CONFIG =
       new MmaConfig.JobConfig(MockHiveMetaSource.DB_NAME,
           MockHiveMetaSource.TBL_NON_PARTITIONED,
-          MmaConfig.JobType.TABLE_MIGRATE,
+          MmaConfig.JobType.MIGRATION,
           MmaConfig.TableMigrationConfig.toJson(MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_NON_PARTITIONED),
           MmaMetaManagerDbImplTest.TABLE_MIGRATION_CONFIG_NON_PARTITIONED.getAdditionalTableConfig());
 

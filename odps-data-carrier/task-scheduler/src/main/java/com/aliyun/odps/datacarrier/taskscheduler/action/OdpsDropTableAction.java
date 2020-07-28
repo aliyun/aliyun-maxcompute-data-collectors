@@ -4,16 +4,28 @@ import java.util.Map;
 
 import com.aliyun.odps.datacarrier.taskscheduler.MmaServerConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.OdpsSqlUtils;
+import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 
 public class OdpsDropTableAction extends OdpsSqlAction {
+
+  private boolean isView = false;
 
   public OdpsDropTableAction(String id) {
     super(id);
   }
 
+  public OdpsDropTableAction(String id, boolean isView) {
+    this(id);
+    this.isView = isView;
+  }
+
   @Override
   String getSql() {
-    return OdpsSqlUtils.getDropTableStatement(actionExecutionContext.getTableMetaModel());
+    MetaSource.TableMetaModel tableMetaModel = actionExecutionContext.getTableMetaModel();
+    if (isView) {
+      return OdpsSqlUtils.getDropViewStatement(tableMetaModel.odpsProjectName, tableMetaModel.odpsTableName);
+    }
+    return OdpsSqlUtils.getDropTableStatement(tableMetaModel.odpsProjectName, tableMetaModel.odpsTableName);
   }
 
   @Override

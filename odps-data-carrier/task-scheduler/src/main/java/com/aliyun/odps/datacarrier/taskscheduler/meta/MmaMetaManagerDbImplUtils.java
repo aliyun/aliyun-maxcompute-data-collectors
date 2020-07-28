@@ -49,7 +49,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Represents a row in table meta
    */
-  public static class UserJobInfo {
+  public static class JobInfo {
     private String db;
     private String tbl;
     private boolean isPartitioned;
@@ -58,13 +58,13 @@ public class MmaMetaManagerDbImplUtils {
     private int attemptTimes;
     private long lastSuccTimestamp;
 
-    public UserJobInfo(String db,
-                       String tbl,
-                       boolean isPartitioned,
-                       MmaConfig.JobConfig jobConfig,
-                       MmaMetaManager.MigrationStatus status,
-                       int attemptTimes,
-                       long lastSuccTimestamp) {
+    public JobInfo(String db,
+                   String tbl,
+                   boolean isPartitioned,
+                   MmaConfig.JobConfig jobConfig,
+                   MmaMetaManager.MigrationStatus status,
+                   int attemptTimes,
+                   long lastSuccTimestamp) {
       this.db = Objects.requireNonNull(db);
       this.tbl = Objects.requireNonNull(tbl);
       this.isPartitioned = isPartitioned;
@@ -225,7 +225,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Insert into or update (A.K.A Upsert) MMA_TBL_META
    */
-  public static void mergeIntoMmaTableMeta(Connection conn, UserJobInfo jobInfo)
+  public static void mergeIntoMmaTableMeta(Connection conn, JobInfo jobInfo)
       throws SQLException {
 
     String dml = "MERGE INTO " + Constants.MMA_TBL_META_TBL_NAME + " VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -266,7 +266,7 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Return a record from MMA_TBL_META if it exists, else null
    */
-  public static UserJobInfo selectFromMmaTableMeta(Connection conn, String db, String tbl)
+  public static JobInfo selectFromMmaTableMeta(Connection conn, String db, String tbl)
       throws SQLException {
 
     String sql = String.format("SELECT * FROM %s WHERE %s='%s' and %s='%s'",
@@ -283,7 +283,7 @@ public class MmaMetaManagerDbImplUtils {
         if(!rs.next()) {
           return null;
         }
-        return new UserJobInfo(db,
+        return new JobInfo(db,
                                 tbl,
                                 rs.getBoolean(3),
                                 GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
@@ -297,9 +297,9 @@ public class MmaMetaManagerDbImplUtils {
   /**
    * Return records from MMA_TBL_META
    */
-  public static List<UserJobInfo> selectFromMmaTableMeta(Connection conn,
-                                                         MmaMetaManager.MigrationStatus status,
-                                                         int limit) throws SQLException {
+  public static List<JobInfo> selectFromMmaTableMeta(Connection conn,
+                                                     MmaMetaManager.MigrationStatus status,
+                                                     int limit) throws SQLException {
     StringBuilder sb = new StringBuilder();
     sb.append(String.format("SELECT * FROM %s", Constants.MMA_TBL_META_TBL_NAME));
     if (status != null) {
@@ -318,10 +318,10 @@ public class MmaMetaManagerDbImplUtils {
       LOG.info("Executing SQL: {}", sb.toString());
 
       try (ResultSet rs = stmt.executeQuery(sb.toString())) {
-        List<UserJobInfo> ret = new LinkedList<>();
+        List<JobInfo> ret = new LinkedList<>();
         while (rs.next()) {
-          UserJobInfo jobInfo =
-              new UserJobInfo(rs.getString(1),
+          JobInfo jobInfo =
+              new JobInfo(rs.getString(1),
                                    rs.getString(2),
                                    rs.getBoolean(3),
                                    GsonUtils.getFullConfigGson().fromJson(rs.getString(4), MmaConfig.JobConfig.class),
@@ -502,12 +502,12 @@ public class MmaMetaManagerDbImplUtils {
     String schemaName = String.format(Constants.MMA_PT_META_SCHEMA_NAME_FMT, db);
     String tableName = String.format(Constants.MMA_PT_META_TBL_NAME_FMT, tbl);
 
-        String sql = String.format("SELECT %s FROM %s.%s WHERE %s='%s'",
-                                   Constants.MMA_PT_META_COL_PT_VALS,
-                                   schemaName,
-                                   tableName,
-                                   Constants.MMA_PT_META_COL_STATUS,
-                                   MmaMetaManager.MigrationStatus.SUCCEEDED.name());
+    String sql = String.format("SELECT %s FROM %s.%s WHERE %s='%s'",
+        Constants.MMA_PT_META_COL_PT_VALS,
+        schemaName,
+        tableName,
+        Constants.MMA_PT_META_COL_STATUS,
+        MmaMetaManager.MigrationStatus.SUCCEEDED.name());
 
     try (Statement stmt = conn.createStatement()) {
       LOG.info("Executing SQL: {}", sql);

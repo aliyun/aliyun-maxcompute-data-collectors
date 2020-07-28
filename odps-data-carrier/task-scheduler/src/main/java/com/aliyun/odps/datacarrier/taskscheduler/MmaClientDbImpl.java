@@ -22,6 +22,10 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.DatabaseExportConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.DatabaseMigrationConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ObjectExportConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ServiceMigrationConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSourceFactory;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
@@ -57,7 +61,7 @@ public class MmaClientDbImpl implements MmaClient {
         mmaMigrationConfig.getGlobalAdditionalTableConfig();
 
     if (mmaMigrationConfig.getServiceMigrationConfig() != null) {
-      MmaConfig.ServiceMigrationConfig serviceMigrationConfig =
+      ServiceMigrationConfig serviceMigrationConfig =
           mmaMigrationConfig.getServiceMigrationConfig();
 
       List<String> databases;
@@ -77,7 +81,7 @@ public class MmaClientDbImpl implements MmaClient {
                                    globalAdditionalTableConfig);
       }
     } else if (mmaMigrationConfig.getDatabaseMigrationConfigs() != null) {
-      for (MmaConfig.DatabaseMigrationConfig databaseMigrationConfig :
+      for (DatabaseMigrationConfig databaseMigrationConfig :
           mmaMigrationConfig.getDatabaseMigrationConfigs()) {
         String database = databaseMigrationConfig.getSourceDatabaseName();
 
@@ -99,14 +103,21 @@ public class MmaClientDbImpl implements MmaClient {
                                    databaseAdditionalTableConfig);
       }
     } else if (mmaMigrationConfig.getObjectExportConfigs() != null) {
-      for(MmaConfig.ObjectExportConfig objectExportConfig : mmaMigrationConfig.getObjectExportConfigs()) {
+      for(ObjectExportConfig objectExportConfig : mmaMigrationConfig.getObjectExportConfigs()) {
         if (objectExportConfig.getAdditionalTableConfig() == null) {
           objectExportConfig.setAdditionalTableConfig(globalAdditionalTableConfig);
         }
         mmaMetaManager.addBackupJob(objectExportConfig);
       }
+    } else if (mmaMigrationConfig.getObjectRestoreConfigs() != null) {
+      for (MmaConfig.ObjectRestoreConfig objectRestoreConfig : mmaMigrationConfig.getObjectRestoreConfigs()) {
+        if (objectRestoreConfig.getAdditionalTableConfig() == null) {
+          objectRestoreConfig.setAdditionalTableConfig(globalAdditionalTableConfig);
+        }
+        mmaMetaManager.addRestoreJob(objectRestoreConfig);
+      }
     } else if (mmaMigrationConfig.getDatabaseExportConfigs() != null) {
-      for (MmaConfig.DatabaseExportConfig databaseExportConfig :
+      for (DatabaseExportConfig databaseExportConfig :
           mmaMigrationConfig.getDatabaseExportConfigs()) {
         String database = databaseExportConfig.getDatabaseName();
         if (!databaseExists(database)) {
@@ -118,10 +129,10 @@ public class MmaClientDbImpl implements MmaClient {
         MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig =
             databaseExportConfig.getAdditionalTableConfig();
         if (databaseAdditionalTableConfig == null) {
-          databaseAdditionalTableConfig = globalAdditionalTableConfig;
+          databaseExportConfig.setAdditionalTableConfig(globalAdditionalTableConfig);
         }
 
-        createDatabaseExportJob(database, databaseExportConfig.getExportTypes(), databaseAdditionalTableConfig);
+        createDatabaseExportJob(databaseExportConfig);
       }
     } else {
       for (MmaConfig.TableMigrationConfig tableMigrationConfig :
@@ -227,9 +238,8 @@ public class MmaClientDbImpl implements MmaClient {
     }
   }
 
-  private void createDatabaseExportJob(String database,
-                                       List<MmaConfig.ObjectType> types,
-                                       MmaConfig.AdditionalTableConfig additionalTableConfig) throws MmaException {
+  private void createDatabaseExportJob(DatabaseExportConfig databaseExportConfig) throws MmaException {
+    String database = databaseExportConfig.getDatabaseName();
     if (!DataSource.ODPS.equals(dataSource)) {
       String msg = "Failed to create backup jobs for database:" + database + " to oss, which is managed by " + dataSource;
       System.err.println(ERROR_INDICATOR + msg);
@@ -237,27 +247,30 @@ public class MmaClientDbImpl implements MmaClient {
       return;
     }
     OdpsMetaSource odpsMetaSource = (OdpsMetaSource)metaSource;
-    for(MmaConfig.ObjectType type : types) {
+    String taskName = databaseExportConfig.getTaskName();
+    MmaConfig.AdditionalTableConfig additionalTableConfig = databaseExportConfig.getAdditionalTableConfig();
+    for(MmaConfig.ObjectType type : databaseExportConfig.getExportTypes()) {
       switch (type) {
         case TABLE:
+        case VIEW:
           List<String> tables = odpsMetaSource.listTables(database);
           for(String tableName : tables) {
             mmaMetaManager.addBackupJob(
-                new MmaConfig.ObjectExportConfig(database, tableName, type, additionalTableConfig));
+                new ObjectExportConfig(database, tableName, null, null, additionalTableConfig));
           }
           break;
         case RESOURCE:
           List<String> resources = odpsMetaSource.listResources(database);
           for(String resourceName : resources) {
             mmaMetaManager.addBackupJob(
-                new MmaConfig.ObjectExportConfig(database, resourceName, type, additionalTableConfig));
+                new ObjectExportConfig(database, resourceName, type, taskName, additionalTableConfig));
           }
           break;
         case FUNCTION:
           List<String> functions = odpsMetaSource.listFunctions(database);
           for(String functionName : functions) {
             mmaMetaManager.addBackupJob(
-                new MmaConfig.ObjectExportConfig(database, functionName, type, additionalTableConfig));
+                new ObjectExportConfig(database, functionName, type, taskName, additionalTableConfig));
           }
           break;
         default:

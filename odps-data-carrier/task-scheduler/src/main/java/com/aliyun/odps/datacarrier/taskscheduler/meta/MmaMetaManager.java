@@ -24,6 +24,7 @@ import java.util.List;
 import com.aliyun.odps.datacarrier.taskscheduler.GsonUtils;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ObjectExportConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ObjectRestoreConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaException;
 
@@ -88,6 +89,8 @@ public interface MmaMetaManager {
    * @throws MmaException
    */
   void addBackupJob(ObjectExportConfig config) throws MmaException;
+
+  void addRestoreJob(ObjectRestoreConfig config) throws MmaException;
 
   /**
    * Remove migration job of given table.

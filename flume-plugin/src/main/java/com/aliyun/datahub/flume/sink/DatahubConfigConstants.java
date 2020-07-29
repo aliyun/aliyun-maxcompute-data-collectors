@@ -71,4 +71,5 @@ public class DatahubConfigConstants {
     public static final String AUTO_COMMIT = "datahub.autoCommit";
     public static final String OFFSET_COMMIT_INTERVAL = "datahub.offsetCommitInterval";
     public static final String SESSION_TIMEOUT = "datahub.sessionTimeout";
+    public static final String NULL_VALUE = "datahub.nullValue";
 }

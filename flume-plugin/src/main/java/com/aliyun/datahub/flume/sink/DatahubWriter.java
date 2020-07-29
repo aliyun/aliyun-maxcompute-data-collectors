@@ -108,7 +108,7 @@ public class DatahubWriter {
 
                 Field field = topic.getRecordSchema().getField(fieldName);
                 String val = mapEntry.getValue().trim();
-                if (!"null".equalsIgnoreCase(val)) {
+                if (!configure.getNullValue().equalsIgnoreCase(val)) {
                     switch (field.getType()) {
                         case STRING:
                             data.setField(fieldName, val);

@@ -51,6 +51,7 @@ public class Configure {
     public static final boolean DEFAULT_AUTO_COMMIT = true;
     public static final int DEFAULT_OFFSET_COMMIT_INTERVAL = 30;
     public static final int DEFAULT_SESSION_TIMEOUT = 60;
+    public static final String DEFAULT_NULL_VALUE = "null";
 
 
     private int retryTimes;
@@ -79,6 +80,7 @@ public class Configure {
     private boolean autoCommit;
     private int offsetCommitInterval;
     private int sessionTimeout;
+    private String nullValue;
 
     private String[] inputColumnNames;
 
@@ -359,5 +361,13 @@ public class Configure {
                     Configure.DEFAULT_SESSION_TIMEOUT);
         }
         this.sessionTimeout = sessionTimeout;
+    }
+
+    public String getNullValue() {
+        return nullValue;
+    }
+
+    public void setNullValue(String nullValue) {
+        this.nullValue = nullValue;
     }
 }

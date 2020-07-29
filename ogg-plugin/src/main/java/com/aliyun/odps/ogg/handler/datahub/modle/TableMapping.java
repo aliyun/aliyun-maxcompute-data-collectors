@@ -20,6 +20,8 @@
 package com.aliyun.odps.ogg.handler.datahub.modle;
 
 import com.aliyun.datahub.client.model.RecordSchema;
+import com.aliyun.odps.ogg.handler.datahub.TableRecordBuilder;
+import com.aliyun.odps.ogg.handler.datahub.TopicWriter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.List;
@@ -54,15 +56,22 @@ public class TableMapping {
     private Map<String, String> constColumnMappings;
 
     private RecordSchema recordSchema;
+    private TopicWriter topicWriter;
 
     private boolean setShardId = false;
 
     private List<String> shardIds;
 
+    @JsonIgnore
     private Map<String, ColumnMapping> columnMappings;
 
     @JsonIgnore
     private boolean shardHash = false;
+
+    private int buildSpeed = 1;
+
+    @JsonIgnore
+    private List<TableRecordBuilder> tableRecordBuilders;
 
     public String getOracleFullTableName() {
         return oracleFullTableName;
@@ -207,4 +216,33 @@ public class TableMapping {
         this.constColumnMappings = constColumnMappings;
     }
 
+    public TopicWriter getTopicWriter() {
+        return topicWriter;
+    }
+
+    public void setTopicWriter(TopicWriter topicWriter) {
+        this.topicWriter = topicWriter;
+    }
+
+    public int getBuildSpeed() {
+        return buildSpeed;
+    }
+
+    public void setBuildSpeed(int buildSpeed) {
+        if (buildSpeed < 1) {
+            this.buildSpeed = 1;
+        } else if (buildSpeed > 10) {
+            this.buildSpeed = 10;
+        } else {
+            this.buildSpeed = buildSpeed;
+        }
+    }
+
+    public List<TableRecordBuilder> getTableRecordBuilders() {
+        return tableRecordBuilders;
+    }
+
+    public void setTableRecordBuilders(List<TableRecordBuilder> tableRecordBuilders) {
+        this.tableRecordBuilders = tableRecordBuilders;
+    }
 }

@@ -199,7 +199,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -230,7 +230,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -258,7 +258,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -292,7 +292,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -329,7 +329,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -360,7 +360,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2019-12-12 20:30:00.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 
@@ -399,7 +399,7 @@ public class DatahubHandlerTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0l, 0l, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0L, 0L, dsRecord);
 
         GGDataSource.Status status = datahubHandler.operationAdded(e, dsTransaction, dsOperation);
 

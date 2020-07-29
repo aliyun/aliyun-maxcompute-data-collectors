@@ -108,26 +108,27 @@ public class DatahubWriter {
 
                 Field field = topic.getRecordSchema().getField(fieldName);
                 String val = mapEntry.getValue().trim();
-
-                switch (field.getType()) {
-                    case STRING:
-                        data.setField(fieldName, val);
-                        break;
-                    case BIGINT:
-                    case TIMESTAMP:
-                        data.setField(fieldName, Long.parseLong(val));
-                        break;
-                    case DOUBLE:
-                        data.setField(fieldName, Double.parseDouble(val));
-                        break;
-                    case BOOLEAN:
-                        data.setField(fieldName, Boolean.parseBoolean(val));
-                        break;
-                    case DECIMAL:
-                        data.setField(fieldName, new BigDecimal(val));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unsupported RecordType " + field.getType().name());
+                if (!configure.getNullValue().equalsIgnoreCase(val)) {
+                    switch (field.getType()) {
+                        case STRING:
+                            data.setField(fieldName, val);
+                            break;
+                        case BIGINT:
+                        case TIMESTAMP:
+                            data.setField(fieldName, Long.parseLong(val));
+                            break;
+                        case DOUBLE:
+                            data.setField(fieldName, Double.parseDouble(val));
+                            break;
+                        case BOOLEAN:
+                            data.setField(fieldName, Boolean.parseBoolean(val));
+                            break;
+                        case DECIMAL:
+                            data.setField(fieldName, new BigDecimal(val));
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported RecordType " + field.getType().name());
+                    }
                 }
             }
         } catch (Exception e) {

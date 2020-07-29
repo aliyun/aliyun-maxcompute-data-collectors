@@ -47,7 +47,7 @@ public class ConfigureReader {
     private final static Logger logger = LoggerFactory.getLogger(ConfigureReader.class);
 
     public static Configure reader(String configueFileName) throws DocumentException {
-        logger.info("Begin read configure[" + configueFileName + "]");
+        logger.info("Begin read configure[{}]", configueFileName);
 
         Configure configure = new Configure();
         SAXReader reader = new SAXReader();
@@ -60,6 +60,11 @@ public class ConfigureReader {
         String elementText = root.elementTextTrim("batchSize");
         if (StringUtils.isNotBlank(elementText)) {
             configure.setBatchSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("batchTimeoutMs");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBatchTimeoutMs(Integer.parseInt(elementText));
         }
 
         elementText = root.elementTextTrim("dirtyDataContinue");
@@ -84,7 +89,7 @@ public class ConfigureReader {
 
         elementText = root.elementTextTrim("retryInterval");
         if (StringUtils.isNotBlank(elementText)) {
-            configure.setRetryInterval(Integer.parseInt(elementText));
+            configure.setRetryIntervalMs(Integer.parseInt(elementText));
         }
 
         elementText = root.elementTextTrim("disableCheckPointFile");
@@ -102,6 +107,41 @@ public class ConfigureReader {
             configure.setCharsetName(elementText);
         }
 
+        elementText = root.elementTextTrim("buildRecordQueueSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBuildRecordQueueSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("buildRecordQueueTimeoutMs");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBuildRecordQueueTimeoutMs(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("putRecordQueueSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setPutRecordQueueSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("putRecordQueueTimeoutMs");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setPutRecordQueueTimeoutMs(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("commitFlush");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setCommitFlush(Boolean.parseBoolean(elementText));
+        }
+
+        elementText = root.elementTextTrim("reportMetric");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setReportMetric(Boolean.parseBoolean(elementText));
+        }
+
+        elementText = root.elementTextTrim("reportMetricIntervalMs");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setReportMetricIntervalMs(Integer.parseInt(elementText));
+        }
+
         /* for oracle default config */
         Element element = root.element("defaultOracleConfigure");
         if (element == null) {
@@ -109,10 +149,9 @@ public class ConfigureReader {
         }
 
         elementText = element.elementTextTrim("sid");
-        if (StringUtils.isBlank(elementText)) {
-            throw new RuntimeException("defaultOracleConfigure.sid is null");
+        if (StringUtils.isNotBlank(elementText)){
+            configure.setOracleSid(elementText);
         }
-        configure.setOracleSid(elementText);
 
         String defaultOracleSchema = element.elementTextTrim("schema");
 
@@ -222,6 +261,12 @@ public class ConfigureReader {
                 throw new RuntimeException("mappings.mapping.datahubTopic is null");
             }
 
+            int buildSpeed = 0;
+            elementText = e.elementText("buildSpeed");
+            if (StringUtils.isNotBlank(elementText)) {
+                buildSpeed = Integer.parseInt(elementText);
+            }
+
             String rowIdColumn = e.elementText("rowIdColumn");
 
             String cTypeColumn = e.elementText("ctypeColumn");
@@ -260,6 +305,9 @@ public class ConfigureReader {
             tableMapping.setShardIds(shardIds);
             if (!shardIds.isEmpty()) {
                 tableMapping.setSetShardId(true);
+            }
+            if (buildSpeed > 0) {
+                tableMapping.setBuildSpeed(buildSpeed);
             }
 
             configure.addTableMapping(tableMapping);
@@ -326,7 +374,7 @@ public class ConfigureReader {
             }
         }
 
-        logger.info("Read configure success: " + JsonHelper.beanToJson(configure));
+        logger.info("Read configure success: {} ", JsonHelper.beanToJson(configure));
         return configure;
     }
 

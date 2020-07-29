@@ -26,8 +26,7 @@ import oracle.goldengate.datasource.adapt.Op;
 public class DeleteOperationHandler extends OperationHandler {
 
     @Override
-    public void process(Op op, Configure configure)
-            throws Exception {
+    public void process(Op op, Configure configure) {
         processOperation(op, configure);
         PluginStatictics.addTotalDeletes();
     }

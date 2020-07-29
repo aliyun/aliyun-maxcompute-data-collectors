@@ -25,16 +25,15 @@ import oracle.goldengate.datasource.adapt.Op;
 
 public class UpdateOperationHandler extends OperationHandler {
 
-	@Override
-	public void process(Op op, Configure configure)
-			throws Exception {
-		processOperation(op, configure);
-		PluginStatictics.addTotalUpdates();
-	}
+    @Override
+    public void process(Op op, Configure configure) {
+        processOperation(op, configure);
+        PluginStatictics.addTotalUpdates();
+    }
 
-	@Override
-	public String getOperateType() {
-		return "U";
-	}
+    @Override
+    public String getOperateType() {
+        return "U";
+    }
 
 }

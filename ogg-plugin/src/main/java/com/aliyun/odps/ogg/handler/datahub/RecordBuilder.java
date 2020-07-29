@@ -19,40 +19,37 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.client.model.*;
+import com.aliyun.datahub.client.DatahubClient;
+import com.aliyun.datahub.client.DatahubClientBuilder;
+import com.aliyun.datahub.client.auth.AliyunAccount;
+import com.aliyun.datahub.client.common.DatahubConfig;
+import com.aliyun.datahub.client.http.HttpConfig;
+import com.aliyun.datahub.client.model.Field;
+import com.aliyun.datahub.client.model.FieldType;
+import com.aliyun.datahub.client.model.GetTopicResult;
+import com.aliyun.datahub.client.model.RecordSchema;
+import com.aliyun.datahub.client.model.RecordType;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
-import com.aliyun.odps.ogg.handler.datahub.util.BucketPath;
-import com.google.common.collect.Maps;
-import oracle.goldengate.datasource.DsColumn;
 import oracle.goldengate.datasource.DsToken;
 import oracle.goldengate.datasource.adapt.Op;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
-import java.nio.charset.Charset;
-import java.security.InvalidParameterException;
-import java.sql.Timestamp;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.List;
+
 
 public class RecordBuilder {
-    private final static Logger logger = LoggerFactory
-            .getLogger(RecordBuilder.class);
+    private final static Logger logger = LoggerFactory.getLogger(RecordBuilder.class);
+    private static RecordBuilder recordBuilder;
 
     private Configure configure;
-    private Map<String, Integer> latestSyncId = Maps.newHashMap();
-    private final static SimpleDateFormat DEFAULT_DATE_FORMATTER =
-            new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
-    private Charset charset;
-
-    private static RecordBuilder recordBuilder;
+    private DatahubClient client;
 
     public static RecordBuilder instance() {
         return recordBuilder;
@@ -62,254 +59,187 @@ public class RecordBuilder {
         if (recordBuilder == null) {
             recordBuilder = new RecordBuilder(configure);
         }
+        recordBuilder.start();
+    }
+
+    public static void destroy() {
+        if (recordBuilder != null) {
+            recordBuilder.stop();
+        }
+        recordBuilder = null;
+    }
+
+    public void start() {
+        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
+            TableMapping tableMapping = entry.getValue();
+            for (TableRecordBuilder tableRecordBuilder : tableMapping.getTableRecordBuilders()) {
+                tableRecordBuilder.start();
+            }
+            tableMapping.getTopicWriter().start();
+        }
+    }
+
+    public void stop() {
+        flushAll();
+        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
+            TableMapping tableMapping = entry.getValue();
+            for (TableRecordBuilder tableRecordBuilder : entry.getValue().getTableRecordBuilders()) {
+                tableRecordBuilder.stop();
+            }
+            tableMapping.getTopicWriter().stop();
+        }
+    }
+
+    public boolean buildRecord(Op op, String opType, String recordId) {
+        String oracleFullTableName = op.getTableName().getFullName().toLowerCase();
+        TableMapping tableMapping = configure.getTableMapping(oracleFullTableName);
+
+        if (tableMapping != null) {
+            List<TableRecordBuilder> recordBuilders = tableMapping.getTableRecordBuilders();
+            if (recordBuilders.size() == 1) {
+                return recordBuilders.get(0).addRecord(op, opType, recordId);
+            } else if (recordBuilders.size() > 1) {
+                DsToken token = op.getRecord().getUserToken(Constant.ROWID_TOKEN);
+                if (token.isSet()) {
+                    int index = ((token.getValue().hashCode() % recordBuilders.size()) + recordBuilders.size()) % recordBuilders.size();
+                    return recordBuilders.get(index).addRecord(op, opType, recordId);
+                } else {
+                    logger.error("BuildRecord failed, build speed > 1, but oracle table token TKN-ROWID is not set, can not get oracle rowid, table: {}",
+                            tableMapping.getOracleFullTableName());
+                    throw new RuntimeException("BuildRecord failed, build speed > 1, but oracle table token TKN-ROWID is not set, can not get oracle rowid");
+                }
+            } else {
+                logger.error("RecordBuilder list is empty, table: {}", tableMapping.getOracleFullTableName());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void flushAll() {
+        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
+            TableMapping tableMapping = entry.getValue();
+
+            for (TableRecordBuilder tableRecordBuilder : tableMapping.getTableRecordBuilders()) {
+                tableRecordBuilder.sync();
+            }
+            tableMapping.getTopicWriter().sync();
+        }
     }
 
     private RecordBuilder(Configure configure) {
         this.configure = configure;
+        initDataHub();
+        createBuilderAndWriter();
+    }
 
-        if (!Charset.isSupported(configure.getCharsetName())) {
-            throw new InvalidParameterException("Invalid charsetName: " + configure.getCharsetName());
+    private void initDataHub() {
+        HttpConfig httpConfig = new HttpConfig();
+        if (StringUtils.isNotBlank(configure.getCompressType())) {
+            boolean needCompress = false;
+            for (HttpConfig.CompressType type : HttpConfig.CompressType.values()) {
+                if (type.name().equals(configure.getCompressType())) {
+                    httpConfig.setCompressType(HttpConfig.CompressType.valueOf(configure.getCompressType()));
+                    needCompress = true;
+                    break;
+                }
+            }
+            if (!needCompress) {
+                logger.warn("Invalid DataHub compressType, deploy no compress, compressType: {}",
+                        configure.getCompressType());
+            }
         }
-        charset = Charset.forName(configure.getCharsetName());
 
-        for (String oracleTableFullName : configure.getTableMappings().keySet()) {
-            latestSyncId.put(oracleTableFullName, 0);
+        client = DatahubClientBuilder.newBuilder()
+                .setUserAgent(Constant.PLUGIN_VERSION)
+                .setDatahubConfig(
+                        new DatahubConfig(configure.getDatahubEndpoint(),
+                                new AliyunAccount(configure.getDatahubAccessId(), configure.getDatahubAccessKey()),
+                                configure.isEnablePb()))
+                .setHttpConfig(httpConfig)
+                .build();
+
+        for (TableMapping tableMapping : configure.getTableMappings().values()) {
+            GetTopicResult topic = client.getTopic(tableMapping.getProjectName(), tableMapping.getTopicName());
+            if (topic.getRecordType() == RecordType.TUPLE) {
+                tableMapping.setRecordSchema(topic.getRecordSchema());
+                checkTableMapping(tableMapping);
+            }
         }
     }
 
-    public RecordEntry buildRecord(Op op, String opType, TableMapping tableMapping) throws ParseException {
-        RecordEntry recordEntry = new RecordEntry();
+    private void createBuilderAndWriter() {
+        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
 
-        logger.debug("BuildRecord, oracle table: {}, record: {}", tableMapping.getOracleFullTableName(), op.getRecord().toString());
+            TableMapping tableMapping = entry.getValue();
+            TopicWriter topicWriter = new TopicWriter(configure, entry.getValue(), client);
+            tableMapping.setTopicWriter(topicWriter);
 
+            List<TableRecordBuilder> tableRecordBuilders = new ArrayList<>();
+            for (int i = 0; i < tableMapping.getBuildSpeed(); i++) {
+                TableRecordBuilder tableRecordBuilder = new TableRecordBuilder(configure, topicWriter, entry.getValue(), i);
+                tableRecordBuilders.add(tableRecordBuilder);
+            }
+            tableMapping.setTableRecordBuilders(tableRecordBuilders);
+        }
+    }
+
+    private void checkTableMapping(TableMapping tableMapping) {
         if (tableMapping.getRecordSchema() == null) {
-            // blob topic
-            buildBlobRecord(op, opType, tableMapping, recordEntry);
-        } else {
-            buildTupleRecord(op, opType, tableMapping, recordEntry);
-        }
-
-        Integer syncId = this.latestSyncId.get(tableMapping.getOracleFullTableName());
-        String strSyncId = String.format("%06d", syncId);
-
-        recordEntry.addAttribute(Constant.SYNCID, strSyncId);
-        recordEntry.addAttribute(Constant.VERSION, "1.0");
-        recordEntry.addAttribute(Constant.SRC_TYPE, "Oracle");
-        recordEntry.addAttribute(Constant.SRC_ID, configure.getOracleSid());
-        recordEntry.addAttribute(Constant.TS, op.getTimestamp());
-        recordEntry.addAttribute(Constant.DBNAME, tableMapping.getOracleSchema());
-        recordEntry.addAttribute(Constant.TABNMAE, tableMapping.getOracleTableName());
-        recordEntry.addAttribute(Constant.OPER_TYPE, opType);
-
-        this.latestSyncId.put(tableMapping.getOracleFullTableName(), (syncId++) % 1000000);
-
-        return recordEntry;
-    }
-
-    private void buildTupleRecord(Op op, String opType, TableMapping tableMapping, RecordEntry recordEntry) throws ParseException {
-        TupleRecordData recordData = new TupleRecordData(tableMapping.getRecordSchema());
-        RecordSchema recordSchema = tableMapping.getRecordSchema();
-        StringBuilder hashString = new StringBuilder();
-
-        List<DsColumn> columns = op.getColumns();
-
-        String rowIdColumn = tableMapping.getRowIdColumn();
-        if (StringUtils.isNotBlank(rowIdColumn)) {
-            DsToken token = op.getRecord().getUserToken(Constant.ROWID_TOKEN);
-            if (!token.isSet()) {
-                logger.error("BuildRecord failed, oracle table token TKN-ROWID is not set, can not get oracle rowid, table: {}",
-                        tableMapping.getOracleFullTableName());
-                throw new RuntimeException("oracle table token TKN-ROWID is not set, can not get oracle rowid");
-            }
-            recordData.setField(rowIdColumn, token.getValue());
-        }
-
-        String ctype = tableMapping.getcTypeColumn();
-        if (StringUtils.isNotBlank(ctype)) {
-            recordData.setField(ctype, opType);
-        }
-
-        String ctime = tableMapping.getcTimeColumn();
-        if (StringUtils.isNotBlank(ctime)) {
-            if (recordSchema.getField(ctime).getType() == FieldType.STRING) {
-                recordData.setField(ctime, op.getTimestamp());
-            } else if (recordSchema.getField(ctime).getType() == FieldType.TIMESTAMP) {
-                recordData.setField(ctime, convertStrToMicroseconds(op.getTimestamp()));
-            } else {
-                logger.error("BuildRecord failed, cTimeColumn type must be string or timestamp in DataHub, type: {}",
-                        recordSchema.getField(ctime).getType().name());
-                throw new RuntimeException("cTimeColumn type must be string or timestamp in DataHub");
-            }
-        }
-
-        String cId = tableMapping.getcIdColumn();
-        if (StringUtils.isNotBlank(cId)) {
-            recordData.setField(cId, Long.toString(HandlerInfoManager.instance().getRecordId()));
-        }
-
-
-        Date readTime = DEFAULT_DATE_FORMATTER.parse(op.getTimestamp());
-        Map<String, String> constMap = tableMapping.getConstColumnMappings();
-        if (constMap != null && !constMap.isEmpty()) {
-            for (Map.Entry<String, String> entry : constMap.entrySet()) {
-                recordData.setField(entry.getKey(), BucketPath.escapeString(entry.getValue(),
-                        readTime.getTime(), tableMapping.getConstColumnMappings()));
-            }
-        }
-
-        for (int i = 0; i < columns.size(); i++) {
-
-            String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
-            ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
-            if (columnMapping == null) {
-                logger.debug("BuildRecord, oracle table column is not configured, table: {}, column: {}",
-                        op.getTableMeta().getTableName().getFullName(), columnName);
-                continue;
-            }
-
-            DsColumn dsColumn = columns.get(i);
-            String afterValue = dsColumn.getAfterValue();
-            String beforeValue = dsColumn.getBeforeValue();
-            if (!columnMapping.isDefaultCharset()) {
-                afterValue = dsColumn.getAfter() == null ? null : new String(dsColumn.getAfterValue().getBytes(charset));
-                beforeValue = dsColumn.getBefore() == null ? null : new String(dsColumn.getBeforeValue().getBytes(charset));
-            }
-            logger.info("after {}, before {}", afterValue, beforeValue);
-
-            String dest = columnMapping.getDest();
-            if (StringUtils.isNotBlank(dest)) {
-                if (columnMapping.isKeyColumn()) {
-                    if (dsColumn.getAfter() == null) {
-                        setTupleData(recordData, recordSchema.getField(dest), beforeValue,
-                                columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
-                    } else {
-                        setTupleData(recordData, recordSchema.getField(dest), afterValue,
-                                columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
-                    }
-                } else {
-                    setTupleData(recordData, recordSchema.getField(dest), afterValue,
-                            columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
-                }
-            }
-
-            String destOld = columnMapping.getDestOld();
-            if (StringUtils.isNotBlank(destOld)) {
-                setTupleData(recordData, recordSchema.getField(destOld), beforeValue,
-                        columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
-            }
-
-            if (columnMapping.isShardColumn()) {
-                hashString.append(afterValue);
-            }
-        }
-
-        recordEntry.setPartitionKey(hashString.toString());
-        recordEntry.setRecordData(recordData);
-    }
-
-    private void buildBlobRecord(Op op, String opType, TableMapping tableMapping, RecordEntry recordEntry) {
-        List<DsColumn> columns = op.getColumns();
-        if (tableMapping.getColumnMappings().size() != 1) {
-            logger.error("BuildRecord failed, oracle table must have only one column for blob topic, " +
-                            "oracle table: {}, DataHub topic: {}, column num: {}",
-                    tableMapping.getOracleFullTableName(), tableMapping.getTopicName(), op.getNumColumns());
-            throw new RuntimeException("oracle table must have only one column for blob topic");
-        }
-
-        for (int i = 0; i < columns.size(); i++) {
-
-            String columnName = op.getTableMeta().getColumnName(i).toLowerCase();
-            ColumnMapping columnMapping = tableMapping.getColumnMappings().get(columnName);
-            if (columnMapping == null) {
-                continue;
-            }
-
-            DsColumn dsColumn = columns.get(i);
-            byte[] data;
-            if (columnMapping.isDefaultCharset()) {
-                if ("D".equalsIgnoreCase(opType)) {
-                    data = dsColumn.getBeforeValue().getBytes(Charset.forName("UTF-8"));
-                } else {
-                    data = dsColumn.getAfterValue().getBytes(Charset.forName("UTF-8"));
-                }
-            } else {
-                if ("D".equalsIgnoreCase(opType)) {
-                    data = dsColumn.getBeforeValue().getBytes(charset);
-                } else {
-                    data = dsColumn.getAfterValue().getBytes(charset);
-                }
-            }
-
-            BlobRecordData recordData = new BlobRecordData(data);
-            recordEntry.setRecordData(recordData);
-            break;
-        }
-
-        recordEntry.addAttribute("opType", opType);
-    }
-
-    private void setTupleData(TupleRecordData recordData, Field field, String val, boolean isDateFormat, SimpleDateFormat format) {
-        if (val == null || val.isEmpty() || field == null || "null".equalsIgnoreCase(val)) {
             return;
         }
-        switch (field.getType()) {
-            case STRING:
-                recordData.setField(field.getName(), val);
-                break;
-            case BIGINT:
-                recordData.setField(field.getName(), Long.parseLong(val));
-                break;
-            case DOUBLE:
-                recordData.setField(field.getName(), Double.parseDouble(val));
-                break;
-            case BOOLEAN:
-                recordData.setField(field.getName(), Boolean.parseBoolean(val));
-                break;
-            case TIMESTAMP:
-                if (isDateFormat) {
-                    if (format == null) {
-                        // set timestamp Microseconds
-                        recordData.setField(field.getName(), convertStrToMicroseconds(val));
-                    } else {
-                        try {
-                            recordData.setField(field.getName(), format.parse(val).getTime() * 1000);
-                        } catch (ParseException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
 
 
-                } else {
-                    recordData.setField(field.getName(), Long.parseLong(val));
-                }
-                break;
-            case DECIMAL:
-                recordData.setField(field.getName(), new BigDecimal(val));
-                break;
-            default:
-                logger.error("BuildRecord failed, unknown DataHub filed type, type: {}", field.getType().name());
-                throw new RuntimeException("unknown DataHub filed type " + field.getType().name());
+        checkColumn(tableMapping.getRowIdColumn(), Arrays.asList(FieldType.STRING),
+                tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        checkColumn(tableMapping.getcTypeColumn(), Arrays.asList(FieldType.STRING),
+                tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        checkColumn(tableMapping.getcTimeColumn(), Arrays.asList(FieldType.STRING,
+                FieldType.TIMESTAMP), tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        checkColumn(tableMapping.getcIdColumn(), Arrays.asList(FieldType.STRING, FieldType.BIGINT),
+                tableMapping.getRecordSchema(), tableMapping.getTopicName());
+
+        for (Map.Entry<String, String> entry : tableMapping.getConstColumnMappings().entrySet()) {
+            checkColumn(entry.getKey(), Arrays.asList(FieldType.STRING),
+                    tableMapping.getRecordSchema(), tableMapping.getTopicName());
+        }
+
+        for (Map.Entry<String, ColumnMapping> entry : tableMapping.getColumnMappings().entrySet()) {
+            ColumnMapping columnMapping = entry.getValue();
+
+            checkColumn(columnMapping.getDest(), null, tableMapping.getRecordSchema(), tableMapping.getTopicName());
+            checkColumn(columnMapping.getDestOld(), null, tableMapping.getRecordSchema(), tableMapping.getTopicName());
         }
     }
 
-    // convert time string like yyyy-mm-dd:hh:mm:ss[.fffffffff] to microseconds
-    private Object convertStrToMicroseconds(String timeStr) {
-        if (StringUtils.isBlank(timeStr)) {
-            return null;
+    private void checkColumn(String columnName, List<FieldType> types, RecordSchema recordSchema, String topicName) {
+        if (StringUtils.isBlank(columnName)) {
+            return;
         }
 
-        // convert yyyy-mm-dd:hh:mm:ss to yyyy-mm-dd hh:mm:ss
-        StringBuilder sb = new StringBuilder(timeStr);
-        if (sb.length() < 11) {
-            logger.error("BuildRecord failed, convert timeStr to timestamp failed, invalid timeStr, timeStr: {}", timeStr);
-            throw new RuntimeException("convert timeStr to timestamp failed, invalid timeStr, timeStr: " + timeStr);
+        Field field = recordSchema.getField(columnName);
+        if (field == null) {
+            logger.error("CheckSchema failed, the field is not exist in DataHub, topic: {}, fieldName: {}", topicName, columnName);
+            throw new IllegalArgumentException("the field is not exist in DataHub");
         }
-        sb.setCharAt(10, ' ');
-        timeStr = sb.toString();
 
-        Timestamp ts = java.sql.Timestamp.valueOf(timeStr);
-        long milliseconds = ts.getTime();
-        int nanos = ts.getNanos();
-        return milliseconds * 1000 + nanos % 1000000 / 1000;
+        if (types != null) {
+            boolean flag = false;
+            for (FieldType type : types) {
+                if (type == field.getType()) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (!flag) {
+                logger.error("CheckSchema failed, the oracle column corresponding field type is invalid in DataHub," +
+                        " column: {}, filedType: {}", columnName, field.getType().name());
+                throw new IllegalArgumentException("the oracle column corresponding field type is invalid in DataHub");
+            }
+        }
     }
 }
+

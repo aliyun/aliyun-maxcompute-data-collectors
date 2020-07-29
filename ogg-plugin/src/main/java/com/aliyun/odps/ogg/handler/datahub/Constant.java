@@ -34,5 +34,5 @@ public class Constant {
     public static final String HASH = "hash";
     public static final String ROWID_TOKEN = "TKN-ROWID";
 
-    public static final String PLUGIN_VERSION = "2.0.4";
+    public static final String PLUGIN_VERSION = "2.0.5";
 }

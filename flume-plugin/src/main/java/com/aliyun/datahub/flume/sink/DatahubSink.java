@@ -117,6 +117,9 @@ public class DatahubSink extends AbstractSink implements Configurable {
         String dirtyDataFile = context.getString(DatahubConfigConstants.Dirty_DATA_FILE, Configure.DEFAULT_DIRTY_DATA_FILE);
         configure.setDirtyDataFile(dirtyDataFile);
 
+        String nullValue = context.getString(DatahubConfigConstants.NULL_VALUE, Configure.DEFAULT_NULL_VALUE);
+        configure.setNullValue(nullValue);
+
         String serializerType = Preconditions
                 .checkNotNull(context.getString(DatahubConfigConstants.SERIALIZER),
                         "%s config setting" + " is not specified for sink %s",

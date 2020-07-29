@@ -17,23 +17,30 @@
  * under the License.
  */
 
-package com.aliyun.odps.ogg.handler.datahub.operations;
+package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
-import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
-import oracle.goldengate.datasource.adapt.Op;
+import com.aliyun.datahub.client.model.RecordEntry;
 
-public class InsertOperationHandler extends OperationHandler {
+import java.util.ArrayList;
+import java.util.List;
 
-    @Override
-    public void process(Op op, Configure configure) {
-        processOperation(op, configure);
-        PluginStatictics.addTotalInserts();
+class RecordBatch {
+    private List<RecordEntry> records = new ArrayList<>();
+    private long createTimestamp = System.currentTimeMillis();
+
+    public void add(RecordEntry recordEntry) {
+        records.add(recordEntry);
     }
 
-    @Override
-    public String getOperateType() {
-        return "I";
+    public List<RecordEntry> getRecords() {
+        return records;
     }
 
+    public long getCreateTimestamp() {
+        return createTimestamp;
+    }
+
+    public boolean isEmpty() {
+        return records.isEmpty();
+    }
 }

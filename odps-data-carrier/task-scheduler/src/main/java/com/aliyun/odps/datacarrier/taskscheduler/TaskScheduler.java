@@ -108,7 +108,7 @@ public class TaskScheduler {
         } catch (InterruptedException e) {
           LOG.warn("Main thread interrupted");
         }
-      } catch (MmaException e) {
+      } catch (Exception e) {
         LOG.error(ExceptionUtils.getStackTrace(e));
       }
     }
@@ -170,7 +170,6 @@ public class TaskScheduler {
     public void run() {
       List<Action> finishedActions = new LinkedList<>();
       while (keepRunning) {
-        LOG.info("Handle finished action");
         synchronized (executingActions) {
           for (Action action : executingActions) {
             if (action.executionFinished()) {

@@ -19,7 +19,9 @@
 
 package com.aliyun.odps.datacarrier.taskscheduler;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.DatabaseExportConfig;
@@ -114,7 +116,7 @@ public class MmaClientDbImpl implements MmaClient {
         if (objectRestoreConfig.getAdditionalTableConfig() == null) {
           objectRestoreConfig.setAdditionalTableConfig(globalAdditionalTableConfig);
         }
-        mmaMetaManager.addRestoreJob(objectRestoreConfig);
+        mmaMetaManager.addObjectRestoreJob(objectRestoreConfig);
       }
     } else if (mmaMigrationConfig.getDatabaseExportConfigs() != null) {
       for (DatabaseExportConfig databaseExportConfig :
@@ -123,7 +125,6 @@ public class MmaClientDbImpl implements MmaClient {
         if (!databaseExists(database)) {
           continue;
         }
-
         // TODO: merge additional table config
         // Use global additional table config if database migration config doesn't contain one
         MmaConfig.AdditionalTableConfig databaseAdditionalTableConfig =
@@ -133,6 +134,13 @@ public class MmaClientDbImpl implements MmaClient {
         }
 
         createDatabaseExportJob(databaseExportConfig);
+      }
+    } else if (mmaMigrationConfig.getDatabaseRestoreConfigs() != null) {
+      for (MmaConfig.DatabaseRestoreConfig config : mmaMigrationConfig.getDatabaseRestoreConfigs()) {
+        if (config.getAdditionalTableConfig() == null) {
+          config.setAdditionalTableConfig(globalAdditionalTableConfig);
+        }
+        mmaMetaManager.addDatabaseRestoreJob(config);
       }
     } else {
       for (MmaConfig.TableMigrationConfig tableMigrationConfig :
@@ -251,28 +259,42 @@ public class MmaClientDbImpl implements MmaClient {
     MmaConfig.AdditionalTableConfig additionalTableConfig = databaseExportConfig.getAdditionalTableConfig();
     for(MmaConfig.ObjectType type : databaseExportConfig.getExportTypes()) {
       switch (type) {
-        case TABLE:
-        case VIEW:
+        case TABLE: {
           List<String> tables = odpsMetaSource.listTables(database);
-          for(String tableName : tables) {
+          Set<String> views = new HashSet<>(odpsMetaSource.listViews(database));
+          for (String tableName : tables) {
+            if (views.contains(tableName)) {
+              continue;
+            }
             mmaMetaManager.addBackupJob(
-                new ObjectExportConfig(database, tableName, null, null, additionalTableConfig));
+                new ObjectExportConfig(database, tableName, type, taskName, additionalTableConfig));
           }
           break;
-        case RESOURCE:
+        }
+        case VIEW: {
+          List<String> views = odpsMetaSource.listViews(database);
+          for (String viewName : views) {
+            mmaMetaManager.addBackupJob(
+                new ObjectExportConfig(database, viewName, type, taskName, additionalTableConfig));
+          }
+          break;
+        }
+        case RESOURCE: {
           List<String> resources = odpsMetaSource.listResources(database);
-          for(String resourceName : resources) {
+          for (String resourceName : resources) {
             mmaMetaManager.addBackupJob(
                 new ObjectExportConfig(database, resourceName, type, taskName, additionalTableConfig));
           }
           break;
-        case FUNCTION:
+        }
+        case FUNCTION: {
           List<String> functions = odpsMetaSource.listFunctions(database);
-          for(String functionName : functions) {
+          for (String functionName : functions) {
             mmaMetaManager.addBackupJob(
                 new ObjectExportConfig(database, functionName, type, taskName, additionalTableConfig));
           }
           break;
+        }
         default:
           LOG.error("Unsupported type {} when export database {}", type, database);
       }

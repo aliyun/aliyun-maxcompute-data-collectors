@@ -3,7 +3,6 @@ package com.aliyun.odps.datacarrier.taskscheduler.action;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.OdpsSqlUtils;
 import com.aliyun.odps.datacarrier.taskscheduler.OssUtils;
-import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,15 +18,17 @@ public class OdpsRestoreTableAction extends OdpsSqlAction {
 
   private String taskName;
   private String originProject;
-  private String destinationProject;
-  private MmaConfig.ObjectType type;
   private String tableName;
+  private String destinationProject;
+  private String destinationTable;
+  private MmaConfig.ObjectType type;
   private Map<String, String> settings;
 
   public OdpsRestoreTableAction(String id, String taskName,
                                 String originProject,
+                                String originTable,
                                 String destinationProject,
-                                String tableName,
+                                String destinationTable,
                                 MmaConfig.ObjectType type,
                                 Map<String, String> settings) {
     super(id);
@@ -35,7 +36,8 @@ public class OdpsRestoreTableAction extends OdpsSqlAction {
     this.originProject = originProject;
     this.destinationProject = destinationProject;
     this.type = type;
-    this.tableName = tableName;
+    this.tableName = originTable;
+    this.destinationTable = destinationTable;
     this.settings = settings;
   }
 
@@ -56,14 +58,18 @@ public class OdpsRestoreTableAction extends OdpsSqlAction {
       } else {
         builder.append("CREATE EXTERNAL TABLE IF NOT EXISTS ")
             .append(destinationProject).append(".")
-            .append("`").append(tableName).append("`")
+            .append("`").append(destinationTable).append("`")
             .append(content);
       }
       String sql = builder.toString();
-      LOG.info("Restore {} {} from {} to {} as {}", type.name(), tableName, originProject, destinationProject, sql);
+      LOG.info("Restore {} from {}.{} to {}.{} as {}",
+          type.name(), originProject, tableName, destinationProject,
+          MmaConfig.ObjectType.VIEW.equals(type) ? tableName : destinationTable, sql);
       return sql;
     } catch (Exception e) {
-      LOG.error("Restore {} {} from {} to {} failed.", type.name(), tableName, originProject, destinationProject, e);
+      LOG.error("Restore {} {} from {}.{} to {}.{} failed.",
+          type.name(), originProject, tableName, destinationProject,
+          MmaConfig.ObjectType.VIEW.equals(type) ? tableName : destinationTable, e);
     }
     return "";
   }

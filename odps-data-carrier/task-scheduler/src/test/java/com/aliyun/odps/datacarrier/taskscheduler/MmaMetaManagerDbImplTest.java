@@ -228,7 +228,7 @@ public class MmaMetaManagerDbImplTest {
       String sql = String.format("SELECT %s, %s, %s FROM %s",
                                  Constants.MMA_TBL_META_COL_STATUS,
                                  Constants.MMA_TBL_META_COL_ATTEMPT_TIMES,
-                                 Constants.MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP,
+                                 Constants.MMA_TBL_META_COL_LAST_MODIFIED_TIME,
                                  Constants.MMA_TBL_META_TBL_NAME);
       try (ResultSet rs = stmt.executeQuery(sql)) {
         while (rs.next()) {

@@ -11,7 +11,6 @@ import com.aliyun.odps.datacarrier.taskscheduler.event.MmaJobFailedEvent;
 import com.aliyun.odps.datacarrier.taskscheduler.event.MmaJobSuccceedEvent;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MetaSource.TableMetaModel;
-import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 
 import com.aliyun.odps.datacarrier.taskscheduler.MmaException;
 import com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManager;
@@ -23,24 +22,19 @@ import com.aliyun.odps.datacarrier.taskscheduler.action.Action;
 public class MigrationTask extends AbstractTask {
 
   private TableMetaModel tableMetaModel;
-  private TableMigrationConfig config;
 
   public MigrationTask(
       String id,
       MetaSource.TableMetaModel tableMetaModel,
-      TableMigrationConfig config,
       DirectedAcyclicGraph<Action, DefaultEdge> dag,
       MmaMetaManager mmaMetaManager) {
     super(id, dag, mmaMetaManager);
-
-    this.tableMetaModel = Objects.requireNonNull(tableMetaModel);
-    this.config = Objects.requireNonNull(config);
-    actionExecutionContext.setTableMetaModel(this.tableMetaModel);
-    actionExecutionContext.setTableMigrationConfig(this.config);
+    actionExecutionContext.setTableMetaModel(Objects.requireNonNull(tableMetaModel));
   }
 
   @Override
   void updateMetadata() throws MmaException {
+    this.tableMetaModel = actionExecutionContext.getTableMetaModel();
     if (!tableMetaModel.partitionColumns.isEmpty()) {
       if (TaskProgress.SUCCEEDED.equals(progress)) {
         mmaMetaManager.updateStatus(tableMetaModel.databaseName,

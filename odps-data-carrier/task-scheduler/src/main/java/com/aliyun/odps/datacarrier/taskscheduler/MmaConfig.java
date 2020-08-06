@@ -29,7 +29,7 @@ import com.aliyun.odps.utils.StringUtils;
 import org.apache.commons.collections.MapUtils;
 
 public class MmaConfig {
-
+  
   public interface Config {
     boolean validate();
   }
@@ -400,21 +400,34 @@ public class MmaConfig {
   }
 
   public static class DatabaseRestoreConfig implements Config {
-    private String databaseName;
+    private String originDatabaseName; // database which contains exported objects
+    private String destinationDatabaseName; // database which contains restored objects
     private List<ObjectType> restoreTypes;
     private String taskName;
     private boolean update = true;
     private AdditionalTableConfig additionalTableConfig;
+    private Map<String, String> settings;
 
-    DatabaseRestoreConfig(String databaseName, List<ObjectType> types, boolean update, String taskName) {
-      this.databaseName = databaseName;
+    DatabaseRestoreConfig(String originDatabaseName,
+                          String destinationDatabaseName,
+                          List<ObjectType> types,
+                          boolean update,
+                          String taskName,
+                          Map<String, String> settings) {
+      this.originDatabaseName = originDatabaseName;
+      this.destinationDatabaseName = destinationDatabaseName;
       this.restoreTypes = types;
       this.taskName = taskName;
       this.update = update;
+      this.settings = settings;
     }
 
-    public String getDatabaseName() {
-      return databaseName;
+    public String getOriginDatabaseName() {
+      return originDatabaseName;
+    }
+
+    public String getDestinationDatabaseName() {
+      return destinationDatabaseName;
     }
 
     public List<ObjectType> getRestoreTypes() {
@@ -433,13 +446,26 @@ public class MmaConfig {
       return additionalTableConfig;
     }
 
+    public Map<String, String> getSettings() {
+      return settings;
+    }
+
     public void setAdditionalTableConfig(AdditionalTableConfig additionalTableConfig) {
       this.additionalTableConfig = additionalTableConfig;
     }
 
+    public static DatabaseRestoreConfig fromJson(String json) {
+      return GsonUtils.getFullConfigGson().fromJson(json, DatabaseRestoreConfig.class);
+    }
+
+    public static String toJson(DatabaseRestoreConfig config) {
+      return GsonUtils.getFullConfigGson().toJson(config);
+    }
+
     @Override
     public boolean validate() {
-      return !StringUtils.isNullOrEmpty(databaseName) &&
+      return !StringUtils.isNullOrEmpty(originDatabaseName) &&
+             !StringUtils.isNullOrEmpty(destinationDatabaseName) &&
              !StringUtils.isNullOrEmpty(taskName) &&
              restoreTypes != null;
     }
@@ -532,16 +558,28 @@ public class MmaConfig {
       tableMetaModel.odpsTableName = destTableName;
       tableMetaModel.odpsTableStorage = destTableStorage;
       // TODO: should not init a hive type transformer here, looking for better design
-      TypeTransformer typeTransformer = new HiveTypeTransformer();
+      TypeTransformer typeTransformer = null;
+      DataSource dataSource = MmaServerConfig.getInstance().getDataSource();
+      if (DataSource.Hive.equals(dataSource)) {
+        typeTransformer = new HiveTypeTransformer();
+      }
 
       for (MetaSource.ColumnMetaModel c : tableMetaModel.columns) {
         c.odpsColumnName = c.columnName;
-        c.odpsType = typeTransformer.toOdpsTypeV2(c.type).getTransformedType();
+        if (DataSource.ODPS.equals(dataSource)) {
+          c.odpsType = c.type.toUpperCase().trim();
+        } else {
+          c.odpsType = typeTransformer.toOdpsTypeV2(c.type).getTransformedType();
+        }
       }
 
       for (MetaSource.ColumnMetaModel pc : tableMetaModel.partitionColumns) {
         pc.odpsColumnName = pc.columnName;
-        pc.odpsType = typeTransformer.toOdpsTypeV2(pc.type).getTransformedType();
+        if (DataSource.ODPS.equals(dataSource)) {
+          pc.odpsType = pc.type.toUpperCase().trim();
+        } else {
+          pc.odpsType = typeTransformer.toOdpsTypeV2(pc.type).getTransformedType();
+        }
       }
 
       // TODO: make it a general config
@@ -645,14 +683,14 @@ public class MmaConfig {
     private String taskName;
     private Map<String, String> settings;
 
-    ObjectRestoreConfig(String originDatabaseName,
-                        String destinationDatabaseName,
-                        String objectName,
-                        ObjectType type,
-                        boolean update,
-                        String taskName,
-                        AdditionalTableConfig additionalTableConfig,
-                        Map<String, String> settings) {
+    public ObjectRestoreConfig(String originDatabaseName,
+                               String destinationDatabaseName,
+                               String objectName,
+                               ObjectType type,
+                               boolean update,
+                               String taskName,
+                               AdditionalTableConfig additionalTableConfig,
+                               Map<String, String> settings) {
       super(originDatabaseName, objectName, null, null, additionalTableConfig);
       this.originDatabaseName = originDatabaseName;
       this.destinationDatabaseName = destinationDatabaseName;

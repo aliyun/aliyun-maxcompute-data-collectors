@@ -14,7 +14,7 @@ public abstract class OdpsNoSqlAction extends AbstractAction {
   @Override
   public void execute() throws MmaException {
     setProgress(ActionProgress.RUNNING);
-    future = ActionExecutorFactory.getOdpsSqlExecutor().execute(this);
+    future = ActionExecutorFactory.getOdpsExecutor().execute(this);
   }
 
   public abstract void doAction() throws MmaException;

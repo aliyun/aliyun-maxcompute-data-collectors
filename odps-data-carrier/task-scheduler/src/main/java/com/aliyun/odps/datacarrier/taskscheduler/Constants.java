@@ -32,6 +32,8 @@ public class Constants {
   public static final String END_POINT = "end_point";
   public static final String TUNNEL_ENDPOINT = "tunnel_endpoint";
 
+  public static final int DEFAULT_PARTITION_BATCH_SIZE = 1000;
+
   /*
     Constants of MmaMetaManagerDbImpl
    */
@@ -44,7 +46,9 @@ public class Constants {
   public static final String BIGINT = "BIGINT";
   public static final String BOOLEAN = "BOOLEAN";
 
-  // Schema: default, table: MMA_META
+  /**
+   * Schema: default, table: MMA_TBL_META
+   */
   public static final String MMA_TBL_META_TBL_NAME = "MMA_TBL_META";
   public static final String MMA_TBL_META_COL_DB_NAME = "db_name";
   public static final String MMA_TBL_META_COL_TBL_NAME = "table_name";
@@ -52,7 +56,8 @@ public class Constants {
   public static final String MMA_TBL_META_COL_MIGRATION_CONF = "migration_config";
   public static final String MMA_TBL_META_COL_STATUS = "status";
   public static final String MMA_TBL_META_COL_ATTEMPT_TIMES = "attempt_times";
-  public static final String MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP = "last_succ_timestamp";
+  public static final String MMA_TBL_META_COL_LAST_MODIFIED_TIME = "last_modified_time";
+
   public static final Map<String, String> MMA_TBL_META_COL_TO_TYPE;
   static {
     Map<String, String> temp = new LinkedHashMap<>();
@@ -62,33 +67,70 @@ public class Constants {
     temp.put(MMA_TBL_META_COL_MIGRATION_CONF, VARCHAR_65535);
     temp.put(MMA_TBL_META_COL_STATUS, VARCHAR_255);
     temp.put(MMA_TBL_META_COL_ATTEMPT_TIMES, INT);
-    temp.put(MMA_TBL_META_COL_LAST_SUCC_TIMESTAMP, BIGINT);
+    temp.put(MMA_TBL_META_COL_LAST_MODIFIED_TIME, BIGINT);
     MMA_TBL_META_COL_TO_TYPE = Collections.unmodifiableMap(temp);
   }
-  // Constant values
-  public static final int MMA_TBL_META_INIT_ATTEMPT_TIMES = 0;
-  public static final long MMA_TBL_META_INIT_LAST_SUCC_TIMESTAMP = -1;
 
-  // Schema: [db], table: [tbl],
+  /**
+   * Init value for column 'attempt_times'
+   */
+  public static final int MMA_TBL_META_INIT_VALUE_ATTEMPT_TIMES = 0;
+  /**
+   * N/A value for column 'last_modified_time'
+   */
+  public static final long MMA_TBL_META_NA_VALUE_LAST_MODIFIED_TIME = -1L;
+
+  public static final String MMA_OBJ_RESTORE_TBL_NAME = "MMA_DATABASE_RESTORE";
+  public static final String MMA_OBJ_RESTORE_COL_UNIQUE_ID = "unique_id";
+  public static final String MMA_OBJ_RESTORE_COL_TYPE = "type";
+  public static final String MMA_OBJ_RESTORE_COL_DB_NAME = "db_name";
+  public static final String MMA_OBJ_RESTORE_COL_OBJECT_NAME = "object_name";
+  public static final String MMA_OBJ_RESTORE_COL_JOB_CONFIG = "job_config";
+  public static final String MMA_OBJ_RESTORE_COL_STATUS = "status";
+  public static final String MMA_OBJ_RESTORE_COL_ATTEMPT_TIMES = "attempt_times";
+  public static final String MMA_OBJ_RESTORE_COL_LAST_MODIFIED_TIME = "last_modified_time";
+
+  public static final Map<String, String> MMA_OBJ_RESTORE_COL_TO_TYPE;
+  static {
+    Map<String, String> temp = new LinkedHashMap<>();
+    temp.put(MMA_OBJ_RESTORE_COL_UNIQUE_ID, VARCHAR_255);       // unique_id
+    temp.put(MMA_OBJ_RESTORE_COL_TYPE, VARCHAR_255);            // type
+    temp.put(MMA_OBJ_RESTORE_COL_DB_NAME, VARCHAR_255);         // db_name
+    temp.put(MMA_OBJ_RESTORE_COL_OBJECT_NAME, VARCHAR_255);     // object_name
+    temp.put(MMA_OBJ_RESTORE_COL_JOB_CONFIG, VARCHAR_65535);    // job_config
+    temp.put(MMA_OBJ_RESTORE_COL_STATUS, VARCHAR_255);          // status
+    temp.put(MMA_OBJ_RESTORE_COL_ATTEMPT_TIMES, INT);           // attempt_times
+    temp.put(MMA_OBJ_RESTORE_COL_LAST_MODIFIED_TIME, BIGINT);   // last_modified_time
+    MMA_OBJ_RESTORE_COL_TO_TYPE = Collections.unmodifiableMap(temp);
+  }
+  public static final int MMA_OBJ_RESTORE_INIT_ATTEMPT_TIMES = 0;
+  public static final long MMA_OBJ_RESTORE_INIT_LAST_MODIFIED_TIMESTAMP = -1;
+
+  /**
+   * Schema: MMA_PT_META_DB_[db], table: MMA_PT_META_TBL_[tbl]
+   */
   public static final String MMA_PT_META_SCHEMA_NAME_FMT = "MMA_PT_META_DB_%s";
   public static final String MMA_PT_META_SCHEMA_NAME_PREFIX = "MMA_PT_META_DB_";
   public static final String MMA_PT_META_TBL_NAME_FMT = "MMA_PT_META_TBL_%s";
   public static final String MMA_PT_META_COL_PT_VALS = "pt_vals";
   public static final String MMA_PT_META_COL_STATUS = "status";
   public static final String MMA_PT_META_COL_ATTEMPT_TIMES = "attempt_times";
-  public static final String MMA_PT_META_COL_LAST_SUCC_TIMESTAMP = "last_succ_timestamp";
+  public static final String MMA_PT_META_COL_LAST_MODIFIED_TIME = "last_modified_time";
   public static final Map<String, String> MMA_PT_META_COL_TO_TYPE;
   static {
     Map<String, String> temp = new LinkedHashMap<>();
     temp.put(MMA_PT_META_COL_PT_VALS, VARCHAR_65535);
     temp.put(MMA_PT_META_COL_STATUS, VARCHAR_255);
     temp.put(MMA_PT_META_COL_ATTEMPT_TIMES, INT);
-    temp.put(MMA_PT_META_COL_LAST_SUCC_TIMESTAMP, BIGINT);
+    temp.put(MMA_PT_META_COL_LAST_MODIFIED_TIME, BIGINT);
     MMA_PT_META_COL_TO_TYPE = Collections.unmodifiableMap(temp);
   }
-  // Constant values
+
+  /**
+   * Init value for column 'attempt_times'
+   */
   public static final int MMA_PT_META_INIT_ATTEMPT_TIMES = 0;
-  public static final long MMA_PT_META_INIT_LAST_SUCC_TIMESTAMP = -1;
+  public static final long MMA_PT_MEAT_NA_LAST_MODIFIED_TIME = -1;
 
   public static final String OSS_ROOT_FOLDER = "odps_mma/";
   public static final String EXPORT_OBJECT_ROOT_FOLDER = OSS_ROOT_FOLDER + "export_objects/";

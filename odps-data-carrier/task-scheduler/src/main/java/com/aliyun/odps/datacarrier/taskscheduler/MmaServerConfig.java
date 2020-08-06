@@ -110,9 +110,10 @@ public class MmaServerConfig {
     String content = DirUtils.readFile(path);
     MmaServerConfig mmaServerConfig =
         GsonUtils.getFullConfigGson().fromJson(content, MmaServerConfig.class);
-    if (!mmaServerConfig.validate()) {
-    } else {
+    if (mmaServerConfig.validate()) {
       instance = mmaServerConfig;
+    } else {
+      LOG.error("Invalid MmaServerConfig {}", content);
     }
   }
 

@@ -82,7 +82,6 @@ public abstract class AbstractTask implements Task {
    */
   @Override
   public List<Action> getExecutableActions() {
-    LOG.info("Enter getExecutableActions");
     List<Action> ret = new LinkedList<>();
 
     for (Action a : dag.vertexSet()) {
@@ -96,7 +95,9 @@ public abstract class AbstractTask implements Task {
       }
     }
 
-    LOG.info("Leave getExecutableActions, ret: {}", ret);
+    if (ret.size() > 0) {
+      LOG.info("GetExecutableActions, ret: {}", ret);
+    }
     return ret;
   }
 

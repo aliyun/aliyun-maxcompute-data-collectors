@@ -39,6 +39,8 @@ public interface MetaSource {
     public String inputFormat;
     public String outputFormat;
     public String serDe;
+    public Long createTime;
+    public Long lastModifiedTime; // in second
     public Map<String, String> serDeProperties = new LinkedHashMap<>();
     public List<ColumnMetaModel> columns = new ArrayList<>();
     public List<ColumnMetaModel> partitionColumns = new ArrayList<>();
@@ -62,6 +64,8 @@ public interface MetaSource {
       tableMetaModel.location = this.location;
       tableMetaModel.inputFormat = this.inputFormat;
       tableMetaModel.outputFormat = this.outputFormat;
+      tableMetaModel.createTime = this.createTime;
+      tableMetaModel.lastModifiedTime = this.lastModifiedTime;
       tableMetaModel.serDeProperties = this.serDeProperties;
       tableMetaModel.columns = this.columns;
       tableMetaModel.partitionColumns = this.partitionColumns;
@@ -86,7 +90,8 @@ public interface MetaSource {
 
     public List<String> partitionValues = new ArrayList<>();
     public String location;
-    public Integer createTime;
+    public Long createTime;
+    public Long lastModifiedTime;
   }
 
   /**
@@ -131,7 +136,7 @@ public interface MetaSource {
    * Get table names in given database
    *
    * @param databaseName Database name
-   * @return List of table names
+   * @return List of table names, include views
    * @throws Exception
    */
   List<String> listTables(String databaseName) throws Exception;

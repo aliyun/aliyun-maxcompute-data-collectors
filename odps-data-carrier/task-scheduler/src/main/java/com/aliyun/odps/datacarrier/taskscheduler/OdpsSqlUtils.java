@@ -31,8 +31,6 @@ import java.util.Map;
 
 public class OdpsSqlUtils {
 
-  public static final int ADD_PARTITION_BATCH_SIZE = 1000;
-
   public static String getDropTableStatement(String db, String tb) {
     return "DROP TABLE IF EXISTS " + db + ".`" + tb + "`;\n";
   }
@@ -157,9 +155,9 @@ public class OdpsSqlUtils {
       throw new IllegalArgumentException("Not a partitioned table");
     }
 
-    if (tableMetaModel.partitions.size() > ADD_PARTITION_BATCH_SIZE) {
+    if (tableMetaModel.partitions.size() > Constants.DEFAULT_PARTITION_BATCH_SIZE) {
       throw new IllegalArgumentException(
-          "Partition batch size exceeds upper bound: " + ADD_PARTITION_BATCH_SIZE);
+          "Partition batch size exceeds upper bound: " + Constants.DEFAULT_PARTITION_BATCH_SIZE);
     }
 
     StringBuilder sb = new StringBuilder();
@@ -197,9 +195,9 @@ public class OdpsSqlUtils {
       throw new IllegalArgumentException("Not a partitioned table");
     }
 
-    if (tableMetaModel.partitions.size() > ADD_PARTITION_BATCH_SIZE) {
+    if (tableMetaModel.partitions.size() > Constants.DEFAULT_PARTITION_BATCH_SIZE) {
       throw new IllegalArgumentException(
-          "Partition batch size exceeds upper bound: " + ADD_PARTITION_BATCH_SIZE);
+          "Partition batch size exceeds upper bound: " + Constants.DEFAULT_PARTITION_BATCH_SIZE);
     }
 
     StringBuilder sb = new StringBuilder();

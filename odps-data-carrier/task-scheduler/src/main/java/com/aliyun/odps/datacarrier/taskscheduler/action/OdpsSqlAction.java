@@ -18,7 +18,7 @@ abstract class OdpsSqlAction extends AbstractAction {
     setProgress(ActionProgress.RUNNING);
 
     this.future = ActionExecutorFactory
-        .getOdpsSqlExecutor()
+        .getOdpsExecutor()
         .execute(getSql(), getSettings(), id, (OdpsSqlActionInfo) actionInfo);
   }
 

@@ -2,7 +2,6 @@ package com.aliyun.odps.datacarrier.taskscheduler.action;
 
 import java.util.Map;
 
-import com.aliyun.odps.datacarrier.taskscheduler.MmaServer;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaServerConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.OdpsSqlUtils;
 

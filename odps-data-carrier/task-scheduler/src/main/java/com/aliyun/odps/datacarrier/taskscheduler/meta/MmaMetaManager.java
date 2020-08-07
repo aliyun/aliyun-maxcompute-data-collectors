@@ -23,10 +23,13 @@ import java.util.List;
 
 import com.aliyun.odps.datacarrier.taskscheduler.GsonUtils;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig;
+import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.DatabaseRestoreConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ObjectExportConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.ObjectRestoreConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 import com.aliyun.odps.datacarrier.taskscheduler.MmaException;
+
+import static com.aliyun.odps.datacarrier.taskscheduler.meta.MmaMetaManagerDbImplUtils.*;
 
 public interface MmaMetaManager {
 
@@ -90,7 +93,14 @@ public interface MmaMetaManager {
    */
   void addBackupJob(ObjectExportConfig config) throws MmaException;
 
-  void addRestoreJob(ObjectRestoreConfig config) throws MmaException;
+  void addObjectRestoreJob(ObjectRestoreConfig config) throws MmaException;
+
+  void addDatabaseRestoreJob(DatabaseRestoreConfig config) throws MmaException;
+
+  void mergeJobInfoIntoRestoreDB(RestoreTaskInfo taskInfo) throws MmaException;
+
+  void updateStatusInRestoreDB(RestoreTaskInfo taskInfo,
+                               MigrationStatus newStatus) throws MmaException;
 
   /**
    * Remove migration job of given table.
@@ -108,6 +118,8 @@ public interface MmaMetaManager {
    */
   boolean hasMigrationJob(String db, String tbl) throws MmaException;
 
+  JobInfo getMigrationJob(String db, String tbl) throws MmaException;
+
   /**
    * List migration jobs
    * @return all migration jobs
@@ -121,8 +133,11 @@ public interface MmaMetaManager {
    */
   List<MmaConfig.JobConfig> listMigrationJobs(
       MigrationStatus status,
-      int limit)
-      throws MmaException;
+      int limit) throws MmaException;
+
+  List<RestoreTaskInfo> listRestoreJobs(String condition, int limit) throws MmaException;
+
+  void removeRestoreJob(String uniqueId) throws MmaException;
 
   /**
    * Update the status of a migration job. If the new status is FAILED, but the failed times

@@ -11,7 +11,6 @@ import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.TableMigrationConfig;
 public class ActionExecutionContext {
 
   private TableMetaModel tableMetaModel = null;
-  private TableMigrationConfig tableMigrationConfig = null;
   private List<List<String>> sourceVerificationResult = null;
   private List<List<String>> destVerificationResult = null;
 
@@ -21,14 +20,6 @@ public class ActionExecutionContext {
 
   public void setTableMetaModel(TableMetaModel tableMetaModel) {
     this.tableMetaModel = tableMetaModel;
-  }
-
-  public TableMigrationConfig getTableMigrationConfig() {
-    return tableMigrationConfig;
-  }
-
-  public void setTableMigrationConfig(TableMigrationConfig tableMigrationConfig) {
-    this.tableMigrationConfig = tableMigrationConfig;
   }
 
   public List<List<String>> getSourceVerificationResult() {

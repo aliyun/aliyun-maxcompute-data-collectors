@@ -3,6 +3,7 @@ package com.aliyun.odps.datacarrier.taskscheduler;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.GetObjectRequest;
+import com.aliyun.oss.model.ListObjectsRequest;
 import com.aliyun.oss.model.OSSObject;
 import com.aliyun.oss.model.OSSObjectSummary;
 import com.aliyun.oss.model.ObjectListing;
@@ -85,11 +86,43 @@ public class OssUtils {
   public static List<String> listBucket(String prefix) {
     MmaConfig.OssConfig ossConfig = MmaServerConfig.getInstance().getOssConfig();
     OSS ossClient = createOssClient();
-    ObjectListing objectListing = ossClient.listObjects(ossConfig.getOssBucket(), prefix);
-    List<OSSObjectSummary> sums = objectListing.getObjectSummaries();
     ArrayList<String> allFiles = new ArrayList<>();
-    for (OSSObjectSummary s : sums) {
-      allFiles.add(s.getKey());
+    ListObjectsRequest listObjectsRequest = new ListObjectsRequest(ossConfig.getOssBucket());
+    listObjectsRequest.setMaxKeys(1000);
+    listObjectsRequest.setPrefix(prefix);
+    listObjectsRequest.setDelimiter("/");
+    while (true) {
+      ObjectListing objectListing = ossClient.listObjects(listObjectsRequest);
+      List<OSSObjectSummary> sums = objectListing.getObjectSummaries();
+      for (OSSObjectSummary s : sums) {
+        allFiles.add(s.getKey());
+      }
+      if (!objectListing.isTruncated()) {
+        break;
+      }
+      listObjectsRequest.setMarker(objectListing.getNextMarker());
+    }
+    return allFiles;
+  }
+
+  public static List<String> listBucket(String prefix, String delimiter) {
+    MmaConfig.OssConfig ossConfig = MmaServerConfig.getInstance().getOssConfig();
+    OSS ossClient = createOssClient();
+    ArrayList<String> allFiles = new ArrayList<>();
+    ListObjectsRequest listObjectsRequest = new ListObjectsRequest(ossConfig.getOssBucket());
+    listObjectsRequest.setMaxKeys(1000);
+    listObjectsRequest.setPrefix(prefix);
+    listObjectsRequest.setDelimiter(delimiter);
+    while (true) {
+      ObjectListing objectListing = ossClient.listObjects(listObjectsRequest);
+      for(String fullName : objectListing.getCommonPrefixes()) {
+        String[] splitResult = fullName.split(delimiter);
+        allFiles.add(splitResult[splitResult.length - 1]);
+      }
+      if (!objectListing.isTruncated()) {
+        break;
+      }
+      listObjectsRequest.setMarker(objectListing.getNextMarker());
     }
     return allFiles;
   }
@@ -106,6 +139,17 @@ public class OssUtils {
         .append(getFolderNameWithSeparator(database.toLowerCase()))
         .append(getFolderNameWithSeparator(objectName.toLowerCase()))
         .append(ossFileName);
+    return builder.toString();
+  }
+
+  public static String getOssFolderToExportObject(String taskName,
+                                                  String folderName,
+                                                  String database) {
+    StringBuilder builder = new StringBuilder();
+    builder.append(getFolderNameWithSeparator(EXPORT_OBJECT_ROOT_FOLDER))
+        .append(getFolderNameWithSeparator(taskName))
+        .append(getFolderNameWithSeparator(folderName))
+        .append(getFolderNameWithSeparator(database.toLowerCase()));
     return builder.toString();
   }
 

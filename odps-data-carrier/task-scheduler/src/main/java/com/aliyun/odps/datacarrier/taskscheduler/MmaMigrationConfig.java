@@ -107,6 +107,10 @@ public class MmaMigrationConfig implements MmaConfig.Config {
     return databaseExportConfigs;
   }
 
+  public List<MmaConfig.DatabaseRestoreConfig> getDatabaseRestoreConfigs() {
+    return databaseRestoreConfigs;
+  }
+
   public MmaConfig.AdditionalTableConfig getGlobalAdditionalTableConfig() {
     return globalAdditionalTableConfig;
   }

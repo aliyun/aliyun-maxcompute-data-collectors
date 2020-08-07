@@ -33,6 +33,7 @@ public class MmaServer {
         null,
         MetaSourceFactory.getMetaSource(),
         true);
+
     TaskProvider taskProvider = new TaskProvider(mmaMetaManager);
     taskScheduler = new TaskScheduler(taskProvider);
 

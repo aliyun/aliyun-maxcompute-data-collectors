@@ -3,7 +3,9 @@ package com.aliyun.odps.datacarrier.taskscheduler.action.executor;
 public class ActionExecutorFactory {
 
   private static HiveSqlExecutor hiveSqlExecutor = null;
-  private static OdpsExecutor odpsSqlExecutor = null;
+
+  // execute both OdpsSqlAction and OdpsNoSqlAction
+  private static OdpsExecutor odpsExecutor = null;
 
   public static HiveSqlExecutor getHiveSqlExecutor() {
     if (hiveSqlExecutor == null) {
@@ -13,12 +15,12 @@ public class ActionExecutorFactory {
     return hiveSqlExecutor;
   }
 
-  public static OdpsExecutor getOdpsSqlExecutor() {
-    if (odpsSqlExecutor == null) {
-      odpsSqlExecutor = new OdpsExecutor();
+  public static OdpsExecutor getOdpsExecutor() {
+    if (odpsExecutor == null) {
+      odpsExecutor = new OdpsExecutor();
     }
 
-    return odpsSqlExecutor;
+    return odpsExecutor;
   }
 
   public static void shutdown() {
@@ -26,8 +28,8 @@ public class ActionExecutorFactory {
       hiveSqlExecutor.shutdown();
     }
 
-    if (odpsSqlExecutor != null) {
-      odpsSqlExecutor.shutdown();
+    if (odpsExecutor != null) {
+      odpsExecutor.shutdown();
     }
   }
 }

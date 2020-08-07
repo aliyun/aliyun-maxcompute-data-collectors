@@ -15,20 +15,23 @@ public class OdpsRestorePartitionAction extends OdpsSqlAction {
 
   private String taskName;
   private String originProject;
+  private String originTableName;
   private String destinationProject;
-  private String tableName;
+  private String destinationTableName;
   private Map<String, String> settings;
 
   public OdpsRestorePartitionAction(String id, String taskName,
                                     String originProject,
+                                    String originTableName,
                                     String destinationProject,
-                                    String tableName,
+                                    String destinationTableName,
                                     Map<String, String> settings) {
     super(id);
     this.taskName = taskName;
     this.originProject = originProject;
+    this.originTableName = originTableName;
     this.destinationProject = destinationProject;
-    this.tableName = tableName;
+    this.destinationTableName = destinationTableName;
     this.settings = settings;
   }
 
@@ -38,19 +41,21 @@ public class OdpsRestorePartitionAction extends OdpsSqlAction {
       String ossFileName = OssUtils.getOssPathToExportObject(taskName,
           EXPORT_TABLE_FOLDER,
           originProject,
-          tableName,
+          originTableName,
           EXPORT_PARTITION_SPEC_FILE_NAME);
       String content = OssUtils.readFile(ossFileName);
       LOG.info("Meta file {}, content {}", ossFileName, content);
       StringBuilder builder = new StringBuilder();
       builder.append("ALTER TABLE\n");
-      builder.append(destinationProject).append(".`").append(tableName).append("`\n");
+      builder.append(destinationProject).append(".`").append(destinationTableName).append("`\n");
       builder.append(content);
       String sql = builder.toString();
-      LOG.info("Restore partitions for {} from {} to {} as {}", tableName, originProject, destinationProject, sql);
+      LOG.info("Restore partitions from {}.{} to {}.{} as {}",
+          originProject, originTableName, destinationProject, destinationTableName, sql);
       return sql;
     } catch (Exception e) {
-      LOG.error("Restore partitions for {} from {} to {} failed.", tableName, originProject, destinationProject, e);
+      LOG.error("Restore partitions from {}.{} to {}.{} failed.",
+          originProject, originTableName, destinationProject, destinationTableName, e);
     }
     return "";
   }

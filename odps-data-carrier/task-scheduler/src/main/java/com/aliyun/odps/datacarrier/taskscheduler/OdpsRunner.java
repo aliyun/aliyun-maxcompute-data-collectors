@@ -81,6 +81,7 @@ public class OdpsRunner extends AbstractTaskRunner {
         Map<String, String> hints = new HashMap<>();
         hints.put("odps.sql.type.system.odps2", "true");
         hints.put("odps.sql.allow.fullscan", "true");
+        hints.put("odps.sql.decimal.odps2", "true");
         switch (action) {
           case ODPS_DROP_TABLE:
           case ODPS_CREATE_TABLE:

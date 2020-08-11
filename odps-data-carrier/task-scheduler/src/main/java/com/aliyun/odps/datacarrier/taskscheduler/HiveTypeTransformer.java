@@ -96,7 +96,7 @@ public class HiveTypeTransformer implements TypeTransformer {
     } else if (hiveType.matches(DOUBLE)) {
       transformedType = "DOUBLE";
     } else if (hiveType.matches(DECIMAL)) {
-      transformedType = "DECIMAL";
+      transformedType = "DECIMAL(38,18)";
       risk = Risk.getInCompatibleTypeRisk(hiveType, transformedType,
                                           DECIMAL_INCOMPATIBILITY_REASON);
     } else if (hiveType.matches(TIMESTAMP)) {

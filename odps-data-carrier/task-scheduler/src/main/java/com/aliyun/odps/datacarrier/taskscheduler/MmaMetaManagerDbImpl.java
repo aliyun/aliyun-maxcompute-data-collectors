@@ -311,7 +311,14 @@ public class MmaMetaManagerDbImpl implements MmaMetaManager {
         if (jobInfo == null) {
           return;
         } else {
-          if (MigrationStatus.PENDING.equals(jobInfo.getStatus())) {
+          MigrationStatus status;
+          if (jobInfo.isPartitioned()) {
+            status = MmaMetaManagerDbImplUtils.inferPartitionedTableStatus(conn, db, tbl);
+          } else {
+            status = jobInfo.getStatus();
+          }
+
+          if (MigrationStatus.PENDING.equals(status)) {
             // Restart running job is not allowed
             MmaException e = MmaExceptionFactory.getRunningMigrationJobExistsException(db, tbl);
             LOG.error(e);

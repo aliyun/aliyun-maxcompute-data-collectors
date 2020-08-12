@@ -43,15 +43,18 @@ public class MmaServerMain {
   public static void main(String[] args)
       throws ParseException, IOException, MetaException, MmaException {
     BasicConfigurator.configure();
-    /*
-      Required options
-     */
+
+    String mmaHome = System.getenv("MMA_HOME");
+    if (mmaHome == null) {
+      throw new IllegalStateException("Environment variable 'MMA_HOME' not set");
+    }
+
     Option configOption = Option
         .builder(CONFIG_OPT)
         .longOpt(CONFIG_OPT)
         .argName(CONFIG_OPT)
         .hasArg()
-        .desc("MMA client configuration, required")
+        .desc("MMA server configuration path")
         .build();
 
     /*
@@ -76,8 +79,14 @@ public class MmaServerMain {
       System.exit(help(options));
     }
 
+    Path mmaServerConfigPath;
+    if (!cmd.hasOption(CONFIG_OPT)) {
+      mmaServerConfigPath = Paths.get(mmaHome, "conf", "mma_server_config.json");
+    } else {
+      mmaServerConfigPath = Paths.get(cmd.getOptionValue("config"));
+    }
+
     // Setup MmaServerConfig singleton
-    Path mmaServerConfigPath = Paths.get(cmd.getOptionValue("config"));
     MmaServerConfig.init(mmaServerConfigPath);
 
     // Setup MmaEventManager singleton

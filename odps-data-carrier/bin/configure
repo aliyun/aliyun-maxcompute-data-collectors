@@ -1,0 +1,209 @@
+#!/bin/bash
+
+CUR_DIR=$(pwd)
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+export MMA_HOME=$(dirname ${DIR})
+
+# directories
+HIVE_CONFIG_PATH="${MMA_HOME}/conf/hive_config.ini"
+MC_CONFIG_PATH="${MMA_HOME}/conf/odps_config.ini"
+
+# constants
+# hive metastore uri
+HIVE_METASTORE_URIS_PROMPT_ZH="请输入Hive metastore URI(s)"
+HIVE_METASTORE_URIS_HELP_ZH="见hive-site.xml中\"hive.metastore.uris\""
+HIVE_METASTORE_URIS_EXAMPLE="thrift://hostname:9083"
+# hive jdbc connection url
+HIVE_JDBC_CONN_URL_PROMPT_ZH="请输入Hive JDBC连接串"
+HIVE_JDBC_CONN_URL_HELP_ZH="即通常通过beeline使用Hive时输入的JDBC连接串, 前缀为jdbc:hive2"
+HIVE_JDBC_CONN_URL_EXAMPLE="jdbc:hive2://hostname:10000/default"
+# hive jdbc connection user
+HIVE_JDBC_CONN_USER_PROMPT_ZH="请输入Hive JDBC连接用户名"
+HIVE_JDBC_CONN_USER_HELP_ZH="即通常通过beeline使用Hive时输入的JDBC连接用户名, 默认值为Hive"
+HIVE_JDBC_CONN_USER_EXAMPLE="Hive"
+# hive jdbc connection password
+HIVE_JDBC_CONN_PW_PROMPT_ZH="请输入Hive JDBC连接密码"
+HIVE_JDBC_CONN_PW_HELP_ZH="即通常通过beeline使用Hive时输入的JDBC连接密码, 默认值为空"
+HIVE_JDBC_CONN_PW_EXAMPLE=""
+# mc endpoint
+MC_ENDPOINT_PROMPT_ZH="请输入MaxCompute endpoint"
+MC_ENDPOINT_HELP_ZH="目标MaxCompute project所在region的endpoint, 详见: https://help.aliyun.com/document_detail/34951.html"
+MC_ENDPOINT_EXAMPLE="http://service.cn-hangzhou.maxcompute.aliyun.com/api"
+# mc project name
+MC_PROJECT_NAME_PROMPT_ZH="请输入MaxCompute project名"
+MC_PROJECT_NAME_HELP_ZH="建议配置为目标MaxCompute project, 规避权限问题"
+MC_PROJECT_NAME_EXAMPLE=""
+# aliyun access id
+ALIYUN_ACCESS_ID_PROMPT_ZH="请输入阿里云accesskey id"
+ALIYUN_ACCESS_ID_HELP_ZH="详见: https://help.aliyun.com/document_detail/27803.html"
+ALIYUN_ACCESS_ID_EXAMPLE=""
+# aliyun access key
+ALIYUN_ACCESS_KEY_PROMPT_ZH="请输入阿里云accesskey secret"
+ALIYUN_ACCESS_KEY_HELP_ZH="详见: https://help.aliyun.com/document_detail/27803.html"
+ALIYUN_ACCESS_KEY_EXAMPLE=""
+
+function PRINTLN_STDERR()
+{
+  printf "${1}\n" 1>&2
+}
+
+function PRINT_STDERR_BOLD_BLUE()
+{
+  printf "\033[1;34m${1}\e[0m" 1 >&2
+}
+
+function PRINTLN_STDERR_BOLD_BLUE()
+{
+  printf "\033[1;34m${1}\n\e[0m" 1 >&2
+}
+
+function PRINTLN_STDERR_BOLD_YELLOW()
+{
+  printf "\033[1;33m${1}\n\e[0m" 1>&2
+}
+
+function GET_INPUT()
+{
+  QUESTION=$1
+  HELP=$2
+  EXAMPLE=$3
+  PRINTLN_STDERR ""
+  PRINTLN_STDERR_BOLD_BLUE "$QUESTION"
+  if [[ ${HELP} != "" ]]
+  then
+    PRINT_STDERR_BOLD_BLUE "HELP: "
+    PRINTLN_STDERR "${HELP}"
+  fi
+  if [[ ${EXAMPLE} != "" ]]
+  then
+    PRINT_STDERR_BOLD_BLUE "EXAMPLE: "
+    PRINTLN_STDERR "${EXAMPLE}"
+  fi
+  read -p ">" INPUT
+  echo ${INPUT}
+}
+
+function EXIT_ON_FAILURE() {
+    if [[ "$1" -ne 0 ]]
+    then
+      PRINTLN_STDERR_BOLD_RED "执行失败" && exit
+    else
+      PRINTLN_STDERR_BOLD_BLUE "执行成功"
+    fi
+}
+
+function CONFIGURE_HIVE_BASIC()
+{
+  HIVE_METASTORE_URIS=$(GET_INPUT \
+  "$HIVE_METASTORE_URIS_PROMPT_ZH" "$HIVE_METASTORE_URIS_HELP_ZH" "$HIVE_METASTORE_URIS_EXAMPLE")
+  echo "hms_thrift_addr=${HIVE_METASTORE_URIS}" >> ${HIVE_CONFIG_PATH}
+  HIVE_JDBC_CONN_URL=$(GET_INPUT \
+  "$HIVE_JDBC_CONN_URL_PROMPT_ZH" "$HIVE_JDBC_CONN_URL_HELP_ZH" "$HIVE_JDBC_CONN_URL_EXAMPLE")
+  echo "jdbc_connection_url=${HIVE_JDBC_CONN_URL}" >> ${HIVE_CONFIG_PATH}
+  HIVE_JDBC_CONN_USER=$(GET_INPUT \
+  "$HIVE_JDBC_CONN_USER_PROMPT_ZH" "$HIVE_JDBC_CONN_USER_HELP_ZH" "$HIVE_JDBC_CONN_USER_EXAMPLE")
+  echo "user=${HIVE_JDBC_CONN_USER}" >> ${HIVE_CONFIG_PATH}
+  HIVE_JDBC_CONN_PW=$(GET_INPUT \
+  "$HIVE_JDBC_CONN_PW_PROMPT_ZH" "$HIVE_JDBC_CONN_PW_HELP_ZH" "$HIVE_JDBC_CONN_PW_EXAMPLE")
+  echo "password=${HIVE_JDBC_CONN_PW}" >> ${HIVE_CONFIG_PATH}
+}
+
+function CONFIGURE_HIVE_SECURITY()
+{
+  # TODO
+  pass
+}
+
+function PRINT_CONFIGURE_HIVE_UDTF_GUIDANCE()
+{
+  PRINTLN_STDERR_BOLD_BLUE "上传MaxCompute配置文件至HDFS, 命令为: "
+  PRINTLN_STDERR "hdfs dfs -put -f ${MMA_HOME}/conf/odps_config.ini hdfs:///tmp/"
+  PRINTLN_STDERR_BOLD_BLUE "上传Hive UDTF jar包至HDFS, 命令为: "
+  PRINTLN_STDERR "hdfs dfs -put -f ${MMA_HOME}/lib/data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar hdfs:///tmp/"
+  PRINTLN_STDERR_BOLD_BLUE "创建Hive永久函数, 注意需要通过beeline创建, beeline中命令为: "
+  PRINTLN_STDERR "CREATE FUNCTION odps_data_dump_multi as 'com.aliyun.odps.datacarrier.transfer.OdpsDataTransferUDTF' USING JAR 'hdfs:///tmp/data-transfer-hive-udtf-1.0-SNAPSHOT-jar-with-dependencies.jar';"
+}
+
+function CONFIGURE_MC()
+{
+  MC_ENDPOINT=$(GET_INPUT "$MC_ENDPOINT_PROMPT_ZH" "$MC_ENDPOINT_HELP_ZH" "$MC_ENDPOINT_EXAMPLE")
+  echo "end_point=${MC_ENDPOINT}" >> ${MC_CONFIG_PATH}
+  MC_PROJECT_NAME=$(GET_INPUT \
+  "$MC_PROJECT_NAME_PROMPT_ZH" "$MC_PROJECT_NAME_HELP_ZH" "$MC_PROJECT_NAME_EXAMPLE")
+  echo "project_name=${MC_PROJECT_NAME}" >> ${MC_CONFIG_PATH}
+  ALIYUN_ACCESS_ID=$(GET_INPUT \
+  "$ALIYUN_ACCESS_ID_PROMPT_ZH" "$ALIYUN_ACCESS_ID_HELP_ZH" "$ALIYUN_ACCESS_ID_EXAMPLE")
+  echo "access_id=${ALIYUN_ACCESS_ID}" >> ${MC_CONFIG_PATH}
+  ALIYUN_ACCESS_KEY=$(GET_INPUT \
+  "$ALIYUN_ACCESS_KEY_PROMPT_ZH" "$ALIYUN_ACCESS_KEY_HELP_ZH" "$ALIYUN_ACCESS_KEY_EXAMPLE")
+  echo "access_key=${ALIYUN_ACCESS_KEY}" >> ${MC_CONFIG_PATH}
+}
+
+# Hive basic configurations
+PRINTLN_STDERR_BOLD_YELLOW "开始Hive配置"
+if [[ -f ${HIVE_CONFIG_PATH} ]]
+then
+  while true; do
+    DELETE=$(GET_INPUT "Hive配置文件已存在, 是否跳过 (Y/N)" "" "")
+    case ${DELETE} in
+      [Yy]) break;;
+      [Nn]) rm -rf ${HIVE_CONFIG_PATH}; touch ${HIVE_CONFIG_PATH}; CONFIGURE_HIVE_BASIC; break;;
+      *) PRINTLN_STDERR "请输入'Y'或'N'";;
+    esac
+  done
+else
+  touch ${HIVE_CONFIG_PATH}
+  CONFIGURE_HIVE_BASIC
+fi
+
+# Hive security configurations
+while true; do
+  HAS_SECURITY_CONFIG=$(GET_INPUT "是否有Kerberos配置 (Y/N)" "" "")
+  case ${HAS_SECURITY_CONFIG} in
+    [Yy]) CONFIGURE_HIVE_SECURITY; break;;
+    [Nn]) break;;
+    *) PRINTLN_STDERR "请输入'Y'或'N'";;
+  esac
+done
+
+# MaxCompute configurations
+PRINTLN_STDERR ""
+PRINTLN_STDERR_BOLD_YELLOW "开始MaxCompute配置"
+if [[ -f ${MC_CONFIG_PATH} ]]
+then
+  while true; do
+    DELETE=$(GET_INPUT "MaxCompute配置文件已存在, 是否跳过 (Y/N)" "" "")
+    case ${DELETE} in
+      [Yy]) break;;
+      [Nn]) rm -rf ${MC_CONFIG_PATH}; touch ${MC_CONFIG_PATH}; CONFIGURE_MC; break;;
+      *) PRINTLN_STDERR "请输入'Y'或'N'";;
+    esac
+  done
+else
+  touch ${MC_CONFIG_PATH}
+  CONFIGURE_MC
+fi
+
+PRINTLN_STDERR ""
+PRINTLN_STDERR_BOLD_YELLOW "正在生成MMA配置"
+cd ${MMA_HOME}/conf/
+sh ${MMA_HOME}/bin/generate-config -s \
+    --hive_config ${MMA_HOME}/conf/hive_config.ini \
+    --odps_config ${MMA_HOME}/conf/odps_config.ini > /dev/null 2>&1
+EXIT_ON_FAILURE $?
+cp ${MMA_HOME}/conf/mma_server_config.json ${MMA_HOME}/conf/mma_client_config.json
+PRINTLN_STDERR_BOLD_YELLOW "MMA server默认配置路径: ${MMA_HOME}/conf/mma_server_config.json"
+PRINTLN_STDERR_BOLD_YELLOW "MMA client默认配置路径: ${MMA_HOME}/conf/mma_client_config.json"
+
+PRINTLN_STDERR ""
+PRINTLN_STDERR_BOLD_YELLOW "创建数据传输所需Hive UDTF, 以下命令需要您手动执行"
+PRINT_CONFIGURE_HIVE_UDTF_GUIDANCE
+
+while true; do
+  FINISHED=$(GET_INPUT "请确认是否已创建Hive UDTF (Y/N)" "" "")
+  case ${FINISHED} in
+    [Yy]) PRINTLN_STDERR ""; PRINTLN_STDERR_BOLD_YELLOW "配置完成"; break;;
+    [Nn]) ;;
+    *) PRINTLN_STDERR "请输入'Y'或'N'";;
+  esac
+done

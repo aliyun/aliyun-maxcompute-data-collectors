@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration>
     <Appenders>
-        <RollingFile name="ServerLogFile" fileName="${env:MMA_HOME}log/mma_server.LOG"
-                     filePattern="${env:MMA_HOME}log/mma_server.LOG.%i.gz">
+        <RollingFile name="ServerLogFile" fileName="${env:MMA_HOME}/log/mma_server.LOG"
+                     filePattern="${env:MMA_HOME}/log/mma_server.LOG.%i.gz">
             <PatternLayout>
                 <!-- 2019-03-01 20:57:25,271 INFO  [main] app.DagAppMaster (DagAppMaster.java:<init>(337)) - Log example. -->
                 <Pattern>%d{DEFAULT} %-5p [%t] %c{2} (%F:%M(%L)) - %m%n</Pattern>
@@ -16,8 +16,8 @@
         <Async name="ServerLoggerAppender" bufferSize="100000" blocking="false" includeLocation="true">
             <AppenderRef ref="ServerLogFile"/>
         </Async>
-        <RollingFile name="RunnerLogFile" fileName="${env:MMA_HOME}log/task_runner.LOG"
-                     filePattern="${env:MMA_HOME}log/task_runner.LOG.%i.gz">
+        <RollingFile name="RunnerLogFile" fileName="${env:MMA_HOME}/log/task_runner.LOG"
+                     filePattern="${env:MMA_HOME}/log/task_runner.LOG.%i.gz">
             <PatternLayout>
                 <!-- Only print the original message. -->
                 <Pattern>%m%n</Pattern>

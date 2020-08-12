@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration>
     <Appenders>
-        <RollingFile name="ClientLoggerAppender" fileName="${env:MMA_HOME}log/mma_client.LOG"
-                     filePattern="${env:MMA_HOME}log/mma_client.LOG.%i.gz" immediateFlush="true">
+        <RollingFile name="ClientLoggerAppender" fileName="${env:MMA_HOME}/log/mma_client.LOG"
+                     filePattern="${env:MMA_HOME}/log/mma_client.LOG.%i.gz" immediateFlush="true">
             <PatternLayout>
                 <!-- 2019-03-01 20:57:25,271 INFO  [main] app.DagAppMaster (DagAppMaster.java:<init>(337)) - Log example. -->
                 <Pattern>%d{DEFAULT} %-5p [%t] %c{2} (%F:%M(%L)) - %m%n</Pattern>

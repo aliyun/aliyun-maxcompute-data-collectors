@@ -50,6 +50,8 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.log4j.BasicConfigurator;
 import org.apache.tools.ant.filters.StringInputStream;
 
 import com.aliyun.odps.datacarrier.taskscheduler.MmaConfig.AdditionalTableConfig;
@@ -270,11 +272,13 @@ public class MmaConfigUtils {
                                DEFAULT_ADDITIONAL_TABLE_CONFIG);
 
     DirUtils.writeFile(Paths.get("mma_server_config.json"), mmaServerConfig.toJson());
-//    DirUtils.writeFile(Paths.get("mma_client_config.json"), mmaClientConfig.toJson());
+    DirUtils.writeFile(Paths.get("mma_client_config.json"), mmaServerConfig.toJson());
     DirUtils.writeFile(Paths.get("mma_migration_config.json"), mmaMigrationConfig.toJson());
   }
 
   public static void main(String[] args) throws Exception {
+    BasicConfigurator.configure();
+
     Option helpOption = Option
         .builder("h")
         .longOpt(HELP)
@@ -287,13 +291,6 @@ public class MmaConfigUtils {
         .longOpt("sample")
         .hasArg(false)
         .desc("generate sample server, client and migration configs")
-        .build();
-
-    Option clientOption = Option
-        .builder("c")
-        .longOpt("to_client_config")
-        .hasArg(false)
-        .desc("convert hive_config.ini specified by '--hive_config' to mma client config")
         .build();
 
     Option serverOption = Option
@@ -346,7 +343,6 @@ public class MmaConfigUtils {
     Options options = new Options()
         .addOption(helpOption)
         .addOption(sampleOption)
-        .addOption(clientOption)
         .addOption(serverOption)
         .addOption(migrationOption)
         .addOption(hiveConfigOption)
@@ -370,14 +366,6 @@ public class MmaConfigUtils {
     String prefix = "";
     if (cmd.hasOption("prefix")) {
       prefix = cmd.getOptionValue("prefix").trim();
-    }
-
-    if (cmd.hasOption("to_client_config")) {
-      if (!cmd.hasOption("hive_config")) {
-        throw new IllegalArgumentException("Requires '--hive_config'");
-      }
-
-//      generateMmaClientConfig(Paths.get(cmd.getOptionValue("hive_config")), prefix);
     }
 
     if (cmd.hasOption("to_server_config")) {

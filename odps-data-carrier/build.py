@@ -85,7 +85,8 @@ if __name__ == '__main__':
     shutil.copyfile("bin/mma-server", "odps-data-carrier/bin/mma-server")
     shutil.copyfile("bin/mma-client", "odps-data-carrier/bin/mma-client")
     shutil.copyfile("bin/generate-config", "odps-data-carrier/bin/generate-config")
-    shutil.copyfile("bin/hive_to_mc_quickstart", "odps-data-carrier/bin/hive_to_mc_quickstart")
+    shutil.copyfile("bin/configure", "odps-data-carrier/bin/configure")
+    shutil.copyfile("bin/quickstart", "odps-data-carrier/bin/quickstart")
 
     # lib
     task_scheduler_jar_name = "task-scheduler-1.0-SNAPSHOT.jar"
@@ -95,9 +96,9 @@ if __name__ == '__main__':
                     "odps-data-carrier/lib/" + udtf_jar_name)
 
     # conf
-    shutil.copyfile("odps_config.ini", "odps-data-carrier/conf/odps_config.ini")
-    shutil.copyfile("oss_config.ini", "odps-data-carrier/conf/oss_config.ini")
-    shutil.copyfile("hive_config.ini", "odps-data-carrier/conf/hive_config.ini")
+    shutil.copyfile("odps_config.ini.template", "odps-data-carrier/conf/odps_config.ini.template")
+    shutil.copyfile("oss_config.ini.template", "odps-data-carrier/conf/oss_config.ini.template")
+    shutil.copyfile("hive_config.ini.template", "odps-data-carrier/conf/hive_config.ini.template")
     shutil.copyfile("table_mapping.txt", "odps-data-carrier/conf/table_mapping.txt")
 
     # res

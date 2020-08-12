@@ -230,7 +230,6 @@ public class MmaClientMain {
    */
   private static int list(MmaClient client, String statusStr) {
     MmaMetaManager.MigrationStatus status;
-    // TODO: list all should output migration job along with its status
     if ("ALL".equalsIgnoreCase(statusStr)) {
       status = null;
     } else {
@@ -276,15 +275,18 @@ public class MmaClientMain {
 
   public static void main(String[] args) throws ParseException, IOException, MetaException {
     BasicConfigurator.configure();
-    /*
-      Required options
-     */
+
+    String mmaHome = System.getenv("MMA_HOME");
+    if (mmaHome == null) {
+      throw new IllegalStateException("Environment variable 'MMA_HOME' not set");
+    }
+
     Option configOption = Option
         .builder(CONFIG_OPT)
         .longOpt(CONFIG_OPT)
         .argName(CONFIG_OPT)
         .hasArg()
-        .desc("MMA client configuration, required")
+        .desc("MMA client configuration")
         .build();
     /*
       Sub commands, mutually exclusive
@@ -351,11 +353,13 @@ public class MmaClientMain {
       System.exit(help(options));
     }
 
+    Path mmaClientConfigFilePath;
     if (!cmd.hasOption(CONFIG_OPT)) {
-      throw new IllegalArgumentException("Required argument 'config'");
+      mmaClientConfigFilePath = Paths.get(mmaHome, "conf", "mma_client_config.json");
+    } else {
+      mmaClientConfigFilePath = Paths.get(cmd.getOptionValue(CONFIG_OPT));
     }
 
-    Path mmaClientConfigFilePath = Paths.get(cmd.getOptionValue(CONFIG_OPT));
     MmaServerConfig.init(mmaClientConfigFilePath);
 
     // Check if more than one sub command is given

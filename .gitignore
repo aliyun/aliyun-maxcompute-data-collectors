@@ -6,3 +6,4 @@
 target/
 .DS_Store
 *.pyc
+presto-connector/dependency-reduced-pom.xml

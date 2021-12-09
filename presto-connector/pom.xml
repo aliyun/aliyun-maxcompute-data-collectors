@@ -50,7 +50,7 @@
     <properties>
         <dep.airlift.version>0.187</dep.airlift.version>
         <dep.presto.version>0.229</dep.presto.version>
-        <dep.jackson.version>2.9.8</dep.jackson.version>
+        <dep.jackson.version>2.9.10.8</dep.jackson.version>
     </properties>
 
     <dependencies>

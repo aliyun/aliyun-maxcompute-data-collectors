@@ -11,21 +11,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.presto;
+package com.aliyun.odps.cupid.trino;
 
-import com.facebook.presto.spi.ConnectorInsertTableHandle;
-import com.facebook.presto.spi.ConnectorOutputTableHandle;
-import com.facebook.presto.spi.ConnectorPageSink;
-import com.facebook.presto.spi.ConnectorSession;
-import com.facebook.presto.spi.PageSinkProperties;
-import com.facebook.presto.spi.PrestoException;
-import com.facebook.presto.spi.connector.ConnectorPageSinkProvider;
-import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import io.trino.spi.TrinoException;
+import io.trino.spi.connector.*;
 
 import javax.inject.Inject;
 
-import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
 import static com.google.common.base.Preconditions.checkArgument;
+import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static java.util.Objects.requireNonNull;
 
 public class OdpsPageSinkProvider
@@ -38,15 +32,15 @@ public class OdpsPageSinkProvider
     }
 
     @Override
-    public ConnectorPageSink createPageSink(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorOutputTableHandle outputTableHandle, PageSinkProperties pageSinkProperties)
+    public ConnectorPageSink createPageSink(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorOutputTableHandle outputTableHandle)
     {
-        throw new PrestoException(NOT_SUPPORTED, "This connector does not support create table insert type");
+        throw new TrinoException(NOT_SUPPORTED, "This connector does not support create table insert type");
     }
 
     @Override
-    public ConnectorPageSink createPageSink(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorInsertTableHandle insertTableHandle, PageSinkProperties pageSinkProperties)
+    public ConnectorPageSink createPageSink(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorInsertTableHandle insertTableHandle)
     {
-        checkArgument(!pageSinkProperties.isPartitionCommitRequired(), "Odps connector does not support partition commit");
+//        checkArgument(!pageSinkProperties.isPartitionCommitRequired(), "Odps connector does not support partition commit");
         requireNonNull(insertTableHandle, "insertTableHandle is null");
         checkArgument(insertTableHandle instanceof OdpsInsertTableHandle, "insertTableHandle is not an instance of KuduInsertTableHandle");
         OdpsInsertTableHandle handle = (OdpsInsertTableHandle) insertTableHandle;

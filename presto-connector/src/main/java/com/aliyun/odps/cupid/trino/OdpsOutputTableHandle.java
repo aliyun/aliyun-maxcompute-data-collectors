@@ -1,8 +1,8 @@
-package com.aliyun.odps.cupid.presto;
+package com.aliyun.odps.cupid.trino;
 
-import com.facebook.presto.spi.ConnectorOutputTableHandle;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.trino.spi.connector.ConnectorOutputTableHandle;
 
 import java.util.List;
 

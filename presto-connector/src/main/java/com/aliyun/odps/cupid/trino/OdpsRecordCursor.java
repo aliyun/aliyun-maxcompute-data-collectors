@@ -11,19 +11,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.presto;
+package com.aliyun.odps.cupid.trino;
 
 import com.aliyun.odps.cupid.table.v1.reader.InputSplit;
 import com.aliyun.odps.cupid.table.v1.reader.SplitReader;
 import com.aliyun.odps.data.ArrayRecord;
 import com.aliyun.odps.data.Char;
 import com.aliyun.odps.data.Varchar;
-import com.facebook.presto.spi.RecordCursor;
-import com.facebook.presto.spi.type.DecimalType;
-import com.facebook.presto.spi.type.Decimals;
-import com.facebook.presto.spi.type.Type;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
+import io.trino.spi.connector.RecordCursor;
+import io.trino.spi.type.DecimalType;
+import io.trino.spi.type.Decimals;
+import io.trino.spi.type.Type;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -33,15 +33,11 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static com.facebook.presto.spi.type.BigintType.BIGINT;
-import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
-import static com.facebook.presto.spi.type.Chars.isCharType;
-import static com.facebook.presto.spi.type.Chars.truncateToLengthAndTrimSpaces;
-import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
-import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharType;
-import static com.facebook.presto.spi.type.Varchars.isVarcharType;
-import static com.facebook.presto.spi.type.Varchars.truncateToLength;
 import static com.google.common.base.Preconditions.checkArgument;
+import static io.trino.spi.type.BooleanType.BOOLEAN;
+import static io.trino.spi.type.Chars.truncateToLengthAndTrimSpaces;
+import static io.trino.spi.type.DoubleType.DOUBLE;
+import static io.trino.spi.type.Varchars.truncateToLength;
 import static java.lang.Float.floatToRawIntBits;
 
 public class OdpsRecordCursor
@@ -66,8 +62,7 @@ public class OdpsRecordCursor
     Object getValueInternal(int field) {
         if (field < record.getColumnCount() && !isZeroColumn) {
             return record.get(field);
-        }
-        return odpsInputSplit.getPartitionSpec().get(columnHandles.get(field).getName());
+        }return odpsInputSplit.getPartitionSpec().get(columnHandles.get(field).getName());
     }
 
     @Override
@@ -111,15 +106,16 @@ public class OdpsRecordCursor
     {
         Type columnType = columnHandles.get(field).getType();
         Object value = getValueInternal(field);
+
         if (value instanceof Timestamp) {
             return ((Timestamp) value).getTime();
         } else if (value instanceof Date) {
             long storageTime = ((Date) value).getTime();
-            // convert date from VM current time zone to UTC
             long utcMillis = storageTime + DateTimeZone.getDefault().getOffset(storageTime);
             return TimeUnit.MILLISECONDS.toDays(utcMillis);
         } else if (value instanceof java.util.Date) {
-            return ((java.util.Date)value).getTime();
+            //for trino-364 timestamp type,odps datetime type must turn to microsecond.
+            return ((java.util.Date)value).getTime()*1000;
         } else if (value instanceof Integer) {
             return (Integer) value;
         } else if (value instanceof Short) {

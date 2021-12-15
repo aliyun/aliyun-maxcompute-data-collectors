@@ -11,21 +11,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.presto;
+package com.aliyun.odps.cupid.trino;
 
-import com.facebook.airlift.bootstrap.LifeCycleManager;
-import com.facebook.airlift.log.Logger;
-import com.facebook.presto.spi.connector.Connector;
-import com.facebook.presto.spi.connector.ConnectorMetadata;
-import com.facebook.presto.spi.connector.ConnectorPageSinkProvider;
-import com.facebook.presto.spi.connector.ConnectorRecordSetProvider;
-import com.facebook.presto.spi.connector.ConnectorSplitManager;
-import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
-import com.facebook.presto.spi.transaction.IsolationLevel;
+
+import io.airlift.bootstrap.LifeCycleManager;
+import io.airlift.log.Logger;
+import io.trino.spi.connector.*;
+import io.trino.spi.transaction.IsolationLevel;
 
 import javax.inject.Inject;
 
-import static com.aliyun.odps.cupid.presto.OdpsTransactionHandle.INSTANCE;
+import static com.aliyun.odps.cupid.trino.OdpsTransactionHandle.INSTANCE;
 import static java.util.Objects.requireNonNull;
 
 public class OdpsConnector

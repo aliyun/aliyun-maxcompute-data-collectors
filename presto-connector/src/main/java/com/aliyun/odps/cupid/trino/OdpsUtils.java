@@ -1,28 +1,9 @@
-package com.aliyun.odps.cupid.presto;
+package com.aliyun.odps.cupid.trino;
 
 import com.aliyun.odps.Column;
-import com.aliyun.odps.data.Varchar;
-import com.aliyun.odps.type.CharTypeInfo;
-import com.aliyun.odps.type.DecimalTypeInfo;
-import com.aliyun.odps.type.TypeInfo;
-import com.aliyun.odps.type.TypeInfoFactory;
-import com.aliyun.odps.type.VarcharTypeInfo;
-import com.facebook.presto.spi.PrestoException;
-import com.facebook.presto.spi.type.BigintType;
-import com.facebook.presto.spi.type.BooleanType;
-import com.facebook.presto.spi.type.CharType;
-import com.facebook.presto.spi.type.DateType;
-import com.facebook.presto.spi.type.DecimalType;
-import com.facebook.presto.spi.type.DoubleType;
-import com.facebook.presto.spi.type.IntegerType;
-import com.facebook.presto.spi.type.RealType;
-import com.facebook.presto.spi.type.SmallintType;
-import com.facebook.presto.spi.type.TimeType;
-import com.facebook.presto.spi.type.TimestampType;
-import com.facebook.presto.spi.type.TinyintType;
-import com.facebook.presto.spi.type.Type;
-import com.facebook.presto.spi.type.VarbinaryType;
-import com.facebook.presto.spi.type.VarcharType;
+import com.aliyun.odps.type.*;
+import io.trino.spi.TrinoException;
+import io.trino.spi.type.*;
 
 public class OdpsUtils {
     public static OdpsColumnHandle buildOdpsColumn(Column col) {
@@ -82,7 +63,7 @@ public class OdpsUtils {
                 prestoType = BooleanType.BOOLEAN;
                 break;
             default:
-                throw new PrestoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, "unsupported type: " + col.getTypeInfo().getTypeName());
+                throw new TrinoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, "unsupported type: " + col.getTypeInfo().getTypeName());
 
         }
         return new OdpsColumnHandle(col.getName(), prestoType, isStringType);
@@ -107,7 +88,7 @@ public class OdpsUtils {
         } else if (type instanceof CharType) {
             return TypeInfoFactory.getCharTypeInfo(((CharType) type).getLength());
         } else if (type instanceof VarcharType) {
-            int length = ((VarcharType) type).getLength();
+            int length = ((VarcharType) type).getLength().get();
             if (length > 0xffff) {
                 // exceeds the max length of odps varchar, use string instead
                 return TypeInfoFactory.STRING;

@@ -11,11 +11,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.presto;
+package com.aliyun.odps.cupid.trino;
 
-import com.facebook.presto.spi.Plugin;
-import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.google.common.collect.ImmutableList;
+import io.trino.spi.Plugin;
+import io.trino.spi.connector.ConnectorFactory;
 
 public class OdpsPlugin implements Plugin
 {

@@ -1,4 +1,5 @@
 
+
 Presto-ODPS Connector作为Presto的一个Plugin，可以支持通过Presto SQL来访问Odps表的数据，并且可以结合其他Catalog的数据进行联邦查询，下面将介绍下这个Plugin的部署和使用。
 
 ## 部署步骤
@@ -17,6 +18,9 @@ tar zxvf presto-server-0.229.tar.gz
 2、编译并部署Presto-ODPS Connector的Plugin jar包
 
 ```shell
+# 切换到presto-0.229版本connector
+git checkout presto-0.229
+
 # 进入presto-connector项目根目录
 cd ${workspace}/presto-connector
 

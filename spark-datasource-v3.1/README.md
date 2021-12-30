@@ -63,9 +63,9 @@ cd ${SPARK_HOME}
 ```shell
 ./bin/spark-submit \
     --master local \
-    --jars ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
+    --jars ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
     --class DataReaderTest \
-    ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
+    ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
     ${maxcompute-project-name} \
     ${aliyun-access-key-id} \
     ${aliyun-access-key-secret} \
@@ -74,9 +74,9 @@ cd ${SPARK_HOME}
 #example
 ./bin/spark-submit \
     --master local \
-    --jars ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
+    --jars ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
     --class DataReaderTest \
-    ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
+    ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
     test_project \
     ${aliyun-access-key-id} \
     ${aliyun-access-key-secret} \
@@ -88,9 +88,9 @@ cd ${SPARK_HOME}
 ```shell
 ./bin/spark-submit \
     --master local \
-    --jars ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
+    --jars ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
     --class DataWriterTest \
-    ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
+    ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
     ${maxcompute-project-name} \
     ${aliyun-access-key-id} \
     ${aliyun-access-key-secret} \
@@ -100,9 +100,9 @@ cd ${SPARK_HOME}
 # example
 ./bin/spark-submit \
     --master local \
-    --jars ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
+    --jars ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-jar-with-dependencies.jar,${project.dir}/spark-datasource-v2.3/libs/cupid-table-api-1.1.5-SNAPSHOT.jar,${project.dir}/spark-datasource-v2.3/libs/table-api-tunnel-impl-1.1.5-SNAPSHOT.jar \
     --class DataWriterTest \
-    ${project.dir}/spark-datasource-v2.3/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
+    ${project.dir}/spark-datasource-v3.1/target/spark-datasource-1.0-SNAPSHOT-tests.jar \
     test_project \
     ${aliyun-access-key-id} \
     ${aliyun-access-key-secret} \

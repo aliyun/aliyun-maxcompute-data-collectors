@@ -26,8 +26,6 @@ import scala.collection.JavaConverters._
   * @date 2021-12-21
   */
 class PartitionWriterFactory(dynamicInsert: Boolean, writeSessionInfo: WriteSessionInfo) extends DataWriterFactory[Row] {
-  val secret = "LTAI5tQPxJJJDRhx5HB1SfW5"
-
   override def createDataWriter(partitionId: Int, attemptNumber: Int): DataWriter[Row] = {
     val writeSession =
       new TableWriteSessionBuilder(writeSessionInfo.getProvider, writeSessionInfo.getProject, writeSessionInfo.getTable)

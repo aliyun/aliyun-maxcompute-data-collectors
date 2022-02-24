@@ -42,6 +42,7 @@
         <module>common</module>
         <module>presto-connector</module>
         <module>cupid-table-api</module>
+        <module>table-api-tunnel-impl</module>
     </modules>
 
     <build>

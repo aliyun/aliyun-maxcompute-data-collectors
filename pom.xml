@@ -41,6 +41,7 @@
         <module>odps-sqoop</module>
         <module>common</module>
         <module>presto-connector</module>
+        <module>cupid-table-api</module>
     </modules>
 
     <build>

@@ -6,10 +6,11 @@ Flink connector odps 为开源Flink引擎读写odps表提供支持，主要包�
 - 提供OdpsDynamicTableFactory，支持通过Table Api和SQL读写Odps Table
 - 提供OdpsCatalog，支持直接创建/删除/查看Odps Table，以及通过SQL读写Odps Table
 - 写入模式的支持如下表，批模式下数据在所有Task完成后可见，流模式下数据会定时Append到Table中
-|  | 模式 | 动态分区 | 写入模式 |
-| --- | --- | --- | --- |
-| 在自建集群运行 | 批模式 | 不支持动态分区 | 支持Overwrite和Append |
-|  | 流模式 | 支持动态分区 | 只支持Append |
+
+| 模式 | 动态分区 | 写入模式 |
+| --- | --- | --- |
+| 批模式 | 不支持动态分区 | 支持Overwrite和Append |
+| 流模式 | 支持动态分区 | 只支持Append |
 
 
 
@@ -89,6 +90,7 @@ ON myTopic.key = MyUserTable.id;
 ### 数据类型映射
 
 - Flink类型与Odps类型的映射如下表
+
 | Flink Data Type | Odps Data Type |
 | --- | --- |
 | CHAR(p) | CHAR(p) |
@@ -120,8 +122,7 @@ ON myTopic.key = MyUserTable.id;
 ### Connector参数
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
-| ##### connector
- | connector类型，需要设置为odps | 无默认值 |
+| connector| connector类型，需要设置为odps | 无默认值 |
 | odps.project.name | ODPS Project名称 | 无默认值 |
 | odps.access.id | ODPS Access Id | 无默认值 |
 | odps.access.key | ODPS Access Key | 无默认值 |
@@ -134,8 +135,7 @@ ON myTopic.key = MyUserTable.id;
 | lookup.max-retrie | Lookup 读取数据最大重试次数 | 3 |
 | sink.buffer-flush.max-size | 流式写入参数，flush 前缓存记录的最大值，可以设置为 '0' 来禁用它 | 16mb |
 | sink.buffer-flush.max-rows | 流式写入参数，flush 前缓存记录的最大行数，可以设置为 '0' 来禁用它 | 1000 |
-| sink.buffer-flush.interval | 流式写入参数，flush 间隔时间，超过该时间后异步线程将 flush 数据。可以设置为 '0' 来禁用它。注意, 为了完全异步地处理缓存的 flush 事件，可以将 'sink.buffer-flush.max-rows' 和'
-sink.buffer-flush.max-size'设置为 '0' 并配置适当的 flush 时间间隔 | 300s |
+| sink.buffer-flush.interval | 流式写入参数，flush 间隔时间，超过该时间后异步线程将 flush 数据。可以设置为 '0' 来禁用它。注意, 为了完全异步地处理缓存的 flush 事件，可以将 'sink.buffer-flush.max-rows' 和'sink.buffer-flush.max-size'设置为 '0' 并配置适当的 flush 时间间隔 | 300s |
 | sink.dynamic-partition.limit | 动态分区写入时，单个Task可同时写的分区数量 | 20 |
 | sink.parallelism | 写入的并行度，如果不设置，则默认使用上游数据并行度 | 无默认值 |
 | sink.max-retries | 写入记录到ODPS失败后的最大重试次数 | 3 |
@@ -147,6 +147,7 @@ sink.buffer-flush.max-size'设置为 '0' 并配置适当的 flush 时间间隔 |
    - OdpsCatalog不支持临时表，通过OdpsCatalog创建的表均为Odps物理表
    - 不支持表属性
 - Flink Catalog 和 Odps 之间的映射如下：
+
 | Flink Catalog Metaspace Structure | Odps Metaspace Structure |
 | --- | --- |
 | catalog name (defined in Flink only) | N/A |

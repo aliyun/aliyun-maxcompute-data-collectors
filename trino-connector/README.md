@@ -2,6 +2,7 @@
 
 ## 部署步骤
 Trino的部署可以参考官方文档：https://trino.io/docs/current/installation/deployment.html 为了简单起见，下面以部署一个单节点Trino Cluster为例来看下如何在Trino中加入Odps Connector。
+
 1、下载364的Trino版本（当前只在该版本验证过，相近版本应该也是可以支持的）：
 
 ```shell

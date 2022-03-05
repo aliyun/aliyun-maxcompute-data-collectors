@@ -1,4 +1,4 @@
-2020年12月27日[Presto SQL更名](https://trino.io/blog/2020/12/27/announcing-trino.html)为Trino。 trino-Odps Connector作为trino的一个Plugin，可以支持通过trino SQL来访问Odps表的数据，并且可以结合其他Catalog的数据进行联邦查询，下面将介绍下这个Plugin的部署和使用。
+2020年12月27日[Presto SQL更名](https://trino.io/blog/2020/12/27/announcing-trino.html)为Trino。 Trino-Odps Connector作为Trino的一个Plugin，可以支持通过Trino SQL来访问Odps表的数据，并且可以结合其他Catalog的数据进行联邦查询，下面将介绍下这个Plugin的部署和使用。
 
 ## 部署步骤
 Trino的部署可以参考官方文档：https://trino.io/docs/current/installation/deployment.html 为了简单起见，下面以部署一个单节点Trino Cluster为例来看下如何在Trino中加入Odps Connector。
@@ -119,7 +119,7 @@ export PATH=${JAVA_HOME}:$PATH
 
 上面这些配置都完成后，就可以启动Trino了。
 
-- bin/launcher start 这样会把Presto放到后台运行
+- bin/launcher start 这样会把Trino放到后台运行
 - bin/launcher run 这样是在前台运行
 
 ## 使用方式

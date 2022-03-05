@@ -13,7 +13,7 @@ there was an [improvement proposal](https://docs.google.com/document/d/1DDXCTCru
 
 ## 1 Introduction to spark-datasource-v3.1
 
-![spark-datasource-description](./doc-images/spark_datasource_description.jpg)
+![spark-datasource-description](./doc-images/spark_datasource_description-en.jpg)
 
 The content of the module is shown in the figure above. spark-datasource-v3.1 only contains the red background module, and the green background module needs to be prepared by the user. The dependencies between modules are: the upper module will depend on the lower module. The introduction of each module is as follows.
 

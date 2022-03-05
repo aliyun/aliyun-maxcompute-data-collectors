@@ -11,10 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
-
-import io.airlift.configuration.Config;
+import com.facebook.airlift.configuration.Config;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -11,42 +11,66 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
 import com.aliyun.odps.cupid.table.v1.writer.TableWriteSession;
 import com.aliyun.odps.cupid.table.v1.writer.TableWriteSessionBuilder;
 import com.aliyun.odps.cupid.table.v1.writer.WriteSessionInfo;
+import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ColumnMetadata;
+import com.facebook.presto.spi.ConnectorInsertTableHandle;
+import com.facebook.presto.spi.ConnectorNewTableLayout;
+import com.facebook.presto.spi.ConnectorOutputTableHandle;
+import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.spi.ConnectorTableHandle;
+import com.facebook.presto.spi.ConnectorTableLayout;
+import com.facebook.presto.spi.ConnectorTableLayoutHandle;
+import com.facebook.presto.spi.ConnectorTableLayoutResult;
+import com.facebook.presto.spi.ConnectorTableMetadata;
+import com.facebook.presto.spi.Constraint;
+import com.facebook.presto.spi.InMemoryRecordSet;
+import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.spi.SchemaTablePrefix;
+import com.facebook.presto.spi.SystemTable;
+import com.facebook.presto.spi.TableNotFoundException;
+import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
+import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.NullableValue;
+import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.statistics.ComputedStatistics;
+import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.VarcharType;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
-import io.trino.spi.TrinoException;
-import io.trino.spi.connector.*;
-import io.trino.spi.predicate.Domain;
-import io.trino.spi.predicate.NullableValue;
-import io.trino.spi.predicate.TupleDomain;
-import io.trino.spi.statistics.ComputedStatistics;
-import io.trino.spi.type.Type;
-import io.trino.spi.type.VarcharType;
 import org.apache.commons.codec.binary.Base64;
 
 import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.facebook.presto.spi.predicate.TupleDomain.withColumnDomains;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
@@ -60,7 +84,7 @@ public class OdpsMetadata
     private final String connectorId;
     private final OdpsClient odpsClient;
     private Map<String, TableWriteSession> tableWriteSessionMap;
-    private static final Logger log = Logger.get(OdpsMetadata.class);
+
     @Inject
     public OdpsMetadata(OdpsConnectorId connectorId, OdpsClient odpsClient)
     {
@@ -96,7 +120,7 @@ public class OdpsMetadata
     }
 
     @Override
-    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint constraint, Optional<Set<ColumnHandle>> desiredColumns) {
+    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns) {
         OdpsTableHandle tableHandle = (OdpsTableHandle) table;
 
         List<OdpsPartition> partitions = odpsClient.getOdpsPartitions(tableHandle.getSchemaName(),
@@ -120,7 +144,7 @@ public class OdpsMetadata
             unenforcedConstraint = effectivePredicate;
         } else {
             // All partition key domains will be fully evaluated, so we don't need to include those
-            unenforcedConstraint = withColumnDomains(Maps.filterKeys(effectivePredicate.getDomains().get(),
+            unenforcedConstraint = TupleDomain.withColumnDomains(Maps.filterKeys(effectivePredicate.getDomains().get(),
                     not(Predicates.in(tableHandle.getOdpsTable().getPartitionColumns()))));
         }
 
@@ -139,11 +163,11 @@ public class OdpsMetadata
             return TupleDomain.none();
         }
 
-        Map<ColumnHandle, Domain> collect = partitionColumns.stream()
-                .collect(Collectors.toMap(
-                        identity(),
-                        column -> buildColumnDomain(column, partitions)));
-        return withColumnDomains(collect);
+        return withColumnDomains(
+                partitionColumns.stream()
+                        .collect(Collectors.toMap(
+                                identity(),
+                                column -> buildColumnDomain(column, partitions))));
     }
 
     private static Domain buildColumnDomain(ColumnHandle column, List<OdpsPartition> partitions)
@@ -157,7 +181,7 @@ public class OdpsMetadata
         for (OdpsPartition partition : partitions) {
             NullableValue value = partition.getKeys().get(column);
             if (value == null) {
-                throw new TrinoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, format("Partition %s does not have a value for partition column %s", partition, column));
+                throw new PrestoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, format("Partition %s does not have a value for partition column %s", partition, column));
             }
 
             if (value.isNull()) {
@@ -194,11 +218,11 @@ public class OdpsMetadata
     }
 
     @Override
-    public List<SchemaTableName> listTables(ConnectorSession session, Optional<String>  schemaNameOrNull)
+    public List<SchemaTableName> listTables(ConnectorSession session, String schemaNameOrNull)
     {
         Set<String> schemaNames;
-        if (schemaNameOrNull.isPresent()) {
-            schemaNames = ImmutableSet.of(schemaNameOrNull.get());
+        if (schemaNameOrNull != null) {
+            schemaNames = ImmutableSet.of(schemaNameOrNull);
         }
         else {
             schemaNames = odpsClient.getProjectNames();
@@ -349,16 +373,16 @@ public class OdpsMetadata
         if (table == null) {
             return null;
         }
-        ConnectorTableMetadata connectorTableMetadata=new ConnectorTableMetadata(tableName, table.getColumnsMetadata());
-        return connectorTableMetadata;
+
+        return new ConnectorTableMetadata(tableName, table.getColumnsMetadata());
     }
 
     private List<SchemaTableName> listTables(ConnectorSession session, SchemaTablePrefix prefix)
     {
-        if (!prefix.getSchema().isPresent()) {
-            return listTables(session, prefix.getSchema());
+        if (prefix.getSchemaName() == null) {
+            return listTables(session, prefix.getSchemaName());
         }
-        return ImmutableList.of(new SchemaTableName(prefix.getSchema().get(), prefix.getTable().get()));
+        return ImmutableList.of(new SchemaTableName(prefix.getSchemaName(), prefix.getTableName()));
     }
 
     @Override

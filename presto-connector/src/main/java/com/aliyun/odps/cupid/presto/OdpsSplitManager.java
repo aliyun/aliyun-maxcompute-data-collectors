@@ -11,25 +11,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
 import com.aliyun.odps.cupid.table.v1.Attribute;
-import com.aliyun.odps.cupid.table.v1.reader.*;
+import com.aliyun.odps.cupid.table.v1.reader.InputSplit;
+import com.aliyun.odps.cupid.table.v1.reader.PartitionSpecWithBucketFilter;
+import com.aliyun.odps.cupid.table.v1.reader.RequiredSchema;
+import com.aliyun.odps.cupid.table.v1.reader.TableReadSession;
+import com.aliyun.odps.cupid.table.v1.reader.TableReadSessionBuilder;
+import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.spi.ConnectorSplit;
+import com.facebook.presto.spi.ConnectorSplitSource;
+import com.facebook.presto.spi.ConnectorTableLayoutHandle;
+import com.facebook.presto.spi.FixedSplitSource;
+import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.connector.ConnectorSplitManager;
+import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.predicate.NullableValue;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
-import io.trino.spi.TrinoException;
-import io.trino.spi.connector.*;
-import io.trino.spi.predicate.NullableValue;
 import org.apache.commons.codec.binary.Base64;
 
 import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
 public class OdpsSplitManager
@@ -58,7 +76,7 @@ public class OdpsSplitManager
             ConnectorTransactionHandle handle,
             ConnectorSession session,
             ConnectorTableLayoutHandle layout,
-            ConnectorSplitManager.SplitSchedulingStrategy splitSchedulingContext)
+            SplitSchedulingContext splitSchedulingContext)
     {
         OdpsTableLayoutHandle layoutHandle = (OdpsTableLayoutHandle) layout;
         OdpsTable table = odpsClient.getTable(layoutHandle.getSchemaTableName().getSchemaName(),
@@ -106,7 +124,7 @@ public class OdpsSplitManager
             }
             inputSplits = tableReadSession.getOrCreateInputSplits(splitSize);
         } catch (Exception e) {
-            throw new TrinoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, "create TableReadSession failed!" + e.toString(), e);
+            throw new PrestoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, "create TableReadSession failed!" + e.toString(), e);
         }
 
         for (InputSplit inputSplit : inputSplits) {

@@ -11,19 +11,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
+import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorTableLayoutHandle;
+import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
-import io.trino.spi.connector.ColumnHandle;
-import io.trino.spi.connector.ConnectorTableLayoutHandle;
-import io.trino.spi.connector.SchemaTableName;
-import io.trino.spi.predicate.TupleDomain;
+import com.google.common.collect.ImmutableMap;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;

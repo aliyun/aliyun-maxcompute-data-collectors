@@ -1,10 +1,12 @@
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
-import io.trino.spi.ErrorCode;
-import io.trino.spi.ErrorCodeSupplier;
-import io.trino.spi.ErrorType;
+import com.facebook.presto.spi.ErrorCode;
+import com.facebook.presto.spi.ErrorCodeSupplier;
+import com.facebook.presto.spi.ErrorType;
 
-import static io.trino.spi.ErrorType.INTERNAL_ERROR;
+import static com.facebook.presto.spi.ErrorType.EXTERNAL;
+import static com.facebook.presto.spi.ErrorType.INTERNAL_ERROR;
+import static com.facebook.presto.spi.ErrorType.USER_ERROR;
 
 public enum OdpsErrorCode implements ErrorCodeSupplier {
     ODPS_INTERNAL_ERROR(0, INTERNAL_ERROR),

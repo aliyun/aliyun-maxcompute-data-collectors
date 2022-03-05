@@ -11,10 +11,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
+import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.spi.ConnectorSplit;
+import com.facebook.presto.spi.RecordSet;
+import com.facebook.presto.spi.connector.ConnectorRecordSetProvider;
+import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.google.common.collect.ImmutableList;
-import io.trino.spi.connector.*;
 
 import javax.inject.Inject;
 import java.util.List;

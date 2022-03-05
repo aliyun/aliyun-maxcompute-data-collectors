@@ -11,26 +11,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
-import com.aliyun.odps.*;
+import com.aliyun.odps.Odps;
+import com.aliyun.odps.OdpsException;
+import com.aliyun.odps.PartitionSpec;
+import com.aliyun.odps.Table;
+import com.aliyun.odps.TableSchema;
 import com.aliyun.odps.cupid.CupidConf;
 import com.aliyun.odps.cupid.CupidSession;
 import com.aliyun.odps.task.SQLTask;
 import com.aliyun.odps.utils.StringUtils;
+import com.facebook.airlift.json.JsonCodec;
+import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.Constraint;
+import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.NullableValue;
+import com.facebook.presto.spi.type.VarcharType;
 import com.google.common.collect.ImmutableList;
-import io.airlift.json.JsonCodec;
 import io.airlift.slice.Slices;
-import io.trino.spi.TrinoException;
-import io.trino.spi.connector.ColumnHandle;
-import io.trino.spi.connector.Constraint;
-import io.trino.spi.connector.SchemaTableName;
-import io.trino.spi.predicate.Domain;
-import io.trino.spi.predicate.NullableValue;
-import io.trino.spi.type.VarcharType;
 
 import javax.inject.Inject;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -108,7 +118,7 @@ public class OdpsClient
                 return null;
             }
         } catch (OdpsException e) {
-            throw new TrinoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, "odps getTable failed!", e);
+            throw new PrestoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, "odps getTable failed!", e);
         }
         return buildOdpsTable(getOdps().tables().get(projectName, tableName));
     }
@@ -122,7 +132,7 @@ public class OdpsClient
         return new OdpsTable(table.getName(), dataColumns, partitionColumns);
     }
 
-    public List<OdpsPartition> getOdpsPartitions(String schemaName, String tableName, OdpsTable odpsTable, Constraint constraint) {
+    public List<OdpsPartition> getOdpsPartitions(String schemaName, String tableName, OdpsTable odpsTable, Constraint<ColumnHandle> constraint) {
         Table table = getOdps().tables().get(schemaName, tableName);
         try {
             if (!table.isPartitioned()) {
@@ -152,7 +162,7 @@ public class OdpsClient
     private Optional<OdpsPartition> parseValuesAndFilterPartition(
             OdpsPartition partition,
             List<OdpsColumnHandle> partitionColumns,
-            Constraint constraint)
+            Constraint<ColumnHandle> constraint)
     {
         Map<ColumnHandle, Domain> domains = constraint.getSummary().getDomains().get();
         for (OdpsColumnHandle column : partitionColumns) {

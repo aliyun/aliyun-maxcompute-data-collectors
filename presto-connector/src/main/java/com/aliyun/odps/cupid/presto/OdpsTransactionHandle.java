@@ -11,10 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
-
-import io.trino.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 
 public enum OdpsTransactionHandle
         implements ConnectorTransactionHandle

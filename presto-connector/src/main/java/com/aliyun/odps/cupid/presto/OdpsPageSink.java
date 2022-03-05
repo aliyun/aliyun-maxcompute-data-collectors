@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
 import com.aliyun.odps.Column;
 import com.aliyun.odps.cupid.table.v1.writer.FileWriter;
@@ -20,16 +20,15 @@ import com.aliyun.odps.cupid.table.v1.writer.WriteSessionInfo;
 import com.aliyun.odps.data.ArrayRecord;
 import com.aliyun.odps.data.Binary;
 import com.aliyun.odps.data.Varchar;
+import com.facebook.presto.spi.ConnectorPageSink;
+import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.DecimalType;
+import com.facebook.presto.spi.type.SqlDecimal;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
-import io.trino.spi.Page;
-import io.trino.spi.block.Block;
-import io.trino.spi.connector.ConnectorPageSink;
-import io.trino.spi.connector.ConnectorSession;
-import io.trino.spi.type.DecimalType;
-import io.trino.spi.type.SqlDecimal;
-import io.trino.spi.type.Type;
-import io.trino.spi.type.VarcharType;
 import org.apache.commons.codec.binary.Base64;
 
 import java.io.ByteArrayInputStream;
@@ -41,15 +40,16 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.BooleanType.BOOLEAN;
-import static io.trino.spi.type.DoubleType.DOUBLE;
-import static io.trino.spi.type.IntegerType.INTEGER;
-import static io.trino.spi.type.RealType.REAL;
-import static io.trino.spi.type.SmallintType.SMALLINT;
-import static io.trino.spi.type.TimestampType.TIMESTAMP;
-import static io.trino.spi.type.TinyintType.TINYINT;
-import static io.trino.spi.type.VarbinaryType.VARBINARY;
+import static com.facebook.presto.spi.type.BigintType.BIGINT;
+import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
+import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
+import static com.facebook.presto.spi.type.IntegerType.INTEGER;
+import static com.facebook.presto.spi.type.RealType.REAL;
+import static com.facebook.presto.spi.type.SmallintType.SMALLINT;
+import static com.facebook.presto.spi.type.TimestampType.TIMESTAMP;
+import static com.facebook.presto.spi.type.TinyintType.TINYINT;
+import static com.facebook.presto.spi.type.VarbinaryType.VARBINARY;
+import static com.facebook.presto.spi.type.Varchars.isVarcharType;
 import static java.lang.Float.intBitsToFloat;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
@@ -132,7 +132,7 @@ public class OdpsPageSink
         else if (DOUBLE.equals(type)) {
             record.setDouble(destChannel, type.getDouble(block, position));
         }
-        else if (type instanceof VarcharType) {
+        else if (isVarcharType(type)) {
             if (isStringType) {
                 record.setString(destChannel, type.getSlice(block, position).toStringUtf8());
             } else {

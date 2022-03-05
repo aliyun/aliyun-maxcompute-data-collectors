@@ -11,12 +11,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
+import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.spi.predicate.NullableValue;
 import com.google.common.collect.ImmutableMap;
-import io.trino.spi.connector.ColumnHandle;
-import io.trino.spi.connector.SchemaTableName;
-import io.trino.spi.predicate.NullableValue;
 
 import java.util.Map;
 import java.util.Objects;

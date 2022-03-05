@@ -11,16 +11,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
 import com.aliyun.odps.cupid.table.v1.reader.InputSplit;
 import com.aliyun.odps.cupid.table.v1.reader.SplitReader;
 import com.aliyun.odps.cupid.table.v1.reader.SplitReaderBuilder;
 import com.aliyun.odps.data.ArrayRecord;
+import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.RecordSet;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
-import io.trino.spi.connector.RecordCursor;
-import io.trino.spi.connector.RecordSet;
-import io.trino.spi.type.Type;
 import org.apache.commons.codec.binary.Base64;
 
 import java.io.ByteArrayInputStream;

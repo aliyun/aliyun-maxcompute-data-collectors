@@ -1,9 +1,9 @@
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
 import com.aliyun.odps.cupid.table.v1.writer.TableWriteSession;
+import com.facebook.presto.spi.ConnectorInsertTableHandle;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.trino.spi.connector.ConnectorInsertTableHandle;
 
 public class OdpsInsertTableHandle
         extends OdpsTableHandle

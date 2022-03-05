@@ -11,13 +11,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.aliyun.odps.cupid.trino;
+package com.aliyun.odps.cupid.presto;
 
+import com.aliyun.odps.cupid.table.v1.reader.InputSplit;
+import com.facebook.presto.spi.ConnectorSplit;
+import com.facebook.presto.spi.HostAddress;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
-import io.trino.spi.HostAddress;
-import io.trino.spi.connector.ConnectorSplit;
 
 import java.util.List;
 

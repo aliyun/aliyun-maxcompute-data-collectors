@@ -92,7 +92,7 @@ public final class FileWriterBuilder extends Builder {
             Map<String,String>  orderedPartSpec = new LinkedHashMap<>();
             for(Attribute partAttr : sessionInfo.getPartitionColumns()) {
                 if (!partitionSpec.containsKey(partAttr.getName())) {
-                    throw new RuntimeException("invalid partitionSpec for file writer");
+                    throw new RuntimeException("invalid partitionSpec for file writer: " + partitionSpec + ", expected: " + partAttr.getName());
                 }
                 orderedPartSpec.put(partAttr.getName(), partitionSpec.get(partAttr.getName()));
             }

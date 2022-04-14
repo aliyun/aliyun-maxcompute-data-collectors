@@ -19,6 +19,7 @@
 
 package com.aliyun.odps.cupid.table.v1.tunnel.impl;
 
+import com.aliyun.odps.PartitionSpec;
 import com.aliyun.odps.cupid.table.v1.writer.FileWriter;
 import com.aliyun.odps.cupid.table.v1.writer.WriterCommitMessage;
 import com.aliyun.odps.data.ArrayRecord;
@@ -38,15 +39,17 @@ public class TunnelStreamWriter implements FileWriter<ArrayRecord> {
     protected TableTunnel.StreamRecordPack pack;
     private long rowsWritten;
     private long bytesWritten;
+    private PartitionSpec partition;
 
     TunnelStreamWriter(TunnelWriteSessionInfo sessionInfo,
                        Map<String, String> partitionSpec) {
         this.sessionInfo = sessionInfo;
+        this.partition = Util.toOdpsPartitionSpec(partitionSpec);
         try {
             this.session = Util.createStreamUploadSession(
                     sessionInfo.getProject(),
                     sessionInfo.getTable(),
-                    Util.toOdpsPartitionSpec(partitionSpec),
+                    partition,
                     true,
                     Util.getTableTunnel(sessionInfo.getOptions()));
             this.pack = session.newRecordPack();
@@ -66,7 +69,8 @@ public class TunnelStreamWriter implements FileWriter<ArrayRecord> {
             TableTunnel.FlushResult result = this.pack.flush(new TableTunnel.FlushOption());
             LOG.info("Trace ID:" + result.getTraceId() +
                     ", Size:" + result.getFlushSize() +
-                    ", Record Count:" + result.getRecordCount());
+                    ", Record Count:" + result.getRecordCount() +
+                    ", Partition:" + partition);
             this.rowsWritten += result.getRecordCount();
             this.bytesWritten += result.getFlushSize();
         }

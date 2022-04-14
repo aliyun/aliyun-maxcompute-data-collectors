@@ -44,6 +44,7 @@
         <module>cupid-table-api</module>
         <module>table-api-tunnel-impl</module>
         <module>flink-connector-odps</module>
+        <module>trino-connector</module>
     </modules>
 
     <build>

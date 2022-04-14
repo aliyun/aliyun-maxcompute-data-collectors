@@ -7,3 +7,4 @@ target/
 .DS_Store
 *.pyc
 presto-connector/dependency-reduced-pom.xml
+trino-connector/dependency-reduced-pom.xml

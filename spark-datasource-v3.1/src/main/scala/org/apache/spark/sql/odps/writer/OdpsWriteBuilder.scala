@@ -14,6 +14,8 @@
 
 package org.apache.spark.sql.odps.writer
 
+import java.util.Collections
+
 import com.aliyun.odps.PartitionSpec
 import com.aliyun.odps.cupid.table.v1.util.Options
 import com.aliyun.odps.cupid.table.v1.writer.TableWriteSessionBuilder
@@ -53,7 +55,7 @@ class OdpsWriteBuilder(
   override def buildForBatch(): BatchWrite = {
     val partitionSpec = if (_partitions.isEmpty) {
       //非分区表
-      null
+      Collections.emptyMap[String, String]()
     } else if (_isSinglePartition) {
       val optionalSpec = _options.get(OdpsSourceOptions.ODPS_PARTITION_SPEC)
       val odpsPartitionSpec = new PartitionSpec(optionalSpec)

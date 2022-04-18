@@ -38,8 +38,7 @@ class DefaultSource extends TableProvider {
     partitions.map(_.name).asTransforms
   }
 
-  override
-  def getTable(structType: StructType,
+  override def getTable(structType: StructType,
                transforms: Array[Transform],
                map: java.util.Map[String, String]): Table = {
     val (odpsTable, fields, partitions) = odpsTablePrerequisite(map)

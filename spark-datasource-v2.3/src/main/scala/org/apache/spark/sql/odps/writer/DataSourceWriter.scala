@@ -14,7 +14,7 @@
 
 package org.apache.spark.sql.odps.writer
 
-import java.util.Objects
+import java.util.{Collections, Objects}
 
 import com.aliyun.odps.PartitionSpec
 import com.aliyun.odps.cupid.table.v1.writer.{TableWriteSessionBuilder, WriteSessionInfo}
@@ -44,7 +44,7 @@ class DataSourceWriter(jobId: String, schema: StructType, mode: SaveMode, option
   private val _writeSession = {
     val partitionSpec = if (_odpsTablePartitions.isEmpty) {
       //非分区表
-      null
+      Collections.emptyMap[String, String]()
     } else if (_isSinglePartition) {
       val odpsPartitionSpec = new PartitionSpec(options.get(OdpsSourceOptions.ODPS_PARTITION_SPEC).get())
       _odpsTable.createPartition(odpsPartitionSpec, true)

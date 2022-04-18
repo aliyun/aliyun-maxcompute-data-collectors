@@ -14,6 +14,9 @@
 
 package org.apache.spark.sql.odps.reader
 
+import java.util.Collections
+import java.util.Objects
+
 import com.aliyun.odps.account.AliyunAccount
 import com.aliyun.odps.cupid.table.v1.Attribute
 import com.aliyun.odps.cupid.table.v1.reader._
@@ -67,12 +70,22 @@ class OdpsScan(provider: String,
 
     val sparkDataConverters = outputDataSchema.map(TypesConverter.odpsData2SparkData)
 
-    val spec = inputSplit.getPartitionSpec.toString
+    val partitionSpec = if (Objects.nonNull(inputSplit)) {
+      inputSplit.getPartitionSpec
+    } else {
+      Collections.emptyMap[String, String]()
+    }
+
+    val partitionColumns = if (Objects.nonNull(inputSplit)) {
+      inputSplit.getPartitionColumns
+    } else {
+      Collections.emptyList[Attribute]()
+    }
 
     new InputSplitReader(
       readDataSchema,
-      inputSplit.getPartitionColumns,
-      inputSplit.getPartitionSpec,
+      partitionColumns,
+      partitionSpec,
       outputDataSchema,
       sparkDataConverters,
       recordReader)

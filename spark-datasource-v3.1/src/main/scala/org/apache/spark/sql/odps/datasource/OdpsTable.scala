@@ -37,7 +37,7 @@ class OdpsTable(odpsTable: com.aliyun.odps.Table,
   override def name(): String = odpsTable.getName
 
   override def schema(): StructType = {
-    StructType((fields.fields.toSet ++ partitions.fields.toSet).toArray)
+    StructType(fields ++ partitions)
   }
 
   override def capabilities(): util.Set[TableCapability] = OdpsTable.CAPABILITIES

@@ -2,20 +2,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
-
-    <parent>
-        <groupId>com.aliyun</groupId>
-        <artifactId>aliyun-maxcompute-data-collectors</artifactId>
-        <version>2.0.5</version>
-    </parent>
-
-    <groupId>com.aliyun.odps</groupId>
-    <artifactId>odps-flume-plugin</artifactId>
-    <packaging>jar</packaging>
-    <name>odps-flume-plugin</name>
-    <description>flume plugin sink to Aliyun ODPS</description>
-    <url>http://odps.aliyun.com</url>
+    <groupId>com.aliyun.datahub</groupId>
+    <artifactId>aliyun-datahub-flume-plugin</artifactId>
+    <version>2.0.9</version>
+    <name>aliyun-datahub-flume-plugin</name>
 
     <organization>
         <name>Alibaba Cloud Computing</name>
@@ -34,18 +26,12 @@
         <dependency>
             <groupId>com.aliyun.datahub</groupId>
             <artifactId>aliyun-sdk-datahub</artifactId>
-            <version>2.13.0-public</version>
+            <version>2.19.1-public</version>
         </dependency>
         <dependency>
             <groupId>com.aliyun.datahub</groupId>
             <artifactId>datahub-client-library</artifactId>
             <version>1.0.7-public</version>
-        </dependency>
-
-
-        <dependency>
-            <groupId>com.aliyun.odps</groupId>
-            <artifactId>odps-sdk-core</artifactId>
         </dependency>
 
 	    <dependency>
@@ -138,8 +124,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>8</source>
+                    <target>8</target>
                 </configuration>
             </plugin>
             

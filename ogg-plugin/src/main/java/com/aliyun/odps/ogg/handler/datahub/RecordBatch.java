@@ -25,8 +25,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 class RecordBatch {
-    private List<RecordEntry> records = new ArrayList<>();
-    private long createTimestamp = System.currentTimeMillis();
+    private final List<RecordEntry> records;
+    private final long createTimestamp;
+
+    public RecordBatch() {
+        this.records = new ArrayList<>();
+        this.createTimestamp = System.currentTimeMillis();
+    }
 
     public void add(RecordEntry recordEntry) {
         records.add(recordEntry);

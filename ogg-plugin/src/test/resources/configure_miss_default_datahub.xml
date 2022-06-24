@@ -31,9 +31,6 @@
     <!-- 重试间隔, 单位毫秒, 可选, 默认3000-->
     <retryInterval>4000</retryInterval>
 
-    <!-- 点位文件, 可选, 默认datahub_ogg_plugin.chk-->
-    <checkPointFileName>datahub_ogg_plugin.chk</checkPointFileName>
-
     <mappings>
         <mapping>
             <!-- oracle schema, 见上描述-->
@@ -42,10 +39,6 @@
             <oracleTable>t_person</oracleTable>
             <!-- datahub project, 见上描述-->
             <datahubProject></datahubProject>
-            <!-- datahub AccessId, 见上描述-->
-            <datahubAccessId></datahubAccessId>
-            <!-- datahub AccessKey, 见上描述-->
-            <datahubAccessKey></datahubAccessKey>
             <!-- datahub topic, 必选-->
             <datahubTopic>ogg_test_normal</datahubTopic>
             <columnMapping>
@@ -63,9 +56,6 @@
                 <column src="c4" dest="c4"/>
                 <column src="c5" dest="c5"/>
             </columnMapping>
-
-            <!--指定shard id, 优先生效, 可选-->
-            <shardId>1</shardId>
         </mapping>
     </mappings>
 </configure>

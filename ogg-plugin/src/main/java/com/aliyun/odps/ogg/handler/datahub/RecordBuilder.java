@@ -19,29 +19,25 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-import com.aliyun.datahub.client.DatahubClient;
-import com.aliyun.datahub.client.DatahubClientBuilder;
-import com.aliyun.datahub.client.auth.AliyunAccount;
-import com.aliyun.datahub.client.common.DatahubConfig;
-import com.aliyun.datahub.client.http.HttpConfig;
-import com.aliyun.datahub.client.model.Field;
-import com.aliyun.datahub.client.model.FieldType;
-import com.aliyun.datahub.client.model.GetTopicResult;
-import com.aliyun.datahub.client.model.RecordSchema;
-import com.aliyun.datahub.client.model.RecordType;
+import com.aliyun.datahub.client.model.*;
 import com.aliyun.odps.ogg.handler.datahub.modle.ColumnMapping;
 import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.TableMapping;
-import oracle.goldengate.datasource.DsToken;
 import oracle.goldengate.datasource.adapt.Op;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class RecordBuilder {
@@ -49,7 +45,25 @@ public class RecordBuilder {
     private static RecordBuilder recordBuilder;
 
     private Configure configure;
-    private DatahubClient client;
+    private ExecutorService executor;
+
+    private Map<String, TableRecordBuilder> tableRecordBuilderMap;
+
+    private RecordBuilder(Configure configure) {
+        this.configure = configure;
+
+        int corePoolSize = configure.getBuildRecordCorePoolSize() == -1
+                ? configure.getTableMappings().size()
+                : configure.getBuildRecordCorePoolSize();
+        corePoolSize = Math.max(corePoolSize, 1);
+        int maximumPoolSize = configure.getBuildRecordMaximumPoolSize() == -1
+                ? corePoolSize * 2
+                : configure.getBuildRecordMaximumPoolSize();
+        executor = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, 60L,
+                TimeUnit.SECONDS, new SynchronousQueue<>(), new RecordBuilderThreadFactory());
+
+        createBuilders();
+    }
 
     public static RecordBuilder instance() {
         return recordBuilder;
@@ -59,128 +73,63 @@ public class RecordBuilder {
         if (recordBuilder == null) {
             recordBuilder = new RecordBuilder(configure);
         }
+
+        recordBuilder.checkTableSchema();
         recordBuilder.start();
     }
 
-    public static void destroy() {
-        if (recordBuilder != null) {
-            recordBuilder.stop();
-        }
-        recordBuilder = null;
-    }
-
     public void start() {
-        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
-            TableMapping tableMapping = entry.getValue();
-            for (TableRecordBuilder tableRecordBuilder : tableMapping.getTableRecordBuilders()) {
-                tableRecordBuilder.start();
-            }
-            tableMapping.getTopicWriter().start();
+        for (TableRecordBuilder builder : tableRecordBuilderMap.values()) {
+            builder.start();
         }
     }
 
     public void stop() {
-        flushAll();
-        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
-            TableMapping tableMapping = entry.getValue();
-            for (TableRecordBuilder tableRecordBuilder : entry.getValue().getTableRecordBuilders()) {
-                tableRecordBuilder.stop();
-            }
-            tableMapping.getTopicWriter().stop();
+        for (TableRecordBuilder builder : tableRecordBuilderMap.values()) {
+            builder.stop();
+        }
+        executor.shutdown();
+    }
+
+    public static void destroy() {
+        if (recordBuilder != null) {
+            recordBuilder.flushAll();
+            recordBuilder.stop();
+        }
+
+        recordBuilder = null;
+    }
+
+    public void flushAll() {
+        for (TableRecordBuilder builder : tableRecordBuilderMap.values()) {
+            builder.syncExec();
         }
     }
 
     public boolean buildRecord(Op op, String opType, String recordId) {
         String oracleFullTableName = op.getTableName().getFullName().toLowerCase();
-        TableMapping tableMapping = configure.getTableMapping(oracleFullTableName);
+        TableRecordBuilder recordBuilder = tableRecordBuilderMap.get(oracleFullTableName);
 
-        if (tableMapping != null) {
-            List<TableRecordBuilder> recordBuilders = tableMapping.getTableRecordBuilders();
-            if (recordBuilders.size() == 1) {
-                return recordBuilders.get(0).addRecord(op, opType, recordId);
-            } else if (recordBuilders.size() > 1) {
-                DsToken token = op.getRecord().getUserToken(Constant.ROWID_TOKEN);
-                if (token.isSet()) {
-                    int index = ((token.getValue().hashCode() % recordBuilders.size()) + recordBuilders.size()) % recordBuilders.size();
-                    return recordBuilders.get(index).addRecord(op, opType, recordId);
-                } else {
-                    logger.error("BuildRecord failed, build speed > 1, but oracle table token TKN-ROWID is not set, can not get oracle rowid, table: {}",
-                            tableMapping.getOracleFullTableName());
-                    throw new RuntimeException("BuildRecord failed, build speed > 1, but oracle table token TKN-ROWID is not set, can not get oracle rowid");
-                }
-            } else {
-                logger.error("RecordBuilder list is empty, table: {}", tableMapping.getOracleFullTableName());
-                return false;
-            }
+        if (recordBuilder != null) {
+            return recordBuilder.addRecord(op, opType, recordId);
+        } else {
+            logger.warn("oracle table: {} not config", oracleFullTableName);
         }
         return true;
     }
 
-    public void flushAll() {
+    private void createBuilders() {
+        tableRecordBuilderMap = new HashMap<>(configure.getTableMappings().size());
+
         for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
-            TableMapping tableMapping = entry.getValue();
-
-            for (TableRecordBuilder tableRecordBuilder : tableMapping.getTableRecordBuilders()) {
-                tableRecordBuilder.sync();
-            }
-            tableMapping.getTopicWriter().sync();
+            TableRecordBuilder recordBuilder = new TableRecordBuilder(configure, entry.getValue(), executor);
+            tableRecordBuilderMap.put(entry.getKey(), recordBuilder);
         }
     }
 
-    private RecordBuilder(Configure configure) {
-        this.configure = configure;
-        initDataHub();
-        createBuilderAndWriter();
-    }
-
-    private void initDataHub() {
-        HttpConfig httpConfig = new HttpConfig();
-        if (StringUtils.isNotBlank(configure.getCompressType())) {
-            boolean needCompress = false;
-            for (HttpConfig.CompressType type : HttpConfig.CompressType.values()) {
-                if (type.name().equals(configure.getCompressType())) {
-                    httpConfig.setCompressType(HttpConfig.CompressType.valueOf(configure.getCompressType()));
-                    needCompress = true;
-                    break;
-                }
-            }
-            if (!needCompress) {
-                logger.warn("Invalid DataHub compressType, deploy no compress, compressType: {}",
-                        configure.getCompressType());
-            }
-        }
-
-        client = DatahubClientBuilder.newBuilder()
-                .setUserAgent(Constant.PLUGIN_VERSION)
-                .setDatahubConfig(
-                        new DatahubConfig(configure.getDatahubEndpoint(),
-                                new AliyunAccount(configure.getDatahubAccessId(), configure.getDatahubAccessKey()),
-                                configure.isEnablePb()))
-                .setHttpConfig(httpConfig)
-                .build();
-
+    private void checkTableSchema() {
         for (TableMapping tableMapping : configure.getTableMappings().values()) {
-            GetTopicResult topic = client.getTopic(tableMapping.getProjectName(), tableMapping.getTopicName());
-            if (topic.getRecordType() == RecordType.TUPLE) {
-                tableMapping.setRecordSchema(topic.getRecordSchema());
-                checkTableMapping(tableMapping);
-            }
-        }
-    }
-
-    private void createBuilderAndWriter() {
-        for (Map.Entry<String, TableMapping> entry : configure.getTableMappings().entrySet()) {
-
-            TableMapping tableMapping = entry.getValue();
-            TopicWriter topicWriter = new TopicWriter(configure, entry.getValue(), client);
-            tableMapping.setTopicWriter(topicWriter);
-
-            List<TableRecordBuilder> tableRecordBuilders = new ArrayList<>();
-            for (int i = 0; i < tableMapping.getBuildSpeed(); i++) {
-                TableRecordBuilder tableRecordBuilder = new TableRecordBuilder(configure, topicWriter, entry.getValue(), i);
-                tableRecordBuilders.add(tableRecordBuilder);
-            }
-            tableMapping.setTableRecordBuilders(tableRecordBuilders);
+            checkTableMapping(tableMapping);
         }
     }
 
@@ -188,7 +137,6 @@ public class RecordBuilder {
         if (tableMapping.getRecordSchema() == null) {
             return;
         }
-
 
         checkColumn(tableMapping.getRowIdColumn(), Arrays.asList(FieldType.STRING),
                 tableMapping.getRecordSchema(), tableMapping.getTopicName());
@@ -222,7 +170,7 @@ public class RecordBuilder {
 
         Field field = recordSchema.getField(columnName);
         if (field == null) {
-            logger.error("CheckSchema failed, the field is not exist in DataHub, topic: {}, fieldName: {}", topicName, columnName);
+            logger.error("CheckSchema failed, the field is not exist in DataHub, topic: {}, field: {}", topicName, columnName);
             throw new IllegalArgumentException("the field is not exist in DataHub");
         }
 
@@ -239,6 +187,33 @@ public class RecordBuilder {
                         " column: {}, filedType: {}", columnName, field.getType().name());
                 throw new IllegalArgumentException("the oracle column corresponding field type is invalid in DataHub");
             }
+        }
+    }
+
+    private static class RecordBuilderThreadFactory implements ThreadFactory {
+        private final ThreadGroup group;
+        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private final String namePrefix;
+
+        RecordBuilderThreadFactory() {
+            SecurityManager s = System.getSecurityManager();
+            group = (s != null) ? s.getThreadGroup() :
+                    Thread.currentThread().getThreadGroup();
+            namePrefix = "DataHub-builder-";
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(group, r,
+                    namePrefix + threadNumber.getAndIncrement(), 0);
+            if (t.isDaemon()) {
+                t.setDaemon(false);
+            }
+
+            if (t.getPriority() != Thread.NORM_PRIORITY) {
+                t.setPriority(Thread.NORM_PRIORITY);
+            }
+            return t;
         }
     }
 }

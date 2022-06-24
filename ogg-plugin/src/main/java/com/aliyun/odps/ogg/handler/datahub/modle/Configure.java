@@ -19,8 +19,7 @@
 
 package com.aliyun.odps.ogg.handler.datahub.modle;
 
-import com.google.common.collect.Maps;
-
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -28,51 +27,40 @@ import java.util.Map;
  */
 public class Configure {
     private String oracleSid;
-
     private String datahubEndpoint;
-
     private String datahubAccessId;
-
     private String datahubAccessKey;
+    private boolean enablePb = true;
+    private String compressType = "LZ4";
 
-    private boolean enablePb = false;
-
-    private String compressType;
-
+    // for send
     private int batchSize = 1000;
     private int batchTimeoutMs = 5000;
+    //for build
+    private int buildBatchSize = 10;
+    private int buildBatchTimeoutMs = 100;
 
     private boolean dirtyDataContinue = false;
-
     private String dirtyDataFile = "datahub_ogg_plugin.dirty";
-
     private int dirtyDataFileMaxSize = 500 * 1000000;
 
     private int retryTimes = -1;
-
     private int retryIntervalMs = 3000;
-
-    private String checkPointFileName = "datahub_ogg_plugin.chk";
 
     private Map<String, TableMapping> tableMappings;
 
-    private boolean isCheckPointFileDisable = false;
-
-    private String charsetName = "UTF-8";
-
     private int buildRecordQueueSize = 1024;
-
     private int buildRecordQueueTimeoutMs = 1000;
+    private int writeRecordQueueSize = 1024;
+    private int writeRecordQueueTimeoutMs = 1000;
 
-    private int putRecordQueueSize = 1024;
-
-    private int putRecordQueueTimeoutMs = 1000;
-
-    private boolean commitFlush = true;
-
+    private boolean recordAccess = true;
     private boolean reportMetric = false;
-
     private int reportMetricIntervalMs = 5 * 60 * 1000;
+    private int buildRecordCorePoolSize = -1;
+    private int buildRecordMaximumPoolSize = -1;
+    private int writeRecordCorePoolSize = -1;
+    private int writeRecordMaximumPoolSize = -1;
 
     public String getOracleSid() {
         return oracleSid;
@@ -127,7 +115,7 @@ public class Configure {
     }
 
     public void setBatchSize(int batchSize) {
-        this.batchSize = batchSize;
+        this.batchSize = Math.min(Math.max(batchSize, 0), 1000);
     }
 
     public int getBatchTimeoutMs() {
@@ -137,6 +125,22 @@ public class Configure {
     public Configure setBatchTimeoutMs(int batchTimeoutMs) {
         this.batchTimeoutMs = batchTimeoutMs;
         return this;
+    }
+
+    public int getBuildBatchSize() {
+        return buildBatchSize;
+    }
+
+    public void setBuildBatchSize(int buildBatchSize) {
+        this.buildBatchSize = buildBatchSize;
+    }
+
+    public int getBuildBatchTimeoutMs() {
+        return buildBatchTimeoutMs;
+    }
+
+    public void setBuildBatchTimeoutMs(int buildBatchTimeoutMs) {
+        this.buildBatchTimeoutMs = buildBatchTimeoutMs;
     }
 
     public boolean isDirtyDataContinue() {
@@ -179,30 +183,6 @@ public class Configure {
         this.retryIntervalMs = retryIntervalMs;
     }
 
-    public String getCheckPointFileName() {
-        return checkPointFileName;
-    }
-
-    public void setCheckPointFileName(String checkPointFileName) {
-        this.checkPointFileName = checkPointFileName;
-    }
-
-    public boolean isCheckPointFileDisable() {
-        return isCheckPointFileDisable;
-    }
-
-    public void setCheckPointFileDisable(boolean checkPointFileDisable) {
-        isCheckPointFileDisable = checkPointFileDisable;
-    }
-
-    public String getCharsetName() {
-        return charsetName;
-    }
-
-    public void setCharsetName(String charsetName) {
-        this.charsetName = charsetName;
-    }
-
     public Map<String, TableMapping> getTableMappings() {
         return tableMappings;
     }
@@ -213,7 +193,7 @@ public class Configure {
 
     public void addTableMapping(TableMapping tableMapping) {
         if (this.tableMappings == null) {
-            this.tableMappings = Maps.newHashMap();
+            this.tableMappings = new HashMap<>();
         }
 
         this.tableMappings.put(tableMapping.getOracleFullTableName(), tableMapping);
@@ -241,31 +221,28 @@ public class Configure {
         return this;
     }
 
-    public int getPutRecordQueueSize() {
-        return putRecordQueueSize;
+    public int getWriteRecordQueueSize() {
+        return writeRecordQueueSize;
     }
 
-    public Configure setPutRecordQueueSize(int putRecordQueueSize) {
-        this.putRecordQueueSize = putRecordQueueSize;
-        return this;
+    public void setWriteRecordQueueSize(int writeRecordQueueSize) {
+        this.writeRecordQueueSize = writeRecordQueueSize;
     }
 
-    public int getPutRecordQueueTimeoutMs() {
-        return putRecordQueueTimeoutMs;
+    public int getWriteRecordQueueTimeoutMs() {
+        return writeRecordQueueTimeoutMs;
     }
 
-    public Configure setPutRecordQueueTimeoutMs(int putRecordQueueTimeoutMs) {
-        this.putRecordQueueTimeoutMs = putRecordQueueTimeoutMs;
-        return this;
+    public void setWriteRecordQueueTimeoutMs(int writeRecordQueueTimeoutMs) {
+        this.writeRecordQueueTimeoutMs = writeRecordQueueTimeoutMs;
     }
 
-    public boolean isCommitFlush() {
-        return commitFlush;
+    public boolean isRecordAccess() {
+        return recordAccess;
     }
 
-    public Configure setCommitFlush(boolean commitFlush) {
-        this.commitFlush = commitFlush;
-        return this;
+    public void setRecordAccess(boolean recordAccess) {
+        this.recordAccess = recordAccess;
     }
 
     public boolean isReportMetric() {
@@ -282,5 +259,37 @@ public class Configure {
 
     public void setReportMetricIntervalMs(int reportMetricIntervalMs) {
         this.reportMetricIntervalMs = reportMetricIntervalMs;
+    }
+
+    public int getBuildRecordCorePoolSize() {
+        return buildRecordCorePoolSize;
+    }
+
+    public void setBuildRecordCorePoolSize(int buildRecordCorePoolSize) {
+        this.buildRecordCorePoolSize = buildRecordCorePoolSize;
+    }
+
+    public int getBuildRecordMaximumPoolSize() {
+        return buildRecordMaximumPoolSize;
+    }
+
+    public void setBuildRecordMaximumPoolSize(int buildRecordMaximumPoolSize) {
+        this.buildRecordMaximumPoolSize = buildRecordMaximumPoolSize;
+    }
+
+    public int getWriteRecordCorePoolSize() {
+        return writeRecordCorePoolSize;
+    }
+
+    public void setWriteRecordCorePoolSize(int writeRecordCorePoolSize) {
+        this.writeRecordCorePoolSize = writeRecordCorePoolSize;
+    }
+
+    public int getWriteRecordMaximumPoolSize() {
+        return writeRecordMaximumPoolSize;
+    }
+
+    public void setWriteRecordMaximumPoolSize(int writeRecordMaximumPoolSize) {
+        this.writeRecordMaximumPoolSize = writeRecordMaximumPoolSize;
     }
 }

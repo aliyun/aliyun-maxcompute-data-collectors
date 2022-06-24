@@ -19,15 +19,14 @@
 
 package com.aliyun.odps.ogg.handler.datahub.operations;
 
-import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import com.aliyun.odps.ogg.handler.datahub.modle.PluginStatictics;
 import oracle.goldengate.datasource.adapt.Op;
 
 public class DeleteOperationHandler extends OperationHandler {
 
     @Override
-    public void process(Op op, Configure configure) {
-        processOperation(op, configure);
+    public void process(String recordId, Op op) {
+        processOperation(recordId, op);
         PluginStatictics.addTotalDeletes();
     }
 

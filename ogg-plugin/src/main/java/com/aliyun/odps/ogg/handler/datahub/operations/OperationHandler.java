@@ -19,9 +19,7 @@
 
 package com.aliyun.odps.ogg.handler.datahub.operations;
 
-import com.aliyun.odps.ogg.handler.datahub.HandlerInfoManager;
 import com.aliyun.odps.ogg.handler.datahub.RecordBuilder;
-import com.aliyun.odps.ogg.handler.datahub.modle.Configure;
 import oracle.goldengate.datasource.adapt.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,24 +27,17 @@ import org.slf4j.LoggerFactory;
 public abstract class OperationHandler {
 
     private final static Logger logger = LoggerFactory.getLogger(OperationHandler.class);
-    private final static int ADD_RECORD_RETRY_INTERVAL_MS = 1000;
 
-    public abstract void process(Op op, Configure configure)
+    public abstract void process(String recordId, Op op)
             throws Exception;
 
     public abstract String getOperateType();
 
-    protected void processOperation(Op op, Configure configure) {
+    protected void processOperation(String recordId, Op op) {
 
-        while (!RecordBuilder.instance().buildRecord(op, getOperateType(),
-                Long.toString(HandlerInfoManager.instance().getRecordId()))) {
-            logger.warn("add record to record build failed, will retry after [{}] ms, table: {}.",
-                    ADD_RECORD_RETRY_INTERVAL_MS, op.getTableName().getFullName().toLowerCase());
-
-            try {
-                Thread.sleep(ADD_RECORD_RETRY_INTERVAL_MS);
-            } catch (InterruptedException ignored) {
-            }
+        while (!RecordBuilder.instance().buildRecord(op, getOperateType(), recordId)) {
+            logger.warn("Add record to record build failed, will retry, table: {}.",
+                    op.getTableName().getFullName().toLowerCase());
         }
     }
 }

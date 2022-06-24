@@ -2,8 +2,9 @@ package com.aliyun.datahub.flume.sink;
 
 
 import com.aliyun.datahub.client.model.*;
-import com.aliyun.datahub.flume.sink.serializer.OdpsDelimitedTextSerializer;
-import com.aliyun.datahub.flume.sink.serializer.OdpsEventSerializer;
+import com.aliyun.datahub.flume.sink.serializer.DelimitedTextSerializer;
+import com.aliyun.datahub.flume.sink.serializer.EventSerializer;
+import com.aliyun.datahub.flume.sink.serializer.JsonTextSerializer;
 import com.google.common.base.Preconditions;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
@@ -20,7 +21,7 @@ public class DatahubSource extends AbstractSource implements Configurable, Polla
     private static final Logger logger = LoggerFactory.getLogger(DatahubSource.class);
 
     private DatahubReader datahubReader;
-    private OdpsEventSerializer serializer;
+    private EventSerializer serializer;
     private Configure configure;
     private SourceCounter sourceCounter;
 
@@ -120,10 +121,13 @@ public class DatahubSource extends AbstractSource implements Configurable, Polla
         }
     }
 
-    private OdpsEventSerializer createSerializer(String serializerType) {
-        if (serializerType.compareToIgnoreCase(OdpsDelimitedTextSerializer.ALIAS) == 0
-                || serializerType.compareTo(OdpsDelimitedTextSerializer.class.getName()) == 0) {
-            return new OdpsDelimitedTextSerializer();
+    private EventSerializer createSerializer(String serializerType) {
+        if (serializerType.compareToIgnoreCase(DelimitedTextSerializer.ALIAS) == 0
+                || serializerType.compareTo(DelimitedTextSerializer.class.getName()) == 0) {
+            return new DelimitedTextSerializer();
+        } else if (serializerType.compareToIgnoreCase(JsonTextSerializer.ALIAS) == 0
+                || serializerType.compareTo(JsonTextSerializer.class.getName()) == 0) {
+            return new JsonTextSerializer();
         }
         throw new IllegalArgumentException("DataHub source not support serializer " + serializerType);
     }
@@ -151,6 +155,7 @@ public class DatahubSource extends AbstractSource implements Configurable, Polla
         long threadId = Thread.currentThread().getId();
         logger.debug("[Thread " + threadId + "] " + "Source {} processing...", getName());
         List<Event> eventList = new ArrayList<Event>();
+        List<RecordEntry> entryList = new ArrayList<RecordEntry>();
         Status status = Status.READY;
 
         long endTime = System.currentTimeMillis() + configure.getBatchTimeout() * 1000;
@@ -161,9 +166,12 @@ public class DatahubSource extends AbstractSource implements Configurable, Polla
                 RecordEntry entry = datahubReader.read();
                 if (entry != null) {
                     Event e = serializer.getEvent(entry);
-                    eventList.add(e);
-                    currentSize++;
-                    sourceCounter.incrementEventReceivedCount();
+                    entryList.add(entry);
+                    if (e != null) {
+                        eventList.add(e);
+                        currentSize++;
+                        sourceCounter.incrementEventReceivedCount();
+                    }
                 }
                 if (currentSize >= configure.getBatchSize()) {
                     logger.debug("[Thread {}] BatchSize finished.", threadId);
@@ -177,6 +185,9 @@ public class DatahubSource extends AbstractSource implements Configurable, Polla
             if (!eventList.isEmpty()) {
                 getChannelProcessor().processEventBatch(eventList);
                 sourceCounter.addToEventAcceptedCount(eventList.size());
+                if (!configure.isAutoCommit()) { // auto commit not need record ack
+                    entryList.forEach(entry -> entry.getKey().ack());
+                }
                 logger.info("[Thread {}] put {} event to channel successful.", threadId, eventList.size());
             } else {
                 logger.debug("[Thread {}] DataHub no data now.", threadId);

@@ -20,9 +20,10 @@ package com.aliyun.datahub.flume.sink;
 
 import com.aliyun.datahub.client.model.RecordEntry;
 import com.aliyun.datahub.client.model.TupleRecordData;
-import com.aliyun.datahub.flume.sink.serializer.OdpsDelimitedTextSerializer;
-import com.aliyun.datahub.flume.sink.serializer.OdpsEventSerializer;
-import com.aliyun.datahub.flume.sink.serializer.OdpsRegexEventSerializer;
+import com.aliyun.datahub.flume.sink.serializer.DelimitedTextSerializer;
+import com.aliyun.datahub.flume.sink.serializer.EventSerializer;
+import com.aliyun.datahub.flume.sink.serializer.JsonTextSerializer;
+import com.aliyun.datahub.flume.sink.serializer.RegexEventSerializer;
 
 import com.google.common.base.Preconditions;
 import org.apache.flume.*;
@@ -33,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.security.InvalidParameterException;
 import java.util.*;
 
 /**
@@ -43,14 +45,13 @@ public class DatahubSink extends AbstractSink implements Configurable {
     private static final Logger logger = LoggerFactory.getLogger(DatahubSink.class);
 
     private Configure configure;
-    private OdpsEventSerializer serializer;
+    private EventSerializer serializer;
     private SinkCounter sinkCounter;
 
     private DatahubWriter datahubWriter;
 
     @Override
     public void configure(Context context) {
-        //threadId = Thread.currentThread().getId();
 
         configure = new Configure();
 
@@ -131,29 +132,35 @@ public class DatahubSink extends AbstractSink implements Configurable {
         serializerContext
                 .putAll(context.getSubProperties(DatahubConfigConstants.SERIALIZER_PREFIX));
         serializer.configure(serializerContext);
+        String[] inputColumns = serializer.getInputColumnNames();
+        if (inputColumns == null) {
+            throw new InvalidParameterException("input columns is null");
+        }
         configure.setInputColumnNames(serializer.getInputColumnNames());
 
         if (sinkCounter == null) {
             sinkCounter = new SinkCounter(getName());
         }
 
-        if (logger.isInfoEnabled())
-        {
+        if (logger.isInfoEnabled()) {
             logger.info(configure.sinktoString());
         }
     }
 
-    private OdpsEventSerializer createSerializer(String serializerType) {
-        if (serializerType.compareToIgnoreCase(OdpsDelimitedTextSerializer.ALIAS) == 0
-                || serializerType.compareTo(OdpsDelimitedTextSerializer.class.getName()) == 0) {
-            return new OdpsDelimitedTextSerializer();
-        } else if (serializerType.compareToIgnoreCase(OdpsRegexEventSerializer.ALIAS) == 0
-                || serializerType.compareTo(OdpsRegexEventSerializer.class.getName()) == 0) {
-            return new OdpsRegexEventSerializer();
+    private EventSerializer createSerializer(String serializerType) {
+        if (serializerType.compareToIgnoreCase(DelimitedTextSerializer.ALIAS) == 0
+                || serializerType.compareTo(DelimitedTextSerializer.class.getName()) == 0) {
+            return new DelimitedTextSerializer();
+        } else if (serializerType.compareToIgnoreCase(RegexEventSerializer.ALIAS) == 0
+                || serializerType.compareTo(RegexEventSerializer.class.getName()) == 0) {
+            return new RegexEventSerializer();
+        } else if (serializerType.compareToIgnoreCase(JsonTextSerializer.ALIAS) == 0
+                || serializerType.compareTo(JsonTextSerializer.class.getName()) == 0) {
+            return new JsonTextSerializer();
         }
 
         try {
-            return (OdpsEventSerializer) Class.forName(serializerType).newInstance();
+            return (EventSerializer) Class.forName(serializerType).newInstance();
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     "Unable to instantiate serializer: " + serializerType + " on sink: " +
@@ -221,8 +228,7 @@ public class DatahubSink extends AbstractSink implements Configurable {
                 } else {
                     serializer.initialize(event);
                     Map<String, String> rowMap = serializer.getRow();
-                    if (logger.isDebugEnabled())
-                    {
+                    if (logger.isDebugEnabled()) {
                         logger.debug("[Thread {}] Sink: {}, event: {}", threadId, getName(), new String(event.getBody()));
                         logger.debug("[Thread {}] Sink: {}, rowMap: {}", threadId, getName(), rowMap);
                     }

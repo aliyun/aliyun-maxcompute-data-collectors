@@ -16,9 +16,9 @@
         <!-- datahub project, 可以被mapping中的datahubProject, 两者必须有一个非空-->
         <project>YOUR_DATAHUB_PROJECT</project>
         <!-- datahub accessId, 可以被mapping中的datahubAccessId覆盖, 两者必须有一个非空-->
-        <accessId>YOUR_DATAHUB_ACCESS_ID</accessId>
+        <accessId>accessId</accessId>
         <!-- datahub accessKey, 可以被mapping中的datahubAccessKey覆盖, 两者必须有一个非空-->
-        <accessKey>YOUR_DATAHUB_ACCESS_KEY</accessKey>
+        <accessKey>accessKey</accessKey>
         <!-- 数据传输压缩格式，现支持DEFLATE和LZ4，默认不压缩-->
         <compressType>LZ4</compressType>
         <!-- 数据传输是否使用protobuf-->
@@ -33,6 +33,10 @@
     <!-- 脏数据是否继续, 可选, 默认false-->
     <dirtyDataContinue>true</dirtyDataContinue>
 
+    <buildBatchSize>150</buildBatchSize>
+
+    <buildBatchTimeoutMs>3200</buildBatchTimeoutMs>
+
     <!-- 脏数据文件, 可选, 默认datahub_ogg_plugin.dirty-->
     <dirtyDataFile>datahub_ogg_plugin.dirty.test</dirtyDataFile>
 
@@ -45,12 +49,15 @@
     <!-- 重试间隔, 单位毫秒, 可选, 默认3000-->
     <retryInterval>1000</retryInterval>
 
-    <!-- 是否禁用checkpoint file, 可选, 默认false-->
-    <disableCheckPointFile>true</disableCheckPointFile>
+    <buildRecordQueueSize>512</buildRecordQueueSize>
+    <buildRecordQueueTimeoutMs>1000</buildRecordQueueTimeoutMs>
+    <writeRecordQueueSize>1024</writeRecordQueueSize>
+    <writeRecordQueueTimeoutMs>5000</writeRecordQueueTimeoutMs>
 
-    <checkPointFileName>datahub_ogg_plugin.chk.test</checkPointFileName>
-
-    <charset>utf-8</charset>
+    <buildCorePollSize>3</buildCorePollSize>>
+    <buildMaximumPoolSize>7</buildMaximumPoolSize>
+    <writeCorePollSize>5</writeCorePollSize>
+    <writeMaximumPoolSize>10</writeMaximumPoolSize>
 
     <mappings>
         <mapping>
@@ -60,15 +67,8 @@
             <oracleTable>t_person</oracleTable>
             <!-- datahub project, 见上描述-->
             <datahubProject>t_project</datahubProject>
-            <!-- datahub AccessId, 见上描述-->
-            <datahubAccessId>accessId</datahubAccessId>
-            <!-- datahub AccessKey, 见上描述-->
-            <datahubAccessKey>accessKey</datahubAccessKey>
             <!-- datahub topic, 必选-->
             <datahubTopic>ogg_test_normal</datahubTopic>
-
-            <!--指定shard id, 优先生效, 可选-->
-            <shardId>0,1</shardId>
 
             <rowIdColumn>row_id</rowIdColumn>
             <ctypeColumn>ctype</ctypeColumn>
@@ -86,7 +86,7 @@
                 dateFormat: timestamp字段的转换格式, 不填就用默认值yyyy-MM-dd HH:mm:ss
                 -->
                 <column src="c1" dest="c1" />
-                <column src="c2" dest="c2" destOld="c2_old" isShardColumn="true" isDateFormat="false" dateFormat="yyyy-MM-dd:HH:mm:ss" isDefaultCharset="false"/>
+                <column src="c2" dest="c2" destOld="c2_old" isShardColumn="true" isDateFormat="false" dateFormat="yyyy-MM-dd:HH:mm:ss"/>
             </columnMapping>
         </mapping>
         <mapping>

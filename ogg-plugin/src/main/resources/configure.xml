@@ -53,9 +53,6 @@
     <!-- 重试间隔, 单位毫秒, 可选, 默认3000-->
     <retryInterval>3000</retryInterval>
 
-    <!-- 是否禁用checkpoint file, 可选, 默认false-->
-    <disableCheckPointFile>false</disableCheckPointFile>
-
     <mappings>
         <mapping>
             <!-- oracle schema, 见上描述-->
@@ -73,8 +70,6 @@
             <ctimeColumn></ctimeColumn>
             <cidColumn></cidColumn>
             <constColumnMap></constColumnMap>
-            <!--指定shard id列表, 优先生效, 可选, 例如0,1-->
-            <shardId></shardId>
             <columnMapping>
                 <!--
                 src:oracle字段名称, 必须;
@@ -84,7 +79,7 @@
                 isDateFormat: timestamp字段是否采用DateFormat格式转换, 默认true. 如果是false, 源端数据必须是long
                 dateFormat: timestamp字段的转换格式, 不填就用默认值
                 -->
-                <column src="id" dest="id" isShardColumn="false" isDateFormat="true"/>
+                <column src="id" dest="id" isShardColumn="false" isDateFormat="true" isKeyColumn="true"/>
                 <column src="name" dest="name" isShardColumn="true"/>
                 <column src="age" dest="age"/>
                 <column src="address" dest="address"/>

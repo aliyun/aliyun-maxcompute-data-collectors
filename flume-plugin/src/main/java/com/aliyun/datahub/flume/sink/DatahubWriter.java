@@ -126,6 +126,18 @@ public class DatahubWriter {
                         case DECIMAL:
                             data.setField(fieldName, new BigDecimal(val));
                             break;
+                        case INTEGER:
+                            data.setField(field.getName(), Integer.parseInt(val));
+                            break;
+                        case FLOAT:
+                            data.setField(field.getName(), Float.parseFloat(val));
+                            break;
+                        case TINYINT:
+                            data.setField(field.getName(), (byte) Integer.parseInt(val));
+                            break;
+                        case SMALLINT:
+                            data.setField(field.getName(), (short) Integer.parseInt(val));
+                            break;
                         default:
                             throw new IllegalArgumentException("Unsupported RecordType " + field.getType().name());
                     }
@@ -179,16 +191,15 @@ public class DatahubWriter {
                 result = datahubClient.putRecords(configure.getProject(),
                         configure.getTopic(), recordEntries);
             } catch (DatahubClientException e) {
-                logger.error("[Thread {}] Put {} records to DataHub failed. {}",
-                        threadId, recordEntries.size(), e.getErrorMessage());
-                //throw e;
+                logger.error("[Thread {}] Put {} records to DataHub failed.",
+                        threadId, recordEntries.size(), e);
             }
 
             if (result != null) {
                 putSucNum += recordEntries.size() - result.getFailedRecordCount();
                 if (result.getFailedRecordCount() == 0) {
-                    logger.info("[Thread {}] Put {} records to DataHub successful.",
-                            threadId, recordEntries.size());
+                    logger.info("[Thread {}] Put {} records to DataHub successful, requestId: {}",
+                            threadId, recordEntries.size(), result.getRequestId());
                     break;
                 }
             }
@@ -196,14 +207,14 @@ public class DatahubWriter {
             if (retryNum > 0) {
                 try {
                     Thread.sleep(interval * 1000);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException ignored) {
                 }
                 logger.warn("[Thread {} ] Now retry ({})...", threadId, retryNum);
 
                 if (result != null && result.getFailedRecordCount() > 0) {
-                    logger.warn("[Thread {} ] Put {} records to DataHub. {} records is failed. {}",
+                    logger.warn("[Thread {} ] Put {} records to DataHub. {} records is failed, error: {}, requestId: {}",
                             threadId, recordEntries.size(), result.getFailedRecordCount(),
-                            result.getPutErrorEntries().get(0).getMessage());
+                            result.getPutErrorEntries().get(0).getMessage(), result.getRequestId());
 
                     recordEntries.clear();
                     List<RecordEntry> failedRecords = result.getFailedRecords();
@@ -235,8 +246,8 @@ public class DatahubWriter {
             } else {
                 if (result != null && result.getFailedRecordCount() > 0) {
                     recordEntries = result.getFailedRecords();
-                    logger.error("[Thread {} ] {} records put failed. {}", threadId,
-                            recordEntries.size(), result.getPutErrorEntries().get(0).getMessage());
+                    logger.error("[Thread {} ] {} records put failed, error: {}, requestId: {}", threadId,
+                            recordEntries.size(), result.getPutErrorEntries().get(0).getMessage(), result.getRequestId());
                     throw new RuntimeException("put record failed. "
                             + result.getPutErrorEntries().get(0).getMessage());
                 }

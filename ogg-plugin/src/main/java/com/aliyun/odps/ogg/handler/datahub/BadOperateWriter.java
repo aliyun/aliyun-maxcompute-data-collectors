@@ -20,6 +20,7 @@
 package com.aliyun.odps.ogg.handler.datahub;
 
 import com.aliyun.datahub.client.model.Field;
+import com.aliyun.datahub.client.model.*;
 import com.aliyun.datahub.client.model.RecordEntry;
 import com.aliyun.datahub.client.model.RecordSchema;
 import com.aliyun.datahub.client.model.TupleRecordData;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
  * @author lyf0429
  * @date 16/5/20
  */
@@ -59,14 +59,13 @@ public class BadOperateWriter {
     }
 
     private static void write(Map<String, String> record, String oracleFullTableName, String topicName,
-                             String fileName, int maxFileSize, String msg) {
+                              String fileName, int maxFileSize, String msg) {
 
         checkFileSize(fileName, maxFileSize);
 
         DirtyRecordInfo dirtyRecordInfo = new DirtyRecordInfo();
         dirtyRecordInfo.setOracleTable(oracleFullTableName);
         dirtyRecordInfo.setTopicName(topicName);
-        dirtyRecordInfo.setShardId(null);
         dirtyRecordInfo.setErrorMessage(msg);
 
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -110,6 +109,9 @@ public class BadOperateWriter {
                 Object obj = recordData.getField(field.getName());
                 record.put(field.getName(), obj != null ? obj.toString() : null);
             }
+        } else {
+            BlobRecordData recordData = (BlobRecordData) recordEntry.getRecordData();
+            record.put("content", new String(recordData.getData()));
         }
 
         write(record, oracleFullTableName, topicName, fileName, maxFileSize, msg);

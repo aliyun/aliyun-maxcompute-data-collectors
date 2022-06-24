@@ -38,64 +38,44 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.nio.charset.Charset;
-import java.security.InvalidParameterException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class TableRecordBuilder {
-
     private final static Logger logger = LoggerFactory.getLogger(TableRecordBuilder.class);
-    private final Object syncLock = new Object();
-    private final static long SYNC_LOCK_WAIT_TIMEOUT_MS = 1000;
+
+    private static final int WAIT_TASK_TIMEOUT_MS = 5000;
 
     private Configure configure;
     private LinkedBlockingQueue<Record> recordQueue;
+
     private TableMapping tableMapping;
-    private TopicWriter topicWriter;
-    private Charset charset;
-    private Thread buildThread;
-    private volatile boolean sync = false;
     private volatile boolean stop = true;
 
-    public TableRecordBuilder(Configure configure, TopicWriter topicWriter, TableMapping tableMapping, int index) {
+    private ExecutorService executor;
+    private volatile Future currentTask = null;
+    private long lastSubmitTimeMs = System.currentTimeMillis();
+
+    public TableRecordBuilder(Configure configure, TableMapping tableMapping, ExecutorService executor) {
         this.configure = configure;
-        this.topicWriter = topicWriter;
         this.tableMapping = tableMapping;
+        this.executor = executor;
         this.recordQueue = new LinkedBlockingQueue<>(configure.getBuildRecordQueueSize());
-
-        if (!Charset.isSupported(configure.getCharsetName())) {
-            throw new InvalidParameterException("Invalid charsetName: " + configure.getCharsetName());
-        }
-        charset = Charset.forName(configure.getCharsetName());
-        buildThread = new Thread(this::run, tableMapping.getOracleFullTableName() + ".RecordBuilder-" + index);
-    }
-
-
-    public boolean addRecord(Op op, String opType, String recordId) {
-        if (!stop) {
-            try {
-                boolean ret = recordQueue.offer(new Record(opType, recordId, op), configure.getBuildRecordQueueTimeoutMs(), TimeUnit.MILLISECONDS);
-                if (!ret) {
-                    logger.warn("offer record to queue falied");
-                }
-                return ret;
-            } catch (InterruptedException e) {
-                logger.warn("add record failed", e);
-                return false;
-            }
-        } else {
-            throw new RuntimeException("record builder has stopped.");
-        }
     }
 
     public void start() {
-        buildThread.start();
         stop = false;
     }
 
@@ -103,67 +83,70 @@ public class TableRecordBuilder {
         stop = true;
     }
 
-    public void sync() {
-        if (!stop) {
-            try {
-                if (!recordQueue.isEmpty()) {
-                    synchronized (syncLock) {
-                        sync = true;
-                        syncLock.wait();
-                        while (!recordQueue.isEmpty()) {
-                            try {
-                                Record record = recordQueue.poll(configure.getBuildRecordQueueTimeoutMs(), TimeUnit.MILLISECONDS);
-                                if (record != null) {
-                                    RecordEntry recordEntry = buildRecord(record);
-                                    topicWriter.writeRecord(recordEntry);
-                                }
-                            } catch (InterruptedException e) {
-                                logger.warn("BuildRecord failed, will retry", e);
-                            }
-                        }
-                        sync = false;
-                        syncLock.notify();
-                    }
-                }
-            } catch (InterruptedException e) {
-                logger.error("sync build all record failed, table: {}, topic: {}",
-                        tableMapping.getOracleFullTableName(), tableMapping.getTopicName(), e);
-                throw new RuntimeException(e.getMessage());
-            }
-        } else {
-            throw new RuntimeException("record builder has stopped.");
-        }
+    public void syncExec() {
+        // 1. 保证当前task执行完
+        awaitTaskDone();
+
+        // 2. 重新提交完整处理task，并且保证该task一定提交成功
+        boolean ret = false;
+        do {
+            ret = submit();
+        } while (!ret);
+
+        // 3. 等待任务执行完
+        awaitTaskDone();
     }
 
-    private void run() {
-        while (!stop) {
-            Record record = null;
+    public boolean addRecord(Op op, String opType, String recordId) {
+        boolean ret = false;
+        if (!stop) {
             try {
-                if (sync) {
-                    synchronized (syncLock) {
-                        syncLock.notify();
-                        // wait timeout for prevent deadlock
-                        syncLock.wait(SYNC_LOCK_WAIT_TIMEOUT_MS);
-                    }
-                } else {
-                    record = recordQueue.poll(configure.getBuildRecordQueueTimeoutMs(), TimeUnit.MILLISECONDS);
-                    if (record != null) {
-                        RecordEntry recordEntry = buildRecord(record);
-                        topicWriter.writeRecord(recordEntry);
-                    }
+                ret = recordQueue.offer(new Record(opType, recordId, op), configure.getBuildRecordQueueTimeoutMs(), TimeUnit.MILLISECONDS);
+                if (isReady()) {
+                    submit();
                 }
             } catch (InterruptedException e) {
-                logger.warn("BuildRecord failed, will retry", e);
-            } catch (Exception e) {
-                logger.error("RecordBuild failed, table: {}", tableMapping.getOracleFullTableName(), e);
-                if (configure.isDirtyDataContinue()) {
-                    if (record != null) {
-                        BadOperateWriter.write(record.op, tableMapping.getOracleFullTableName(), tableMapping.getTopicName(),
-                                configure.getDirtyDataFile(), configure.getDirtyDataFileMaxSize(), e.getMessage());
-                    }
-                } else {
-                    logger.error("RecordBuild failed, will stop...");
-                    stop = true;
+                logger.warn("Add record failed, table: {}", tableMapping.getOracleFullTableName(), e);
+            }
+        } else {
+            throw new RuntimeException("Record builder has stopped.");
+        }
+        return ret;
+    }
+
+    private boolean isReady() {
+        return recordQueue.size() >= configure.getBuildBatchSize()
+                || System.currentTimeMillis() - lastSubmitTimeMs >= configure.getBuildBatchTimeoutMs();
+    }
+
+    private boolean taskDone() {
+        return currentTask == null || currentTask.isDone();
+    }
+
+    private boolean submit() {
+        boolean ret = true;
+        if (!recordQueue.isEmpty() && taskDone()) {
+            BuildTask task = new BuildTask(tableMapping);
+            try {
+                currentTask = executor.submit(task);
+                lastSubmitTimeMs = System.currentTimeMillis();
+            } catch (RejectedExecutionException e) {
+                logger.warn("Submit build task failed, table: {}", tableMapping.getOracleFullTableName(), e);
+                ret = false;
+            }
+        }
+        return ret;
+    }
+
+    private void awaitTaskDone() {
+        while (!taskDone()) {
+            try {
+                currentTask.get(WAIT_TASK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException | ExecutionException e) {
+                logger.error("Wait build task finished error, table: {}", tableMapping.getOracleFullTableName(), e);
+            } catch (TimeoutException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Wait build task finished timeout, table: {}", tableMapping.getOracleFullTableName());
                 }
             }
         }
@@ -172,10 +155,6 @@ public class TableRecordBuilder {
     private RecordEntry buildRecord(Record record) {
         long startTime = System.currentTimeMillis();
         RecordEntry recordEntry = new RecordEntry();
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("BuildRecord, oracle table: {}, record: {}", tableMapping.getOracleFullTableName(), record.op.getRecord().toString());
-        }
 
         if (tableMapping.getRecordSchema() == null) {
             buildBlobRecord(record, tableMapping, recordEntry);
@@ -254,15 +233,13 @@ public class TableRecordBuilder {
             }
 
             DsColumn dsColumn = columns.get(i);
-            String afterValue = dsColumn.getAfterValue();
-            String beforeValue = dsColumn.getBeforeValue();
-            if (!columnMapping.isDefaultCharset()) {
-                afterValue = dsColumn.hasAfterValue() ? new String(dsColumn.getAfterValue().getBytes(charset)) : null;
-                beforeValue = dsColumn.hasBeforeValue() ? new String(dsColumn.getBeforeValue().getBytes(charset)) : null;
-            }
+            String afterValue = dsColumn.hasAfterValue() ? dsColumn.getAfterValue() : null;
+            String beforeValue = dsColumn.hasBeforeValue() ? dsColumn.getBeforeValue() : null;
 
             String dest = columnMapping.getDest();
+            String hashVal = null;
             if (StringUtils.isNotBlank(dest)) {
+                hashVal = afterValue;
                 if (columnMapping.isKeyColumn()) {
                     if (dsColumn.hasAfterValue()) {
                         setTupleData(recordData, recordSchema.getField(dest), afterValue,
@@ -270,6 +247,7 @@ public class TableRecordBuilder {
                     } else {
                         setTupleData(recordData, recordSchema.getField(dest), beforeValue,
                                 columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
+                        hashVal = beforeValue;
                     }
                 } else {
                     setTupleData(recordData, recordSchema.getField(dest), afterValue,
@@ -279,12 +257,13 @@ public class TableRecordBuilder {
 
             String destOld = columnMapping.getDestOld();
             if (StringUtils.isNotBlank(destOld)) {
+                hashVal = hashVal != null ? hashVal : beforeValue;
                 setTupleData(recordData, recordSchema.getField(destOld), beforeValue,
                         columnMapping.isDateFormat(), columnMapping.getSimpleDateFormat());
             }
 
-            if (columnMapping.isShardColumn()) {
-                hashString.append(afterValue);
+            if (columnMapping.isShardColumn() && hashVal != null) {
+                hashString.append(hashVal);
             }
         }
 
@@ -313,18 +292,10 @@ public class TableRecordBuilder {
 
             DsColumn dsColumn = columns.get(i);
             byte[] data;
-            if (columnMapping.isDefaultCharset()) {
-                if ("D".equalsIgnoreCase(record.opType)) {
-                    data = dsColumn.getBeforeValue().getBytes(Charset.forName("UTF-8"));
-                } else {
-                    data = dsColumn.getAfterValue().getBytes(Charset.forName("UTF-8"));
-                }
+            if ("D".equalsIgnoreCase(record.opType)) {
+                data = dsColumn.getBeforeValue().getBytes(StandardCharsets.UTF_8);
             } else {
-                if ("D".equalsIgnoreCase(record.opType)) {
-                    data = dsColumn.getBeforeValue().getBytes(charset);
-                } else {
-                    data = dsColumn.getAfterValue().getBytes(charset);
-                }
+                data = dsColumn.getAfterValue().getBytes(StandardCharsets.UTF_8);
             }
 
             BlobRecordData recordData = new BlobRecordData(data);
@@ -373,6 +344,18 @@ public class TableRecordBuilder {
             case DECIMAL:
                 recordData.setField(field.getName(), new BigDecimal(val));
                 break;
+            case INTEGER:
+                recordData.setField(field.getName(), Integer.parseInt(val));
+                break;
+            case FLOAT:
+                recordData.setField(field.getName(), Float.parseFloat(val));
+                break;
+            case TINYINT:
+                recordData.setField(field.getName(), (byte) Integer.parseInt(val));
+                break;
+            case SMALLINT:
+                recordData.setField(field.getName(), (short) Integer.parseInt(val));
+                break;
             default:
                 logger.error("BuildRecord failed, unknown DataHub filed type, type: {}", field.getType().name());
                 throw new RuntimeException("unknown DataHub filed type " + field.getType().name());
@@ -400,18 +383,58 @@ public class TableRecordBuilder {
         return milliseconds * 1000 + nanos % 1000000 / 1000;
     }
 
-    class Record {
+    public static class Record {
 
         public Record(String opType, String recordId, Op op) {
             this.opType = opType;
             this.recordId = recordId;
             this.op = op;
-            this.rowIdToken = op.getToken(Constant.ROWID_TOKEN);
+            Set<String> keys = op.getRecord().getTokenKeys();
+            this.rowIdToken = keys.contains(Constant.GG_ROWID_TOKEN)
+                    ? op.getRecord().getGGToken(Constant.GG_ROWID_TOKEN)
+                    : op.getRecord().getUserToken(Constant.ROWID_TOKEN);
         }
 
         String opType;
         String recordId;
         Op op;
         DsToken rowIdToken;
+    }
+
+    private class BuildTask implements Runnable {
+        private final TableMapping tableMapping;
+
+        BuildTask(TableMapping tableMapping) {
+            this.tableMapping = tableMapping;
+        }
+
+        @Override
+        public void run() {
+            while (!stop) {
+                Record record = null;
+                try {
+                    record = recordQueue.peek();
+                    if (record != null) {
+                        RecordEntry recordEntry = buildRecord(record);
+                        TopicWriter writer = RecordWriter.instance().getTopicWriter(tableMapping.getOracleFullTableName());
+                        writer.writeRecord(recordEntry);
+                        recordQueue.poll();
+                    } else {
+                        break;
+                    }
+                } catch (Exception e) {
+                    logger.error("RecordBuild failed, table: {}", tableMapping.getOracleFullTableName(), e);
+                    if (configure.isDirtyDataContinue()) {
+                        if (record != null) {
+                            BadOperateWriter.write(record.op, tableMapping.getOracleFullTableName(), tableMapping.getTopicName(),
+                                    configure.getDirtyDataFile(), configure.getDirtyDataFileMaxSize(), e.getMessage());
+                        }
+                    } else {
+                        logger.error("RecordBuild failed, will stop...");
+                        stop = true;
+                    }
+                }
+            }
+        }
     }
 }

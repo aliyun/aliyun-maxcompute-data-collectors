@@ -1,9 +1,9 @@
-# Odps Sink Plugin for Apache Flume
+# DataHub Sink Plugin for Apache Flume
 
-The Odps sink streams events data into a datahub topic. It has the following features:
+The DataHub sink streams events data into a DataHub topic. It has the following features:
 
-- Map structured data to corresponding columns in the datahub topic.
-- Currently only support delimited text data.
+- Map structured data to corresponding columns in the DataHub topic.
+- Currently only support delimited/json/regex text data.
 - Highly customizable.
 - Compatible with all the features of Flume, such as fan-in and fan-out flows, contextual routing and backup routes (fail-over) for failed hops.
 
@@ -16,9 +16,9 @@ The Odps sink streams events data into a datahub topic. It has the following fea
 
 To get started using this plugin, you will need three things:
 
-1. JDK 1.6 or later (JDK 1.7 recommended)
+1. JDK 1.8 or later (JDK 1.8 recommended)
 2. Apache Maven 3.x  
-3. Flume-NG 1.x  (*[Home Page](https://flume.apache.org/index.html)*)
+3. Flume-NG 1.x (1.9 recommended)  (*[Home Page](https://flume.apache.org/index.html)*)
 
 ### Build the Package
 
@@ -53,14 +53,7 @@ $ ls {YOUR_FLUME_DIRECTORY}/plugins.d
 aliyun-flume-datahub-sink
 ```
 
-The ODPS sink should be available for Flume now. You can use this sink by set the type of the Flume sink to **com.aliyun.datahub.flume.sink.DatahubSink**. Details about the configure paramters of the Datahub sink are listed in [Sink Paramters](http://github.com/aliyun/aliyun-odps-flume-plugin/wiki/sink-parameter).
-
-## Tutorial
----
-
-Following are some examples that use Flume along with this plugin to upload structured log data to Datahub topic. This tutorial is designed for the ODPS users who had not used Flume before, and will illustrate the basics about how to use Flume to upload streaming data into Datahub.
-
-- [Basic example](http://github.com/aliyun/aliyun-odps-flume-plugin/wiki/basic-example)
+The DataHub sink should be available for Flume now. You can use this sink by set the type of the Flume sink to **com.aliyun.datahub.flume.sink.DatahubSink**. Details about the configure paramters of the Datahub sink are listed in [Sink Paramters](http://github.com/aliyun/aliyun-odps-flume-plugin/wiki/sink-parameter).
 
 ## Useful Links
 ---

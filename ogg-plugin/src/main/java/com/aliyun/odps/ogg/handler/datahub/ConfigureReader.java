@@ -34,8 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -67,6 +65,16 @@ public class ConfigureReader {
             configure.setBatchTimeoutMs(Integer.parseInt(elementText));
         }
 
+        elementText = root.elementTextTrim("buildBatchSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBuildBatchSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("buildBatchTimeoutMs");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBuildBatchTimeoutMs(Integer.parseInt(elementText));
+        }
+
         elementText = root.elementTextTrim("dirtyDataContinue");
         if (StringUtils.isNotBlank(elementText)) {
             configure.setDirtyDataContinue(Boolean.parseBoolean(elementText));
@@ -92,21 +100,6 @@ public class ConfigureReader {
             configure.setRetryIntervalMs(Integer.parseInt(elementText));
         }
 
-        elementText = root.elementTextTrim("disableCheckPointFile");
-        if (StringUtils.isNotBlank(elementText)) {
-            configure.setCheckPointFileDisable(Boolean.parseBoolean(elementText));
-        }
-
-        elementText = root.elementTextTrim("checkPointFileName");
-        if (StringUtils.isNotBlank(elementText)) {
-            configure.setCheckPointFileName(elementText);
-        }
-
-        elementText = root.elementTextTrim("charset");
-        if (StringUtils.isNotBlank(elementText)) {
-            configure.setCharsetName(elementText);
-        }
-
         elementText = root.elementTextTrim("buildRecordQueueSize");
         if (StringUtils.isNotBlank(elementText)) {
             configure.setBuildRecordQueueSize(Integer.parseInt(elementText));
@@ -117,19 +110,19 @@ public class ConfigureReader {
             configure.setBuildRecordQueueTimeoutMs(Integer.parseInt(elementText));
         }
 
-        elementText = root.elementTextTrim("putRecordQueueSize");
+        elementText = root.elementTextTrim("writeRecordQueueSize");
         if (StringUtils.isNotBlank(elementText)) {
-            configure.setPutRecordQueueSize(Integer.parseInt(elementText));
+            configure.setWriteRecordQueueSize(Integer.parseInt(elementText));
         }
 
-        elementText = root.elementTextTrim("putRecordQueueTimeoutMs");
+        elementText = root.elementTextTrim("writeRecordQueueTimeoutMs");
         if (StringUtils.isNotBlank(elementText)) {
-            configure.setPutRecordQueueTimeoutMs(Integer.parseInt(elementText));
+            configure.setWriteRecordQueueTimeoutMs(Integer.parseInt(elementText));
         }
 
-        elementText = root.elementTextTrim("commitFlush");
+        elementText = root.elementTextTrim("recordAccess");
         if (StringUtils.isNotBlank(elementText)) {
-            configure.setCommitFlush(Boolean.parseBoolean(elementText));
+            configure.setRecordAccess(Boolean.parseBoolean(elementText));
         }
 
         elementText = root.elementTextTrim("reportMetric");
@@ -142,6 +135,26 @@ public class ConfigureReader {
             configure.setReportMetricIntervalMs(Integer.parseInt(elementText));
         }
 
+        elementText = root.elementTextTrim("buildCorePollSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBuildRecordCorePoolSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("buildMaximumPoolSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setBuildRecordMaximumPoolSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("writeCorePollSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setWriteRecordCorePoolSize(Integer.parseInt(elementText));
+        }
+
+        elementText = root.elementTextTrim("writeMaximumPoolSize");
+        if (StringUtils.isNotBlank(elementText)) {
+            configure.setWriteRecordMaximumPoolSize(Integer.parseInt(elementText));
+        }
+
         /* for oracle default config */
         Element element = root.element("defaultOracleConfigure");
         if (element == null) {
@@ -149,7 +162,7 @@ public class ConfigureReader {
         }
 
         elementText = element.elementTextTrim("sid");
-        if (StringUtils.isNotBlank(elementText)){
+        if (StringUtils.isNotBlank(elementText)) {
             configure.setOracleSid(elementText);
         }
 
@@ -167,15 +180,17 @@ public class ConfigureReader {
         }
         configure.setDatahubEndpoint(endPoint);
 
-        String defaultDatahubAccessID = element.elementText("accessId");
-        if (StringUtils.isNotBlank(defaultDatahubAccessID)) {
-            configure.setDatahubAccessId(defaultDatahubAccessID);
+        String datahubAccessID = element.elementText("accessId");
+        if (StringUtils.isBlank(datahubAccessID)) {
+            throw new RuntimeException("defaultDatahubConfigure.accessId is null");
         }
+        configure.setDatahubAccessId(datahubAccessID);
 
-        String defaultDatahubAccessKey = element.elementText("accessKey");
-        if (StringUtils.isNotBlank(defaultDatahubAccessKey)) {
-            configure.setDatahubAccessKey(defaultDatahubAccessKey);
+        String datahubAccessKey = element.elementText("accessKey");
+        if (StringUtils.isBlank(datahubAccessKey)) {
+            throw new RuntimeException("defaultDatahubConfigure.accessKey is null");
         }
+        configure.setDatahubAccessKey(datahubAccessKey);
 
         String defaultDatahubProject = element.elementText("project");
         String defaultCTypeColumn = element.elementText("ctypeColumn");
@@ -202,9 +217,7 @@ public class ConfigureReader {
             throw new RuntimeException("mappings is null");
         }
 
-
         List<Element> mappingElements = element.elements("mapping");
-        System.out.println(mappingElements.size());
         if (mappingElements == null || mappingElements.size() == 0) {
             throw new RuntimeException("mappings.mapping is null");
         }
@@ -236,35 +249,9 @@ public class ConfigureReader {
                         "both mappings.mapping.datahubProject and defaultDatahubConfigure.project is null");
             }
 
-            String datahubAccessId = e.elementTextTrim("datahubAccessId");
-            if (StringUtils.isNotBlank(datahubAccessId)) {
-                //nothing
-            } else if (StringUtils.isNotBlank(defaultDatahubAccessID)) {
-                datahubAccessId = defaultDatahubAccessID;
-            } else {
-                throw new RuntimeException(
-                        "both mappings.mapping.datahubAccessId and defaultDatahubConfigure.accessId is null");
-            }
-
-            String datahubAccessKey = e.elementTextTrim("datahubAccessKey");
-            if (StringUtils.isNotBlank(datahubAccessKey)) {
-                //nothing
-            } else if (StringUtils.isNotBlank(defaultDatahubAccessKey)) {
-                datahubAccessKey = defaultDatahubAccessKey;
-            } else {
-                throw new RuntimeException(
-                        "both mappings.mapping.datahubAccessKey and defaultDatahubConfigure.accessKey is null");
-            }
-
             String topicName = e.elementTextTrim("datahubTopic");
             if (StringUtils.isBlank(topicName)) {
                 throw new RuntimeException("mappings.mapping.datahubTopic is null");
-            }
-
-            int buildSpeed = 0;
-            elementText = e.elementText("buildSpeed");
-            if (StringUtils.isNotBlank(elementText)) {
-                buildSpeed = Integer.parseInt(elementText);
             }
 
             String rowIdColumn = e.elementText("rowIdColumn");
@@ -283,10 +270,6 @@ public class ConfigureReader {
             parseConstColumnMap(constColumnMapStr, constColumnMappings);
             constColumnMappings = constColumnMappings.isEmpty() ? defalutConstColumnMappings : constColumnMappings;
 
-            elementText = e.elementTextTrim("shardId");
-            List<String> shardIds = new ArrayList<String>();
-            paraseShardList(elementText, shardIds);
-
             TableMapping tableMapping = new TableMapping();
 
             tableMapping.setOracleSchema(oracleSchema.toLowerCase());
@@ -295,20 +278,11 @@ public class ConfigureReader {
                     tableMapping.getOracleSchema() + "." + tableMapping.getOracleTableName());
             tableMapping.setProjectName(datahubProject);
             tableMapping.setTopicName(topicName);
-            tableMapping.setAccessId(datahubAccessId);
-            tableMapping.setAccessKey(datahubAccessKey);
             tableMapping.setRowIdColumn(rowIdColumn);
             tableMapping.setcTypeColumn(cTypeColumn);
             tableMapping.setcTimeColumn(cTimeColumn);
             tableMapping.setcIdColumn(cIdColumn);
             tableMapping.setConstColumnMappings(constColumnMappings);
-            tableMapping.setShardIds(shardIds);
-            if (!shardIds.isEmpty()) {
-                tableMapping.setSetShardId(true);
-            }
-            if (buildSpeed > 0) {
-                tableMapping.setBuildSpeed(buildSpeed);
-            }
 
             configure.addTableMapping(tableMapping);
             Map<String, ColumnMapping> columnMappings = Maps.newHashMap();
@@ -366,11 +340,6 @@ public class ConfigureReader {
                 if (StringUtils.isNotBlank(dateFormat)) {
                     columnMapping.setDateFormat(dateFormat);
                 }
-
-                String charset = columnElement.attributeValue("isDefaultCharset");
-                if (StringUtils.isNotBlank(charset)) {
-                    columnMapping.setDefaultCharset(Boolean.parseBoolean(isDateFormat));
-                }
             }
         }
 
@@ -392,18 +361,5 @@ public class ConfigureReader {
             }
             constColumnMappings.put(kv[0], kv[1]);
         }
-    }
-
-    private static void paraseShardList(String shardListStr, List<String> shardIds) {
-        if (shardIds == null) {
-            shardIds = new ArrayList<String>();
-        }
-
-        if (StringUtils.isBlank(shardListStr)) {
-            return;
-        }
-
-        String[] strs = StringUtils.split(shardListStr, ",");
-        shardIds.addAll(Arrays.asList(strs));
     }
 }

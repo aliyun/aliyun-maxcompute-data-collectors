@@ -20,8 +20,6 @@
 package com.aliyun.odps.ogg.handler.datahub.modle;
 
 import com.aliyun.datahub.client.model.RecordSchema;
-import com.aliyun.odps.ogg.handler.datahub.TableRecordBuilder;
-import com.aliyun.odps.ogg.handler.datahub.TopicWriter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.List;
@@ -38,12 +36,6 @@ public class TableMapping {
 
     private String oracleFullTableName;
 
-    @Deprecated
-    private String accessId;
-
-    @Deprecated
-    private String accessKey;
-
     private String projectName;
 
     private String topicName;
@@ -56,11 +48,6 @@ public class TableMapping {
     private Map<String, String> constColumnMappings;
 
     private RecordSchema recordSchema;
-    private TopicWriter topicWriter;
-
-    private boolean setShardId = false;
-
-    private List<String> shardIds;
 
     @JsonIgnore
     private Map<String, ColumnMapping> columnMappings;
@@ -68,42 +55,22 @@ public class TableMapping {
     @JsonIgnore
     private boolean shardHash = false;
 
-    private int buildSpeed = 1;
-
-    @JsonIgnore
-    private List<TableRecordBuilder> tableRecordBuilders;
-
     public String getOracleFullTableName() {
         return oracleFullTableName;
     }
 
-    public void setOracleFullTableName(String oracleFullTableName) {
+    public TableMapping setOracleFullTableName(String oracleFullTableName) {
         this.oracleFullTableName = oracleFullTableName;
-    }
-
-
-    public String getAccessId() {
-        return accessId;
-    }
-
-    public void setAccessId(String accessId) {
-        this.accessId = accessId;
-    }
-
-    public String getAccessKey() {
-        return accessKey;
-    }
-
-    public void setAccessKey(String accessKey) {
-        this.accessKey = accessKey;
+        return this;
     }
 
     public String getProjectName() {
         return projectName;
     }
 
-    public void setProjectName(String projectName) {
+    public TableMapping setProjectName(String projectName) {
         this.projectName = projectName;
+        return this;
     }
 
     public String getTopicName() {
@@ -114,135 +81,94 @@ public class TableMapping {
         return rowIdColumn;
     }
 
-    public void setRowIdColumn(String rowIdColumn) {
+    public TableMapping setRowIdColumn(String rowIdColumn) {
         this.rowIdColumn = rowIdColumn;
+        return this;
     }
 
-    public void setTopicName(String topicName) {
+    public TableMapping setTopicName(String topicName) {
         this.topicName = topicName;
+        return this;
     }
 
     public String getcTypeColumn() {
         return cTypeColumn;
     }
 
-    public void setcTypeColumn(String cTypeColumn) {
+    public TableMapping setcTypeColumn(String cTypeColumn) {
         this.cTypeColumn = cTypeColumn;
+        return this;
     }
 
     public String getcTimeColumn() {
         return cTimeColumn;
     }
 
-    public void setcTimeColumn(String cTimeColumn) {
+    public TableMapping setcTimeColumn(String cTimeColumn) {
         this.cTimeColumn = cTimeColumn;
+        return this;
     }
 
     public String getcIdColumn() {
         return cIdColumn;
     }
 
-    public void setcIdColumn(String cIdColumn) {
+    public TableMapping setcIdColumn(String cIdColumn) {
         this.cIdColumn = cIdColumn;
+        return this;
     }
 
     public RecordSchema getRecordSchema() {
         return recordSchema;
     }
 
-    public void setRecordSchema(RecordSchema recordSchema) {
+    public TableMapping setRecordSchema(RecordSchema recordSchema) {
         this.recordSchema = recordSchema;
-    }
-
-    public boolean isSetShardId() {
-        return setShardId;
-    }
-
-    public void setSetShardId(boolean setShardId) {
-        this.setShardId = setShardId;
-    }
-
-    public List<String> getShardIds() {
-        return shardIds;
-    }
-
-    public void setShardIds(List<String> shardIds) {
-        this.shardIds = shardIds;
-    }
-
-    @JsonIgnore
-    public String getShardId() {
-        int index = new Random().nextInt(shardIds.size());
-        return shardIds.get(index);
+        return this;
     }
 
     public String getOracleSchema() {
         return oracleSchema;
     }
 
-    public void setOracleSchema(String oracleSchema) {
+    public TableMapping setOracleSchema(String oracleSchema) {
         this.oracleSchema = oracleSchema;
+        return this;
     }
 
     public String getOracleTableName() {
         return oracleTableName;
     }
 
-    public void setOracleTableName(String oracleTableName) {
+    public TableMapping setOracleTableName(String oracleTableName) {
         this.oracleTableName = oracleTableName;
+        return this;
     }
 
     public Map<String, ColumnMapping> getColumnMappings() {
         return columnMappings;
     }
 
-    public void setColumnMappings(Map<String, ColumnMapping> columnMappings) {
+    public TableMapping setColumnMappings(Map<String, ColumnMapping> columnMappings) {
         this.columnMappings = columnMappings;
+        return this;
     }
 
     public boolean isShardHash() {
         return shardHash;
     }
 
-    public void setShardHash(boolean shardHash) {
+    public TableMapping setShardHash(boolean shardHash) {
         this.shardHash = shardHash;
+        return this;
     }
 
     public Map<String, String> getConstColumnMappings() {
         return constColumnMappings;
     }
 
-    public void setConstColumnMappings(Map<String, String> constColumnMappings) {
+    public TableMapping setConstColumnMappings(Map<String, String> constColumnMappings) {
         this.constColumnMappings = constColumnMappings;
-    }
-
-    public TopicWriter getTopicWriter() {
-        return topicWriter;
-    }
-
-    public void setTopicWriter(TopicWriter topicWriter) {
-        this.topicWriter = topicWriter;
-    }
-
-    public int getBuildSpeed() {
-        return buildSpeed;
-    }
-
-    public void setBuildSpeed(int buildSpeed) {
-        if (buildSpeed < 1) {
-            this.buildSpeed = 1;
-        } else if (buildSpeed > 10) {
-            this.buildSpeed = 10;
-        } else {
-            this.buildSpeed = buildSpeed;
-        }
-    }
-
-    public List<TableRecordBuilder> getTableRecordBuilders() {
-        return tableRecordBuilders;
-    }
-
-    public void setTableRecordBuilders(List<TableRecordBuilder> tableRecordBuilders) {
-        this.tableRecordBuilders = tableRecordBuilders;
+        return this;
     }
 }

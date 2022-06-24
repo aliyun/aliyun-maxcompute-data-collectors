@@ -35,7 +35,6 @@ public class ColumnMapping {
     private boolean isKeyColumn = false;
 
     private boolean isDateFormat = true;
-    private boolean isDefaultCharset = true;
 
     @JsonIgnore private SimpleDateFormat simpleDateFormat;
     private String dateFormat;
@@ -44,72 +43,72 @@ public class ColumnMapping {
         return src;
     }
 
-    public void setSrc(String src) {
+    public ColumnMapping setSrc(String src) {
         this.src = src;
+        return this;
     }
 
     public String getDest() {
         return dest;
     }
 
-    public void setDest(String dest) {
+    public ColumnMapping setDest(String dest) {
         this.dest = dest;
+        return this;
     }
 
     public String getDestOld() {
         return destOld;
     }
 
-    public void setDestOld(String destOld) {
+    public ColumnMapping setDestOld(String destOld) {
         this.destOld = destOld;
+        return this;
     }
 
     public boolean isShardColumn() {
         return isShardColumn;
     }
 
-    public void setIsShardColumn(boolean isShardColumn) {
+    public ColumnMapping setIsShardColumn(boolean isShardColumn) {
         this.isShardColumn = isShardColumn;
+        return this;
     }
 
     public boolean isDateFormat() {
         return isDateFormat;
     }
 
-    public void setIsDateFormat(boolean isDateFormat) {
+    public ColumnMapping setIsDateFormat(boolean isDateFormat) {
         this.isDateFormat = isDateFormat;
+        return this;
     }
 
     public boolean isKeyColumn() {
         return isKeyColumn;
     }
 
-    public void setIsKeyColumn(boolean keyColumn) {
+    public ColumnMapping setIsKeyColumn(boolean keyColumn) {
         isKeyColumn = keyColumn;
+        return this;
     }
 
     public SimpleDateFormat getSimpleDateFormat() {
         return simpleDateFormat;
     }
 
-    public void setSimpleDateFormat(SimpleDateFormat simpleDateFormat) {
+    public ColumnMapping setSimpleDateFormat(SimpleDateFormat simpleDateFormat) {
         this.simpleDateFormat = simpleDateFormat;
+        return this;
     }
 
     public String getDateFormat() {
         return dateFormat;
     }
 
-    public void setDateFormat(String dateFormat) {
+    public ColumnMapping setDateFormat(String dateFormat) {
         this.dateFormat = dateFormat;
         simpleDateFormat = new SimpleDateFormat(dateFormat);
-    }
-
-    public boolean isDefaultCharset() {
-        return isDefaultCharset;
-    }
-
-    public void setDefaultCharset(boolean defaultCharset) {
-        isDefaultCharset = defaultCharset;
+        return this;
     }
 }

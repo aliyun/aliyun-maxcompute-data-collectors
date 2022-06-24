@@ -30,7 +30,6 @@ import java.util.Map;
 public class DirtyRecordInfo {
     private String oracleTable;
     private String topicName;
-    private String shardId;
     private String errorMessage;
     private String errorTime;
     private Map<String, String> record;
@@ -49,14 +48,6 @@ public class DirtyRecordInfo {
 
     public void setTopicName(String topicName) {
         this.topicName = topicName;
-    }
-
-    public String getShardId() {
-        return shardId;
-    }
-
-    public void setShardId(String shardId) {
-        this.shardId = shardId;
     }
 
     public String getErrorMessage() {

@@ -45,11 +45,6 @@
     <!-- 重试间隔, 单位毫秒, 可选, 默认3000-->
     <retryInterval>1000</retryInterval>
 
-    <!-- 是否禁用checkpoint file, 可选, 默认false-->
-    <disableCheckPointFile>true</disableCheckPointFile>
-
-    <checkPointFileName>datahub_ogg_plugin.chk.test</checkPointFileName>
-
     <mappings>
         <mapping>
             <!-- oracle schema, 见上描述-->
@@ -58,15 +53,8 @@
             <oracleTable>t_person</oracleTable>
             <!-- datahub project, 见上描述-->
             <datahubProject>t_project</datahubProject>
-            <!-- datahub AccessId, 见上描述-->
-            <datahubAccessId>accessId</datahubAccessId>
-            <!-- datahub AccessKey, 见上描述-->
-            <datahubAccessKey>accessKey</datahubAccessKey>
             <!-- datahub topic, 必选-->
             <datahubTopic></datahubTopic>
-
-            <!--指定shard id, 优先生效, 可选-->
-            <shardId>0,1</shardId>
 
             <rowIdColumn>row_id</rowIdColumn>
             <ctypeColumn>ctype</ctypeColumn>

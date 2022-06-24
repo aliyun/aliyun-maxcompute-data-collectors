@@ -50,11 +50,14 @@ public class DatahubHandler extends AbstractHandler {
         try {
             configure = ConfigureReader.reader(configureFileName);
 
-            HandlerInfoManager.init(configure);
-            logger.info("Init HandlerInfoManager success");
+            ClientHelper.init(configure);
+            logger.info("Init DataHub client success");
 
             RecordBuilder.init(configure);
             logger.info("Init RecordBuilder success");
+
+            RecordWriter.init(configure);
+            logger.info("Init RecordWriter success");
 
             OperationHandlerManager.init();
             logger.info("Init OperationHandlerManager success");
@@ -84,9 +87,8 @@ public class DatahubHandler extends AbstractHandler {
     public Status operationAdded(DsEvent e, DsTransaction tx, DsOperation dsOperation) {
         long startTime = System.currentTimeMillis();
         if (logger.isDebugEnabled()) {
-            logger.debug(e.toString());
-            logger.debug(tx.toString());
-            logger.debug("operation add:{}", dsOperation.toString());
+            logger.debug("DsEvent: {}, DsTransaction: {}, DsOperation: {}, Record: {}",
+                    e.toString(), tx.toString(), dsOperation.toString(), dsOperation.getRecord());
         }
 
         Status status = Status.OK;
@@ -96,21 +98,9 @@ public class DatahubHandler extends AbstractHandler {
         OperationHandler operationHandler = OperationHandlerManager.getHandler(dsOperation.getOperationType());
 
         if (operationHandler != null) {
-            if ((!configure.isCheckPointFileDisable()) && dsOperation.getPosition().
-                    compareTo(HandlerInfoManager.instance().getSendPosition()) <= 0) {
-                logger.warn("dsOperation.getPosition(): " + dsOperation.getPosition() +
-                        " old sendPosition is: " + HandlerInfoManager.instance().getSendPosition()
-                        + ", Skip this operation, it maybe duplicated!!!");
-                return status;
-            } else {
-                // update handler info
-                HandlerInfoManager.instance().updateHandlerInfos(
-                        dsOperation.getReadTime().getTime(),
-                        dsOperation.getPosition());
-            }
-
             try {
-                operationHandler.process(op, configure);
+                String recordId = HandlerInfoManager.instance().genRecordId(dsOperation.getReadTime().getEpochSecond());
+                operationHandler.process(recordId, op);
                 PluginStatictics.addTotalOperations();
             } catch (Exception e1) {
                 logger.error("process error", e1);
@@ -123,8 +113,7 @@ public class DatahubHandler extends AbstractHandler {
         }
 
         if (configure.isReportMetric()) {
-            MetricHelper.instance().addHandleTime(System.currentTimeMillis() - startTime);
-            MetricHelper.instance().addRecord();
+            MetricHelper.instance().addHandle(System.currentTimeMillis() - startTime);
         }
         return status;
     }
@@ -132,13 +121,11 @@ public class DatahubHandler extends AbstractHandler {
     @Override
     public Status transactionCommit(DsEvent e, DsTransaction tx) {
         long startTime = System.currentTimeMillis();
-        if (configure.isCommitFlush()) {
-            RecordBuilder.instance().flushAll();
-        }
+        RecordBuilder.instance().flushAll();
+        RecordWriter.instance().flushAll();
 
         if (configure.isReportMetric()) {
-            MetricHelper.instance().addCommitTime(System.currentTimeMillis() - startTime);
-            MetricHelper.instance().addCommit();
+            MetricHelper.instance().addCommit(System.currentTimeMillis() - startTime);
         }
         return super.transactionCommit(e, tx);
     }
@@ -159,10 +146,11 @@ public class DatahubHandler extends AbstractHandler {
     @Override
     public void destroy() {
         logger.warn("Handler destroying...");
-        HandlerInfoManager.instance().saveHandlerInfos();
         RecordBuilder.destroy();
+        RecordWriter.destroy();
         MetricHelper.destroy();
         super.destroy();
+        logger.warn("Handler destroy success");
     }
 
     public String getConfigureFileName() {

@@ -19,10 +19,13 @@
 
 package com.aliyun.odps.ogg.handler.datahub;
 
-
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.aliyun.datahub.client.model.*;
+import com.aliyun.datahub.client.model.Field;
+import com.aliyun.datahub.client.model.FieldType;
+import com.aliyun.datahub.client.model.RecordEntry;
+import com.aliyun.datahub.client.model.RecordSchema;
+import com.aliyun.datahub.client.model.TupleRecordData;
+import com.aliyun.odps.ogg.handler.datahub.util.JsonHelper;
+import com.fasterxml.jackson.databind.JsonNode;
 import oracle.goldengate.datasource.DsColumn;
 import oracle.goldengate.datasource.DsColumnAfterValue;
 import oracle.goldengate.datasource.DsOperation;
@@ -32,6 +35,7 @@ import oracle.goldengate.datasource.meta.ColumnMetaData;
 import oracle.goldengate.datasource.meta.DsMetaData;
 import oracle.goldengate.datasource.meta.TableMetaData;
 import oracle.goldengate.datasource.meta.TableName;
+import oracle.goldengate.util.DateString;
 import org.apache.commons.io.FileUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -57,7 +61,7 @@ public class BadOperateWriterTest {
     @AfterMethod
     public void tearDownAfterMethod() throws IOException {
         File file = new File(fileName);
-        if (file.exists()){
+        if (file.exists()) {
             FileUtils.forceDelete(file);
         }
 
@@ -87,7 +91,7 @@ public class BadOperateWriterTest {
         }
     }
 
-    @Test(testName = "测试写入op")
+    @Test
     public void testWriteOp() throws IOException {
         ArrayList<ColumnMetaData> columnMetaDatas = new ArrayList<ColumnMetaData>();
 
@@ -119,7 +123,7 @@ public class BadOperateWriterTest {
 
         DsRecord dsRecord = new DsRecord(columns);
 
-        DsOperation dsOperation = new DsOperation(tableName, DsOperation.OpType.DO_INSERT, "2016-05-13 19:15:15.010", 0L, 0L, dsRecord);
+        DsOperation dsOperation = new DsOperation(tableName, tableMetaData, DsOperation.OpType.DO_INSERT, new DateString("2016-05-13 19:15:15.010"), 0L, 0L, dsRecord);
 
         Op op = new Op(dsOperation, tableMetaData, null);
 
@@ -132,21 +136,23 @@ public class BadOperateWriterTest {
 
         //FileUtils.deleteDirectory(new File("op.txt"));
         String jsonStr = FileUtils.readFileToString(new File(fileName));
-        JSONObject object = JSON.parseObject(jsonStr);
-        Assert.assertEquals(object.getString("oracleTable"), "ogg_test.t_person");
-        Assert.assertEquals(object.getString("topicName"), "t_person");
-        Assert.assertNull(object.getString("shardId"));
-        Assert.assertEquals(object.getString("errorMessage"), "op error");
+        JsonNode jsonNode = JsonHelper.getJsonNodeFromString(jsonStr);
+        Assert.assertNotNull(jsonNode);
 
-        JSONObject record = object.getJSONObject("record");
-        Assert.assertEquals(record.getString("c1"), "testNormal");
-        Assert.assertEquals(record.getString("c2"), "2");
-        Assert.assertEquals(record.getString("c3"), "3");
-        Assert.assertEquals(record.getString("c4"), "2016-05-20 09:00:00");
-        Assert.assertEquals(record.getString("c5"), "6");
+        Assert.assertEquals(jsonNode.get("oracleTable").asText(), "ogg_test.t_person");
+        Assert.assertEquals(jsonNode.get("topicName").asText(), "t_person");
+        Assert.assertEquals(jsonNode.get("errorMessage").asText(), "op error");
+
+        JsonNode jsonRecord = jsonNode.get("record");
+        Assert.assertNotNull(jsonRecord);
+        Assert.assertEquals(jsonRecord.get("c1").asText(), "testNormal");
+        Assert.assertEquals(jsonRecord.get("c2").asText(), "2");
+        Assert.assertEquals(jsonRecord.get("c3").asText(), "3");
+        Assert.assertEquals(jsonRecord.get("c4").asText(), "2016-05-20 09:00:00");
+        Assert.assertEquals(jsonRecord.get("c5").asText(), "6");
     }
 
-    @Test(testName = "测试写入record")
+    @Test
     public void testWriteRecord() throws IOException {
 
         RecordSchema recordSchema = new RecordSchema() {{
@@ -156,6 +162,10 @@ public class BadOperateWriterTest {
             addField(new Field("double_field", FieldType.DOUBLE));
             addField(new Field("boolean_field", FieldType.BOOLEAN));
             addField(new Field("decimal_field", FieldType.DECIMAL));
+            addField(new Field("integer_field", FieldType.INTEGER));
+            addField(new Field("float_field", FieldType.FLOAT));
+            addField(new Field("tinyint_field", FieldType.TINYINT));
+            addField(new Field("smallint_field", FieldType.SMALLINT));
         }};
 
         RecordEntry recordEntry = new RecordEntry();
@@ -168,6 +178,10 @@ public class BadOperateWriterTest {
         recordData.setField("double_field", 3.1415926);
         recordData.setField("boolean_field", true);
         recordData.setField("decimal_field", new BigDecimal("3.1415926"));
+        recordData.setField("integer_field", 1);
+        recordData.setField("float_field", 3.15);
+        recordData.setField("tinyint_field", 2);
+        recordData.setField("smallint_field", 3);
 
         recordEntry.setShardId("1");
         recordEntry.setRecordData(recordData);
@@ -181,18 +195,24 @@ public class BadOperateWriterTest {
                 "record error");
 
         String jsonStr = FileUtils.readFileToString(new File(fileName));
-        JSONObject object = JSON.parseObject(jsonStr);
-        Assert.assertEquals(object.getString("oracleTable"), "ogg_test.t_person");
-        Assert.assertEquals(object.getString("topicName"), "t_person");
-        Assert.assertNull(object.getString("shardId"), null);
-        Assert.assertEquals(object.getString("errorMessage"), "record error");
+        JsonNode jsonNode = JsonHelper.getJsonNodeFromString(jsonStr);
+        Assert.assertNotNull(jsonNode);
 
-        JSONObject record = object.getJSONObject("record");
-        Assert.assertEquals(record.getLongValue("bigint_field"), timestamp + 2);
-        Assert.assertEquals(record.getLongValue("timestamp_field"), timestamp);
-        Assert.assertEquals(record.getString("string_field"), "abcdefg");
-        Assert.assertEquals(record.getDoubleValue("double_field"), 3.1415926);
-        Assert.assertTrue(record.getBooleanValue("boolean_field"));
-        Assert.assertEquals(record.getBigDecimal("decimal_field"), new BigDecimal("3.1415926"));
+        Assert.assertEquals(jsonNode.get("oracleTable").asText(), "ogg_test.t_person");
+        Assert.assertEquals(jsonNode.get("topicName").asText(), "t_person");
+        Assert.assertEquals(jsonNode.get("errorMessage").asText(), "record error");
+
+        JsonNode jsonRecord = jsonNode.get("record");
+        Assert.assertNotNull(jsonRecord);
+        Assert.assertEquals(jsonRecord.get("bigint_field").asLong(), timestamp + 2);
+        Assert.assertEquals(jsonRecord.get("timestamp_field").asLong(), timestamp);
+        Assert.assertEquals(jsonRecord.get("string_field").asText(), "abcdefg");
+        Assert.assertEquals(jsonRecord.get("double_field").asDouble(), 3.1415926);
+        Assert.assertTrue(jsonRecord.get("boolean_field").asBoolean());
+        Assert.assertEquals(jsonRecord.get("decimal_field").asText(), "3.1415926");
+        Assert.assertEquals(jsonRecord.get("integer_field").asInt(), 1);
+        Assert.assertEquals((float) jsonRecord.get("float_field").asDouble(), 3.15f);
+        Assert.assertEquals((byte) jsonRecord.get("tinyint_field").asInt(), 2);
+        Assert.assertEquals((short) jsonRecord.get("smallint_field").asInt(), 3);
     }
 }

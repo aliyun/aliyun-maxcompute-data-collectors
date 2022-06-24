@@ -45,11 +45,6 @@
     <!-- 重试间隔, 单位毫秒, 可选, 默认3000-->
     <retryInterval>1000</retryInterval>
 
-    <!-- 是否禁用checkpoint file, 可选, 默认false-->
-    <disableCheckPointFile>true</disableCheckPointFile>
-
-    <checkPointFileName>datahub_ogg_plugin.chk.test</checkPointFileName>
-
     <mappings>
     </mappings>
 </configure>

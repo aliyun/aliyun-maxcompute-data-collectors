@@ -1,0 +1,6 @@
+REPLICAT dhwt
+getEnv (JAVA_HOME)
+getEnv (LD_LIBRARY_PATH)
+getEnv (PATH)
+TARGETDB LIBFILE libggjava.so SET property=${GG_HOME}/aliyun-datahub-ogg-plugin/conf/javaue.properties --需要用户手动修改路径
+MAP ogg_test.*, TARGET ogg_test.*;

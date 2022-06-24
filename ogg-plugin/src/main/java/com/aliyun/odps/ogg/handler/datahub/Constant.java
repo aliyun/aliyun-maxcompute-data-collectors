@@ -33,6 +33,7 @@ public class Constant {
     public static final String OPER_TYPE = "operType";
     public static final String HASH = "hash";
     public static final String ROWID_TOKEN = "TKN-ROWID";
+    public static final String GG_ROWID_TOKEN = "R";
 
-    public static final String PLUGIN_VERSION = "2.0.5";
+    public static final String PLUGIN_VERSION = "2.0.9";
 }

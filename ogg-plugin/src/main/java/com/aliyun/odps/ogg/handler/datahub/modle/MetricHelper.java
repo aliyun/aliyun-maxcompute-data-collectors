@@ -36,7 +36,8 @@ public class MetricHelper {
 
     private long start;
     private AtomicLong buildTime;
-    private AtomicLong putTime;
+    private AtomicLong sendTime;
+    private AtomicLong sendCount;
     private AtomicLong handleTime;
     private AtomicLong commitTime;
     private AtomicLong recordNum;
@@ -72,7 +73,8 @@ public class MetricHelper {
         this.configure = configure;
 
         buildTime = new AtomicLong();
-        putTime = new AtomicLong();
+        sendTime = new AtomicLong();
+        sendCount = new AtomicLong();
         handleTime = new AtomicLong();
         commitTime = new AtomicLong();
         recordNum = new AtomicLong();
@@ -80,7 +82,7 @@ public class MetricHelper {
         reset();
 
         scheduledExecutorService = new ScheduledThreadPoolExecutor(1,
-                new BasicThreadFactory.Builder().namingPattern("Metric.Reporter-%d").daemon(true).build());
+                new BasicThreadFactory.Builder().namingPattern("DataHub.Metric-%d").daemon(true).build());
 
         scheduledExecutorService.scheduleAtFixedRate(() -> {
             report();
@@ -88,28 +90,23 @@ public class MetricHelper {
         }, configure.getReportMetricIntervalMs(), configure.getReportMetricIntervalMs(), TimeUnit.MILLISECONDS);
     }
 
-    public void addRecord() {
-        recordNum.getAndIncrement();
-    }
-
-    public void addCommit() {
-        commitNum.getAndIncrement();
-    }
-
     public void addBuildTime(long time) {
         buildTime.getAndAdd(time);
     }
 
-    public void addPutTime(long time) {
-        putTime.getAndAdd(time);
+    public void addSend(long time) {
+        sendTime.getAndAdd(time);
+        sendCount.getAndIncrement();
     }
 
-    public void addHandleTime(long time) {
+    public void addHandle(long time) {
         handleTime.getAndAdd(time);
+        recordNum.getAndAdd(time);
     }
 
-    public void addCommitTime(long time) {
+    public void addCommit(long time) {
         commitTime.getAndAdd(time);
+        commitNum.getAndIncrement();
     }
 
     private void report() {
@@ -117,10 +114,11 @@ public class MetricHelper {
         builder.append("\n\t      ************* metric report *************\n");
         builder.append("\t          Total   RecordNum\t\t").append(recordNum).append("\n");
         builder.append("\t          Total   CommitNum\t\t").append(commitNum).append("\n");
+        builder.append("\t          Total   SendNum\t\t").append(sendCount).append("\n");
         builder.append("\t          Total   Consume(ms)\t\t").append(System.currentTimeMillis() - start).append("\n");
         builder.append("\t          Handle  Consume(ms)\t\t").append(handleTime).append("\n");
         builder.append("\t          Build   Consume(ms)\t\t").append(buildTime).append("\n");
-        builder.append("\t          Send    Consume(ms)\t\t").append(putTime).append("\n");
+        builder.append("\t          Send    Consume(ms)\t\t").append(sendTime).append("\n");
         builder.append("\t          Commit  Consume(ms)\t\t").append(commitTime).append("\n");
         builder.append("\t       **************** end *****************\n");
 
@@ -129,7 +127,8 @@ public class MetricHelper {
 
     private void reset() {
         buildTime.set(0);
-        putTime.set(0);
+        sendTime.set(0);
+        sendCount.set(0);
         handleTime.set(0);
         commitTime.set(0);
         recordNum.set(0);

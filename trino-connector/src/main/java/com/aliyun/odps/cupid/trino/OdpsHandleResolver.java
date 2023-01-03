@@ -17,41 +17,5 @@ package com.aliyun.odps.cupid.trino;
 import io.trino.spi.connector.*;
 
 public class OdpsHandleResolver
-        implements ConnectorHandleResolver
 {
-    @Override
-    public Class<? extends ConnectorTableLayoutHandle> getTableLayoutHandleClass()
-    {
-        return OdpsTableLayoutHandle.class;
-    }
-
-    @Override
-    public Class<? extends ConnectorTableHandle> getTableHandleClass()
-    {
-        return OdpsTableHandle.class;
-    }
-
-    @Override
-    public Class<? extends ColumnHandle> getColumnHandleClass()
-    {
-        return OdpsColumnHandle.class;
-    }
-
-    @Override
-    public Class<? extends ConnectorSplit> getSplitClass()
-    {
-        return OdpsSplit.class;
-    }
-
-    @Override
-    public Class<? extends ConnectorInsertTableHandle> getInsertTableHandleClass()
-    {
-        return OdpsInsertTableHandle.class;
-    }
-
-    @Override
-    public Class<? extends ConnectorTransactionHandle> getTransactionHandleClass()
-    {
-        return OdpsTransactionHandle.class;
-    }
 }

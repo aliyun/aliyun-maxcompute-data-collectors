@@ -151,7 +151,7 @@ public class OdpsRecordCursor
             return truncateToLengthAndTrimSpaces(Slices.utf8Slice(((Char) value).getValue()), columnType);
         } else if (value instanceof BigDecimal) {
             DecimalType type = (DecimalType) columnType;
-            return Decimals.encodeScaledValue((BigDecimal) value, type.getScale());
+            return Slices.utf8Slice(Decimals.encodeScaledValue((BigDecimal) value, type.getScale()).toString());
         } else {
             return Slices.utf8Slice((String) value);
         }

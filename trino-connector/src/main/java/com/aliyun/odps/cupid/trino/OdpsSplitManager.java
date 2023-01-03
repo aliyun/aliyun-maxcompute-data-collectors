@@ -57,8 +57,9 @@ public class OdpsSplitManager
     public ConnectorSplitSource getSplits(
             ConnectorTransactionHandle handle,
             ConnectorSession session,
-            ConnectorTableLayoutHandle layout,
-            ConnectorSplitManager.SplitSchedulingStrategy splitSchedulingContext)
+            ConnectorTableHandle layout,
+            DynamicFilter dynamicFilter,
+            Constraint constraint)
     {
         OdpsTableLayoutHandle layoutHandle = (OdpsTableLayoutHandle) layout;
         OdpsTable table = odpsClient.getTable(layoutHandle.getSchemaTableName().getSchemaName(),

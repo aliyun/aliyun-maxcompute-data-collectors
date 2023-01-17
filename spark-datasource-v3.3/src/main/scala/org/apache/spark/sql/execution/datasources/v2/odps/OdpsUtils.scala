@@ -68,7 +68,7 @@ object OdpsUtils extends Logging {
       }
       case OdpsType.CHAR => (v: Object) => {
         val char = v.asInstanceOf[Char]
-        UTF8String.fromString(char.getValue.substring(0, char.length()))
+        UTF8String.fromString(char.getValue.substring(0, char.length())).trimRight()
       }
       case OdpsType.DATE => (v: Object) => {
         v match {

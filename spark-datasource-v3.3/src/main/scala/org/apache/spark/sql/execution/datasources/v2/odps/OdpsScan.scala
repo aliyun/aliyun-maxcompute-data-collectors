@@ -29,13 +29,11 @@ import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory, Scan, Statistics, SupportsReportPartitioning, SupportsReportStatistics}
+import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory, Scan, Statistics, SupportsReportStatistics}
 import org.apache.spark.sql.internal.connector.SupportsMetadata
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.connector.expressions.{Expression, Expressions}
-import org.apache.spark.sql.connector.read.partitioning.{KeyGroupedPartitioning, Partitioning, UnknownPartitioning}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.{SerializableConfiguration, Utils}
 import org.apache.spark.sql.odps.bucket.OdpsDefaultHasher
@@ -64,7 +62,6 @@ case class OdpsScan(
     with Batch
     with SupportsReportStatistics
     with SupportsMetadata
-    with SupportsReportPartitioning
     with Logging {
 
   override def readSchema(): StructType =
@@ -213,18 +210,4 @@ case class OdpsScan(
   }
 
   private def seqToString(seq: Seq[Any]): String = seq.mkString("[", ", ", "]")
-
-  override def outputPartitioning(): Partitioning = {
-    if (readPartitionSchema.nonEmpty && !catalog.odpsOptions.splitCrossPartition) {
-      val clustering = new Array[Expression](readPartitionSchema.length)
-      val partitionKeys = readPartitionSchema.map(attr => attr.name).asJava
-      for (i <- 0 until readPartitionSchema.length) {
-        clustering(i) = Expressions.identity(partitionKeys.get(i))
-      }
-      new KeyGroupedPartitioning(clustering, partitions.length)
-    } else {
-      new UnknownPartitioning(partitions.length)
-    }
-    // TODO: for clustered table
-  }
 }

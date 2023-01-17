@@ -206,17 +206,13 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
           val arrowVectors =
             allNames.map(name => {
               fieldNameIdxMap.get(name) match {
-                case Some(fieldIdx) => new OdpsArrowColumnVector(vectors.get(fieldIdx))
+                case Some(fieldIdx) => new OdpsArrowColumnVector(vectors.get(fieldIdx), schema.getColumn(name).get().getTypeInfo)
                 case None => throw new RuntimeException("Missing column " + name + " from arrow reader.")
               }
             }).toList
           columnarBatch = new ColumnarBatch(arrowVectors.toArray)
         } else {
-          val arrowVectors =
-            vectors.asScala.map(v => {
-              new OdpsArrowColumnVector(v)
-            }).toList
-          columnarBatch = new ColumnarBatch(arrowVectors.toArray)
+          columnarBatch = new ColumnarBatch(new Array[OdpsArrowColumnVector](0).toArray)
         }
         columnarBatch.setNumRows(root.getRowCount)
       }

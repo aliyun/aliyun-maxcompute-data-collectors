@@ -18,7 +18,12 @@
 
 package org.apache.spark.sql.odps.vectorized;
 
+import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.table.arrow.accessor.*;
+import com.aliyun.odps.type.ArrayTypeInfo;
+import com.aliyun.odps.type.MapTypeInfo;
+import com.aliyun.odps.type.StructTypeInfo;
+import com.aliyun.odps.type.TypeInfo;
 import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
@@ -165,7 +170,7 @@ public class OdpsArrowColumnVector extends ColumnVector {
         return childColumns[ordinal];
     }
 
-    public OdpsArrowColumnVector(ValueVector vector) {
+    public OdpsArrowColumnVector(ValueVector vector, TypeInfo typeInfo) {
         super(ArrowUtils.fromArrowField(vector.getField()));
         isTimestamp = type instanceof TimestampType;
         isDate = type instanceof DateType;
@@ -187,7 +192,7 @@ public class OdpsArrowColumnVector extends ColumnVector {
         } else if (vector instanceof DecimalVector) {
             accessor = new ArrowDecimalAccessor((DecimalVector) vector);
         } else if (vector instanceof VarCharVector) {
-            accessor = new StringAccessor((VarCharVector) vector);
+            accessor = new StringAccessor((VarCharVector) vector, typeInfo.getOdpsType().equals(OdpsType.CHAR));
         } else if (vector instanceof VarBinaryVector) {
             accessor = new ArrowVarBinaryAccessor((VarBinaryVector) vector);
         } else if (vector instanceof DateDayVector) {
@@ -204,17 +209,18 @@ public class OdpsArrowColumnVector extends ColumnVector {
             }
         } else if (vector instanceof MapVector) {
             MapVector mapVector = (MapVector) vector;
-            accessor = new MapAccessor(mapVector);
+            accessor = new MapAccessor(mapVector, (MapTypeInfo) typeInfo);
         } else if (vector instanceof ListVector) {
             ListVector listVector = (ListVector) vector;
-            accessor = new ArrayAccessor(listVector);
+            accessor = new ArrayAccessor(listVector, (ArrayTypeInfo) typeInfo);
         } else if (vector instanceof StructVector) {
             StructVector structVector = (StructVector) vector;
             accessor = new StructAccessor(structVector);
 
             childColumns = new OdpsArrowColumnVector[structVector.size()];
             for (int i = 0; i < childColumns.length; ++i) {
-                childColumns[i] = new OdpsArrowColumnVector(structVector.getVectorById(i));
+                childColumns[i] = new OdpsArrowColumnVector(structVector.getVectorById(i),
+                        ((StructTypeInfo)typeInfo).getFieldTypeInfos().get(i));
             }
         } else {
             throw new UnsupportedOperationException();
@@ -234,8 +240,11 @@ public class OdpsArrowColumnVector extends ColumnVector {
 
     private static class StringAccessor extends ArrowVarCharAccessor {
 
-        StringAccessor(VarCharVector vector) {
+        private final boolean isChar;
+
+        StringAccessor(VarCharVector vector, boolean isChar) {
             super(vector);
+            this.isChar = isChar;
         }
 
         final UTF8String getUTF8String(int rowId) {
@@ -243,9 +252,13 @@ public class OdpsArrowColumnVector extends ColumnVector {
             if (stringResult.isSet == 0) {
                 return null;
             } else {
-                return UTF8String.fromAddress(null,
+                UTF8String result = UTF8String.fromAddress(null,
                         stringResult.buffer.memoryAddress() + stringResult.start,
                         stringResult.end - stringResult.start);
+                if (isChar) {
+                    return result.trimRight();
+                }
+                return result;
             }
         }
     }
@@ -254,9 +267,10 @@ public class OdpsArrowColumnVector extends ColumnVector {
 
         private final OdpsArrowColumnVector arrayData;
 
-        ArrayAccessor(ListVector vector) {
+        ArrayAccessor(ListVector vector, ArrayTypeInfo arrayTypeInfo) {
             super(vector);
-            this.arrayData = new OdpsArrowColumnVector(vector.getDataVector());
+            this.arrayData = new OdpsArrowColumnVector(vector.getDataVector(),
+                    (arrayTypeInfo).getElementTypeInfo());
         }
 
         @Override
@@ -269,11 +283,13 @@ public class OdpsArrowColumnVector extends ColumnVector {
         private final OdpsArrowColumnVector keys;
         private final OdpsArrowColumnVector values;
 
-        MapAccessor(MapVector vector) {
+        MapAccessor(MapVector vector, MapTypeInfo mapTypeInfo) {
             super(vector);
             StructVector entries = (StructVector) vector.getDataVector();
-            this.keys = new OdpsArrowColumnVector(entries.getChild(MapVector.KEY_NAME));
-            this.values = new OdpsArrowColumnVector(entries.getChild(MapVector.VALUE_NAME));
+            this.keys = new OdpsArrowColumnVector(entries.getChild(MapVector.KEY_NAME),
+                    mapTypeInfo.getKeyTypeInfo());
+            this.values = new OdpsArrowColumnVector(entries.getChild(MapVector.VALUE_NAME),
+                    mapTypeInfo.getValueTypeInfo());
         }
 
         @Override

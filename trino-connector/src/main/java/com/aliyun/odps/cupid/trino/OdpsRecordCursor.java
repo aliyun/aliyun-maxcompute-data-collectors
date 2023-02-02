@@ -62,7 +62,8 @@ public class OdpsRecordCursor
     Object getValueInternal(int field) {
         if (field < record.getColumnCount() && !isZeroColumn) {
             return record.get(field);
-        }return odpsInputSplit.getPartitionSpec().get(columnHandles.get(field).getName());
+        }
+        return odpsInputSplit.getPartitionSpec().get(columnHandles.get(field).getName());
     }
 
     @Override

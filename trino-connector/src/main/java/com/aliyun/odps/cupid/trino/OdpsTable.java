@@ -49,7 +49,8 @@ public class OdpsTable
             columnsMetadata.add(new ColumnMetadata(column.getName(), column.getType()));
         }
         for (OdpsColumnHandle column : this.partitionColumns) {
-            ColumnMetadata columnMetadata = ColumnMetadata.builder().setName(column.getName())
+            ColumnMetadata columnMetadata = ColumnMetadata.builder()
+                    .setName(column.getName())
                             .setType(column.getType())
                                     .setExtraInfo(Optional.ofNullable("partition key"))
                                             .build();

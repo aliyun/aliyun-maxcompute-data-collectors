@@ -26,6 +26,7 @@ import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.*;
+import io.trino.spi.expression.ConnectorExpression;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.NullableValue;
 import io.trino.spi.predicate.TupleDomain;
@@ -92,75 +93,31 @@ public class OdpsMetadata
             return null;
         }
 
-        return new OdpsTableHandle(tableName.getSchemaName(), tableName.getTableName(), table);
+        return new OdpsTableHandle(tableName.getSchemaName(), tableName.getTableName(), table, ImmutableList.of());
     }
 
     @Override
-    public ConnectorTableProperties getTableProperties(ConnectorSession session, ConnectorTableHandle table) {
-        OdpsTableHandle tableHandle = (OdpsTableHandle) table;
+    public Optional<ProjectionApplicationResult<ConnectorTableHandle>> applyProjection(ConnectorSession session, ConnectorTableHandle table, List<ConnectorExpression> projections, Map<String, ColumnHandle> assignments) {
+        OdpsTableHandle handle = (OdpsTableHandle) table;
 
-        List<OdpsPartition> partitions = odpsClient.getOdpsPartitions(tableHandle.getSchemaName(),
-                tableHandle.getTableName(),
-                tableHandle.getOdpsTable(),
-                Constraint.alwaysTrue());
-        TupleDomain<ColumnHandle> predicate = createPredicate(tableHandle.getOdpsTable().getPartitionColumns(), partitions);
-        return new ConnectorTableProperties(predicate,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                ImmutableList.of());
-    }
-
-    @VisibleForTesting
-    static TupleDomain<ColumnHandle> createPredicate(List<OdpsColumnHandle> partitionColumns, List<OdpsPartition> partitions)
-    {
-        if (partitions.isEmpty()) {
-            return TupleDomain.none();
+        if (handle.getDesiredColumns().size() > 0) {
+            return Optional.empty();
         }
 
-        Map<ColumnHandle, Domain> collect = partitionColumns.stream()
-                .collect(Collectors.toMap(
-                        identity(),
-                        column -> buildColumnDomain(column, partitions)));
-        return withColumnDomains(collect);
-    }
+        ImmutableList.Builder<OdpsColumnHandle> desiredColumns = ImmutableList.builder();
+        ImmutableList.Builder<Assignment> assignmentList = ImmutableList.builder();
+        assignments.forEach((name, column) -> {
+            desiredColumns.add((OdpsColumnHandle) column);
+            assignmentList.add(new Assignment(name, column, ((OdpsColumnHandle) column).getType()));
+        });
 
-    private static Domain buildColumnDomain(ColumnHandle column, List<OdpsPartition> partitions)
-    {
-        checkArgument(!partitions.isEmpty(), "partitions cannot be empty");
+        handle = new OdpsTableHandle(
+                handle.getSchemaName(),
+                handle.getTableName(),
+                handle.getOdpsTable(),
+                desiredColumns.build());
 
-        boolean hasNull = false;
-        List<Object> nonNullValues = new ArrayList<>();
-        Type type = null;
-
-        for (OdpsPartition partition : partitions) {
-            NullableValue value = partition.getKeys().get(column);
-            if (value == null) {
-                throw new TrinoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, format("Partition %s does not have a value for partition column %s", partition, column));
-            }
-
-            if (value.isNull()) {
-                hasNull = true;
-            }
-            else {
-                nonNullValues.add(value.getValue());
-            }
-
-            if (type == null) {
-                type = value.getType();
-            }
-        }
-
-        if (!nonNullValues.isEmpty()) {
-            Domain domain = Domain.multipleValues(type, nonNullValues);
-            if (hasNull) {
-                return domain.union(Domain.onlyNull(type));
-            }
-
-            return domain;
-        }
-
-        return Domain.onlyNull(type);
+        return Optional.of(new ProjectionApplicationResult<>(handle, projections, assignmentList.build(), false));
     }
 
     @Override

@@ -41,6 +41,7 @@ import org.apache.spark.sql.odps.table.utils.TableUtils;
 
 import java.io.IOException;
 import java.security.InvalidParameterException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -69,9 +70,10 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         Preconditions.checkArgument(dynamicPartitionOptions.getInvalidStrategy().equals
                         (DynamicPartitionOptions.InvalidStrategy.EXCEPTION),
                 "Strategy not supported:" + dynamicPartitionOptions.getInvalidStrategy());
-
-        Odps odps = ExecutionEnvironment.create(settings).createOdpsClient();
+        ExecutionEnvironment env = ExecutionEnvironment.create(settings);
+        Odps odps = env.createOdpsClient();
         TableTunnel tunnel = new TableTunnel(odps);
+        tunnel.setEndpoint(env.getTunnelEndpoint(identifier.getProject()));
         Table table = odps.tables().get(identifier.getProject(),
                 identifier.getSchema(),
                 identifier.getTable());
@@ -139,17 +141,17 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
 
     @Override
     public void commit(WriterCommitMessage[] messages) throws IOException {
-        Long[] blocks = new Long[messages.length];
+        List<Long> blocks = new ArrayList<>();
         for (int i = 0; i < messages.length; i++) {
             if (messages[i] == null) {
                 continue;
             }
             TunnelCommitMessage tunnelCommitMessage = (TunnelCommitMessage) messages[i];
-            blocks[i] = tunnelCommitMessage.getBlockId();
+            blocks.add(tunnelCommitMessage.getBlockId());
         }
         try {
             // TODO: check session
-            session.commit(blocks);
+            session.commit(blocks.toArray(new Long[0]));
         } catch (TunnelException e) {
             throw new IOException(e);
         }

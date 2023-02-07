@@ -98,8 +98,10 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
 
         if (splitOptions.getSplitMode().equals(SplitOptions.SplitMode.SIZE) ||
                 splitOptions.getSplitMode().equals(SplitOptions.SplitMode.ROW_OFFSET)) {
-            Odps odps = ExecutionEnvironment.create(settings).createOdpsClient();
+            ExecutionEnvironment env = ExecutionEnvironment.create(settings);
+            Odps odps = env.createOdpsClient();
             TableTunnel tunnel = new TableTunnel(odps);
+            tunnel.setEndpoint(env.getTunnelEndpoint(identifier.getProject()));
             Table table = odps.tables().get(identifier.getProject(),
                     identifier.getSchema(),
                     identifier.getTable());

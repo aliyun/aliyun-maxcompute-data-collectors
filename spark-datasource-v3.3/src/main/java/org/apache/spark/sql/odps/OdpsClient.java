@@ -181,7 +181,7 @@ public class OdpsClient {
         if (lookupName == null) {
             odps.setEndpoint(settings.get(ODPS_END_POINT));
         } else {
-            odps.setEndpoint(settings.getOrDefault(ODPS_RUNTIME_END_POINT, ODPS_END_POINT));
+            odps.setEndpoint(settings.getOrDefault(ODPS_RUNTIME_END_POINT, settings.get(ODPS_END_POINT)));
         }
         odps.setDefaultProject(settings.get(ODPS_PROJECT_NAME));
         return odps;

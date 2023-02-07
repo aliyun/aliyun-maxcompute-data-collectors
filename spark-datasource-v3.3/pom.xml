@@ -113,10 +113,6 @@
                     <artifactId>slf4j-api</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>net.sourceforge.javacsv</groupId>
-                    <artifactId>javacsv</artifactId>
-                </exclusion>
-                <exclusion>
                     <groupId>org.antlr</groupId>
                     <artifactId>antlr4</artifactId>
                 </exclusion>
@@ -198,6 +194,7 @@
                                     <include>javax.mail:mail</include>
                                     <include>xpp3:xpp3</include>
                                     <include>org.lz4:lz4-pure-java</include>
+                                    <include>net.sourceforge.javacsv:javacsv</include>
 
                                     <!-- for arrow -->
                                     <include>org.apache.arrow:*</include>

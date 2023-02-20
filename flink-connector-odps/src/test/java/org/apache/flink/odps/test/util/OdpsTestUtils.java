@@ -55,6 +55,8 @@ public class OdpsTestUtils {
             hints.put("odps.sql.decimal.odps2","true");
             hints.put("odps.sql.hive.compatible","false");
             hints.put("odps.sql.allow.fullscan","true");
+            // TODO: remove flighting
+            hints.put("odps.task.major.version","flighting");
             Instance instance = exec(sql, taskName, hints);
             instance.waitForSuccess();
 

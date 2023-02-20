@@ -111,33 +111,7 @@ public abstract class OdpsTableWrite<T> implements Serializable,
                 throw new IOException("check partition failed.");
             } else {
                 this.staticPartition = new PartitionSpec(partitionSpec).toString();
-                int attemptNum = 1;
-                while (true) {
-                    try {
-                        synchronized (this) {
-                            Partition partition = getTableMetaProvider().getPartition(projectName,
-                                    tableName, staticPartition, true);
-                            if (partition == null) {
-                                Table table = getTableMetaProvider().getTable(projectName, tableName);
-                                table.createPartition(new PartitionSpec(staticPartition), true);
-                                LOG.info("Create partition: " + tableName + "/" + staticPartition);
-                            }
-                        }
-                        break;
-                    } catch (Throwable e) {
-                        if (attemptNum++ > 5) {
-                            LOG.error(
-                                    "Failed to create partition: " + staticPartition + " after retrying...");
-                            throw new IOException(e);
-                        }
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException ex) {
-                            LOG.error("Failed to create partition: " + staticPartition);
-                            throw new IOException(e);
-                        }
-                    }
-                }
+                createPartitionIfNeeded(this.staticPartition);
             }
         } else {
             if (!StringUtils.isNullOrWhitespaceOnly(partitionSpec)) {
@@ -209,7 +183,7 @@ public abstract class OdpsTableWrite<T> implements Serializable,
         return tableMetaProvider;
     }
 
-    protected TableSchema getTableSchema() {
+    public TableSchema getTableSchema() {
         if (tableSchema == null) {
             tableSchema = getTableMetaProvider().getTableSchema(projectName, tableName, false);
         }
@@ -241,5 +215,35 @@ public abstract class OdpsTableWrite<T> implements Serializable,
             }
         }
         return true;
+    }
+
+    protected void createPartitionIfNeeded(String targetPartition) throws IOException {
+        int attemptNum = 1;
+        while (true) {
+            try {
+                synchronized (this) {
+                    Partition partition = getTableMetaProvider().getPartition(projectName,
+                            tableName, targetPartition, true);
+                    if (partition == null) {
+                        Table table = getTableMetaProvider().getTable(projectName, tableName);
+                        table.createPartition(new PartitionSpec(targetPartition), true);
+                        LOG.info("Create partition: " + tableName + "/" + targetPartition);
+                    }
+                }
+                break;
+            } catch (Throwable e) {
+                if (attemptNum++ > 5) {
+                    LOG.error(
+                            "Failed to create partition: " + targetPartition + " after retrying...");
+                    throw new IOException(e);
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    LOG.error("Failed to create partition: " + targetPartition);
+                    throw new IOException(e);
+                }
+            }
+        }
     }
 }

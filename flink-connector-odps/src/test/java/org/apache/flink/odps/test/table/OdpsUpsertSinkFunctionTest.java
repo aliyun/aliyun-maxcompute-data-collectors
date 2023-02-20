@@ -20,6 +20,7 @@ package org.apache.flink.odps.test.table;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.odps.output.OdpsUpsertSinkFunction;
+import org.apache.flink.odps.output.stream.PartitionAssigner;
 import org.apache.flink.odps.test.util.BookEntry;
 import org.apache.flink.odps.test.util.OdpsTestUtils;
 import org.apache.flink.odps.util.OdpsConf;
@@ -36,6 +37,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.types.Row;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -55,13 +57,16 @@ public class OdpsUpsertSinkFunctionTest {
     private static String table1;
 
     private static String partitionTable1;
-
+    private static String partitionTable2;
+    private static String partitionTable3;
     @BeforeClass
     public static void init() {
         odpsConf = OdpsTestUtils.getOdpsConf();
         project = odpsConf.getProject();
         table1 = "book_entry1";
         partitionTable1 = "book_entry_partition1";
+        partitionTable2 = "book_entry_partition2";
+        partitionTable3 = "book_entry_partition3";
     }
 
     public void initTable(String table) {
@@ -140,6 +145,106 @@ public class OdpsUpsertSinkFunctionTest {
         odpsUpsertSinkFunction.close();
     }
 
+    @Test
+    public void testUpsertGroupingPartition() throws Exception {
+        initPartTable(partitionTable2);
+        String partition = "";
+        Map<String, String> staticPartitionSpec = new LinkedHashMap<>();
+        odpsUpsertSinkFunction = buildOdpsUpsertSinkFunction(odpsConf, partitionTable2, partition, true,
+                Arrays.asList("date"), staticPartitionSpec, null);
+
+        odpsUpsertSinkFunction.setRuntimeContext(
+                new MockStreamingRuntimeContext(true, 1, 0));
+        odpsUpsertSinkFunction.open(new Configuration());
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(0, 7));
+        odpsUpsertSinkFunction.close();
+
+        List<BookEntry> odpsResult = QUERY_BY_ODPS_SQL(partitionTable2, SELECT_ALL_BOOKS(partitionTable2) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1],
+                BOOK_TEST_DATA[2], BOOK_TEST_DATA[4], BOOK_TEST_DATA[5]), odpsResult);
+    }
+
+    @Test
+    public void testUpsertGroupingPartitionCheckpoint() throws Exception {
+        initPartTable(partitionTable2);
+        String partition = "";
+        Map<String, String> staticPartitionSpec = new LinkedHashMap<>();
+        odpsUpsertSinkFunction = buildOdpsUpsertSinkFunction(odpsConf, partitionTable2, partition, true,
+                Arrays.asList("date"), staticPartitionSpec, null);
+
+        odpsUpsertSinkFunction.setRuntimeContext(
+                new MockStreamingRuntimeContext(true, 1, 0));
+        odpsUpsertSinkFunction.open(new Configuration());
+
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(0, 3));
+        odpsUpsertSinkFunction.snapshotState(new StateSnapshotContextSynchronousImpl(1, 1));
+        List<BookEntry> odpsResult = QUERY_BY_ODPS_SQL(partitionTable2, SELECT_ALL_BOOKS(partitionTable2) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1], BOOK_TEST_DATA[2]), odpsResult);
+
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(3, 2));
+        odpsUpsertSinkFunction.snapshotState(new StateSnapshotContextSynchronousImpl(2, 1));
+        odpsResult = QUERY_BY_ODPS_SQL(partitionTable2, SELECT_ALL_BOOKS(partitionTable2) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1], BOOK_TEST_DATA[2], BOOK_TEST_DATA[4]), odpsResult);
+
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(5, 2));
+        odpsUpsertSinkFunction.snapshotState(new StateSnapshotContextSynchronousImpl(2, 1));
+        odpsResult = QUERY_BY_ODPS_SQL(partitionTable2, SELECT_ALL_BOOKS(partitionTable2) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1],
+                BOOK_TEST_DATA[2], BOOK_TEST_DATA[4], BOOK_TEST_DATA[5]), odpsResult);
+
+        odpsUpsertSinkFunction.close();
+    }
+
+    @Test
+    public void testUpsertDynamicPartition() throws Exception {
+        initPartTable(partitionTable3);
+        String partition = "";
+        Map<String, String> staticPartitionSpec = new LinkedHashMap<>();
+        odpsUpsertSinkFunction = buildOdpsUpsertSinkFunction(odpsConf, partitionTable3, partition, false,
+                Arrays.asList("date"), staticPartitionSpec, null);
+
+        odpsUpsertSinkFunction.setRuntimeContext(
+                new MockStreamingRuntimeContext(true, 1, 0));
+        odpsUpsertSinkFunction.open(new Configuration());
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(0, 7));
+        odpsUpsertSinkFunction.close();
+
+        List<BookEntry> odpsResult = QUERY_BY_ODPS_SQL(partitionTable3, SELECT_ALL_BOOKS(partitionTable3) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1],
+                BOOK_TEST_DATA[2], BOOK_TEST_DATA[4], BOOK_TEST_DATA[5]), odpsResult);
+    }
+
+    @Test
+    public void testUpsertDynamicPartitionCheckpoint() throws Exception {
+        initPartTable(partitionTable3);
+        String partition = "";
+        Map<String, String> staticPartitionSpec = new LinkedHashMap<>();
+        odpsUpsertSinkFunction = buildOdpsUpsertSinkFunction(odpsConf, partitionTable3, partition, false,
+                Arrays.asList("date"), staticPartitionSpec, null);
+
+        odpsUpsertSinkFunction.setRuntimeContext(
+                new MockStreamingRuntimeContext(true, 1, 0));
+        odpsUpsertSinkFunction.open(new Configuration());
+
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(0, 3));
+        odpsUpsertSinkFunction.snapshotState(new StateSnapshotContextSynchronousImpl(1, 1));
+        List<BookEntry> odpsResult = QUERY_BY_ODPS_SQL(partitionTable3, SELECT_ALL_BOOKS(partitionTable3) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1], BOOK_TEST_DATA[2]), odpsResult);
+
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(3, 2));
+        odpsUpsertSinkFunction.snapshotState(new StateSnapshotContextSynchronousImpl(2, 1));
+        odpsResult = QUERY_BY_ODPS_SQL(partitionTable3, SELECT_ALL_BOOKS(partitionTable3) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1], BOOK_TEST_DATA[2], BOOK_TEST_DATA[4]), odpsResult);
+
+        writeData(odpsUpsertSinkFunction, new ReusableIterator(5, 2));
+        odpsUpsertSinkFunction.snapshotState(new StateSnapshotContextSynchronousImpl(2, 1));
+        odpsResult = QUERY_BY_ODPS_SQL(partitionTable3, SELECT_ALL_BOOKS(partitionTable3) + ";");
+        compareResult(Arrays.asList(BOOK_TEST_DATA[0], BOOK_TEST_DATA[1],
+                BOOK_TEST_DATA[2], BOOK_TEST_DATA[4], BOOK_TEST_DATA[5]), odpsResult);
+
+        odpsUpsertSinkFunction.close();
+    }
+
     public static OdpsUpsertSinkFunction buildOdpsUpsertSinkFunction(OdpsConf odpsConf,
                                                                      String tableName,
                                                                      String partition) {
@@ -147,6 +252,25 @@ public class OdpsUpsertSinkFunctionTest {
         OdpsUpsertSinkFunction.OdpsUpsertSinkBuilder builder =
                 new OdpsUpsertSinkFunction.OdpsUpsertSinkBuilder(odpsConf, projectName, tableName);
         builder.setPartition(partition);
+        return builder.build();
+    }
+
+    public static OdpsUpsertSinkFunction buildOdpsUpsertSinkFunction(OdpsConf odpsConf,
+                                                               String tableName,
+                                                               String partition,
+                                                               boolean grouping,
+                                                               List<String> partitionColumns,
+                                                               Map<String, String> staticPartitionSpec,
+                                                               PartitionAssigner<Row> partitionAssigner) {
+        boolean isPartitioned = partitionColumns != null && !partitionColumns.isEmpty();
+        boolean isDynamicPartition = isPartitioned && partitionColumns.size() > staticPartitionSpec.size();
+        String projectName = OdpsTestUtils.projectName;
+        OdpsUpsertSinkFunction.OdpsUpsertSinkBuilder builder =
+                new OdpsUpsertSinkFunction.OdpsUpsertSinkBuilder(odpsConf, projectName, tableName);
+        builder.setPartition(partition);
+        builder.setDynamicPartition(isDynamicPartition);
+        builder.setSupportPartitionGrouping(grouping);
+        builder.setPartitionAssigner(partitionAssigner);
         return builder.build();
     }
 

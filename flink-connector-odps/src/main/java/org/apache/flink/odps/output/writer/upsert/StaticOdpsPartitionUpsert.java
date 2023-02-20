@@ -7,26 +7,22 @@ import com.aliyun.odps.cupid.table.v1.writer.FileWriter;
 import com.aliyun.odps.cupid.table.v1.writer.FileWriterBuilder;
 import com.aliyun.odps.data.ArrayRecord;
 import org.apache.flink.odps.output.writer.OdpsTableWrite;
+import org.apache.flink.odps.output.writer.OdpsUpsert;
 import org.apache.flink.odps.output.writer.OdpsWriteOptions;
 import org.apache.flink.odps.util.OdpsConf;
-import org.apache.flink.odps.util.OdpsTableUtil;
 import org.apache.flink.odps.util.OdpsUtils;
-import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
-import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.types.Row;
-import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 import static com.aliyun.odps.cupid.table.v1.tunnel.impl.Util.UPSERT_ENABLE;
 
-public class StaticOdpsPartitionUpsert extends OdpsTableWrite<RowData> {
+public class StaticOdpsPartitionUpsert extends OdpsTableWrite<Row>
+        implements OdpsUpsert<Row> {
 
     private static final Logger LOG = LoggerFactory.getLogger(StaticOdpsPartitionUpsert.class);
 
@@ -41,16 +37,13 @@ public class StaticOdpsPartitionUpsert extends OdpsTableWrite<RowData> {
                                      OdpsWriteOptions options) {
         super(odpsConf, projectName, tableName, partition, false, options);
         this.currentPartition = staticPartition;
-        TableSchema flinkTableSchema =
-                OdpsTableUtil.createTableSchema(getTableSchema().getColumns(), new ArrayList<>());
-        this.converter = DataStructureConverters.getConverter(flinkTableSchema.toRowDataType());
     }
 
     @Override
     public void initWriteSession() throws IOException {
         Options options = OdpsUtils.getOdpsOptions(odpsConf);
         options.put(UPSERT_ENABLE, "true");
-        createWriteSession(options, staticPartition);
+        createWriteSession(options, currentPartition);
     }
 
     @Override
@@ -82,16 +75,18 @@ public class StaticOdpsPartitionUpsert extends OdpsTableWrite<RowData> {
     }
 
     @Override
-    public void writeRecord(RowData rowData) throws IOException {
-        Object row = this.converter.toExternalOrNull(rowData);
-        final RowKind kind = rowData.getRowKind();
-        if (kind.equals(RowKind.INSERT) || kind.equals(RowKind.UPDATE_AFTER)) {
-            this.upsertWriter.upsert((Row) row);
-        } else if ((kind.equals(RowKind.DELETE) || kind.equals(RowKind.UPDATE_BEFORE))) {
-            this.upsertWriter.delete((Row) row);
-        } else {
-            LOG.debug("Ignore row data {}.", rowData);
-        }
+    public void upsert(Row record) throws IOException {
+        this.upsertWriter.upsert(record);
+    }
+
+    @Override
+    public void delete(Row record) throws IOException {
+        this.upsertWriter.delete(record);
+    }
+
+    @Override
+    public void flush() throws IOException {
+        // TODO: flush
     }
 
     @Override
@@ -110,16 +105,23 @@ public class StaticOdpsPartitionUpsert extends OdpsTableWrite<RowData> {
     }
 
     @Override
+    public void writeRecord(Row rowData) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void commitWriteSession() throws IOException {
-        if (tableWriteSession != null) {
-            try {
-                tableWriteSession.commitTable();
-                tableWriteSession.cleanup();
-            } catch (Throwable e) {
-                LOG.error("Failed to commit odps write session!", e);
-                throw new IOException(e);
-            }
-            tableWriteSession = null;
-        }
+        throw new UnsupportedOperationException();
+        // TODO: now unreachable
+//        if (tableWriteSession != null) {
+//            try {
+//                tableWriteSession.commitTable();
+//                tableWriteSession.cleanup();
+//            } catch (Throwable e) {
+//                LOG.error("Failed to commit odps write session!", e);
+//                throw new IOException(e);
+//            }
+//            tableWriteSession = null;
+//        }
     }
 }

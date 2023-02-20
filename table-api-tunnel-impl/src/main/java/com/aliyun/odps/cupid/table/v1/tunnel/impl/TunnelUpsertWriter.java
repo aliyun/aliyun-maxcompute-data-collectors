@@ -1,6 +1,8 @@
 package com.aliyun.odps.cupid.table.v1.tunnel.impl;
 
 import com.aliyun.odps.PartitionSpec;
+import com.aliyun.odps.commons.util.RetryExceedLimitException;
+import com.aliyun.odps.commons.util.RetryStrategy;
 import com.aliyun.odps.cupid.table.v1.writer.FileWriter;
 import com.aliyun.odps.data.ArrayRecord;
 import com.aliyun.odps.tunnel.TableTunnel;
@@ -21,6 +23,7 @@ public class TunnelUpsertWriter implements FileWriter<ArrayRecord> {
     private boolean isClosed;
     private boolean isCommitted;
     private long rowsWritten;
+    protected RetryStrategy commitRetry;
 
     TunnelUpsertWriter(TunnelWriteSessionInfo sessionInfo,
                        Map<String, String> partitionSpec) {
@@ -49,6 +52,7 @@ public class TunnelUpsertWriter implements FileWriter<ArrayRecord> {
             this.stream = session.buildUpsertStream().setListener(listener).build();
             this.isClosed = false;
             this.isCommitted = false;
+            this.commitRetry = new RetryStrategy(3, 5, RetryStrategy.BackoffStrategy.EXPONENTIAL_BACKOFF);
         } catch (IOException | TunnelException e) {
             throw new RuntimeException(e);
         }
@@ -94,14 +98,13 @@ public class TunnelUpsertWriter implements FileWriter<ArrayRecord> {
             return;
         }
         // For 0.43.0
-        flush();
-        this.stream.close();
-
-//        try {
-//            this.stream.close();
-//        } catch (TunnelException e) {
-//            throw new IOException(e);
-//        }
+        // flush();
+        // this.stream.close();
+        try {
+            this.stream.close();
+        } catch (TunnelException e) {
+            throw new IOException(e);
+        }
         isClosed = true;
     }
 
@@ -110,13 +113,27 @@ public class TunnelUpsertWriter implements FileWriter<ArrayRecord> {
         if (isCommitted) {
             return;
         }
-        try {
-            close();
-            this.session.commit(false);
-        } catch (TunnelException e) {
-            throw new IOException(e);
-        }
+        close();
+        tryCommit();
         isCommitted = true;
+    }
+
+    private void tryCommit() throws IOException {
+        commitRetry.reset();
+        while (true) {
+            try {
+                this.session.commit(false);
+                break;
+            } catch (Exception exception) {
+                LOG.error(String.format("Commit error, retry times = %d",
+                        commitRetry.getAttempts()), exception);
+                try {
+                    commitRetry.onFailure(exception);
+                } catch (RetryExceedLimitException | InterruptedException e) {
+                    throw new IOException(e);
+                }
+            }
+        }
     }
 
     @Override

@@ -11,15 +11,16 @@
 
     <groupId>com.aliyun.odps</groupId>
     <artifactId>flink-connector-odps</artifactId>
-    <version>1.14-SNAPSHOT</version>
+    <version>1.13-SNAPSHOT</version>
     <properties>
         <maven.test.skip>true</maven.test.skip>
         <maven.javadoc.skip>true</maven.javadoc.skip>
-        <flink.version>1.14.3</flink.version>
+        <flink.version>1.13.3</flink.version>
         <scala.version>2.11.12</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
-        <odps.sdk.version>0.36.7-public</odps.sdk.version>
-        <cupid.table.version>1.1.6-SNAPSHOT</cupid.table.version>
+        <odps.sdk.version>0.43.0-public-upsert-SNAPSHOT</odps.sdk.version>
+<!--        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>-->
+        <cupid.table.version>1.1.8-SNAPSHOT</cupid.table.version>
         <!-- compile for local run -->
         <tunnel.table.impl.scope>compile</tunnel.table.impl.scope>
         <table.api.scope>provided</table.api.scope>
@@ -46,33 +47,37 @@
             <version>${flink.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- for 1.14 -->
+<!--        <dependency>-->
+<!--            <groupId>org.apache.flink</groupId>-->
+<!--            <artifactId>flink-table-runtime_${scala.binary.version}</artifactId>-->
+<!--            <version>${flink.version}</version>-->
+<!--            <scope>provided</scope>-->
+<!--        </dependency>-->
+        <!-- for 1.14 -->
+
+        <!-- for 1.13 -->
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-table-runtime_${scala.binary.version}</artifactId>
+            <artifactId>flink-table-runtime-blink_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
             <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table-planner-blink_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
         <!-- for 1.13 -->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.flink</groupId>-->
-<!--            <artifactId>flink-table-runtime-blink_${scala.binary.version}</artifactId>-->
-<!--            <version>${flink.version}</version>-->
-<!--            <scope>provided</scope>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.flink</groupId>-->
-<!--            <artifactId>flink-table-planner-blink_${scala.binary.version}</artifactId>-->
-<!--            <version>${flink.version}</version>-->
-<!--            <scope>provided</scope>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.flink</groupId>-->
-<!--            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>-->
-<!--            <version>${flink.version}</version>-->
-<!--            <type>test-jar</type>-->
-<!--            <scope>test</scope>-->
-<!--        </dependency>-->
 
         <dependency>
             <groupId>org.apache.flink</groupId>

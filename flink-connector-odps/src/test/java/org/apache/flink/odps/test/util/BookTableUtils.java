@@ -218,6 +218,26 @@ public class BookTableUtils {
                 "`date` VARCHAR(50));";
     }
 
+    public static String getOdpsCreateQueryWithPK(String tableName) {
+        return "CREATE TABLE if not exists " + tableName + " (" +
+                "id INT not null," +
+                "title VARCHAR(50)," +
+                "author VARCHAR(50)," +
+                "price Double," +
+                "qty INT," +
+                "`date` VARCHAR(50), primary key(id)) tblproperties (\"transactional\"=\"true\");";
+    }
+
+    public static String getOdpsCreatePartitionQueryWithPK(String tableName) {
+        return "CREATE TABLE if not exists " + tableName + " (" +
+                "id INT not null," +
+                "title VARCHAR(50)," +
+                "author VARCHAR(50)," +
+                "price Double," +
+                "qty INT, primary key(id))" +
+                " PARTITIONED BY (`date` VARCHAR(50)) tblproperties (\"transactional\"=\"true\");";
+    }
+
     public static String getOdpsCreatePartitionQuery(String tableName) {
         return "CREATE TABLE if not exists " + tableName + " (" +
                 "id INT," +

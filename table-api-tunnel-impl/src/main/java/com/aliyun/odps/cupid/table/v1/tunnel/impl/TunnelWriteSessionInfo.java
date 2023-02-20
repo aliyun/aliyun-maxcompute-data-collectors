@@ -31,6 +31,7 @@ public class TunnelWriteSessionInfo extends WriteSessionInfo {
     private final String uploadId;
     private final boolean isStream;
     private final boolean isDynamicPartition;
+    private final boolean isUpsert;
 
     TunnelWriteSessionInfo(String project,
                            String table,
@@ -41,11 +42,13 @@ public class TunnelWriteSessionInfo extends WriteSessionInfo {
                            boolean overwrite,
                            boolean isDynamicPartition,
                            boolean isStream,
+                           boolean isUpsert,
                            Options options) {
         super(project, table, dataColumns, partitionColumns, partitionSpec, overwrite, options);
         this.uploadId = uploadId;
         this.isDynamicPartition = isDynamicPartition;
         this.isStream = isStream;
+        this.isUpsert = isUpsert;
     }
 
     @Override
@@ -61,5 +64,9 @@ public class TunnelWriteSessionInfo extends WriteSessionInfo {
 
     public boolean isDynamicPartition() {
         return isDynamicPartition;
+    }
+
+    public boolean isUpsert() {
+        return isUpsert;
     }
 }

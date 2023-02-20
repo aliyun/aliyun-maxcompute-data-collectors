@@ -150,10 +150,12 @@ public abstract class OdpsTableWrite<T> implements Serializable,
 
     @Override
     public void updateWriteContext(SinkFunction.Context context) {
-        writerContext.update(
-                context.timestamp(),
-                context.currentWatermark(),
-                context.currentProcessingTime());
+        // TODO: Caused by: java.lang.RuntimeException: Not implemented
+        //	at org.apache.flink.streaming.api.functions.sink.SinkContextUtil$1.currentWatermark
+//        writerContext.update(
+//                context.timestamp(),
+//                context.currentWatermark(),
+//                context.currentProcessingTime());
     }
 
     protected void createWriteSession(Options options, String partition) throws IOException {

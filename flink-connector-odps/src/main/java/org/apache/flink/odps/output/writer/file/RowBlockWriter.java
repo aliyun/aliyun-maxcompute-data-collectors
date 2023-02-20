@@ -42,10 +42,10 @@ public class RowBlockWriter<T> implements BlockWriter<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(RowBlockWriter.class);
 
-    private final ArrayRecord odpsRecord;
-    private final Column[] columns;
-    private final OdpsTypeConverter[] odpsTypeConverters;
-    private TypeComparator<T> typeComparator;
+    protected final Column[] columns;
+    protected final OdpsTypeConverter[] odpsTypeConverters;
+    protected TypeComparator<T> typeComparator;
+    protected ArrayRecord odpsRecord;
 
     protected final OdpsWriteOptions options;
     protected FileWriter<ArrayRecord> fileWriter;
@@ -124,7 +124,7 @@ public class RowBlockWriter<T> implements BlockWriter<T> {
         return fileWriter.getRowsWritten();
     }
 
-    private void buildOdpsRecord(Record odpsRecord, T record) {
+    protected void buildOdpsRecord(Record odpsRecord, T record) {
         Object sourceValue;
         Object[] keyArray = null;
         for (int i = 0; i < odpsRecord.getColumnCount(); ++i) {

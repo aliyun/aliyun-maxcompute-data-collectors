@@ -25,11 +25,11 @@ import org.apache.flink.odps.output.stream.PartitionAssigner;
 import org.apache.flink.odps.output.writer.OdpsStreamWrite;
 import org.apache.flink.odps.output.writer.OdpsWriteFactory;
 import org.apache.flink.odps.output.writer.OdpsWriteOptions;
+import org.apache.flink.runtime.util.ExecutorThreadFactory;
 import org.apache.flink.odps.util.OdpsConf;
 import org.apache.flink.odps.util.OdpsUtils;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
-import org.apache.flink.util.concurrent.ExecutorThreadFactory;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.util.Preconditions;
@@ -169,6 +169,7 @@ public class OdpsSinkFunction<T> extends RichSinkFunction<T> implements Checkpoi
             this.scheduler =
                     Executors.newScheduledThreadPool(
                             1, new ExecutorThreadFactory("odps-sink-function"));
+            // TODO: for flink 1.14: org.apache.flink.util.concurrent.ExecutorThreadFactory
             this.scheduledFuture =
                     scheduler.scheduleWithFixedDelay(
                             () -> {

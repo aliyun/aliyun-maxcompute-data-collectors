@@ -23,7 +23,9 @@ import org.apache.flink.odps.output.writer.file.StaticOdpsPartitionWrite;
 import org.apache.flink.odps.output.writer.stream.DynamicOdpsPartitionStreamWrite;
 import org.apache.flink.odps.output.writer.stream.GroupedOdpsPartitionStreamWrite;
 import org.apache.flink.odps.output.writer.stream.StaticOdpsPartitionStreamWrite;
+import org.apache.flink.odps.output.writer.upsert.StaticOdpsPartitionUpsert;
 import org.apache.flink.odps.util.OdpsConf;
+import org.apache.flink.table.data.RowData;
 
 public interface OdpsWriteFactory {
 
@@ -88,5 +90,19 @@ public interface OdpsWriteFactory {
                     partition,
                     writeOptions);
         }
+    }
+
+    static OdpsWrite<RowData> createOdpsUpsert(
+            OdpsConf odpsConf,
+            String projectName,
+            String tableName,
+            String partition,
+            OdpsWriteOptions writeOptions) {
+        return new StaticOdpsPartitionUpsert(
+                odpsConf,
+                projectName,
+                tableName,
+                partition,
+                writeOptions);
     }
 }

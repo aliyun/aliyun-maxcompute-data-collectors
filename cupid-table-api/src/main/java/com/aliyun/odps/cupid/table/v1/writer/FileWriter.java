@@ -47,4 +47,16 @@ public interface FileWriter<T> {
     default long getBufferRows() {
         throw new UnsupportedOperationException();
     }
+
+    default void upsert(T data) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    default void delete(T data) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    default T newElement() {
+        throw new UnsupportedOperationException();
+    }
 }

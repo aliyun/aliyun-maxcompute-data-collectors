@@ -43,6 +43,7 @@ public class Util {
     public static final String WRITER_BUFFER_SIZE = "odps.cupid.writer.buffer.size";
     public static final int DEFAULT_WRITER_BUFFER_SIZE = 67108864;
 
+    public static final String UPSERT_ENABLE = "odps.upsert.mode.enable";
 
     public static PartitionSpec toOdpsPartitionSpec(Map<String, String> partitionSpec) {
         if (partitionSpec == null || partitionSpec.isEmpty()) {
@@ -199,12 +200,18 @@ public class Util {
         while (true) {
             try {
                 if (partitionSpec == null || partitionSpec.isEmpty()) {
-                    uploadSession = tunnel.createStreamUploadSession(project, table);
+                    // For old sdk version
+                    // uploadSession = tunnel.createStreamUploadSession(project, table);
+                    uploadSession = tunnel.buildStreamUploadSession(project, table).build();
                 } else {
-                    uploadSession = tunnel.createStreamUploadSession(project,
-                            table,
-                            partitionSpec,
-                            createParitition);
+                    // For old sdk version
+                    // uploadSession = tunnel.createStreamUploadSession(project,
+                    //        table,
+                    //        partitionSpec,
+                    //        createParitition);
+                    uploadSession = tunnel.buildStreamUploadSession(project, table)
+                            .setCreatePartition(createParitition)
+                            .setPartitionSpec(partitionSpec).build();
                 }
                 break;
             } catch (TunnelException e) {
@@ -223,4 +230,39 @@ public class Util {
         return uploadSession;
     }
 
+    public static TableTunnel.UpsertSession getOrCreateUpsertSession(String project,
+                                                                String table,
+                                                                PartitionSpec partitionSpec,
+                                                                TableTunnel tunnel,
+                                                                String upsertId) throws IOException {
+        int retry = 0;
+        long sleep = 2000;
+        TableTunnel.UpsertSession upsertSession;
+        while (true) {
+            try {
+                if (partitionSpec == null || partitionSpec.isEmpty()) {
+                    upsertSession = tunnel.buildUpsertSession(project, table)
+                            .setUpsertId(upsertId).build();
+                } else {
+                    upsertSession = tunnel.buildUpsertSession(project, table)
+                            .setPartitionSpec(partitionSpec)
+                            .setUpsertId(upsertId)
+                            .build();
+                }
+                break;
+            } catch (TunnelException e) {
+                retry++;
+                if (retry > 5) {
+                    throw new IOException(e);
+                }
+                try {
+                    Thread.sleep(sleep + ThreadLocalRandom.current().nextLong(3000));
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                }
+                sleep = sleep * 2;
+            }
+        }
+        return upsertSession;
+    }
 }

@@ -104,6 +104,8 @@ public class TunnelProvider implements TableProvider {
                                                       int fileIndex) {
         if (((TunnelWriteSessionInfo) sessionInfo).isStream()) {
             return new TunnelStreamWriter((TunnelWriteSessionInfo) sessionInfo, partitionSpec);
+        } else if (((TunnelWriteSessionInfo) sessionInfo).isUpsert()) {
+            return new TunnelUpsertWriter((TunnelWriteSessionInfo) sessionInfo, partitionSpec);
         } else {
             return new TunnelWriter((TunnelWriteSessionInfo) sessionInfo, fileIndex, partitionSpec);
         }

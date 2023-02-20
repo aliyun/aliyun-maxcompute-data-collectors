@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static com.aliyun.odps.cupid.table.v1.tunnel.impl.Util.UPSERT_ENABLE;
 import static com.aliyun.odps.cupid.table.v1.tunnel.impl.Util.WRITER_STREAM_ENABLE;
 
 public class TunnelWriteSession extends TableWriteSession {
@@ -46,7 +47,8 @@ public class TunnelWriteSession extends TableWriteSession {
     private WriteSessionInfo sessionInfo;
     private List<Attribute> dataColumns;
     private List<Attribute> partitionColumns;
-    private TableTunnel.UploadSession session;
+    private TableTunnel.UploadSession uploadSession;
+    private TableTunnel.UpsertSession upsertSession;
     private Odps odps;
 
     TunnelWriteSession(String project,
@@ -78,19 +80,38 @@ public class TunnelWriteSession extends TableWriteSession {
 
         // Dynamic partition spec or stream write
         if (((TunnelWriteSessionInfo) sessionInfo).isDynamicPartition()
-                || ((TunnelWriteSessionInfo) sessionInfo).isStream()) {
+                || ((TunnelWriteSessionInfo) sessionInfo).isStream()
+                // TODO: upsert session: now return
+                || ((TunnelWriteSessionInfo) sessionInfo).isUpsert()) {
             return;
         }
 
         try {
             TableTunnel tunnel = Util.getTableTunnel(this.options);
             if (partitionSpec.isEmpty()) {
-                session = tunnel.getUploadSession(project, table, ((TunnelWriteSessionInfo) sessionInfo).getUploadId());
+                if (((TunnelWriteSessionInfo) sessionInfo).isUpsert()) {
+                    // TODO: upsert session: now unreachable
+                    upsertSession = tunnel.buildUpsertSession(project, table)
+                            .setUpsertId(((TunnelWriteSessionInfo) sessionInfo).getUploadId())
+                            .build();
+                } else {
+                    uploadSession = tunnel.getUploadSession(project, table, ((TunnelWriteSessionInfo) sessionInfo).getUploadId());
+                }
+                uploadSession = tunnel.getUploadSession(project, table, ((TunnelWriteSessionInfo) sessionInfo).getUploadId());
             } else {
                 PartitionSpec odpsPartitionSpec = Util.toOdpsPartitionSpec(partitionSpec);
-                session = tunnel.getUploadSession(project, table, odpsPartitionSpec, ((TunnelWriteSessionInfo) sessionInfo).getUploadId());
+                // TODO: upsert session: now unreachable
+                if (((TunnelWriteSessionInfo) sessionInfo).isUpsert()) {
+                    upsertSession = tunnel.buildUpsertSession(project, table)
+                            .setUpsertId(((TunnelWriteSessionInfo) sessionInfo).getUploadId())
+                            .setPartitionSpec(odpsPartitionSpec)
+                            .build();
+                } else {
+                    uploadSession = tunnel.getUploadSession(project, table, odpsPartitionSpec, ((TunnelWriteSessionInfo) sessionInfo).getUploadId());
+                }
+                uploadSession = tunnel.getUploadSession(project, table, odpsPartitionSpec, ((TunnelWriteSessionInfo) sessionInfo).getUploadId());
             }
-        } catch (TunnelException e) {
+        } catch (TunnelException | IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -120,34 +141,61 @@ public class TunnelWriteSession extends TableWriteSession {
 
         boolean isStream = this.options.getOrDefault(WRITER_STREAM_ENABLE, false);
         boolean isDynamicPartition = partitionSpec.values().stream().anyMatch(Objects::isNull);
+        boolean isUpsert = this.options.getOrDefault(UPSERT_ENABLE, false);
 
-        if (this.overwrite && (isDynamicPartition || isStream)) {
-            throw new UnsupportedOperationException("Overwrite is not unsupported by tunnel dynamic partition");
+        if (this.overwrite && (isDynamicPartition || isStream || isUpsert)) {
+            throw new UnsupportedOperationException("Overwrite is not unsupported by tunnel provider!");
         }
 
         if (isStream) {
-            this.sessionInfo = getSessionInfoInternal("", isDynamicPartition, true);
+            this.sessionInfo = getSessionInfoInternal("", isDynamicPartition, true, false);
         } else {
             if (partitionSpec.isEmpty()) {
-                this.session = Util.createUploadSession(
-                        project,
-                        table,
-                        null,
-                        overwrite,
-                        tunnel);
-                this.sessionInfo = getSessionInfoInternal(session.getId(), false, false);
+                String id  = null;
+                if (isUpsert) {
+                    // TODO: upsert session: now unreachable
+//                    this.upsertSession = Util.getOrCreateUpsertSession(
+//                            project,
+//                            table,
+//                            null,
+//                            tunnel,
+//                            null);
+//                    id = this.upsertSession.getId();
+                } else {
+                    this.uploadSession = Util.createUploadSession(
+                            project,
+                            table,
+                            null,
+                            overwrite,
+                            tunnel);
+                    id = this.uploadSession.getId();
+                }
+                this.sessionInfo = getSessionInfoInternal(id, false, false, isUpsert);
             } else {
                 if (isDynamicPartition) {
                     // Dynamic partition spec, will not create session
-                    this.sessionInfo = getSessionInfoInternal("", true, false);
+                    this.sessionInfo = getSessionInfoInternal("", true, false, isUpsert);
                 } else {
-                    this.session = Util.createUploadSession(
-                            project,
-                            table,
-                            Util.toOdpsPartitionSpec(partitionSpec),
-                            overwrite,
-                            tunnel);
-                    this.sessionInfo = getSessionInfoInternal(session.getId(), false, false);
+                    String id  = null;
+                    if (isUpsert) {
+                        // TODO: upsert session: now unreachable
+//                        this.upsertSession = Util.getOrCreateUpsertSession(
+//                                project,
+//                                table,
+//                                Util.toOdpsPartitionSpec(partitionSpec),
+//                                tunnel,
+//                                null);
+//                        id = this.upsertSession.getId();
+                    } else {
+                        this.uploadSession = Util.createUploadSession(
+                                project,
+                                table,
+                                Util.toOdpsPartitionSpec(partitionSpec),
+                                overwrite,
+                                tunnel);
+                        id = this.uploadSession.getId();
+                    }
+                    this.sessionInfo = getSessionInfoInternal(id, false, false, isUpsert);
                 }
             }
         }
@@ -176,7 +224,8 @@ public class TunnelWriteSession extends TableWriteSession {
 
     private WriteSessionInfo getSessionInfoInternal(String sessionId,
                                                     boolean isDynamicPartition,
-                                                    boolean isStream) {
+                                                    boolean isStream,
+                                                    boolean isUpsert) {
         return new TunnelWriteSessionInfo(
                 project,
                 table,
@@ -187,6 +236,7 @@ public class TunnelWriteSession extends TableWriteSession {
                 overwrite,
                 isDynamicPartition,
                 isStream,
+                isUpsert,
                 options);
     }
 
@@ -195,11 +245,20 @@ public class TunnelWriteSession extends TableWriteSession {
         if (((TunnelWriteSessionInfo) sessionInfo).isStream()) {
             return;
         }
-        if (session == null) {
-            throw new UnsupportedOperationException("Dynamic partition not support commit table");
-        }
         try {
-            session.commit();
+            if (((TunnelWriteSessionInfo) sessionInfo).isUpsert()) {
+                // TODO: upsert session: now unreachable
+                //if (upsertSession == null) {
+                //    throw new UnsupportedOperationException("Dynamic partition not support commit table");
+                // }
+                // upsertSession.commit(false);
+                // upsertSession.close();
+            } else {
+                if (uploadSession == null) {
+                    throw new UnsupportedOperationException("Dynamic partition not support commit table");
+                }
+                uploadSession.commit();
+            }
         } catch (TunnelException e) {
             throw new IOException(e);
         }
@@ -224,7 +283,15 @@ public class TunnelWriteSession extends TableWriteSession {
                 try {
                     if (!msg.getPartitionSpec().isEmpty()) {
                         PartitionSpec odpsPartitionSpec = Util.toOdpsPartitionSpec(msg.getPartitionSpec());
-                        session = tunnel.getUploadSession(project, table, odpsPartitionSpec, msg.getUploadId());
+                        if (((TunnelWriteSessionInfo) sessionInfo).isUpsert()) {
+                            // TODO: upsert session: now unreachable
+                            // upsertSession = tunnel.buildUpsertSession(project, table)
+                            //        .setUpsertId(msg.getUploadId())
+                            //        .setPartitionSpec(odpsPartitionSpec)
+                            //        .build();
+                        } else {
+                            uploadSession = tunnel.getUploadSession(project, table, odpsPartitionSpec, msg.getUploadId());
+                        }
                     } else {
                         throw new InvalidParameterException("Tunnel dynamic partition is empty");
                     }

@@ -34,9 +34,13 @@ public class OdpsTestUtils {
     public static final String defaultOdpsConfResource = "test-odps-conf";
 
     public static OdpsConf getOdpsConf() {
+        return getOdpsConf(defaultOdpsConfResource);
+    }
+
+    public static OdpsConf getOdpsConf(String resource) {
         String odpsConfDir = Thread.currentThread()
                 .getContextClassLoader()
-                .getResource(defaultOdpsConfResource)
+                .getResource(resource)
                 .getPath();
         return OdpsUtils.getOdpsConf(odpsConfDir);
     }

@@ -21,6 +21,7 @@ package org.apache.flink.odps.test.table;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.odps.output.OdpsUpsertSinkFunction;
 import org.apache.flink.odps.output.stream.PartitionAssigner;
+import org.apache.flink.odps.output.writer.OdpsWriteOptions;
 import org.apache.flink.odps.test.util.BookEntry;
 import org.apache.flink.odps.test.util.OdpsTestUtils;
 import org.apache.flink.odps.util.OdpsConf;
@@ -53,12 +54,14 @@ public class OdpsUpsertSinkFunctionTest {
     private OdpsUpsertSinkFunction odpsUpsertSinkFunction;
 
     private static OdpsConf odpsConf;
+
     private static String project;
     private static String table1;
 
     private static String partitionTable1;
     private static String partitionTable2;
     private static String partitionTable3;
+
     @BeforeClass
     public static void init() {
         odpsConf = OdpsTestUtils.getOdpsConf();
@@ -256,12 +259,12 @@ public class OdpsUpsertSinkFunctionTest {
     }
 
     public static OdpsUpsertSinkFunction buildOdpsUpsertSinkFunction(OdpsConf odpsConf,
-                                                               String tableName,
-                                                               String partition,
-                                                               boolean grouping,
-                                                               List<String> partitionColumns,
-                                                               Map<String, String> staticPartitionSpec,
-                                                               PartitionAssigner<Row> partitionAssigner) {
+                                                                     String tableName,
+                                                                     String partition,
+                                                                     boolean grouping,
+                                                                     List<String> partitionColumns,
+                                                                     Map<String, String> staticPartitionSpec,
+                                                                     PartitionAssigner<Row> partitionAssigner) {
         boolean isPartitioned = partitionColumns != null && !partitionColumns.isEmpty();
         boolean isDynamicPartition = isPartitioned && partitionColumns.size() > staticPartitionSpec.size();
         String projectName = OdpsTestUtils.projectName;
@@ -271,6 +274,10 @@ public class OdpsUpsertSinkFunctionTest {
         builder.setDynamicPartition(isDynamicPartition);
         builder.setSupportPartitionGrouping(grouping);
         builder.setPartitionAssigner(partitionAssigner);
+
+        OdpsWriteOptions odpsWriteOptions = OdpsWriteOptions.builder()
+                .setDynamicPartitionLimit(200).build();
+        builder.setWriteOptions(odpsWriteOptions);
         return builder.build();
     }
 
@@ -286,11 +293,11 @@ public class OdpsUpsertSinkFunctionTest {
     public static final BookEntry[] BOOK_TEST_DATA = {
             new BookEntry(1001, ("Java public for dummies"), ("Tan Ah Teck"), 11.11, 11, "2019-01-09"),
             new BookEntry(1002, ("More Java for dummies"), ("Tan Ah Teck"), 22.22, 22, "2019-01-08"),
-            new BookEntry(1004, ("A Cup of Java"), ("Kumar"), 44.44, 44,"2019-01-08"),
-            new BookEntry(1004, ("A Teaspoon of Java"), ("Kevin Jones"), 55.55, 55,"2019-02-09"),
-            new BookEntry(1004, ("A Teaspoon of Java 1.4"), ("Kevin Jones"), 66.66, 66,"2019-02-09"),
-            new BookEntry(1004, ("A Teaspoon of Java 1.5"), ("Kevin Jones"), 77.77, 77,"2019-02-07"),
-            new BookEntry(1004, ("A Teaspoon of Java 1.8"), ("Kevin Jones"), null, 1010,"2019-02-08")
+            new BookEntry(1004, ("A Cup of Java"), ("Kumar"), 44.44, 44, "2019-01-08"),
+            new BookEntry(1004, ("A Teaspoon of Java"), ("Kevin Jones"), 55.55, 55, "2019-02-09"),
+            new BookEntry(1004, ("A Teaspoon of Java 1.4"), ("Kevin Jones"), 66.66, 66, "2019-02-09"),
+            new BookEntry(1004, ("A Teaspoon of Java 1.5"), ("Kevin Jones"), 77.77, 77, "2019-02-07"),
+            new BookEntry(1004, ("A Teaspoon of Java 1.8"), ("Kevin Jones"), null, 1010, "2019-02-08")
     };
 
     public static final RowData[] TEST_DATA = {

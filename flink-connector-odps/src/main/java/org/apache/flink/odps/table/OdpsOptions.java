@@ -21,6 +21,7 @@ package org.apache.flink.odps.table;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.MemorySize;
+import org.apache.flink.odps.sink.common.WriteOperationType;
 import org.apache.flink.odps.util.Constants;
 
 import java.time.Duration;
@@ -28,6 +29,12 @@ import java.time.Duration;
 import static org.apache.flink.odps.util.Constants.*;
 
 public class OdpsOptions {
+
+    public static final ConfigOption<String> OPERATION = ConfigOptions
+            .key("write.operation")
+            .stringType()
+            .defaultValue(WriteOperationType.UPSERT.value())
+            .withDescription("The write operation, that this write should do");
 
     public static final ConfigOption<String> PROJECT_NAME =
             ConfigOptions.key(Constants.ODPS_PROJECT_NAME)
@@ -82,6 +89,12 @@ public class OdpsOptions {
                     .memoryType()
                     .defaultValue(MemorySize.parse("64mb"))
                     .withDescription("Odps writer buffer size.");
+
+    public static final ConfigOption<Long> WRITE_BATCH_SIZE = ConfigOptions
+            .key("write.batch.size")
+            .longType()
+            .defaultValue(4096L) // 256MB
+            .withDescription("Batch size");
 
     // lookup
     public static final ConfigOption<Duration> LOOKUP_CACHE_TTL =

@@ -18,8 +18,8 @@
         <flink.version>1.13.3</flink.version>
         <scala.version>2.11.12</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
-        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>
-<!--        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>-->
+<!--        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>-->
+        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>
         <cupid.table.version>1.1.8-SNAPSHOT</cupid.table.version>
         <!-- compile for local run -->
         <tunnel.table.impl.scope>compile</tunnel.table.impl.scope>
@@ -126,6 +126,12 @@
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-commons</artifactId>
             <version>${odps.sdk.version}</version>
+            <scope>${odps.sdk.scope}</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun.odps</groupId>
+            <artifactId>odps-sdk-table-api</artifactId>
+            <version>0.43.0-table-api-public</version>
             <scope>${odps.sdk.scope}</scope>
         </dependency>
         <!-- test dependencies -->

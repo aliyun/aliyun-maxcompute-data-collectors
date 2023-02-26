@@ -19,11 +19,15 @@
 package org.apache.flink.odps.util;
 
 import com.aliyun.odps.Column;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.apache.flink.table.api.DataTypes.FIELD;
+import static org.apache.flink.table.api.DataTypes.ROW;
 
 /**
  * Utils for Odps table.
@@ -74,5 +78,14 @@ public class OdpsTableUtil {
         }
 
         return columns;
+    }
+
+    public static DataType toRowDataType(List<Column> columns) {
+        final DataTypes.Field[] fields =
+                columns.stream()
+                        .map(column -> FIELD(column.getName(),
+                                OdpsTypeUtil.toFlinkType(column.getTypeInfo())))
+                        .toArray(DataTypes.Field[]::new);
+        return ROW(fields).notNull();
     }
 }

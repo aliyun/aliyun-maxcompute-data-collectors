@@ -16,8 +16,8 @@
     <properties>
         <java.version>1.8</java.version>
         <deps.scope>compile</deps.scope>
-        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>
-<!--        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>-->
+<!--        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>-->
+        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>
         <arrow.vector.version>1.0.0</arrow.vector.version>
     </properties>
     <dependencies>

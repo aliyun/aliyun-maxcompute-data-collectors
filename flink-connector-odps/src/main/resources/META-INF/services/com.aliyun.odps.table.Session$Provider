@@ -1,0 +1,3 @@
+org.apache.flink.odps.sink.table.TableUpsertSessionProviderImpl
+com.aliyun.odps.table.read.impl.TableReadSessionProviderImpl
+com.aliyun.odps.table.write.impl.TableWriteSessionProviderImpl

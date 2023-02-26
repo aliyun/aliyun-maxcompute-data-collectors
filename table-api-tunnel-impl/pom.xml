@@ -15,8 +15,8 @@
     <properties>
         <java.version>1.8</java.version>
         <deps.scope>provided</deps.scope>
-        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>
-<!--        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>-->
+<!--        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>-->
+        <odps.sdk.version>0.45.0-SNAPSHOT</odps.sdk.version>
         <cupid.table.version>1.1.8-SNAPSHOT</cupid.table.version>
     </properties>
     <dependencies>

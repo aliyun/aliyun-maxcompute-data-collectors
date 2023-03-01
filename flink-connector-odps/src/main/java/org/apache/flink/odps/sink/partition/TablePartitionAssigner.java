@@ -18,6 +18,7 @@
 
 package org.apache.flink.odps.sink.partition;
 
+import com.aliyun.odps.PartitionSpec;
 import org.apache.flink.odps.output.stream.PartitionAssigner;
 import org.apache.flink.odps.util.OdpsUtils;
 import org.apache.flink.table.data.RowData;

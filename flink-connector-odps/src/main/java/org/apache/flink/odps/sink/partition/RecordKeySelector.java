@@ -28,11 +28,12 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 
-import javax.annotation.Nullable;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.apache.flink.odps.sink.utils.RowDataProjection.getProjection;
+import static org.apache.flink.odps.util.OdpsUtils.objToString;
 
 public class RecordKeySelector implements KeySelector<RowData, String> {
 
@@ -107,30 +108,5 @@ public class RecordKeySelector implements KeySelector<RowData, String> {
         }
         recordKey.deleteCharAt(recordKey.length() - 1);
         return recordKey.toString();
-    }
-
-    private static RowDataProjection getProjection(List<String> fields, List<String> schemaFields, List<LogicalType> schemaTypes) {
-        int[] positions = getFieldPositions(fields, schemaFields);
-        LogicalType[] types = Arrays.stream(positions).mapToObj(schemaTypes::get).toArray(LogicalType[]::new);
-        return RowDataProjection.instance(types, positions);
-    }
-
-    private static int[] getFieldPositions(List<String> fields, List<String> allFields) {
-        return fields.stream().mapToInt(allFields::indexOf).toArray();
-    }
-
-    private static String objToString(@Nullable Object obj) {
-        if (obj == null) {
-            return null;
-        }
-        return obj instanceof ByteBuffer ? toHexString(((ByteBuffer) obj).array()) : obj.toString();
-    }
-
-    private static String toHexString(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
     }
 }

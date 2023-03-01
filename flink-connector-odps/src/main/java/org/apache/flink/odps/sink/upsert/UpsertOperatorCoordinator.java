@@ -175,7 +175,7 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                 tableUpsertSessionMap.put(partitionSpec, upsertSession);
             }
             sendSingleTaskAckEvents(-1, taskId, partitionSpec, sessionId, false);
-        }, "initialize session");
+        }, "initialize dynamic partition session");
     }
 
     private TableUpsertSessionImpl doCreateWriteSession(String partitionSpec) throws IOException {

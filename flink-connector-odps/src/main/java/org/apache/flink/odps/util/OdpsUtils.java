@@ -25,6 +25,7 @@ import com.aliyun.odps.account.StsAccount;
 import com.aliyun.odps.cupid.table.v1.util.Options;
 import com.aliyun.odps.data.Char;
 import com.aliyun.odps.data.Varchar;
+import com.aliyun.odps.table.DataSchema;
 import com.aliyun.odps.type.AbstractCharTypeInfo;
 import com.aliyun.odps.type.TypeInfo;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -40,11 +41,13 @@ import org.apache.flink.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -286,5 +289,20 @@ public class OdpsUtils {
             orders[i] = true;
         }
         return compositeType.createComparator(logicalKeyPositions, orders, 0, new ExecutionConfig());
+    }
+
+    public static String objToString(@Nullable Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        return obj instanceof ByteBuffer ? toHexString(((ByteBuffer) obj).array()) : obj.toString();
+    }
+
+    public static String toHexString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }

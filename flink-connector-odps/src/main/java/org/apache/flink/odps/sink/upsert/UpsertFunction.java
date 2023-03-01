@@ -33,6 +33,8 @@ import org.apache.flink.odps.output.stream.PartitionAssigner;
 import org.apache.flink.odps.output.writer.OdpsWriteOptions;
 import org.apache.flink.odps.sink.event.SinkTaskEvent;
 import org.apache.flink.odps.sink.event.TaskAckEvent;
+import org.apache.flink.odps.sink.partition.PartitionComputer;
+import org.apache.flink.odps.sink.partition.TablePartitionAssigner;
 import org.apache.flink.odps.sink.table.TableUpsertSessionImpl;
 import org.apache.flink.odps.sink.table.TableUtils;
 import org.apache.flink.odps.sink.table.UpsertWriter;
@@ -117,7 +119,12 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
         this.supportsGrouping = supportsGrouping;
         this.writeOptions = writeOptions == null ?
                 OdpsWriteOptions.builder().build() : writeOptions;
-        this.partitionAssigner = partitionAssigner;
+        if (isDynamicPartition && partitionAssigner == null) {
+            this.partitionAssigner = new TablePartitionAssigner(
+                            PartitionComputer.instance(dataSchema, partition, "__ODPS_DEFAULT_PARTITION__"));
+        } else {
+            this.partitionAssigner = partitionAssigner;
+        }
         try {
             if (!isDynamicPartition) {
                 checkPartition(partition);
@@ -308,8 +315,8 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
         if (!isDynamicPartition) {
             currentPartition = partition;
         } else {
-            // Get target partition
-            // TODO: check for partition spec
+            // TODO: support context
+            currentPartition = partitionAssigner.getPartitionSpec(in, null);
         }
 
         if (!sessionRequest.containsKey(currentPartition)) {
@@ -333,7 +340,7 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
             if (!odpsUpsertWriterMap.containsKey(currentPartition)) {
                 initUpsertWriter(currentPartition, sessionRequest.get(currentPartition));
             }
-            UpsertWriter<ArrayRecord> upsertWriter = odpsUpsertWriterMap.get(partition);
+            UpsertWriter<ArrayRecord> upsertWriter = odpsUpsertWriterMap.get(currentPartition);
             ArrayRecord record = upsertWriter.newElement();
             if (buckets.containsKey(currentPartition)) {
                 DataBucket bucket = buckets.get(currentPartition);

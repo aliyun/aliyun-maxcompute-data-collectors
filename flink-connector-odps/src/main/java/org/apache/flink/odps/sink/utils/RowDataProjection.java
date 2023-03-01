@@ -54,4 +54,14 @@ public class RowDataProjection implements Serializable {
         }
         return values;
     }
+
+    public static RowDataProjection getProjection(List<String> fields, List<String> schemaFields, List<LogicalType> schemaTypes) {
+        int[] positions = getFieldPositions(fields, schemaFields);
+        LogicalType[] types = Arrays.stream(positions).mapToObj(schemaTypes::get).toArray(LogicalType[]::new);
+        return RowDataProjection.instance(types, positions);
+    }
+
+    public static int[] getFieldPositions(List<String> fields, List<String> allFields) {
+        return fields.stream().mapToInt(allFields::indexOf).toArray();
+    }
 }

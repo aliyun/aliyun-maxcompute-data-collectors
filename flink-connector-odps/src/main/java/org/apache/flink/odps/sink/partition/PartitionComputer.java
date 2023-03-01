@@ -18,24 +18,23 @@
 
 package org.apache.flink.odps.sink.partition;
 
+import com.aliyun.odps.Column;
 import com.aliyun.odps.PartitionSpec;
-import org.apache.flink.api.common.typeutils.TypeComparator;
-import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.odps.FlinkOdpsException;
+import com.aliyun.odps.table.DataSchema;
 import org.apache.flink.odps.output.stream.PartitionAssigner;
-import org.apache.flink.odps.util.OdpsUtils;
-import org.apache.flink.odps.util.RowDataToOdpsConverters;
+import org.apache.flink.odps.sink.utils.RowDataProjection;
+import org.apache.flink.odps.util.OdpsTableUtil;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.types.Row;
 import org.apache.flink.util.StringUtils;
 
 import java.io.Serializable;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import static org.apache.flink.odps.sink.utils.RowDataProjection.getProjection;
+import static org.apache.flink.odps.util.OdpsUtils.objToString;
 
 public class PartitionComputer implements Serializable {
 
@@ -43,13 +42,21 @@ public class PartitionComputer implements Serializable {
 
     private final String defaultPartValue;
     private final List<String> partitionColumns;
-    private final int[] partitionIndexes;
     private final Map<String, String> staticPartitionSpec;
 
+    private final RowDataProjection partitionPathProjection;
+    private boolean simplePartitionPath = false;
+    private RowData.FieldGetter partitionPathFieldGetter;
+    private boolean nonPartitioned;
+
     public PartitionComputer(RowType rowType,
-							 List<String> partitionColumns,
-							 String staticPartition,
-							 String defaultPartValue) {
+                             List<String> partitionColumns,
+                             String staticPartition,
+                             String defaultPartValue) {
+
+        List<String> fieldNames = rowType.getFieldNames();
+        List<LogicalType> fieldTypes = rowType.getChildren();
+
         this.staticPartitionSpec = new LinkedHashMap<>();
         if (!StringUtils.isNullOrWhitespaceOnly(staticPartition)) {
             PartitionSpec partitionSpec = new PartitionSpec(staticPartition);
@@ -57,44 +64,59 @@ public class PartitionComputer implements Serializable {
                 staticPartitionSpec.put(key, partitionSpec.get(key));
             });
         }
+
         this.partitionColumns = partitionColumns.stream()
                 .filter(col -> !staticPartitionSpec.containsKey(col))
                 .collect(Collectors.toList());
-		this.defaultPartValue = defaultPartValue;
-		List<String> columnNames = rowType.getFields().stream()
-				.map(RowType.RowField::getName).collect(Collectors.toList());
-		this.partitionIndexes = this.partitionColumns.stream()
-                .mapToInt(columnNames::indexOf).toArray();
 
-		// TODO: For
-		final RowDataToOdpsConverters.RowDataToOdpsFieldConverter[] fieldConverters =
-				rowType.getChildren().stream()
-						.map(RowDataToOdpsConverters::createConverter)
-						.toArray(RowDataToOdpsConverters.RowDataToOdpsFieldConverter[]::new);
+        if (this.partitionColumns.isEmpty()) {
+            this.nonPartitioned = true;
+            this.partitionPathProjection = null;
+        } else if (this.partitionColumns.size() == 1) {
+            this.simplePartitionPath = true;
+            int partitionPathIdx = fieldNames.indexOf(this.partitionColumns.get(0));
+            this.partitionPathFieldGetter = RowData.createFieldGetter(fieldTypes.get(partitionPathIdx), partitionPathIdx);
+            this.partitionPathProjection = null;
+        } else {
+            this.partitionPathProjection = getProjection(this.partitionColumns, fieldNames, fieldTypes);
+        }
 
-		final LogicalType[] fieldTypes =
-				rowType.getFields().stream()
-						.map(RowType.RowField::getType)
-						.toArray(LogicalType[]::new);
-		final RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[fieldTypes.length];
-		for (int i = 0; i < fieldTypes.length; i++) {
-			fieldGetters[i] = RowData.createFieldGetter(fieldTypes[i], i);
-		}
+        this.defaultPartValue = defaultPartValue;
     }
 
-    public LinkedHashMap<String, String> generatePartValues(RowData in, PartitionAssigner.Context context) {
+    public static PartitionComputer instance(DataSchema dataSchema,
+                                             String staticPartition,
+                                             String defaultPartValue) {
+        // TODO: set row type
+        List<Column> columnList = dataSchema.getColumns();
+        RowType rowType =
+                ((RowType) OdpsTableUtil.toRowDataType(columnList).getLogicalType());
+        return new PartitionComputer(rowType, dataSchema.getPartitionKeys(), staticPartition, defaultPartValue);
+    }
+
+    public LinkedHashMap<String, String> generatePartValues(RowData rowData, PartitionAssigner.Context context) {
         LinkedHashMap<String, String> partSpec = new LinkedHashMap<>(staticPartitionSpec);
-        for (int i = 0; i < partitionIndexes.length; i++) {
-            int index = partitionIndexes[i];
-            if (index == -1) {
-                throw new FlinkOdpsException("Invalid partition columns:" + this.partitionColumns);
+        if (!nonPartitioned) {
+            if (simplePartitionPath) {
+                String partValue = objToString(partitionPathFieldGetter.getFieldOrNull(rowData));
+                String partField = partitionColumns.get(0);
+                if (partValue == null) {
+                    partSpec.put(partField, defaultPartValue);
+                } else {
+                    partSpec.put(partField, partValue);
+                }
+            } else {
+                Object[] partValues = this.partitionPathProjection.projectAsValues(rowData);
+                for (int i = 0; i < partitionColumns.size(); i++) {
+                    String partField = partitionColumns.get(i);
+                    String partValue = objToString(partValues[i]);
+                    if (partValue == null) {
+                        partSpec.put(partField, defaultPartValue);
+                    } else {
+                        partSpec.put(partField, partValue);
+                    }
+                }
             }
-            Object field = null;
-            String partitionValue = field != null ? field.toString() : null;
-            if (StringUtils.isNullOrWhitespaceOnly(partitionValue)) {
-                partitionValue = defaultPartValue;
-            }
-            partSpec.put(partitionColumns.get(i), partitionValue);
         }
         return partSpec;
     }

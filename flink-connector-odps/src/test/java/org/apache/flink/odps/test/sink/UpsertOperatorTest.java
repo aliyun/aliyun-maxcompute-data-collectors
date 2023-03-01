@@ -18,6 +18,7 @@ import org.apache.flink.table.data.RowData;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.apache.flink.odps.test.table.OdpsUpsertSinkFunctionTest.TEST_DATA;
@@ -32,6 +33,7 @@ public class UpsertOperatorTest {
     private static String project;
     private static String table1;
     private static String partitionTable1;
+    private static String partitionTable2;
 
     @BeforeClass
     public static void init() {
@@ -39,6 +41,7 @@ public class UpsertOperatorTest {
         project = odpsConf.getProject();
         table1 = "book_entry1";
         partitionTable1 = "book_entry_partition1";
+        partitionTable2 = "book_entry_partition2";
     }
 
     public void initTable(String table) {
@@ -62,9 +65,11 @@ public class UpsertOperatorTest {
         Odps odps = OdpsUtils.getOdps(odpsConf);
         Table odpsTable = odps.tables().get(project, table1);
         TableSchema tableSchema = odpsTable.getSchema();
-        List<String> primaryKeys = odpsTable.getPrimaryKey();
+        // TODO: For new odps sdk
+        // List<String> primaryKeys = odpsTable.getPrimaryKey();
+        List<String> primaryKeys = Arrays.asList("id");
 
-        UpsertOperatorFactory operatorFactory = createOperatorFactory(odpsConf, project, table1, "", tableSchema, conf);
+        UpsertOperatorFactory operatorFactory = createOperatorFactory(odpsConf, project, table1, "", tableSchema, conf, false);
         RecordKeySelector keySelector = new RecordKeySelector(tableSchema, primaryKeys);
         input.keyBy(keySelector).transform(Pipelines.opName("stream_write", table1), TypeInformation.of(Object.class), operatorFactory)
                 .uid(Pipelines.opUID("stream_write", table1))
@@ -84,12 +89,38 @@ public class UpsertOperatorTest {
         Odps odps = OdpsUtils.getOdps(odpsConf);
         Table odpsTable = odps.tables().get(project, partitionTable1);
         TableSchema tableSchema = odpsTable.getSchema();
-        List<String> primaryKeys = odpsTable.getPrimaryKey();
+        // TODO: For new odps sdk
+        // List<String> primaryKeys = odpsTable.getPrimaryKey();
+        List<String> primaryKeys = Arrays.asList("id");
 
-        UpsertOperatorFactory operatorFactory = createOperatorFactory(odpsConf, project, partitionTable1, "date=20220228", tableSchema, conf);
+        UpsertOperatorFactory operatorFactory = createOperatorFactory(odpsConf, project, partitionTable1, "date=20220228", tableSchema, conf, false);
         RecordKeySelector keySelector = new RecordKeySelector(tableSchema, primaryKeys);
         input.keyBy(keySelector).transform(Pipelines.opName("stream_write", partitionTable1), TypeInformation.of(Object.class), operatorFactory)
                 .uid(Pipelines.opUID("stream_write", partitionTable1))
+                .setParallelism(4);
+        Pipelines.dummySink(input);
+        env.execute();
+    }
+
+    @Test
+    public void testUpsertDynamicPartitionSink() throws Exception {
+        initPartTable(partitionTable2);
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.enableCheckpointing(60000);
+
+        DataStream<RowData> input = env.fromElements(TEST_DATA);
+        Configuration conf = new Configuration();
+        Odps odps = OdpsUtils.getOdps(odpsConf);
+        Table odpsTable = odps.tables().get(project, partitionTable2);
+        TableSchema tableSchema = odpsTable.getSchema();
+        // TODO: For new odps sdk
+        // List<String> primaryKeys = odpsTable.getPrimaryKey();
+        List<String> primaryKeys = Arrays.asList("id");
+
+        UpsertOperatorFactory operatorFactory = createOperatorFactory(odpsConf, project, partitionTable2, "", tableSchema, conf, true);
+        RecordKeySelector keySelector = new RecordKeySelector(tableSchema, primaryKeys);
+        input.keyBy(keySelector).transform(Pipelines.opName("stream_write", partitionTable2), TypeInformation.of(Object.class), operatorFactory)
+                .uid(Pipelines.opUID("stream_write", partitionTable2))
                 .setParallelism(4);
         Pipelines.dummySink(input);
         env.execute();
@@ -100,13 +131,15 @@ public class UpsertOperatorTest {
                                                         String tableName,
                                                         String partition,
                                                         TableSchema tableSchema,
-                                                        Configuration config) {
+                                                        Configuration config,
+                                                        boolean isDynamic) {
         UpsertOperatorFactory.OdpsUpsertOperatorFactoryBuilder builder =
                 new UpsertOperatorFactory.OdpsUpsertOperatorFactoryBuilder(project, tableName);
         builder.setOdpsConf(odpsConf);
         builder.setConf(config);
         builder.setPartition(partition);
         builder.setTableSchema(tableSchema);
+        builder.setDynamicPartition(isDynamic);
         builder.setWriteOptions(OdpsWriteOptions.builder().build());
         return builder.build();
     }

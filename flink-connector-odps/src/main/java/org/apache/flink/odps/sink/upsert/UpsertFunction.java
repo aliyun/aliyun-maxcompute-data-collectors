@@ -182,6 +182,7 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
                 this.executor.yield();
             } catch (InterruptedException e) {
                 LOG.error("Snapshot state error: ", e);
+                throw new IOException(e);
             }
         }
     }

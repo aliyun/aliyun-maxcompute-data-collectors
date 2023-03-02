@@ -206,10 +206,12 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                 if (!tableUpsertSessionMap.containsKey(partition)) {
                     throw new IOException("No such partition session: " + partition);
                 }
+                TableUpsertSessionImpl session = tableUpsertSessionMap.get(partition);
+                LOG.info("Start to commit session {}, partition {}", session.getId(), partition);
                 long startTime = System.nanoTime();
-                tableUpsertSessionMap.get(partition).commit();
+                session.commit();
                 long timeTakenMs = NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                LOG.info("Commit session {}, time taken ms: {}", partition, timeTakenMs);
+                LOG.info("Commit session {}, time taken ms: {}", session.getId(), timeTakenMs);
                 tableUpsertSessionMap.remove(partition);
             }
             return true;

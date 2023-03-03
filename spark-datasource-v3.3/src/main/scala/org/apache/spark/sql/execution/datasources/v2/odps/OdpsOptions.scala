@@ -76,7 +76,9 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val enableExternalTable =  parameters.getOrElse(ODPS_ENABLE_EXTERNAL_TABLE, "false").toBoolean
 
-  val odpsTableCompressionCodec = parameters.getOrElse(ODPS_TABLE_COMPRESSION_CODEC, "none")
+  val odpsTableReaderCompressionCodec = parameters.getOrElse(ODPS_TABLE_READER_COMPRESSION_CODEC, "none")
+
+  val odpsTableWriterCompressionCodec = parameters.getOrElse(ODPS_TABLE_WRITER_COMPRESSION_CODEC, "none")
 }
 
 object OdpsOptions {
@@ -106,5 +108,6 @@ object OdpsOptions {
   val ODPS_ARROW_EXTENSION = newOption("enableArrowExtension")
   val ODPS_ENABLE_EXTERNAL_PROJECT = newOption("enableExternalProject")
   val ODPS_ENABLE_EXTERNAL_TABLE = newOption("enableExternalTable")
-  val ODPS_TABLE_COMPRESSION_CODEC = newOption("tableCompressionCodec")
+  val ODPS_TABLE_READER_COMPRESSION_CODEC = newOption("tableReaderCompressionCodec")
+  val ODPS_TABLE_WRITER_COMPRESSION_CODEC = newOption("tableWriterCompressionCodec")
 }

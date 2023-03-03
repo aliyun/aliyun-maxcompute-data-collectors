@@ -18,7 +18,8 @@
         <spark.version>3.3.0</spark.version>
         <scala.version>2.12.10</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
-        <odps.sdk.version>0.43.0-table-api-public</odps.sdk.version>
+        <odps.sdk.version>0.43.1-public-upsert-SNAPSHOT</odps.sdk.version>
+        <arrow.version>4.0.0</arrow.version>
         <java.version>1.8</java.version>
         <PermGen>512m</PermGen>
         <MaxPermGen>1024m</MaxPermGen>
@@ -28,24 +29,23 @@
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-vector</artifactId>
-            <version>1.0.0</version>
+            <version>${arrow.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-core</artifactId>
-            <version>1.0.0</version>
+            <version>${arrow.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-netty</artifactId>
-            <version>1.0.0</version>
+            <version>${arrow.version}</version>
         </dependency>
-
-        <!--        <dependency>-->
-        <!--            <groupId>org.apache.arrow</groupId>-->
-        <!--            <artifactId>arrow-compression</artifactId>-->
-        <!--            <version>10.0.0</version>-->
-        <!--        </dependency>-->
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-compression</artifactId>
+            <version>${arrow.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-table-api</artifactId>

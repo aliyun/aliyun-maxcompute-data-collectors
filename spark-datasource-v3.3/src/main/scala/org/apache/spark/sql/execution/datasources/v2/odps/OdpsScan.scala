@@ -164,6 +164,7 @@ case class OdpsScan(
 
     val scan = scanBuilder.buildBatchReadSession
 
+    logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
     if (!emptyColumn) {
       scan.getInputSplitAssigner.getAllSplits
         .map(split => OdpsScanPartition(split, scan))
@@ -183,7 +184,7 @@ case class OdpsScan(
       catalog.odpsOptions.enableVectorizedReader,
       catalog.odpsOptions.columnarReaderBatchSize,
       catalog.odpsOptions.enableReuseBatch,
-      catalog.odpsOptions.odpsTableCompressionCodec)
+      catalog.odpsOptions.odpsTableReaderCompressionCodec)
   }
 
   override def estimateStatistics(): Statistics = stats

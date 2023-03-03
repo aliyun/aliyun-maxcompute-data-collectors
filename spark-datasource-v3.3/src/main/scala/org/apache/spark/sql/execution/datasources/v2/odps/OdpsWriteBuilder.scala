@@ -27,6 +27,7 @@ import com.aliyun.odps.table.configuration.ArrowOptions
 import com.aliyun.odps.table.configuration.ArrowOptions.TimestampUnit
 import com.aliyun.odps.table.write.{TableBatchWriteSession, TableWriteCapabilities, TableWriteSessionBuilder}
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
@@ -52,7 +53,7 @@ case class OdpsWriteBuilder(
                              partitionSchema: StructType,
                              odpsOptions: OdpsOptions,
                              bucketSpec: Option[OdpsBucketSpec],
-                             info: LogicalWriteInfo) extends SupportsDynamicOverwrite {
+                             info: LogicalWriteInfo) extends SupportsDynamicOverwrite with Logging{
   private val project = tableIdent.namespace().head
   private val table = tableIdent.name()
 
@@ -180,6 +181,7 @@ case class OdpsWriteBuilder(
       val batchSink = sinkBuilder.buildBatchWriteSession
       val arrowDataFormat = new DataFormat(DataFormat.Type.ARROW, DataFormat.Version.V5)
       val supportArrowWriter = batchSink.supportsDataFormat(arrowDataFormat)
+      logInfo(s"Create table sink ${batchSink.getId} for ${batchSink.getTableIdentifier}")
 
       val description = createWriteJobDescription(sparkSession,
         hadoopConf,
@@ -239,7 +241,7 @@ case class OdpsWriteBuilder(
       timeZoneId = sparkSession.sessionState.conf.sessionLocalTimeZone,
       supportArrowWriter = supportArrowWriter,
       enableArrowExtension = odpsOptions.enableArrowExtension,
-      compressionCodec = odpsOptions.odpsTableCompressionCodec
+      compressionCodec = odpsOptions.odpsTableWriterCompressionCodec
     )
   }
 

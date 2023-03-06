@@ -112,8 +112,10 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                 List<String> partitionKeys = new ArrayList<>();
 
                 if (table.isPartitioned()) {
+                    // TODO: public odps sdk need table.getPartitionSpecs();
                     List<PartitionSpec> readPartitions = requiredPartitions.size() > 0 ?
-                            requiredPartitions : table.getPartitionSpecs();
+                            requiredPartitions :
+                            table.getPartitions().stream().map(Partition::getPartitionSpec).collect(Collectors.toList());
                     for (PartitionSpec partitionSpec : readPartitions) {
                         long size = table.getPartition(partitionSpec).getSize();
                         TableTunnel.DownloadSession session = createDownloadSession(

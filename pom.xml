@@ -46,7 +46,7 @@
         <module>flink-connector-odps</module>
         <module>trino-connector</module>
         <module>spark-datasource-v3.3</module>
-        <module>spark-datasource-v3.3</module>
+        <module>spark-connector</module>
     </modules>
 
     <build>

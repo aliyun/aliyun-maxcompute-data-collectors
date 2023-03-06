@@ -1,0 +1,4 @@
+org.apache.spark.sql.odps.table.tunnel.read.TunnelReadSessionProviderImpl
+org.apache.spark.sql.odps.table.tunnel.write.TunnelWriteSessionProviderImpl
+com.aliyun.odps.table.read.impl.TableReadSessionProviderImpl
+com.aliyun.odps.table.write.impl.TableWriteSessionProviderImpl

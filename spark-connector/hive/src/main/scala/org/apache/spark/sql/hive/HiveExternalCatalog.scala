@@ -943,7 +943,8 @@ object HiveExternalCatalog {
       sb.append(s" LOCATION '${tableDefinition.storage.locationUri.get.toString}'")
     } else {
       // non-external table
-      tableDefinition.storage.outputFormat foreach (format => sb.append(s" STORED AS $format"))
+      // TODO: support aliort
+      // tableDefinition.storage.outputFormat foreach (format => sb.append(s" STORED AS $format"))
     }
 
     // table properties

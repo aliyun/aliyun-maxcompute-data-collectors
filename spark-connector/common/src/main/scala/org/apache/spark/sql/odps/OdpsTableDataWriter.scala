@@ -19,6 +19,7 @@
 package org.apache.spark.sql.odps
 
 import com.aliyun.odps.Column
+import com.aliyun.odps.PartitionSpec
 import com.aliyun.odps.data.ArrayRecord
 import com.aliyun.odps.table.configuration.{CompressionCodec, WriterOptions}
 import com.aliyun.odps.table.metrics.MetricNames
@@ -240,7 +241,7 @@ final class DynamicPartitionArrowWriter(description: WriteJobDescription,
 class WriteJobDescription(
                            val serializableHadoopConf: SerializableConfiguration,
                            val batchSink: TableBatchWriteSession,
-                           val staticPartitions: TablePartitionSpec,
+                           val staticPartition: PartitionSpec,
                            val allColumns: Seq[Attribute],
                            val dataColumns: Seq[Attribute],
                            val dynamicPartitionColumns: Seq[Attribute],

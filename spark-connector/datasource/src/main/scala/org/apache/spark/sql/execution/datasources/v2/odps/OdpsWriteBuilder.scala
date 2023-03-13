@@ -147,7 +147,7 @@ case class OdpsWriteBuilder(
         .overwrite(overwrite)
         .withSessionProvider(provider)
 
-      val staticPartition = new mutable.LinkedHashMap[String, String]
+      val odpsStaticPartition = new PartitionSpec
       if (partitionSchema.nonEmpty) {
         val partitionSpecValue = options.getOrDefault("writeOdpsStaticPartition", "")
         var isDynamic = partitionSpecValue.isEmpty
@@ -162,18 +162,14 @@ case class OdpsWriteBuilder(
           var numStaticPartitions = 0
           partitionColumnNames.foreach { field =>
             if (partitionSpec.contains(field) && !partitionSpec(field).isEmpty && !isDynamic) {
-              staticPartition.put(field, partitionSpec(field))
+              odpsStaticPartition.set(field, partitionSpec(field))
               numStaticPartitions = numStaticPartitions + 1
             } else {
               isDynamic = true
             }
           }
           if (numStaticPartitions > 0) {
-            val targetPartition = staticPartition.map {
-              case (key, value) => key + "=" + value
-            }.mkString(",")
-            val targetPartitionSpec = new PartitionSpec(targetPartition)
-            sinkBuilder.partition(targetPartitionSpec)
+            sinkBuilder.partition(odpsStaticPartition)
           }
         }
       }
@@ -185,7 +181,7 @@ case class OdpsWriteBuilder(
       val description = createWriteJobDescription(sparkSession,
         hadoopConf,
         batchSink,
-        staticPartition.toMap,
+        odpsStaticPartition,
         options.asScala.toMap,
         odpsOptions,
         supportArrowWriter)
@@ -210,7 +206,7 @@ case class OdpsWriteBuilder(
   private def createWriteJobDescription(sparkSession: SparkSession,
                                         hadoopConf: Configuration,
                                         batchSink: TableBatchWriteSession,
-                                        staticPartitions: TablePartitionSpec,
+                                        odpsPartitionSpec: PartitionSpec,
                                         options: Map[String, String],
                                         odpsOptions: OdpsOptions,
                                         supportArrowWriter: Boolean): WriteJobDescription = {
@@ -219,7 +215,7 @@ case class OdpsWriteBuilder(
       outputColumns.filter(c => partitionSchema.getFieldIndex(c.name).isDefined)
     val outputPartitionSet = AttributeSet(outputPartitionColumns)
     val dataColumns = outputColumns.filterNot(outputPartitionSet.contains)
-    val numDynamicPartitionFields = partitionSchema.length - staticPartitions.size
+    val numDynamicPartitionFields = partitionSchema.length - odpsPartitionSpec.keys().size
     val serializableHadoopConf = new SerializableConfiguration(hadoopConf)
     val caseInsensitiveOptions = CaseInsensitiveMap(options)
     val metrics: Map[String, SQLMetric] = BasicWriteJobStatsTracker.metrics
@@ -228,7 +224,7 @@ case class OdpsWriteBuilder(
     new WriteJobDescription(
       serializableHadoopConf = serializableHadoopConf,
       batchSink = batchSink,
-      staticPartitions = staticPartitions,
+      staticPartition = odpsPartitionSpec,
       allColumns = outputColumns,
       dataColumns = dataColumns,
       // partitionColumns = outputPartitionColumns,

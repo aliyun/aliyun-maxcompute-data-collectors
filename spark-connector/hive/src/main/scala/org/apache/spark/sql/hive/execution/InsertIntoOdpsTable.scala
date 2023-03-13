@@ -71,7 +71,7 @@ case class InsertIntoOdpsTable(
 
     val numDynamicPartitions = partition.values.count(_.isEmpty)
     val numStaticPartitions = partition.values.count(_.nonEmpty)
-    val staticPartition = new mutable.LinkedHashMap[String, String]
+    val odpsPartitionSpec = new PartitionSpec
 
     val partitionSchema = table.partitionSchema
     val partitionColumnNames = table.partitionColumnNames
@@ -98,13 +98,15 @@ case class InsertIntoOdpsTable(
       if (numDynamicPartitions > 0) {
         // Report error if dynamic partitioning is not enabled
         if (!hadoopConf.get("odps.exec.dynamic.partition", "true").toBoolean) {
-          throw new SparkException(ErrorMsg.DYNAMIC_PARTITION_DISABLED.getMsg)
+          throw new SparkException("Dynamic partition is disabled. " +
+            "Either enable it by setting odps.exec.dynamic.partition=true or specify partition column values")
         }
 
         // Report error if dynamic partition strict mode is on but no static partition is found
         if (numStaticPartitions == 0 &&
           hadoopConf.get("odps.exec.dynamic.partition.mode", "strict").equalsIgnoreCase("strict")) {
-          throw new SparkException(ErrorMsg.DYNAMIC_PARTITION_STRICT_MODE.getMsg)
+          throw new SparkException("Dynamic partition strict mode requires at least one static partition column. " +
+            "To turn this off set odps.exec.dynamic.partition.mode=nonstrict")
         }
 
         // Report error if any static partition appears after a dynamic partition
@@ -125,7 +127,7 @@ case class InsertIntoOdpsTable(
         var part = 0
         partitionColumnNames.foreach { field =>
           if (part < numStaticPartitions) {
-            staticPartition.put(field, partitionSpec(field))
+            odpsPartitionSpec.set(field, partitionSpec(field))
             part = part + 1
           }
         }
@@ -203,11 +205,7 @@ case class InsertIntoOdpsTable(
 
     if (partitionSchema.nonEmpty) {
       if (numStaticPartitions > 0) {
-        val targetPartition = staticPartition.map {
-          case (key, value) => key + "=" + value
-        }.mkString(",")
-        val targetPartitionSpec = new PartitionSpec(targetPartition)
-        sinkBuilder.partition(targetPartitionSpec)
+        sinkBuilder.partition(odpsPartitionSpec)
       }
     }
 
@@ -222,7 +220,7 @@ case class InsertIntoOdpsTable(
     val description = new WriteJobDescription(
       serializableHadoopConf = serializableHadoopConf,
       batchSink = batchSink,
-      staticPartitions = staticPartition.toMap,
+      staticPartition = odpsPartitionSpec,
       allColumns = outputColumns,
       dataColumns = dataColumns,
       dynamicPartitionColumns = outputPartitionColumns,
@@ -243,7 +241,8 @@ case class InsertIntoOdpsTable(
       outputColumns,
       table.bucketSpec,
       bucketAttributes,
-      bucketSortOrders)
+      bucketSortOrders,
+      overwrite)
 
     // Invalidate the cache.
     sparkSession.sessionState.catalog.refreshTable(table.identifier)

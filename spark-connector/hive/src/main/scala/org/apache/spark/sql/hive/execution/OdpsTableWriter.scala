@@ -44,6 +44,7 @@ import org.apache.spark.sql.odps.OdpsWriterFactory
 import org.apache.spark.sql.odps.WriteTaskResult
 import org.apache.spark.sql.odps.{OdpsClient, OdpsWriteJobStatsTracker, WriteJobDescription}
 import com.aliyun.odps.table.write.{WriterCommitMessage => OdpsWriterCommitMessage}
+import com.aliyun.odps.task.SQLTask
 import org.apache.spark.util.{LongAccumulator, Utils}
 
 import scala.util.control.NonFatal
@@ -58,7 +59,8 @@ object OdpsTableWriter extends Logging {
       outputColumns: Seq[Attribute],
       bucketSpec: Option[BucketSpec],
       bucketAttributes: Seq[Attribute],
-      bucketSortOrders: Seq[SortOrder])
+      bucketSortOrders: Seq[SortOrder],
+      overwrite: Boolean)
   : Unit = {
     val dynamicPartitionColumns = description.dynamicPartitionColumns
     // We should first sort by partition columns, then bucket id, and finally sorting columns.
@@ -147,12 +149,51 @@ object OdpsTableWriter extends Logging {
 
       val results = messages.map(_.asInstanceOf[WriteTaskResult])
       val commitMessageList = results.map(_.commitMessage).reduceOption(_ ++ _).getOrElse(Seq.empty).asJava
-      val (_, duration) = Utils.timeTakenMs {
-        writeSession.commit(commitMessageList.toArray(Array.empty[OdpsWriterCommitMessage]))
+      try {
+        val (_, duration) = Utils.timeTakenMs {
+          writeSession.commit(commitMessageList.toArray(Array.empty[OdpsWriterCommitMessage]))
+        }
+        processStats(description.statsTrackers, results.map(_.stats), duration)
+        logInfo(s"Data source write $identifier committed. Elapsed time: $duration ms.")
+      } catch {
+        case cause: Throwable =>
+          if (commitMessageList.stream.filter(_ != null).count == 0) {
+            val partition = description.staticPartition.toString
+            if (!description.staticPartition.isEmpty &&
+              dynamicPartitionColumns.isEmpty) {
+              val sb = new StringBuilder
+              sb.append("ALTER TABLE ")
+                .append(identifier.getProject)
+                .append(".")
+                .append(identifier.getTable)
+                .append(" ADD IF NOT EXISTS PARTITION (")
+                .append(partition)
+                .append(");")
+              val instance = SQLTask.run(OdpsClient.builder.getOrCreate.odps, sb.toString)
+              instance.waitForSuccess()
+              logInfo(s"Data source write $identifier committed empty data. " +
+                s"Try to create partition $partition")
+            }
+            if (overwrite && dynamicPartitionColumns.isEmpty) {
+              val sb = new StringBuilder
+              sb.append("TRUNCATE TABLE ")
+                .append(identifier.getProject)
+                .append(".")
+                .append(identifier.getTable)
+              if (!description.staticPartition.isEmpty) {
+                sb.append(" PARTITION (")
+                sb.append(partition)
+                sb.append(")")
+              }
+              sb.append(";")
+              val instance = SQLTask.run(OdpsClient.builder.getOrCreate.odps, sb.toString)
+              instance.waitForSuccess()
+              logInfo(s"Data source write $identifier committed empty data. Truncate table.")
+            }
+          } else {
+            throw cause
+          }
       }
-      processStats(description.statsTrackers, results.map(_.stats), duration)
-
-      logInfo(s"Data source write $identifier committed. Elapsed time: $duration ms.")
     } catch {
       case cause: Throwable =>
         logError(s"Data source write $identifier is aborting.")

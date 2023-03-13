@@ -6,6 +6,10 @@ import com.aliyun.odps.table.SessionStatus;
 import com.aliyun.odps.table.TableIdentifier;
 import com.aliyun.odps.table.enviroment.EnvironmentSettings;
 import com.aliyun.odps.table.write.TableWriteSessionBuilder;
+import com.aliyun.odps.task.MergeTask;
+import com.aliyun.odps.task.SQLTask;
+import com.google.gson.GsonBuilder;
+import org.apache.avro.reflect.MapEntry;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.odps.FlinkOdpsException;
 import org.apache.flink.odps.output.writer.OdpsWriteOptions;
@@ -51,6 +55,7 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
     private transient EnvironmentSettings settings;
     private transient OdpsMetaDataProvider tableMetaProvider;
     private transient Map<String, TableUpsertSessionImpl> tableUpsertSessionMap;
+    private transient Map<String, Long> upsertCommitTimes;
 
     public UpsertOperatorCoordinator(
             String operatorName,
@@ -96,6 +101,7 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
     protected void initEnv() {
         this.settings = TableUtils.getEnvironmentSettings(getOdps(), odpsConf.getTunnelEndpoint());
         this.tableUpsertSessionMap = new LinkedHashMap<>();
+        this.upsertCommitTimes = new LinkedHashMap<>();
     }
 
     @Override
@@ -213,6 +219,17 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                 long timeTakenMs = NANOSECONDS.toMillis(System.nanoTime() - startTime);
                 LOG.info("Commit session {}, time taken ms: {}", session.getId(), timeTakenMs);
                 tableUpsertSessionMap.remove(partition);
+                upsertCommitTimes.put(partition,
+                        upsertCommitTimes.getOrDefault(partition, 0L) + 1);
+            }
+            for (Map.Entry<String, Long> entry : upsertCommitTimes.entrySet()) {
+                if (entry.getValue() >= 5) {
+                    long startTime = System.nanoTime();
+                    majorCompact(tableName);
+                    long timeTakenMs = NANOSECONDS.toMillis(System.nanoTime() - startTime);
+                    LOG.info("Major compact partition {}, time taken ms: {}", entry.getKey(), timeTakenMs);
+                    entry.setValue(0L);
+                }
             }
             return true;
         }
@@ -325,6 +342,30 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
     private static boolean sendToFinishedTasks(Throwable throwable) {
         return throwable.getCause() instanceof TaskNotRunningException
                 || throwable.getCause().getMessage().contains("running");
+    }
+
+    private void majorCompact(String tableName) throws IOException {
+        MergeTask task = new MergeTask("merge_task_for_" + tableName);
+        task.setTables(Arrays.asList(tableName));
+        Job job = new Job();
+        String guid = UUID.randomUUID().toString();
+        task.setProperty("guid", guid);
+        Map<String, String> hints = new HashMap<>();
+        hints.put("odps.merge.task.mode", "service");
+        hints.put("odps.merge.enable.incremental.minor.compact", "true");
+        hints.put("odps.merge.quickmerge.flag", "false");
+        hints.put("odps.storage.force.aliorc", "true");
+        hints.put("odps.merge.restructure.action", "hardlink");
+        hints.put("odps.merge.txn.table.compact", "major_compact");
+        task.setProperty("settings", new GsonBuilder().disableHtmlEscaping().create().toJson(hints));
+        job.addTask(task);
+        try {
+            Instance instance = odps.instances().create(job);
+            LOG.info("Start to compact session {}, partition {}", instance.getId(), tableName);
+            instance.waitForSuccess();
+        } catch (OdpsException e) {
+            throw new IOException(e);
+        }
     }
 
     /**

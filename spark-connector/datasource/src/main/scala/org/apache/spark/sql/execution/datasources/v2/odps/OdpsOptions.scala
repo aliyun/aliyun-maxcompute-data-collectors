@@ -31,7 +31,7 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   def this(parameters: Map[String, String]) = this(CaseInsensitiveMap(parameters))
 
-  val DEFAULT_TABLE_PROVIDER = TUNNEL_TABLE_PROVIDER
+  val DEFAULT_TABLE_PROVIDER = MAX_STORAGE_TABLE_PROVIDER
 
   val tableReadProvider = parameters.getOrElse(ODPS_TABLE_READ_PROVIDER, DEFAULT_TABLE_PROVIDER)
 
@@ -76,7 +76,7 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val enableExternalTable =  parameters.getOrElse(ODPS_ENABLE_EXTERNAL_TABLE, "false").toBoolean
 
-  val odpsTableCompressionCodec = parameters.getOrElse(ODPS_TABLE_COMPRESSION_CODEC, "none")
+  val odpsTableCompressionCodec = parameters.getOrElse(ODPS_TABLE_COMPRESSION_CODEC, "zstd")
 
   val enableNamespaceSchema =  parameters.getOrElse(ODPS_NAMESPACE_SCHEMA_TABLE, "false").toBoolean
 

@@ -152,7 +152,7 @@ case class OdpsScan(
       } else {
         val rawSizePerCore = ((stats.getSizeInBytes / 1024 / 1024) /
           SparkContext.getActive.get.defaultParallelism) + 1
-        val sizePerCore = math.min(rawSizePerCore, Int.MaxValue).toInt
+        val sizePerCore = math.max(math.min(rawSizePerCore, Int.MaxValue).toInt, 10)
         val splitSizeInMB = math.min(catalog.odpsOptions.splitSizeInMB, sizePerCore)
         SplitOptions.newBuilder().SplitByByteSize(splitSizeInMB * 1024L * 1024L).build()
       }

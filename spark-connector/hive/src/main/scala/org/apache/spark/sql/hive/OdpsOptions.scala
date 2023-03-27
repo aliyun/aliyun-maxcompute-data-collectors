@@ -37,7 +37,7 @@ private[spark] object OdpsOptions extends Logging {
 
   val ODPS_TABLE_READER_COMPRESSION_CODEC = buildConf("spark.sql.odps.table.reader.compressionCodec")
     .stringConf
-    .createWithDefault("")
+    .createWithDefault("zstd")
 
   val ODPS_VECTORIZED_WRITER_ENABLED = buildConf("spark.sql.odps.enableVectorizedWriter")
     .doc("Enables vectorized odps encoding.")
@@ -52,7 +52,7 @@ private[spark] object OdpsOptions extends Logging {
 
   val ODPS_TABLE_WRITER_COMPRESSION_CODEC = buildConf("spark.sql.odps.table.writer.compressionCodec")
     .stringConf
-    .createWithDefault("")
+    .createWithDefault("zstd")
 
   val ODPS_HASH_CLUSTER_ENABLED = buildConf("spark.sql.odps.enableHashCluster")
     .doc("Enables odps hash cluster.")

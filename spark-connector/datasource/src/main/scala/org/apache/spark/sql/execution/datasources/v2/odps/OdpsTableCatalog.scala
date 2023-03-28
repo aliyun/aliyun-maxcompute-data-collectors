@@ -222,9 +222,8 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     if (!StringUtils.isNullOrEmpty(oldOdpsSchema)) sb.append(".").append(oldOdpsSchema)
     sb.append(".`").append(oldTable).append("` ")
     sb.append("RENAME TO ")
-    sb.append(newProject)
-    if (!StringUtils.isNullOrEmpty(newOdpsSchema)) sb.append(".").append(newOdpsSchema)
-    sb.append(".`").append(newTable).append("`;")
+    if (!StringUtils.isNullOrEmpty(newOdpsSchema)) sb.append(newOdpsSchema).append(".")
+    sb.append("`").append(newTable).append("`;")
     SQLTask.run(odps, sb.toString).waitForSuccess()
 
     metaClient.dropTableInCache(oldProject, oldOdpsSchema, oldTable)
@@ -323,7 +322,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
         if (schemaEnable) {
           createSchema(defaultNamespace().head, db)
         } else {
-          throw new UnsupportedOperationException("create project not supported")
+          throw new AnalysisException("create project not supported")
         }
       case Array(project, schema) =>
         createSchema(project, schema)
@@ -339,7 +338,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
         if (schemaEnable) {
           dropSchema(defaultNamespace().head, db, cascade)
         } else {
-          throw new UnsupportedOperationException("drop project not supported")
+          throw new AnalysisException("drop project not supported")
         }
       case Array(project, schema) =>
         dropSchema(project, schema, cascade)
@@ -428,8 +427,11 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
   private def getTableUsingSdk(ident: Identifier): OdpsTable = {
     val (project, odpsSchema) = getProjectSchema(ident.namespace())
     val table = ident.name()
-    val newIdent = Identifier.of(Array(project, odpsSchema), table)
-
+    val newIdent = if (schemaEnable) {
+      Identifier.of(Array(project, odpsSchema), table)
+    } else {
+      ident
+    }
     val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
     val tableType = getTableType(sdkTable)
     val dataSchema = getDataSchema(sdkTable)

@@ -20,11 +20,12 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 
 import com.aliyun.odps.table.write
 import com.aliyun.odps.table.write.TableBatchWriteSession
+import com.aliyun.odps.task.SQLTask
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.write.{BatchWrite, DataWriterFactory, PhysicalWriteInfo, WriterCommitMessage}
 import org.apache.spark.sql.execution.datasources.{WriteJobStatsTracker, WriteTaskStats}
-import org.apache.spark.sql.odps.{OdpsWriterFactory, WriteJobDescription, WriteTaskResult}
+import org.apache.spark.sql.odps.{OdpsClient, OdpsWriterFactory, WriteJobDescription, WriteTaskResult}
 import org.apache.spark.util.Utils
 
 import scala.collection.JavaConverters._
@@ -33,21 +34,61 @@ class OdpsBatchWrite(
                       catalog: OdpsTableCatalog,
                       tableIdent: Identifier,
                       batchSink: TableBatchWriteSession,
-                      description: WriteJobDescription)
+                      description: WriteJobDescription,
+                      overwrite: Boolean)
   extends BatchWrite
     with Logging {
 
   override def commit(messages: Array[WriterCommitMessage]): Unit = {
     val results = messages.map(_.asInstanceOf[WriteTaskResult])
     val commitMessageList = results.map(_.commitMessage).reduceOption(_ ++ _).getOrElse(Seq.empty).asJava
-    val (_, duration) = Utils.timeTakenMs {
-      batchSink.commit(commitMessageList.toArray(Array.empty[write.WriterCommitMessage]))
+    try {
+      val (_, duration) = Utils.timeTakenMs {
+        batchSink.commit(commitMessageList.toArray(Array.empty[write.WriterCommitMessage]))
+      }
+      logInfo(s"Write Job $tableIdent committed. Elapsed time: $duration ms.")
+      processStats(description.statsTrackers, results.map(_.stats), duration)
+      logInfo(s"Finished processing stats for write table $tableIdent.")
+    } catch {
+      case cause: Throwable =>
+        if (commitMessageList.stream.filter(_ != null).count == 0) {
+          val partition = description.staticPartition.toString
+          if (!description.staticPartition.isEmpty &&
+            description.dynamicPartitionColumns.isEmpty) {
+            val sb = new StringBuilder
+            // TODO: schema
+            sb.append("ALTER TABLE ")
+              .append(tableIdent.namespace().head)
+              .append(".")
+              .append(tableIdent.name())
+              .append(" ADD IF NOT EXISTS PARTITION (")
+              .append(partition)
+              .append(");")
+            val instance = SQLTask.run(OdpsClient.builder.getOrCreate.odps, sb.toString)
+            instance.waitForSuccess()
+            logInfo(s"Data source write $tableIdent committed empty data. " +
+              s"Try to create partition $partition")
+          }
+          if (overwrite && description.dynamicPartitionColumns.isEmpty) {
+            val sb = new StringBuilder
+            sb.append("TRUNCATE TABLE ")
+              .append(tableIdent.namespace().head)
+              .append(".")
+              .append(tableIdent.name())
+            if (!description.staticPartition.isEmpty) {
+              sb.append(" PARTITION (")
+              sb.append(partition)
+              sb.append(")")
+            }
+            sb.append(";")
+            val instance = SQLTask.run(OdpsClient.builder.getOrCreate.odps, sb.toString)
+            instance.waitForSuccess()
+            logInfo(s"Data source write $tableIdent committed empty data. Truncate table.")
+          }
+        } else {
+          throw cause
+        }
     }
-    logInfo(s"Write Job $tableIdent committed. Elapsed time: $duration ms.")
-
-    processStats(description.statsTrackers, results.map(_.stats), duration)
-    logInfo(s"Finished processing stats for write table $tableIdent.")
-
     catalog.invalidateTable(tableIdent)
   }
 

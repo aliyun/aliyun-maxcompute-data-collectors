@@ -185,7 +185,7 @@ case class OdpsWriteBuilder(
         options.asScala.toMap,
         odpsOptions,
         supportArrowWriter)
-      new OdpsBatchWrite(catalog, tableIdent, batchSink, description)
+      new OdpsBatchWrite(catalog, tableIdent, batchSink, description, overwrite)
     }
   }
 
@@ -227,7 +227,7 @@ case class OdpsWriteBuilder(
       staticPartition = odpsPartitionSpec,
       allColumns = outputColumns,
       dataColumns = dataColumns,
-      // partitionColumns = outputPartitionColumns,
+      partitionColumns = outputPartitionColumns,
       dynamicPartitionColumns = outputPartitionColumns.takeRight(numDynamicPartitionFields),
       maxRecordsPerFile = caseInsensitiveOptions.get("maxRecordsPerFile").map(_.toLong)
         .getOrElse(sparkSession.sessionState.conf.maxRecordsPerFile),

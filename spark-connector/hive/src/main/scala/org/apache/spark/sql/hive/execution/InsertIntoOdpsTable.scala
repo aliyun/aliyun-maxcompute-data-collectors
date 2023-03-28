@@ -223,6 +223,7 @@ case class InsertIntoOdpsTable(
       staticPartition = odpsPartitionSpec,
       allColumns = outputColumns,
       dataColumns = dataColumns,
+      partitionColumns = outputPartitionColumns,
       dynamicPartitionColumns = outputPartitionColumns,
       maxRecordsPerFile = sparkSession.sessionState.conf.maxRecordsPerFile,
       statsTrackers = Seq(statsTracker),

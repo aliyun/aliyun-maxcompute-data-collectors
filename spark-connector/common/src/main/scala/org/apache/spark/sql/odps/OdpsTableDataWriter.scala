@@ -244,6 +244,7 @@ class WriteJobDescription(
                            val staticPartition: PartitionSpec,
                            val allColumns: Seq[Attribute],
                            val dataColumns: Seq[Attribute],
+                           val partitionColumns: Seq[Attribute],
                            val dynamicPartitionColumns: Seq[Attribute],
                            val maxRecordsPerFile: Long,
                            val statsTrackers: Seq[WriteJobStatsTracker],
@@ -254,10 +255,10 @@ class WriteJobDescription(
                            val compressionCodec: String)
   extends Serializable {
 
-  assert(AttributeSet(allColumns) == AttributeSet(dynamicPartitionColumns ++ dataColumns),
+  assert(AttributeSet(allColumns) == AttributeSet(partitionColumns ++ dataColumns),
     s"""
        |All columns: ${allColumns.mkString(", ")}
-       |Partition columns: ${dynamicPartitionColumns.mkString(", ")}
+       |Partition columns: ${partitionColumns.mkString(", ")}
        |Data columns: ${dataColumns.mkString(", ")}
        """.stripMargin)
 }

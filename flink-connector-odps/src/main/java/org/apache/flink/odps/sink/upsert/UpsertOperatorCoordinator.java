@@ -7,9 +7,7 @@ import com.aliyun.odps.table.TableIdentifier;
 import com.aliyun.odps.table.enviroment.EnvironmentSettings;
 import com.aliyun.odps.table.write.TableWriteSessionBuilder;
 import com.aliyun.odps.task.MergeTask;
-import com.aliyun.odps.task.SQLTask;
 import com.google.gson.GsonBuilder;
-import org.apache.avro.reflect.MapEntry;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.odps.FlinkOdpsException;
 import org.apache.flink.odps.output.writer.OdpsWriteOptions;
@@ -18,6 +16,7 @@ import org.apache.flink.odps.sink.event.TaskAckEvent;
 import org.apache.flink.odps.sink.event.SinkTaskEvent;
 import org.apache.flink.odps.sink.table.TableUpsertSessionImpl;
 import org.apache.flink.odps.sink.table.TableUtils;
+import org.apache.flink.odps.sink.utils.NonThrownExecutor;
 import org.apache.flink.odps.sink.utils.WriterStatus;
 import org.apache.flink.odps.util.OdpsConf;
 import org.apache.flink.odps.util.OdpsMetaDataProvider;
@@ -32,7 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -56,6 +55,7 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
     private transient OdpsMetaDataProvider tableMetaProvider;
     private transient Map<String, TableUpsertSessionImpl> tableUpsertSessionMap;
     private transient Map<String, Long> upsertCommitTimes;
+    private transient NonThrownExecutor commitExecutor;
 
     public UpsertOperatorCoordinator(
             String operatorName,
@@ -100,8 +100,21 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
     @Override
     protected void initEnv() {
         this.settings = TableUtils.getEnvironmentSettings(getOdps(), odpsConf.getTunnelEndpoint());
-        this.tableUpsertSessionMap = new LinkedHashMap<>();
-        this.upsertCommitTimes = new LinkedHashMap<>();
+        this.tableUpsertSessionMap = new ConcurrentHashMap<>();
+        this.upsertCommitTimes = new ConcurrentHashMap<>();
+        this.commitExecutor = NonThrownExecutor.builder(LOG)
+                .exceptionHook((errMsg, t) -> this.context.failJob(new FlinkOdpsException(errMsg, t)))
+                // TODO: config
+                .threadNum(4)
+                .waitForTasksFinish(true).build();
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (commitExecutor != null) {
+            commitExecutor.close();
+        }
+        super.close();
     }
 
     @Override
@@ -139,7 +152,7 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                 } else {
                     executor.execute(() -> {
                         sendAllTaskAckEvents(-1, "", "", true);
-                    }, "commit session");
+                    }, "Commit session response");
                 }
                 this.eventBuffer = new SinkTaskEvent[this.parallelism];
             } catch (Exception e) {
@@ -208,29 +221,48 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                     .flatMap(Collection::stream)
                     .map(WriterStatus::getPartitionSpec)
                     .collect(Collectors.toSet());
+            if (!tableUpsertSessionMap.keySet().equals(partitionResults)) {
+                throw new IllegalArgumentException("Expected partition " + tableUpsertSessionMap.keySet()
+                        + ", actual partition " + partitionResults);
+            }
+            final CountDownLatch latch = new CountDownLatch(partitionResults.size());
+            long startCommitTime = System.nanoTime();
+            final Map<String, Boolean> commitStatus = new ConcurrentHashMap<>();
             for (String partition : partitionResults) {
-                if (!tableUpsertSessionMap.containsKey(partition)) {
-                    throw new IOException("No such partition session: " + partition);
-                }
-                TableUpsertSessionImpl session = tableUpsertSessionMap.get(partition);
-                LOG.info("Start to commit session {}, partition {}", session.getId(), partition);
-                long startTime = System.nanoTime();
-                session.commit();
-                long timeTakenMs = NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                LOG.info("Commit session {}, time taken ms: {}", session.getId(), timeTakenMs);
-                tableUpsertSessionMap.remove(partition);
-                upsertCommitTimes.put(partition,
-                        upsertCommitTimes.getOrDefault(partition, 0L) + 1);
+                commitExecutor.execute(() -> {
+                    TableUpsertSessionImpl session = tableUpsertSessionMap.get(partition);
+                    try {
+                        LOG.info("Start to commit session {}, partition {}", session.getId(), partition);
+                        long startTime = System.nanoTime();
+                        session.commit();
+
+                        LOG.info("Commit session {}, time taken ms: {}", session.getId(),
+                                NANOSECONDS.toMillis(System.nanoTime() - startTime));
+                        commitStatus.put(partition, true);
+                    } catch (Exception e) {
+                        commitStatus.put(partition, false);
+                        throw new IOException(e);
+                    } finally {
+                        session.close();
+                        latch.countDown();
+                    }
+                    long commitTimes = upsertCommitTimes.getOrDefault(partition, 0L);
+                    upsertCommitTimes.put(partition, ++commitTimes);
+                }, "Commit upsert session for partition " + partition);
             }
-            for (Map.Entry<String, Long> entry : upsertCommitTimes.entrySet()) {
-                if (entry.getValue() >= 5) {
-                    long startTime = System.nanoTime();
-                    majorCompact(tableName);
-                    long timeTakenMs = NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                    LOG.info("Major compact partition {}, time taken ms: {}", entry.getKey(), timeTakenMs);
-                    entry.setValue(0L);
+            try {
+                latch.await();
+                // Clear session info
+                tableUpsertSessionMap.clear();
+                if (!commitStatus.values().stream().allMatch(status -> status == true)) {
+                    throw new IOException("Commit error");
                 }
+                LOG.info("Checkpoint commit table partition size {}, time taken ms: {}", partitionResults.size(),
+                        NANOSECONDS.toMillis(System.nanoTime() - startCommitTime));
+            } catch (InterruptedException e) {
+                throw new IOException(e);
             }
+            compactPartitions();
             return true;
         }
         return false;
@@ -344,25 +376,32 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                 || throwable.getCause().getMessage().contains("running");
     }
 
-    private void majorCompact(String tableName) throws IOException {
-        MergeTask task = new MergeTask("merge_task_for_" + tableName);
-        task.setTables(Arrays.asList(tableName));
+    private void majorCompact(String partitionName) throws IOException {
+        // TODO: project name?
+        String tableInfo = tableName;
+        if (isPartitioned) {
+            PartitionSpec part = new PartitionSpec(partitionName);
+            tableInfo += " partition(";
+            tableInfo += part.toString();
+            tableInfo += ")";
+        }
+        MergeTask task = new MergeTask("merge_task_for_" + tableName, tableInfo);
         Job job = new Job();
         String guid = UUID.randomUUID().toString();
         task.setProperty("guid", guid);
         Map<String, String> hints = new HashMap<>();
         hints.put("odps.merge.task.mode", "service");
-        hints.put("odps.merge.enable.incremental.minor.compact", "true");
         hints.put("odps.merge.quickmerge.flag", "false");
-        hints.put("odps.storage.force.aliorc", "true");
         hints.put("odps.merge.restructure.action", "hardlink");
         hints.put("odps.merge.txn.table.compact", "major_compact");
         task.setProperty("settings", new GsonBuilder().disableHtmlEscaping().create().toJson(hints));
         job.addTask(task);
         try {
             Instance instance = odps.instances().create(job);
-            LOG.info("Start to compact session {}, partition {}", instance.getId(), tableName);
+            long startTime = System.nanoTime();
             instance.waitForSuccess();
+            LOG.info("Major compact table {}, partition {}, time taken ms: {}",
+                    tableName, partitionName, NANOSECONDS.toMillis(System.nanoTime() - startTime));
         } catch (OdpsException e) {
             throw new IOException(e);
         }
@@ -411,6 +450,39 @@ public class UpsertOperatorCoordinator extends AbstractWriteOperatorCoordinator 
                     builder.isDynamicPartition(),
                     builder.isSupportPartitionGrouping(),
                     builder.getWriteOptions());
+        }
+    }
+
+    private void compactPartitions() throws IOException {
+        List<String> compactPartitions = new LinkedList<>();
+        for (Map.Entry<String, Long> entry : upsertCommitTimes.entrySet()) {
+            if (entry.getValue() >= 1) {
+                compactPartitions.add(entry.getKey());
+            }
+        }
+        if (compactPartitions.size() > 0) {
+            final CountDownLatch compactLatch = new CountDownLatch(compactPartitions.size());
+            long startCompactTime = System.nanoTime();
+
+            for (String partition : compactPartitions) {
+                commitExecutor.execute(() -> {
+                    try {
+                        majorCompact(partition);
+                        upsertCommitTimes.put(partition, 0L);
+                    } catch (Exception e) {
+                        throw new IOException(e);
+                    } finally {
+                        compactLatch.countDown();
+                    }
+                }, "Compact upsert session");
+            }
+            try {
+                compactLatch.await();
+                LOG.info("Checkpoint compact table partition size {}, time taken ms: {}", compactPartitions.size(),
+                        NANOSECONDS.toMillis(System.nanoTime() - startCompactTime));
+            } catch (InterruptedException e) {
+                throw new IOException(e);
+            }
         }
     }
 }

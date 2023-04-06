@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Random;
 
 public class TableUpsertSessionImpl extends TableUpsertSessionBase {
 
@@ -56,7 +57,7 @@ public class TableUpsertSessionImpl extends TableUpsertSessionBase {
         this.isCommitted = false;
         this.isClosed = false;
         this.commitRetry =
-                new RetryStrategy(3, 5, RetryStrategy.BackoffStrategy.EXPONENTIAL_BACKOFF);
+                new RetryStrategy(3, new Random().nextInt(5) + 5, RetryStrategy.BackoffStrategy.LINEAR_BACKOFF);
     }
 
     public TableUpsertSessionImpl(TableIdentifier identifier,
@@ -67,7 +68,7 @@ public class TableUpsertSessionImpl extends TableUpsertSessionBase {
         this.isCommitted = false;
         this.isClosed = false;
         this.commitRetry =
-                new RetryStrategy(3, 5, RetryStrategy.BackoffStrategy.EXPONENTIAL_BACKOFF);
+                new RetryStrategy(3, new Random().nextInt(5) + 5, RetryStrategy.BackoffStrategy.LINEAR_BACKOFF);
     }
 
     @Override
@@ -76,6 +77,7 @@ public class TableUpsertSessionImpl extends TableUpsertSessionBase {
             TableTunnel tunnel = TableUtils.getTableTunnel(settings);
             this.session = tunnel.buildUpsertSession(identifier.getProject(), identifier.getTable())
                     .setPartitionSpec(targetPartitionSpec)
+                    .setSlotNum(128)
                     .build();
             this.sessionId = session.getId();
             this.sessionStatus = SessionStatus.valueOf(session.getStatus().toUpperCase());
@@ -114,8 +116,8 @@ public class TableUpsertSessionImpl extends TableUpsertSessionBase {
                 session.commit(false);
                 break;
             } catch (Exception exception) {
-                LOG.error(String.format("Commit error, retry times = %d",
-                        commitRetry.getAttempts()), exception);
+                LOG.error(String.format("Commit error, session id = %s, retry times = %d",
+                        session.getId(), commitRetry.getAttempts()), exception);
                 try {
                     commitRetry.onFailure(exception);
                 } catch (RetryExceedLimitException | InterruptedException e) {
@@ -126,7 +128,7 @@ public class TableUpsertSessionImpl extends TableUpsertSessionBase {
         isCommitted = true;
     }
 
-    public void close() throws IOException {
+    public void close() {
         if (isClosed) {
             return;
         }

@@ -240,9 +240,10 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
             String sessionId = session.getId();
             try {
                 upsertWriter.close();
-                session.close();
             } catch (IOException e) {
                 LOG.error("Close upsert writer error: ", e);
+            } finally {
+                session.close();
             }
             WriterStatus writerStatus = new WriterStatus();
             writerStatus.setSessionId(sessionId);
@@ -321,6 +322,7 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
         }
 
         if (!sessionRequest.containsKey(currentPartition)) {
+            // TODO: if coordinator committing session?
             sendBootstrapEvent(currentPartition);
         }
 
@@ -372,11 +374,7 @@ public class UpsertFunction extends AbstractUpsertFunction<RowData> {
             }
         });
         odpsUpsertSessionMap.forEach((part, session) -> {
-            try {
-                session.close();
-            } catch (IOException e) {
-                LOG.error("Close upsert session failed: ", e);
-            }
+            session.close();
         });
     }
 

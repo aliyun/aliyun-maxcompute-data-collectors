@@ -73,6 +73,7 @@ public abstract class AbstractWriteOperatorCoordinator implements OperatorCoordi
         // start the executor
         this.executor = NonThrownExecutor.builder(LOG)
                 .exceptionHook((errMsg, t) -> this.context.failJob(new FlinkOdpsException(errMsg, t)))
+                .threadNum(1)
                 .waitForTasksFinish(true).build();
         initEnv();
     }
@@ -119,19 +120,12 @@ public abstract class AbstractWriteOperatorCoordinator implements OperatorCoordi
         Preconditions.checkState(operatorEvent instanceof SinkTaskEvent,
                 "The coordinator can only handle SinkTaskEvent");
         SinkTaskEvent event = (SinkTaskEvent) operatorEvent;
-
         if (event.isEndInput()) {
-            executor.executeSync(() -> handleEndInputEvent(event), "handle end input event");
+            executor.executeSync(() -> handleEndInputEvent(event), "handle end input event for task [" + i + "]");
+        } else if (event.isBootstrap()) {
+            executor.execute(() -> handleBootstrapEvent(event), "handle bootstrap event for task [" + i + "]");
         } else {
-            executor.execute(
-                    () -> {
-                        if (event.isBootstrap()) {
-                            handleBootstrapEvent(event);
-                        } else {
-                            handleCommitEvent(event);
-                        }
-                    }, "handle sink event"
-            );
+            executor.execute(() -> handleCommitEvent(event), "handle commit event for task [" + i + "]");
         }
     }
 

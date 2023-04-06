@@ -23,9 +23,6 @@ import org.apache.flink.odps.output.writer.file.StaticOdpsPartitionWrite;
 import org.apache.flink.odps.output.writer.stream.DynamicOdpsPartitionStreamWrite;
 import org.apache.flink.odps.output.writer.stream.GroupedOdpsPartitionStreamWrite;
 import org.apache.flink.odps.output.writer.stream.StaticOdpsPartitionStreamWrite;
-import org.apache.flink.odps.output.writer.upsert.DynamicOdpsPartitionUpsert;
-import org.apache.flink.odps.output.writer.upsert.GroupedOdpsPartitionUpsert;
-import org.apache.flink.odps.output.writer.upsert.StaticOdpsPartitionUpsert;
 import org.apache.flink.odps.util.OdpsConf;
 import org.apache.flink.types.Row;
 
@@ -86,45 +83,6 @@ public interface OdpsWriteFactory {
             }
         } else {
             return new StaticOdpsPartitionStreamWrite<>(
-                    odpsConf,
-                    projectName,
-                    tableName,
-                    partition,
-                    writeOptions);
-        }
-    }
-
-    static OdpsUpsert<Row> createOdpsUpsert(
-            OdpsConf odpsConf,
-            String projectName,
-            String tableName,
-            String partition,
-            boolean isDynamicPartition,
-            boolean supportsGrouping,
-            OdpsWriteOptions writeOptions,
-            PartitionAssigner<Row> partitionAssigner) {
-        if (isDynamicPartition) {
-            if (supportsGrouping) {
-                return new GroupedOdpsPartitionUpsert(
-                        odpsConf,
-                        projectName,
-                        tableName,
-                        partition,
-                        writeOptions,
-                        partitionAssigner
-                );
-            } else {
-                return new DynamicOdpsPartitionUpsert(
-                        odpsConf,
-                        projectName,
-                        tableName,
-                        partition,
-                        writeOptions,
-                        partitionAssigner
-                );
-            }
-        } else {
-            return new StaticOdpsPartitionUpsert(
                     odpsConf,
                     projectName,
                     tableName,

@@ -29,6 +29,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class TableUpsertWriterImpl implements UpsertWriter<ArrayRecord> {
 
@@ -56,8 +61,12 @@ public class TableUpsertWriterImpl implements UpsertWriter<ArrayRecord> {
             }
             @Override
             public boolean onFlushFail(String error, int retry) {
-                LOG.info("Flush failed error:" + error);
-                return false;
+                LOG.error("Flush failed error:" + error);
+                if (retry > 3) {
+                    return false;
+                }
+                LOG.warn(String.format("Start to retry, retryCount: %d", retry));
+                return true;
             }
         };
         try {

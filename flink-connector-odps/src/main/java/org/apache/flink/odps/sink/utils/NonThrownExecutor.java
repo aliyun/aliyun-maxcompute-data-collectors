@@ -57,8 +57,13 @@ public class NonThrownExecutor implements AutoCloseable {
     private final boolean waitForTasksFinish;
 
     @VisibleForTesting
-    protected NonThrownExecutor(Logger logger, @Nullable ExceptionHook exceptionHook, boolean waitForTasksFinish) {
-        this.executor = Executors.newSingleThreadExecutor();
+    protected NonThrownExecutor(Logger logger, @Nullable ExceptionHook exceptionHook,
+                                boolean waitForTasksFinish, int threadNum) {
+        if (threadNum == 1) {
+            this.executor = Executors.newSingleThreadExecutor();
+        } else {
+            this.executor = Executors.newFixedThreadPool(threadNum);
+        }
         this.logger = logger;
         this.exceptionHook = exceptionHook;
         this.waitForTasksFinish = waitForTasksFinish;
@@ -166,13 +171,14 @@ public class NonThrownExecutor implements AutoCloseable {
         private final Logger logger;
         private ExceptionHook exceptionHook;
         private boolean waitForTasksFinish = false;
+        private int threadNum = 1;
 
         private Builder(Logger logger) {
             this.logger = Objects.requireNonNull(logger);
         }
 
         public NonThrownExecutor build() {
-            return new NonThrownExecutor(logger, exceptionHook, waitForTasksFinish);
+            return new NonThrownExecutor(logger, exceptionHook, waitForTasksFinish, threadNum);
         }
 
         public Builder exceptionHook(ExceptionHook exceptionHook) {
@@ -182,6 +188,11 @@ public class NonThrownExecutor implements AutoCloseable {
 
         public Builder waitForTasksFinish(boolean waitForTasksFinish) {
             this.waitForTasksFinish = waitForTasksFinish;
+            return this;
+        }
+
+        public Builder threadNum(int threadNum) {
+            this.threadNum = threadNum;
             return this;
         }
     }

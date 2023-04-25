@@ -68,7 +68,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       val emptyColumnPartition = partition.asInstanceOf[OdpsEmptyColumnPartition]
       return new PartitionReader[InternalRow] {
         private val unsafeRow: InternalRow = InternalRow()
-        private var count = 0
+        private var count = 0L
         override def next(): Boolean = {
           if (count < emptyColumnPartition.rowCount) {
             count = count + 1

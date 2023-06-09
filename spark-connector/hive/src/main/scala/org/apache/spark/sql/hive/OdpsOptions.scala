@@ -99,6 +99,18 @@ private[spark] object OdpsOptions extends Logging {
     .booleanConf
     .createWithDefault(false)
 
+  val ODPS_WRITER_CHUNK_SIZE = buildConf("spark.sql.odps.writerChunkSize")
+    .intConf
+    .createWithDefault(4 * 1024 * 1024)
+
+  val ODPS_WRITER_MAX_RETRIES = buildConf("spark.sql.odps.writerMaxRetires")
+    .intConf
+    .createWithDefault(10)
+
+  val ODPS_WRITER_RETRY_SLEEP_INTERVALS = buildConf("spark.sql.odps.writerRetrySleepIntervalMs")
+    .intConf
+    .createWithDefault(10000)
+
   def odpsMetaCacheSize(conf: SQLConf): Int = {
     conf.getConf(ODPS_META_CACHE_SIZE)
   }
@@ -157,5 +169,17 @@ private[spark] object OdpsOptions extends Logging {
 
   def odpsSplitSessionParallelism(conf: SQLConf): Int = {
     conf.getConf(ODPS_SPLIT_SESSION_PARALLELISM)
+  }
+
+  def odpsWriterChunkSize(conf: SQLConf): Int = {
+    conf.getConf(ODPS_WRITER_CHUNK_SIZE)
+  }
+
+  def odpsWriterMaxRetires(conf: SQLConf): Int = {
+    conf.getConf(ODPS_WRITER_MAX_RETRIES)
+  }
+
+  def odpsWriterRetrySleepIntervalMs(conf: SQLConf): Int = {
+    conf.getConf(ODPS_WRITER_RETRY_SLEEP_INTERVALS)
   }
 }

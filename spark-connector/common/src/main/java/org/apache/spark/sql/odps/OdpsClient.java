@@ -71,6 +71,8 @@ public class OdpsClient {
     private final static String ODPS_END_POINT = "odps.end.point";
     private final static String ODPS_RUNTIME_END_POINT = "odps.runtime.end.point";
     private final static String ODPS_TUNNEL_END_POINT = "odps.tunnel.end.point";
+    private final static String ODPS_TUNNEL_QUOTA_NAME = "odps.tunnel.quota.name";
+
     private final static String ODPS_PROJECT_NAME = "odps.project.name";
     private final static String ODPS_TABLE_EXECUTION_MODE = "odps.table.execution.mode";
 
@@ -171,6 +173,7 @@ public class OdpsClient {
             env.inAutoMode();
         }
         getSettings(ODPS_TUNNEL_END_POINT).ifPresent(env::withTunnelEndpoint);
+        getSettings(ODPS_TUNNEL_QUOTA_NAME).ifPresent(env::withQuotaName);
         return env.build();
     }
 

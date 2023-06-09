@@ -36,7 +36,7 @@
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-table-api</artifactId>
-            <version>${odps.sdk.version}</version>
+            <version>${odps.sdk.table.version}</version>
         </dependency>
         <dependency>
             <groupId>com.aliyun.odps</groupId>

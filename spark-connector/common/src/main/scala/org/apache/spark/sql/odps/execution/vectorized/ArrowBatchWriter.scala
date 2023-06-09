@@ -35,47 +35,119 @@ class ArrowBatchWriter(outputColumns: Array[Column],
                        batchSize: Long) {
 
   private var rowCnt = 0
-  private val fields: Array[ArrowFieldWriter[SpecializedGetters]] = new Array(outputColumns.length)
-  private val root: VectorSchemaRoot = batch
+  private var batchCnt = 1
+  private var fields: Seq[Array[ArrowFieldWriter[SpecializedGetters]]] = Seq(new Array(outputColumns.length))
+  private var roots: Seq[VectorSchemaRoot] = Seq(batch)
+  private var currentBatchIdx = 0
+  private var currentBatchRowCnt = 0
+  private var resume = true
+  private var flushSuccess = false
+  private var writeBatchIdx = 0
 
   initVector()
 
   private def initVector(): Unit = {
     fields.indices.foreach { ind =>
-      val vector = root.getFieldVectors().get(ind)
-      vector.allocateNew()
-      fields(ind) = createFieldWriter(vector)
+      fields(ind).indices.foreach { i =>
+        val vector = roots(ind).getFieldVectors().get(i)
+        vector.allocateNew()
+        fields(ind)(i) = createFieldWriter(vector)
+      }
     }
+  }
+
+  def canResume(): Boolean = {
+    resume
   }
 
   def insertRecord(rec: InternalRow): Unit = {
     if (isFull()) {
       throw new Exception("Batch is full")
     }
+    if (isCurrentBatchFull()) {
+      roots(currentBatchIdx).setRowCount(currentBatchRowCnt)
+      fields(currentBatchIdx).foreach(_.finish())
+      currentBatchRowCnt = 0
+      currentBatchIdx = currentBatchIdx + 1
+    }
+    if (currentBatchIdx >= batchCnt) {
+      throw new Exception("All batch is full")
+    }
+
     var i = 0
-    while (i < fields.length) {
-      fields(i).write(rec, i)
+    while (i < fields(currentBatchIdx).length) {
+      fields(currentBatchIdx)(i).write(rec, i)
       i += 1
     }
+    currentBatchRowCnt = currentBatchRowCnt + 1
     rowCnt = rowCnt + 1
   }
 
-  def writeBatch(fileWriter: BatchWriter[VectorSchemaRoot]): Unit = {
+  def writeBatch(fileWriter: BatchWriter[VectorSchemaRoot], flushAll: Boolean): Unit = {
     if (rowCnt > 0) {
-      root.setRowCount(rowCnt)
-      fields.foreach(_.finish())
-      fileWriter.write(root)
-      reset()
+      roots(currentBatchIdx).setRowCount(currentBatchRowCnt)
+      fields(currentBatchIdx).foreach(_.finish())
+
+      roots.indices.foreach { ind =>
+        if (!flushAll) {
+          if (ind >= writeBatchIdx) {
+            fileWriter.write(roots(ind))
+          }
+        } else {
+          fileWriter.write(roots(ind))
+        }
+      }
+
+      writeBatchIdx = roots.length
+
+      if (flushSuccess) {
+        reset()
+      }
     }
   }
 
-  def reset(): Unit = {
-    root.setRowCount(0)
-    rowCnt = 0
-    fields.foreach(_.reset())
+  def addBufferedBatch(batch: VectorSchemaRoot): Unit = {
+    val field : Array[ArrowFieldWriter[SpecializedGetters]] = new Array(outputColumns.length)
+    field.indices.foreach { i =>
+      val vector = batch.getFieldVectors().get(i)
+      vector.allocateNew()
+      field(i) = createFieldWriter(vector)
+    }
+    fields = fields :+ field
+    roots = roots :+ batch
+
+    batchCnt = batchCnt + 1
+    currentBatchRowCnt = 0
+    currentBatchIdx = currentBatchIdx + 1
   }
 
-  def isFull(): Boolean = rowCnt >= batchSize
+  def setFlushSuccess(): Unit = {
+    flushSuccess = true
+    resume = false
+    reset()
+  }
+
+  def reset(): Unit = {
+    roots.indices.foreach { ind =>
+      roots(ind).setRowCount(0)
+      fields(ind).foreach(_.reset())
+    }
+
+    rowCnt = 0
+    currentBatchRowCnt = 0
+    currentBatchIdx = 0
+    writeBatchIdx = 0
+  }
+
+  def close(): Unit = {
+    roots.indices.foreach { ind =>
+      roots(ind).close()
+    }
+  }
+
+  def isCurrentBatchFull(): Boolean = currentBatchRowCnt >= batchSize
+
+  def isFull(): Boolean = rowCnt >= batchSize * batchCnt
 
   private def createFieldWriter(vector: ValueVector): ArrowFieldWriter[SpecializedGetters] = {
     val field = vector.getField()

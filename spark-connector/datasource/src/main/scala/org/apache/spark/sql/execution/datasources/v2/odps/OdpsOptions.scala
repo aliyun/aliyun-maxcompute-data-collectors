@@ -81,6 +81,13 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val enableNamespaceSchema =  parameters.getOrElse(ODPS_NAMESPACE_SCHEMA_TABLE, "false").toBoolean
 
   val defaultSchema =  parameters.getOrElse(ODPS_NAMESPACE_SCHEMA_DEFAULT, "default")
+
+  // 4 * 1024 * 1024
+  val writerChunkSize = parameters.getOrElse(ODPS_WRITER_CHUNK_SIZE, "4194304").toInt
+
+  val writerMaxRetires =  parameters.getOrElse(ODPS_WRITER_MAX_RETRIES, "10").toInt
+
+  val maxRetrySleepIntervalMs =  parameters.getOrElse(ODPS_WRITER_MAX_RETRY_SLEEP_INTERVALS, "10000").toInt
 }
 
 object OdpsOptions {
@@ -113,4 +120,8 @@ object OdpsOptions {
   val ODPS_TABLE_COMPRESSION_CODEC = newOption("tableCompressionCodec")
   val ODPS_NAMESPACE_SCHEMA_TABLE = newOption("enableNamespaceSchema")
   val ODPS_NAMESPACE_SCHEMA_DEFAULT = newOption("defaultSchema")
+
+  val ODPS_WRITER_CHUNK_SIZE = newOption("writerChunkSize")
+  val ODPS_WRITER_MAX_RETRIES = newOption("writerMaxRetires")
+  val ODPS_WRITER_MAX_RETRY_SLEEP_INTERVALS = newOption("writerRetrySleepIntervalMs")
 }

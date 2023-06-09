@@ -231,7 +231,10 @@ case class InsertIntoOdpsTable(
       timeZoneId = sparkSession.sessionState.conf.sessionLocalTimeZone,
       supportArrowWriter = batchSink.supportsDataFormat(arrowDataFormat),
       enableArrowExtension = OdpsOptions.odpsEnableArrowExtension(sparkSession.sessionState.conf),
-      compressionCodec = OdpsOptions.odpsTableWriterCompressCodec(sparkSession.sessionState.conf)
+      compressionCodec = OdpsOptions.odpsTableWriterCompressCodec(sparkSession.sessionState.conf),
+      chunkSize = OdpsOptions.odpsWriterChunkSize(sparkSession.sessionState.conf),
+      maxRetries = OdpsOptions.odpsWriterMaxRetires(sparkSession.sessionState.conf),
+      maxSleepIntervalMs = OdpsOptions.odpsWriterRetrySleepIntervalMs(sparkSession.sessionState.conf),
     )
 
     OdpsTableWriter.write(

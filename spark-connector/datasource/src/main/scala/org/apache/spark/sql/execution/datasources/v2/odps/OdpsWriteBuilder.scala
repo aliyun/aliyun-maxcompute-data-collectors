@@ -236,7 +236,10 @@ case class OdpsWriteBuilder(
       timeZoneId = sparkSession.sessionState.conf.sessionLocalTimeZone,
       supportArrowWriter = supportArrowWriter,
       enableArrowExtension = odpsOptions.enableArrowExtension,
-      compressionCodec = odpsOptions.odpsTableCompressionCodec
+      compressionCodec = odpsOptions.odpsTableCompressionCodec,
+      chunkSize = odpsOptions.writerChunkSize,
+      maxRetries = odpsOptions.writerMaxRetires,
+      maxSleepIntervalMs = odpsOptions.maxRetrySleepIntervalMs
     )
   }
 

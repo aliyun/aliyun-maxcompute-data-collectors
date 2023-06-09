@@ -11,13 +11,13 @@ case class OdpsWriterFactory(
     val attemptNumber = TaskContext.get.attemptNumber()
     if (description.supportArrowWriter) {
       if (description.dynamicPartitionColumns.isEmpty) {
-        new SingleDirectoryArrowWriter(description, partitionId, attemptNumber)
+        new SingleDirectoryArrowWriter(description, partitionId, attemptNumber, taskId)
       } else {
-        new DynamicPartitionArrowWriter(description, partitionId, attemptNumber)
+        new DynamicPartitionArrowWriter(description, partitionId, attemptNumber, taskId)
       }
     } else {
       if (description.dynamicPartitionColumns.isEmpty) {
-        new SingleDirectoryRecordWriter(description, partitionId, attemptNumber);
+        new SingleDirectoryRecordWriter(description, partitionId, attemptNumber, taskId)
       } else {
         throw new UnsupportedOperationException("Unsupported dynamic writer with record writer")
       }

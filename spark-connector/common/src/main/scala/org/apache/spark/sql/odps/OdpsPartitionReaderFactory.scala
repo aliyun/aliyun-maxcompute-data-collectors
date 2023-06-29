@@ -19,15 +19,16 @@
 
 package org.apache.spark.sql.odps
 
-import scala.collection.JavaConverters._
+import java.io.IOException
+import java.util.concurrent.{ExecutorService, Executors, LinkedBlockingDeque}
 
+import scala.collection.JavaConverters._
 import com.aliyun.odps.table.DataFormat
 import com.aliyun.odps.table.configuration.{CompressionCodec, ReaderOptions}
 import com.aliyun.odps.table.metrics.MetricNames
 import com.aliyun.odps.table.read.TableBatchReadSession
 import com.aliyun.odps.table.read.split.InputSplit
 import org.apache.arrow.vector.VectorSchemaRoot
-
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
@@ -40,6 +41,8 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.SerializableConfiguration
 
+import scala.collection.mutable
+
 case class OdpsScanPartition(inputSplit: InputSplit,
                              scan: TableBatchReadSession) extends InputPartition
 
@@ -50,8 +53,10 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
                                       readPartitionSchema: StructType,
                                       supportColumnarRead: Boolean,
                                       batchSize: Int,
-                                      reusedBatch: Boolean,
-                                      compressionCodec: String)
+                                      reusedBatchEnable: Boolean,
+                                      compressionCodec: String,
+                                      bufferedReaderEnable: Boolean,
+                                      asyncRead: Boolean)
   extends PartitionReaderFactory with Logging {
 
   private val output = readDataSchema.toAttributes ++ readPartitionSchema.toAttributes
@@ -192,6 +197,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     // TODO: bearer token refresh
     val settings = OdpsClient.builder.config(conf).getOrCreate.getEnvironmentSettings
 
+    val reusedBatch = if (bufferedReaderEnable) false else reusedBatchEnable
     val odpsScanPartition = partition.asInstanceOf[OdpsScanPartition]
     val readerOptions = ReaderOptions.newBuilder()
       .withMaxBatchRowCount(batchSize)
@@ -203,6 +209,42 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     val arrowReader = odpsScanPartition.scan
       .createArrowReader(odpsScanPartition.inputSplit, readerOptions)
     val schema = odpsScanPartition.scan.readSchema
+
+    var inputBytes = 0L
+    val queueForVisit = new mutable.Queue[VectorSchemaRoot]
+    var executor : ExecutorService = null
+    val asyncQueueForVisit = new LinkedBlockingDeque[Object]()
+    val DONE_SENTINEL = new Object
+
+    if (bufferedReaderEnable) {
+      if (asyncRead) {
+        executor = Executors.newSingleThreadExecutor
+        executor.submit(new Runnable() {
+          override def run(): Unit = {
+            try {
+              while (arrowReader.hasNext) {
+                asyncQueueForVisit.add(arrowReader.get)
+              }
+              asyncQueueForVisit.add(DONE_SENTINEL)
+
+              arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
+                inputBytes = c.getCount)
+              arrowReader.close()
+            } catch {
+              case cause: Throwable =>
+                asyncQueueForVisit.add(cause)
+            }
+          }
+        })
+      } else {
+        while (arrowReader.hasNext) {
+          queueForVisit.enqueue(arrowReader.get)
+        }
+        arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
+          inputBytes = c.getCount)
+        arrowReader.close()
+      }
+    }
 
     new PartitionReader[ColumnarBatch] {
       private var columnarBatch: ColumnarBatch = _
@@ -233,24 +275,55 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       }
 
       override def next(): Boolean = {
-        if (!arrowReader.hasNext) {
-          false
+        if (bufferedReaderEnable) {
+          if (asyncRead) {
+            val nextObject = asyncQueueForVisit.take
+            if (nextObject == DONE_SENTINEL) {
+                false
+            } else nextObject match {
+              case t: Throwable =>
+                throw new IOException(t)
+              case _ =>
+                updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
+                true
+            }
+          } else {
+            if (queueForVisit.nonEmpty) {
+              updateColumnBatch(queueForVisit.dequeue)
+              true
+            } else {
+              false
+            }
+          }
         } else {
-          updateColumnBatch(arrowReader.get())
-          true
+          if (!arrowReader.hasNext) {
+            false
+          } else {
+            updateColumnBatch(arrowReader.get())
+            true
+          }
         }
       }
 
       override def get(): ColumnarBatch = columnarBatch
 
       override def close(): Unit = {
-        arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
-          TaskContext.get().taskMetrics().inputMetrics
-            .incBytesRead(c.getCount))
         if (columnarBatch != null) {
           columnarBatch.close()
         }
-        arrowReader.close()
+
+        if (!bufferedReaderEnable) {
+          arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
+            inputBytes = c.getCount)
+          arrowReader.close()
+        }
+
+        TaskContext.get().taskMetrics().inputMetrics
+          .incBytesRead(inputBytes)
+
+        if (executor != null) {
+          executor.shutdown()
+        }
       }
     }
   }

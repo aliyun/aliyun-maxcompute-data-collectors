@@ -186,7 +186,9 @@ case class OdpsScan(
       catalog.odpsOptions.enableVectorizedReader,
       catalog.odpsOptions.columnarReaderBatchSize,
       catalog.odpsOptions.enableReuseBatch,
-      catalog.odpsOptions.odpsTableCompressionCodec)
+      catalog.odpsOptions.odpsTableCompressionCodec,
+      false,
+      false)
   }
 
   override def estimateStatistics(): Statistics = stats

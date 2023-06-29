@@ -297,7 +297,9 @@ case class OdpsTableScanExec(
       OdpsOptions.odspVectorizedReaderEnabled(conf),
       OdpsOptions.odpsVectorizedReaderBatchSize(conf),
       true,
-      OdpsOptions.odpsTableReaderCompressCodec(conf))
+      OdpsOptions.odpsTableReaderCompressCodec(conf),
+      OdpsOptions.odpsTableBufferedReaderEnable(conf),
+      OdpsOptions.odpsTableAsyncReadEnable(conf))
 
     val startTime = System.nanoTime()
     val partitions = createPartitions()

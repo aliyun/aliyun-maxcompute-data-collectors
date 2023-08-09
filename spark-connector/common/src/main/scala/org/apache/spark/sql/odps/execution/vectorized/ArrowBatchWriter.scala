@@ -106,6 +106,14 @@ class ArrowBatchWriter(outputColumns: Array[Column],
     }
   }
 
+  def writeBatchToFile(fileWriter: BatchWriter[VectorSchemaRoot]): Unit = {
+    if (rowCnt > 0) {
+      roots.indices.foreach { ind =>
+        fileWriter.write(roots(ind))
+      }
+    }
+  }
+
   def addBufferedBatch(batch: VectorSchemaRoot): Unit = {
     val field : Array[ArrowFieldWriter[SpecializedGetters]] = new Array(outputColumns.length)
     field.indices.foreach { i =>

@@ -18,6 +18,9 @@
 
 package org.apache.spark.sql.odps
 
+import java.io.{File, FileOutputStream}
+import java.util.UUID
+
 import com.aliyun.odps.Column
 import com.aliyun.odps.PartitionSpec
 import com.aliyun.odps.data.ArrayRecord
@@ -34,6 +37,7 @@ import org.apache.spark.sql.execution.datasources.{WriteJobStatsTracker, WriteTa
 import org.apache.spark.sql.odps.execution.vectorized.ArrowBatchWriter
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.util.{SerializableConfiguration, Utils}
+import org.apache.spark.sql.odps.table.utils.ArrowFileWriterImpl
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -116,6 +120,29 @@ abstract class OdpsTableDataWriter[T: ClassTag](description: WriteJobDescription
               throw cause
             }
           } else {
+            if (cause.getMessage.contains("ZSTD decompression failed")) {
+              if (arrowBatchWriter != null) {
+                if (arrowBatchWriter.canResume()) {
+                  val fileName = UUID.randomUUID().toString
+                  val file = new File(fileName)
+                  val fos: FileOutputStream = new FileOutputStream(file, true)
+                  val fileWriter : BatchWriter[VectorSchemaRoot] = new ArrowFileWriterImpl(
+                    WriterOptions.newBuilder().withBufferedRowCount(description.writeBatchSize.asInstanceOf[Int])
+                      .withSettings(settings)
+                      .withCompressionCodec(codec)
+                      .withChunkSize(chunkSize)
+                      .build(), fos);
+                  arrowBatchWriter.writeBatchToFile(fileWriter)
+                  fileWriter.close()
+                  logInfo("Dump arrow batch data to file " + fileName)
+                } else {
+                  logError("Arrow batch writer cannot resume")
+                  throw cause
+                }
+              } else {
+                throw cause
+              }
+            }
             throw cause
           }
       } finally {
@@ -217,7 +244,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
         .withBufferedRowCount(description.writeBatchSize.asInstanceOf[Int])
         .withSettings(settings)
         .withCompressionCodec(codec)
-        .withChunkSize(chunkSize)
+        .withChunkSize(4 * 1024 * 1024)
         .build())
   }
 
@@ -290,6 +317,29 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
               throw cause
             }
           } else {
+            if (cause.getMessage.contains("ZSTD decompression failed")) {
+              if (arrowBatchWriter != null) {
+                if (arrowBatchWriter.canResume()) {
+                  val fileName = UUID.randomUUID().toString
+                  val file = new File(fileName)
+                  val fos: FileOutputStream = new FileOutputStream(file, true)
+                  val fileWriter : BatchWriter[VectorSchemaRoot] = new ArrowFileWriterImpl(
+                    WriterOptions.newBuilder().withBufferedRowCount(description.writeBatchSize.asInstanceOf[Int])
+                      .withSettings(settings)
+                      .withCompressionCodec(codec)
+                      .withChunkSize(chunkSize)
+                      .build(), fos);
+                  arrowBatchWriter.writeBatchToFile(fileWriter)
+                  fileWriter.close()
+                  logInfo("Dump arrow batch data to file " + fileName)
+                } else {
+                  logError("Arrow batch writer cannot resume")
+                  throw cause
+                }
+              } else {
+                throw cause
+              }
+            }
             throw cause
           }
       }

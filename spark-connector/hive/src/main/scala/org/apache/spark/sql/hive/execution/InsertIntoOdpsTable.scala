@@ -235,6 +235,7 @@ case class InsertIntoOdpsTable(
       chunkSize = OdpsOptions.odpsWriterChunkSize(sparkSession.sessionState.conf),
       maxRetries = OdpsOptions.odpsWriterMaxRetires(sparkSession.sessionState.conf),
       maxSleepIntervalMs = OdpsOptions.odpsWriterRetrySleepIntervalMs(sparkSession.sessionState.conf),
+      maxBlocks = OdpsOptions.odpsWriterMaxBlocks(sparkSession.sessionState.conf)
     )
 
     OdpsTableWriter.write(

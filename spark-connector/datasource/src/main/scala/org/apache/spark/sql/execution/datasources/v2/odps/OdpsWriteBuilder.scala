@@ -239,7 +239,8 @@ case class OdpsWriteBuilder(
       compressionCodec = odpsOptions.odpsTableCompressionCodec,
       chunkSize = odpsOptions.writerChunkSize,
       maxRetries = odpsOptions.writerMaxRetires,
-      maxSleepIntervalMs = odpsOptions.maxRetrySleepIntervalMs
+      maxSleepIntervalMs = odpsOptions.maxRetrySleepIntervalMs,
+      maxBlocks = odpsOptions.writerMaxBlocks
     )
   }
 

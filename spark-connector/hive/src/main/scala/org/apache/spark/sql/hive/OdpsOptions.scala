@@ -126,6 +126,10 @@ private[spark] object OdpsOptions extends Logging {
     .booleanConf
     .createWithDefault(true)
 
+  val ODPS_WRITER_MAX_BLOCKS = buildConf("spark.sql.odps.writerMaxBlocks")
+    .intConf
+    .createWithDefault(20000)
+
   def odpsMetaCacheSize(conf: SQLConf): Int = {
     conf.getConf(ODPS_META_CACHE_SIZE)
   }
@@ -208,5 +212,9 @@ private[spark] object OdpsOptions extends Logging {
 
   def odpsTableBufferedWriterEnable(conf: SQLConf): Boolean = {
     conf.getConf(ODPS_TABLE_BUFFERED_WRITER_ENABLE)
+  }
+
+  def odpsWriterMaxBlocks(conf: SQLConf): Int = {
+    conf.getConf(ODPS_WRITER_MAX_BLOCKS)
   }
 }

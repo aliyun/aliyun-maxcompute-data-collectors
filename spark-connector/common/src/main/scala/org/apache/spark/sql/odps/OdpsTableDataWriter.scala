@@ -218,6 +218,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
         .withSettings(settings)
         .withCompressionCodec(codec)
         .withChunkSize(chunkSize)
+        .withMaxBlockNumber(description.maxBlocks)
         .build())
   }
 
@@ -413,7 +414,8 @@ class WriteJobDescription(
                            val compressionCodec: String,
                            val chunkSize: Int,
                            val maxRetries: Int,
-                           val maxSleepIntervalMs: Int)
+                           val maxSleepIntervalMs: Int,
+                           val maxBlocks: Int)
   extends Serializable {
 
   assert(AttributeSet(allColumns) == AttributeSet(partitionColumns ++ dataColumns),

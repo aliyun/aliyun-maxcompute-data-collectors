@@ -90,6 +90,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val maxRetrySleepIntervalMs =  parameters.getOrElse(ODPS_WRITER_MAX_RETRY_SLEEP_INTERVALS, "10000").toInt
 
   val writerMaxBlocks =  parameters.getOrElse(ODPS_WRITER_MAX_BLOCKS, "20000").toInt
+
+  val splitSessionParallelism = parameters.getOrElse(ODPS_SPLIT_SESSION_PARALLELISM, "1").toInt
 }
 
 object OdpsOptions {
@@ -127,4 +129,6 @@ object OdpsOptions {
   val ODPS_WRITER_MAX_RETRIES = newOption("writerMaxRetires")
   val ODPS_WRITER_MAX_RETRY_SLEEP_INTERVALS = newOption("writerRetrySleepIntervalMs")
   val ODPS_WRITER_MAX_BLOCKS = newOption("writerBlocks")
+
+  val ODPS_SPLIT_SESSION_PARALLELISM = newOption("splitSessionParallelism")
 }

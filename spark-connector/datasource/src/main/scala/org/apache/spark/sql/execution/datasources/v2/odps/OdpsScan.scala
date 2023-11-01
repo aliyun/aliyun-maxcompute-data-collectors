@@ -18,10 +18,13 @@
 
 package org.apache.spark.sql.execution.datasources.v2.odps
 
+import java.util.concurrent.Executors.newFixedThreadPool
+import java.util.concurrent.TimeUnit.MINUTES
+
 import com.aliyun.odps.table.TableIdentifier
 import com.aliyun.odps.table.configuration.ArrowOptions.TimestampUnit
 import com.aliyun.odps.table.configuration.{ArrowOptions, SplitOptions}
-import com.aliyun.odps.table.read.TableReadSessionBuilder
+import com.aliyun.odps.table.read.{TableBatchReadSession, TableReadSessionBuilder}
 
 import scala.collection.JavaConverters._
 import com.aliyun.odps.{OdpsException, PartitionSpec}
@@ -34,10 +37,8 @@ import org.apache.spark.sql.internal.connector.SupportsMetadata
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.connector.expressions.{Expression, Expressions}
-import org.apache.spark.sql.connector.read.partitioning.{KeyGroupedPartitioning, Partitioning, UnknownPartitioning}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
-import org.apache.spark.util.{SerializableConfiguration, Utils}
+import org.apache.spark.util.{SerializableConfiguration, ThreadUtils, Utils}
 import org.apache.spark.sql.odps.bucket.OdpsDefaultHasher
 import org.apache.spark.sql.odps.catalyst.expressions.OdpsHashFunction
 import org.apache.spark.sql.odps.{OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition}
@@ -45,7 +46,10 @@ import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.VIRTUAL_
 import org.apache.spark.sql.sources.EqualTo
 
 import scala.collection.mutable
-
+import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class OdpsScan(
                      sparkSession: SparkSession,
@@ -73,12 +77,9 @@ case class OdpsScan(
 
   private lazy val partitions = createPartitions()
 
-  private def createPartitions(): Array[InputPartition] = {
-    catalogTable.tableType match {
-      case VIRTUAL_VIEW =>
-        throw new AnalysisException(s"Cannot read odps table of ${catalogTable.tableType.name} type")
-      case _ =>
-    }
+  private def createTableScan(emptyColumn: Boolean,
+                              bucketIds: Seq[Integer],
+                              selectedPartitions: Seq[PartitionSpec]): TableBatchReadSession = {
     val project = catalogTable.tableIdent.namespace.head
     val table = catalogTable.tableIdent.name
     val schema = if (catalog.odpsOptions.enableNamespaceSchema) catalogTable.tableIdent.namespace.last else "default"
@@ -88,8 +89,6 @@ case class OdpsScan(
 
     val requiredDataSchema = readDataSchema.map(attr => attr.name).asJava
     val requiredPartitionSchema = readPartitionSchema.map(attr => attr.name).asJava
-    val emptyColumn =
-      if (requiredDataSchema.isEmpty && requiredPartitionSchema.isEmpty) true else false
 
     val scanBuilder = new TableReadSessionBuilder()
       .identifier(TableIdentifier.of(project, schema, table))
@@ -98,52 +97,12 @@ case class OdpsScan(
       .withSettings(settings)
       .withSessionProvider(provider)
 
-    val bucketIds: Seq[Integer] =
-      if (bucketFilters.nonEmpty) {
-        try {
-          val hashVals = bucketFilters.map { predicate =>
-            val dataType = dataSchema.fields(dataSchema.fieldIndex(predicate.asInstanceOf[EqualTo].attribute)).dataType
-            OdpsHashFunction.hash(predicate.asInstanceOf[EqualTo].value, dataType, 0).toInt
-          }
-          val bucketId =
-            OdpsDefaultHasher.CombineHashVal(hashVals) % catalogTable.bucketSpec.get.numBuckets
-          Seq(bucketId)
-        } catch {
-          case e: Exception =>
-            logInfo("unsupported type, fallback to non-bucketing", e)
-            Nil
-        }
-      } else {
-        Nil
-      }
-
     if (bucketIds.nonEmpty) {
       scanBuilder.requiredBucketIds(bucketIds.asJava)
     }
 
-    if (partitionSchema.nonEmpty) {
-      val allowFullScan = catalog.loadNamespaceMetadata(tableIdent.namespace())
-        .getOrDefault("odps.sql.allow.fullscan", "true").toBoolean
-      if (!allowFullScan && partitionFilters.isEmpty) {
-        throw new OdpsException(s"odps.sql.allow.fullscan is $allowFullScan")
-      }
-
-      val prunedPartitions = catalog.listPartitionsByFilter(tableIdent, partitionFilters)
-      logInfo(s"prunedPartitions: ${seqToString(prunedPartitions)}")
-      if (prunedPartitions.isEmpty) {
-        return Array.empty
-      }
-
-      scanBuilder.requiredPartitions(prunedPartitions.map(partition => {
-        val staticPartition = new mutable.LinkedHashMap[String, String]
-        partitionSchema.foreach { attr =>
-          staticPartition.put(attr.name, partition.getOrElse(attr.name,
-            throw new IllegalArgumentException(s"Partition spec is missing a value for column '$attr.name': $partition")))
-        }
-        new PartitionSpec(staticPartition.map {
-          case (key, value) => key + "=" + value
-        }.mkString(","))
-      }).toList.asJava)
+    if (partitionSchema.nonEmpty && selectedPartitions.nonEmpty) {
+      scanBuilder.requiredPartitions(selectedPartitions.toList.asJava)
     }
 
     val splitOptions = if (!emptyColumn) {
@@ -166,11 +125,107 @@ case class OdpsScan(
         .withTimestampUnit(TimestampUnit.MICRO).build())
 
     val scan = scanBuilder.buildBatchReadSession
+    logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
+    scan
+  }
+
+  private def createPartitions(): Array[InputPartition] = {
+    catalogTable.tableType match {
+      case VIRTUAL_VIEW =>
+        throw new AnalysisException(s"Cannot read odps table of ${catalogTable.tableType.name} type")
+      case _ =>
+    }
+
+    val emptyColumn =
+      if (readDataSchema.isEmpty && readPartitionSchema.isEmpty) true else false
+
+    val bucketIds: Seq[Integer] =
+      if (bucketFilters.nonEmpty) {
+        try {
+          val hashVals = bucketFilters.map { predicate =>
+            val dataType = dataSchema.fields(dataSchema.fieldIndex(predicate.asInstanceOf[EqualTo].attribute)).dataType
+            OdpsHashFunction.hash(predicate.asInstanceOf[EqualTo].value, dataType, 0).toInt
+          }
+          val bucketId =
+            OdpsDefaultHasher.CombineHashVal(hashVals) % catalogTable.bucketSpec.get.numBuckets
+          Seq(bucketId)
+        } catch {
+          case e: Exception =>
+            logInfo("unsupported type, fallback to non-bucketing", e)
+            Nil
+        }
+      } else {
+        Nil
+      }
+
+    val selectedPartitions: Seq[PartitionSpec] =
+      if (partitionSchema.nonEmpty) {
+        val allowFullScan = catalog.loadNamespaceMetadata(tableIdent.namespace())
+          .getOrDefault("odps.sql.allow.fullscan", "true").toBoolean
+        if (!allowFullScan && partitionFilters.isEmpty) {
+          throw new OdpsException(s"odps.sql.allow.fullscan is $allowFullScan")
+        }
+
+        val prunedPartitions = catalog.listPartitionsByFilter(tableIdent, partitionFilters)
+        logInfo(s"prunedPartitions: ${seqToString(prunedPartitions)}")
+
+        if (prunedPartitions.isEmpty) {
+          return Array.empty
+        }
+
+        prunedPartitions.map(partition => {
+          val staticPartition = new mutable.LinkedHashMap[String, String]
+          partitionSchema.foreach { attr =>
+            staticPartition.put(attr.name, partition.getOrElse(attr.name,
+              throw new IllegalArgumentException(s"Partition spec is missing a value for column '$attr.name': $partition")))
+          }
+          new PartitionSpec(staticPartition.map {
+            case (key, value) => key + "=" + value
+          }.mkString(","))
+        })
+      } else {
+        Nil
+      }
 
     if (!emptyColumn) {
-      scan.getInputSplitAssigner.getAllSplits
-        .map(split => OdpsScanPartition(split, scan))
+      if (partitionSchema.nonEmpty) {
+        val partSplits = collection.mutable.Map[Int, ArrayBuffer[PartitionSpec]]()
+        val splitPar = catalog.odpsOptions.splitSessionParallelism
+        val concurrentNum = Math.min(Math.max(splitPar, selectedPartitions.length / 200), 16)
+
+        selectedPartitions.zipWithIndex.foreach {
+          case (x, i) =>
+            val key = if (concurrentNum == 1) 1 else i % concurrentNum
+            partSplits.getOrElse(key, {
+              val pList = ArrayBuffer[PartitionSpec]()
+              partSplits.put(key, pList)
+              pList
+            }) += x
+        }
+
+        import OdpsScan._
+
+        val future = Future.sequence(partSplits.keys.map(key =>
+          Future[Array[InputPartition]] {
+            val scan = createTableScan(emptyColumn, bucketIds, partSplits(key))
+            scan.getInputSplitAssigner.getAllSplits
+              .map(split => OdpsScanPartition(split, scan))
+          }(executionContext)
+        ))
+        val futureResults = ThreadUtils.awaitResult(future, Duration(15, MINUTES))
+        futureResults.flatten.toArray
+      } else {
+        val scan = createTableScan(emptyColumn, bucketIds, Nil)
+        scan.getInputSplitAssigner.getAllSplits
+          .map(split => OdpsScanPartition(split, scan))
+      }
     } else {
+      val scan = if (partitionSchema.nonEmpty) {
+        createTableScan(emptyColumn, bucketIds, selectedPartitions)
+      } else {
+        createTableScan(emptyColumn, bucketIds, Nil)
+      }
+
       Array(OdpsEmptyColumnPartition(scan.getInputSplitAssigner.getTotalRowCount))
     }
   }
@@ -215,4 +270,8 @@ case class OdpsScan(
   }
 
   private def seqToString(seq: Seq[Any]): String = seq.mkString("[", ", ", "]")
+}
+
+object OdpsScan {
+  private val executionContext = ExecutionContext.fromExecutorService(newFixedThreadPool(16))
 }

@@ -118,16 +118,15 @@ public class TunnelRecordWriter implements BatchWriter<ArrayRecord> {
         try {
             TableTunnel tunnel = TableUtils.getTableTunnel(options.getSettings());
             TableTunnel.UploadSession uploadSession;
+            // TODO: support schema
             if (partitionSpec == null || partitionSpec.keys().size() == 0) {
                 uploadSession = tunnel.getUploadSession(
                         identifier.getProject(),
-                        identifier.getSchema(),
                         identifier.getTable(),
                         sinkId);
             } else {
                 uploadSession = tunnel.getUploadSession(
                         identifier.getProject(),
-                        identifier.getSchema(),
                         identifier.getTable(),
                         partitionSpec,
                         sinkId);

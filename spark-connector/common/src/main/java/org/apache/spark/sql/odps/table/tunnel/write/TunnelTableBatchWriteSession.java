@@ -74,8 +74,8 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         Odps odps = env.createOdpsClient();
         TableTunnel tunnel = new TableTunnel(odps);
         tunnel.setEndpoint(env.getTunnelEndpoint(identifier.getProject()));
+        // TODO: support schema
         Table table = odps.tables().get(identifier.getProject(),
-                identifier.getSchema(),
                 identifier.getTable());
         try {
             if (table.isPartitioned()) {
@@ -88,8 +88,9 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
                             .map(Column::getName).collect(Collectors.toList()));
                 }
 
+                // TODO: support schema
                 if (!table.hasPartition(targetPartitionSpec)) {
-                    createPartition(identifier.getProject(), identifier.getSchema(), identifier.getTable(),
+                    createPartition(identifier.getProject(), identifier.getTable(),
                             targetPartitionSpec, odps);
                 }
             }
@@ -101,14 +102,13 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         long sleep = 2000;
         while (true) {
             try {
+                // TODO: support schema
                 if (targetPartitionSpec.isEmpty()) {
                     session = tunnel.createUploadSession(identifier.getProject(),
-                            identifier.getSchema(),
                             identifier.getTable(),
                             overwrite);
                 } else {
                     session = tunnel.createUploadSession(identifier.getProject(),
-                            identifier.getSchema(),
                             identifier.getTable(),
                             targetPartitionSpec,
                             overwrite);
@@ -190,13 +190,14 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         return false;
     }
 
-    public static void createPartition(String project, String schema, String table,
+    public static void createPartition(String project, String table,
                                        PartitionSpec partitionSpec, Odps odps) throws IOException {
         int retry = 0;
         long sleep = 2000;
         while (true) {
             try {
-                odps.tables().get(project, schema, table).createPartition(partitionSpec, true);
+                // TODO: support schema
+                odps.tables().get(project, table).createPartition(partitionSpec, true);
                 break;
             } catch (OdpsException e) {
                 retry++;

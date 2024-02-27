@@ -101,8 +101,8 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
             Odps odps = env.createOdpsClient();
             TableTunnel tunnel = new TableTunnel(odps);
             tunnel.setEndpoint(env.getTunnelEndpoint(identifier.getProject()));
+            // TODO: support schema
             Table table = odps.tables().get(identifier.getProject(),
-                    identifier.getSchema(),
                     identifier.getTable());
             TableSchema tableSchema = table.getSchema();
             long splitSizeInBytes = splitOptions.getSplitNumber();
@@ -120,7 +120,6 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                         long size = table.getPartition(partitionSpec).getSize();
                         TableTunnel.DownloadSession session = createDownloadSession(
                                 identifier.getProject(),
-                                identifier.getSchema(),
                                 identifier.getTable(),
                                 partitionSpec,
                                 tunnel);
@@ -163,7 +162,6 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                     long size = table.getSize();
                     TableTunnel.DownloadSession session = createDownloadSession(
                             identifier.getProject(),
-                            identifier.getSchema(),
                             identifier.getTable(),
                             null,
                             tunnel);
@@ -252,7 +250,6 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
     }
 
     public static TableTunnel.DownloadSession createDownloadSession(String project,
-                                                                    String schema,
                                                                     String table,
                                                                     PartitionSpec partitionSpec,
                                                                     TableTunnel tunnel) throws IOException {
@@ -261,13 +258,11 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
         TableTunnel.DownloadSession downloadSession;
         while (true) {
             try {
+                // TODO: support schema
                 if (partitionSpec == null || partitionSpec.isEmpty()) {
-                    downloadSession = tunnel.createDownloadSession(project, schema,
-                            table, false);
+                    downloadSession = tunnel.createDownloadSession(project, table, false);
                 } else {
-                    downloadSession = tunnel.createDownloadSession(project, schema,
-                            table,
-                            partitionSpec, false);
+                    downloadSession = tunnel.createDownloadSession(project, table, partitionSpec, false);
                 }
                 break;
             } catch (TunnelException e) {

@@ -187,7 +187,8 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                 } else {
                     this.inputSplitAssigner = new TunnelRowRangeInputSplitAssigner(splits);
                 }
-                // TODO: this.id = ?
+
+                this.sessionId = "";
             } catch (OdpsException exception) {
                 throw new IOException(exception);
             }

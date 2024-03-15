@@ -18,6 +18,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2.odps
 
+import java.util.OptionalLong
 import java.util.concurrent.Executors.newFixedThreadPool
 import java.util.concurrent.TimeUnit.MINUTES
 
@@ -28,11 +29,14 @@ import com.aliyun.odps.table.read.{TableBatchReadSession, TableReadSessionBuilde
 
 import scala.collection.JavaConverters._
 import com.aliyun.odps.{OdpsException, PartitionSpec}
+import java.util.concurrent.ThreadFactory
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory, Scan, Statistics, SupportsReportPartitioning, SupportsReportStatistics}
+import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory, Scan, Statistics, SupportsReportStatistics, SupportsRuntimeFiltering}
 import org.apache.spark.sql.internal.connector.SupportsMetadata
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
@@ -246,7 +250,19 @@ case class OdpsScan(
       false)
   }
 
-  override def estimateStatistics(): Statistics = stats
+  override def estimateStatistics(): Statistics = new Statistics {
+    override def sizeInBytes(): OptionalLong = if (stats.sizeInBytes.isPresent) {
+      val compressionFactor = sparkSession.sessionState.conf.fileCompressionFactor
+      val size = (compressionFactor * stats.sizeInBytes.getAsLong /
+        (dataSchema.defaultSize + partitionSchema.defaultSize) *
+        (readDataSchema.defaultSize + readPartitionSchema.defaultSize)).toLong
+      OptionalLong.of(size)
+    } else {
+      OptionalLong.empty()
+    }
+
+    override def numRows(): OptionalLong = stats.numRows
+  }
 
   private val maxMetadataValueLength = sparkSession.sessionState.conf.maxMetadataStringLength
 
@@ -270,8 +286,25 @@ case class OdpsScan(
   }
 
   private def seqToString(seq: Seq[Any]): String = seq.mkString("[", ", ", "]")
+
+  override def equals(obj: Any): Boolean = obj match {
+    case f: OdpsScan =>
+      tableIdent == f.tableIdent && readSchema == f.readSchema && equivalentFilters(partitionFilters, f.partitionFilters)
+    case _ => false
+  }
+
+  override def hashCode(): Int = getClass.hashCode()
+
+  // Returns whether the two given arrays of [[Filter]]s are equivalent.
+  def equivalentFilters(a: Array[Filter], b: Array[Filter]): Boolean = {
+    a.sortBy(_.hashCode()).sameElements(b.sortBy(_.hashCode()))
+  }
 }
 
 object OdpsScan {
-  private val executionContext = ExecutionContext.fromExecutorService(newFixedThreadPool(16))
+  def namedThreadFactory(prefix: String): ThreadFactory = {
+    new ThreadFactoryBuilder().setDaemon(true).setNameFormat(prefix + "-%d").build()
+  }
+  private val executionContext = ExecutionContext.fromExecutorService(newFixedThreadPool(16,
+    namedThreadFactory("odps-scan")))
 }

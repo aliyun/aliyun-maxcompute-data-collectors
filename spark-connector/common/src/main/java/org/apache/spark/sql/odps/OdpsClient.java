@@ -23,6 +23,7 @@ import com.aliyun.odps.account.Account;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.odps.account.BearerTokenAccount;
 import com.aliyun.odps.account.StsAccount;
+import com.aliyun.odps.table.configuration.RestOptions;
 import com.aliyun.odps.table.enviroment.Credentials;
 import com.aliyun.odps.table.enviroment.EnvironmentSettings;
 import com.aliyun.odps.table.utils.Preconditions;
@@ -79,6 +80,7 @@ public class OdpsClient {
     private final static String META_LOOKUP_NAME = "META_LOOKUP_NAME";
     private final static String REFRESH_INTERVAL_SECONDS = "odps.cupid.bearer.token.refresh.interval.seconds";
     private final static String ODPS_BEARER_TOKEN_ENABLE = "odps.cupid.bearer.token.enable";
+    private static final int DEFAULT_TIMEOUT_IN_SECONDS = 300;
 
     public static Builder builder() {
         return new Builder();
@@ -161,10 +163,14 @@ public class OdpsClient {
                 .withAppAccount(odps.getAppAccount())
                 .withAppStsAccount(odps.getAppStsAccount())
                 .build();
+        RestOptions restOptions = RestOptions.newBuilder()
+                .withReadTimeout(DEFAULT_TIMEOUT_IN_SECONDS)
+                .build();
         EnvironmentSettings.Builder env = EnvironmentSettings.newBuilder()
                 .withDefaultProject(odps.getDefaultProject())
                 .withServiceEndpoint(odps.getEndpoint())
-                .withCredentials(credentials);
+                .withCredentials(credentials)
+                .withRestOptions(restOptions);
         if (mode.equals(EnvironmentSettings.ExecutionMode.LOCAL)) {
             env.inLocalMode();
         } else if (mode.equals(EnvironmentSettings.ExecutionMode.REMOTE)) {

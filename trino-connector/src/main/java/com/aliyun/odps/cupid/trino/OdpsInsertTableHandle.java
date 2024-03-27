@@ -3,6 +3,7 @@ package com.aliyun.odps.cupid.trino;
 import com.aliyun.odps.cupid.table.v1.writer.TableWriteSession;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
 import io.trino.spi.connector.ConnectorInsertTableHandle;
 
 public class OdpsInsertTableHandle
@@ -30,7 +31,7 @@ public class OdpsInsertTableHandle
             String writeSessionInfo,
             String tableApiProvider,
             TableWriteSession tableWriteSession) {
-        super(schemaName, tableName, odpsTable);
+        super(schemaName, tableName, odpsTable, ImmutableList.of());
         this.writeSessionInfo = writeSessionInfo;
         this.tableApiProvider = tableApiProvider;
         this.tableWriteSession = tableWriteSession;

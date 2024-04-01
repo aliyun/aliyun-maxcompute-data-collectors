@@ -480,11 +480,12 @@ public class OdpsInputDialog extends BaseStepDialog implements StepDialogInterfa
                 if (!m_wEndpoint.isDisposed() && !m_wAccessId.isDisposed() && !m_wAccessKey
                     .isDisposed() && !m_wProjectName.isDisposed() && !m_wTableName.isDisposed()) {
 
-                    final String endpoint = m_wEndpoint.getText(),
-                        accessId = m_wAccessId.getText(),
-                        accessKey = m_wAccessKey.getText(),
-                        projectName = m_wProjectName.getText(),
-                        tableName = m_wTableName.getText();
+                    final String endpoint = transMeta.environmentSubstitute(m_wEndpoint.getText()),
+                        accessId = transMeta.environmentSubstitute(m_wAccessId.getText()),
+                        accessKey = transMeta.environmentSubstitute(m_wAccessKey.getText()),
+                        projectName = transMeta.environmentSubstitute(m_wProjectName.getText()),
+                        tableName = transMeta.environmentSubstitute(m_wTableName.getText());
+
 
                     if (!Const.isEmpty(endpoint) && !Const.isEmpty(accessId) && !Const
                         .isEmpty(accessKey) && !Const.isEmpty(projectName) && !Const

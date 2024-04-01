@@ -116,7 +116,6 @@ public class OdpsOutput extends BaseStep implements StepInterface {
 
             if (streamFieldPosMap.size() != odpsColumnPosMap.size()) {
                 logBasic("Error: Stream Field size not equal to table field size!");
-                throw new RuntimeException("Error: Stream Field size not equal to table field size!");
             }
 
             if (!isStopped()) {
@@ -127,8 +126,8 @@ public class OdpsOutput extends BaseStep implements StepInterface {
                     String streamField = odpsColumn2StreamFieldMap.get(odpsColumn);
                     if (!Const.isEmpty(streamField)) {
                         int pos = streamFieldPosMap.get(streamField);
-                        Column column = schema.getColumn(i);
-                        String fieldValue = String.valueOf(row[pos]);
+                        Column column = schema.getColumn(odpsColumnPosMap.get(odpsColumn));
+                        String fieldValue = row[pos] == null ? null : row[pos].toString();
                         RecordUtil.setFieldValue(record, odpsColumn, fieldValue, column.getType(), dateFormat);
                     }
                 }

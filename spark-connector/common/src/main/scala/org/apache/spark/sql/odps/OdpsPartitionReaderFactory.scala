@@ -21,13 +21,13 @@ package org.apache.spark.sql.odps
 
 import java.io.IOException
 import java.util.concurrent.{ExecutorService, Executors, LinkedBlockingDeque}
-
 import scala.collection.JavaConverters._
 import com.aliyun.odps.table.DataFormat
 import com.aliyun.odps.table.configuration.{CompressionCodec, ReaderOptions}
 import com.aliyun.odps.table.metrics.MetricNames
 import com.aliyun.odps.table.read.TableBatchReadSession
-import com.aliyun.odps.table.read.split.InputSplit
+import com.aliyun.odps.table.read.split.impl.RowRangeInputSplit
+import com.aliyun.odps.table.read.split.{InputSplit, InputSplitWithIndex}
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
@@ -275,32 +275,48 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       }
 
       override def next(): Boolean = {
-        if (bufferedReaderEnable) {
-          if (asyncRead) {
-            val nextObject = asyncQueueForVisit.take
-            if (nextObject == DONE_SENTINEL) {
+        try {
+          if (bufferedReaderEnable) {
+            if (asyncRead) {
+              val nextObject = asyncQueueForVisit.take
+              if (nextObject == DONE_SENTINEL) {
                 false
-            } else nextObject match {
-              case t: Throwable =>
-                throw new IOException(t)
-              case _ =>
-                updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
+              } else nextObject match {
+                case t: Throwable =>
+                  throw new IOException(t)
+                case _ =>
+                  updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
+                  true
+              }
+            } else {
+              if (queueForVisit.nonEmpty) {
+                updateColumnBatch(queueForVisit.dequeue)
                 true
+              } else {
+                false
+              }
             }
           } else {
-            if (queueForVisit.nonEmpty) {
-              updateColumnBatch(queueForVisit.dequeue)
-              true
-            } else {
+            if (!arrowReader.hasNext) {
               false
+            } else {
+              updateColumnBatch(arrowReader.get())
+              true
             }
           }
-        } else {
-          if (!arrowReader.hasNext) {
-            false
-          } else {
-            updateColumnBatch(arrowReader.get())
-            true
+        } catch {
+          case cause: Throwable => {
+            val splitIndex = odpsScanPartition.inputSplit match {
+              case split: InputSplitWithIndex =>
+                split.getSplitIndex
+              case split: RowRangeInputSplit =>
+                split.getRowRange.getStartIndex
+              case _ => 0
+            }
+            val sessionId = odpsScanPartition.inputSplit.getSessionId
+            logError(s"Partition reader $splitIndex for session $sessionId " +
+              s"encountered failure ${cause.getMessage}")
+            throw cause
           }
         }
       }

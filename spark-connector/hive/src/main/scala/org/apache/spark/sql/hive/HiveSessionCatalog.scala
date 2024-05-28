@@ -24,6 +24,8 @@ import org.apache.spark.sql.catalyst.catalog._
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.odps.OdpsClient
 
+import java.util.Locale
+
 private[sql] class HiveSessionCatalog(
     externalCatalogBuilder: () => ExternalCatalog,
     globalTempViewManagerBuilder: () => GlobalTempViewManager,
@@ -48,4 +50,8 @@ private[sql] class HiveSessionCatalog(
       // TODO: Load defaults in cluster mode
       .getOrCreate()
       .odps().getDefaultProject)
+
+    private def formatDatabaseName(name: String): String = {
+        if (conf.caseSensitiveAnalysis) name else name.toLowerCase(Locale.ROOT)
+    }
 }

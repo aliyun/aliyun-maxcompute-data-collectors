@@ -21,15 +21,13 @@ import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.net.{URL, URLClassLoader}
 import java.util
-
 import scala.util.Try
-
 import org.apache.commons.io.{FileUtils, IOUtils}
 import org.apache.commons.lang3.{JavaVersion, SystemUtils}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
 import org.apache.hadoop.hive.shims.ShimLoader
-
+import org.apache.hadoop.util.VersionInfo
 import org.apache.spark.SparkConf
 import org.apache.spark.deploy.SparkSubmitUtils
 import org.apache.spark.internal.Logging
@@ -42,6 +40,9 @@ import org.apache.spark.util.{MutableURLClassLoader, Utils, VersionUtils}
 
 /** Factory for `IsolatedClientLoader` with specific versions of hive. */
 private[hive] object IsolatedClientLoader extends Logging {
+
+  def isHadoop3: Boolean = VersionUtils.majorVersion(VersionInfo.getVersion) == 3
+
   /**
    * Creates isolated Hive client loaders by downloading the requested version from maven.
    */
@@ -68,7 +69,7 @@ private[hive] object IsolatedClientLoader extends Logging {
           case e: RuntimeException if e.getMessage.contains("hadoop") =>
             // If the error message contains hadoop, it is probably because the hadoop
             // version cannot be resolved.
-            val fallbackVersion = if (VersionUtils.isHadoop3) {
+            val fallbackVersion = if (isHadoop3) {
               "3.3.2"
             } else {
               "2.7.4"

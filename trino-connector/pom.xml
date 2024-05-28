@@ -40,7 +40,7 @@
                 <version>2.10</version>
                 <configuration>
                     <includes>
-                        <include>**/*Test.java</include> 只包含测试类
+                        <include>**/*Test.java</include>
                     </includes>
                 </configuration>
             </plugin>

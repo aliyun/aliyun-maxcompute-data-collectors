@@ -99,7 +99,7 @@ class HiveSessionStateBuilder(
     override val postHocResolutionRules: Seq[Rule[LogicalPlan]] =
       DetectAmbiguousSelfJoin +:
         new DetermineTableStats(session) +:
-        PreprocessTableCreation(session) +:
+        PreprocessTableCreation(catalog) +:
         PreprocessTableInsertion +:
         DataSourceAnalysis +:
         HiveAnalysis +:

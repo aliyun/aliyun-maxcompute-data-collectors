@@ -5,7 +5,7 @@
     <parent>
         <artifactId>spark-connector</artifactId>
         <groupId>com.aliyun.odps</groupId>
-        <version>3.3.1-odps0.43.0</version>
+        <version>3.5.1-odps0.45.5</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -16,7 +16,7 @@
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>spark-odps-common</artifactId>
-            <version>3.3.1-odps0.43.0</version>
+            <version>3.5.1-odps0.45.5</version>
         </dependency>
     </dependencies>
 

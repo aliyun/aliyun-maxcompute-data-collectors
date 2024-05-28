@@ -35,6 +35,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeProjection
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader, PartitionReaderFactory}
 import org.apache.spark.sql.odps.vectorized._
 import org.apache.spark.sql.types._
@@ -59,7 +60,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
                                       asyncRead: Boolean)
   extends PartitionReaderFactory with Logging {
 
-  private val output = readDataSchema.toAttributes ++ readPartitionSchema.toAttributes
+  private val output = DataTypeUtils.toAttributes(readDataSchema) ++ DataTypeUtils.toAttributes(readPartitionSchema)
   private val allNames = output.map(_.name)
   private val allTypes = output.map(_.dataType)
   private val arrowDataFormat = new DataFormat(DataFormat.Type.ARROW, DataFormat.Version.V5)

@@ -643,7 +643,15 @@ object OdpsTableCatalog {
     if (tableDefinition.tableType == CatalogTableType.EXTERNAL) {
       // external table
       require(tableDefinition.storage.locationUri.isDefined)
-      sb.append(s" STORED BY ${tableDefinition.storage.outputFormat.get}")
+      val outputFormat = tableDefinition.storage.outputFormat.get
+      val formatList = Set("PARQUET", "TEXTFILE", "ORC", "RCFILE", "AVRO", "SEQUENCEFILE")
+
+      val outputFormatClause = if (formatList.contains(outputFormat.toUpperCase)) {
+        s" STORED AS $outputFormat"
+      } else {
+        s" STORED BY '$outputFormat'"
+      }
+      sb.append(outputFormatClause)
       if (tableDefinition.storage.properties.nonEmpty) {
         val properties = tableDefinition.storage.properties
           .mkString(" WITH SERDEPROPERTIES (", ",", ")")

@@ -60,7 +60,7 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
         }
         ShowColumnsCommand(table)
 
-      case i@InsertIntoStatement(r@DataSourceV2Relation(table: OdpsTable, _, _, _, _), _, _, _, _, _)
+      case i@InsertIntoStatement(r@DataSourceV2Relation(table: OdpsTable, _, _, _, _), _, _, _, _, _, /* byName */false)
         if i.query.resolved =>
         if (i.partitionSpec.nonEmpty && !r.options.containsKey(WRITE_ODPS_STATIC_PARTITION)) {
           val normalizedSpec = PartitioningUtils.normalizePartitionSpec(
@@ -125,7 +125,7 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
     override def apply(plan: LogicalPlan): LogicalPlan = {
       plan.transform {
         case AppendData(
-          r @ DataSourceV2Relation(table: OdpsTable, _ , _, _, options), query, writeOptions, isByName, write)
+        r @ DataSourceV2Relation(table: OdpsTable, _ , _, _, options), query, writeOptions, isByName, write, /* analyzedQuery */ null)
           if !writeOptions.contains(WRITE_ODPS_TABLE_RESOLVED) =>
             val newQuery = insertRepartition(query, table)
             var newOptions = writeOptions + Tuple2(WRITE_ODPS_TABLE_RESOLVED, "true")

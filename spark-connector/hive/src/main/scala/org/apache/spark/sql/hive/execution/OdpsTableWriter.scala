@@ -208,7 +208,7 @@ object OdpsTableWriter extends Logging {
         logError(s"Data source write $identifier aborted.")
         cause match {
           // Only wrap non fatal exceptions.
-          case NonFatal(e) => throw QueryExecutionErrors.writingJobAbortedError(e)
+          case NonFatal(e) => throw QueryExecutionErrors.writingJobFailedError(e)
           case _ => throw cause
         }
     }

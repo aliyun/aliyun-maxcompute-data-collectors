@@ -3,7 +3,7 @@
   <parent>
     <artifactId>spark-connector</artifactId>
     <groupId>com.aliyun.odps</groupId>
-    <version>3.3.1-odps0.43.0</version>
+    <version>3.5.1-odps0.45.5</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>spark-odps-common</artifactId>
@@ -11,25 +11,25 @@
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_2.12</artifactId>
-      <version>3.3.1</version>
+      <version>3.5.1</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_2.12</artifactId>
-      <version>3.3.1</version>
+      <version>3.5.1</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-hive_2.12</artifactId>
-      <version>3.3.1</version>
+      <version>3.5.1</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-tags_2.12</artifactId>
-      <version>3.3.1</version>
+      <version>3.5.1</version>
       <scope>compile</scope>
     </dependency>
     <dependency>

@@ -17,8 +17,7 @@
 package org.apache.spark.sql.hive.execution
 
 import java.util.Locale
-
-import org.apache.spark.sql.catalyst.parser.ParseException
+import org.apache.spark.sql.catalyst.parser.{ParseException, SqlBaseParser}
 import org.apache.spark.sql.catalyst.parser.ParserUtils._
 import org.apache.spark.sql.catalyst.parser.SqlBaseParser._
 import org.apache.spark.sql.execution.{SparkSqlAstBuilder, SparkSqlParser}
@@ -41,11 +40,15 @@ class OdpsSqlAstBuilder(conf: SQLConf) extends SparkSqlAstBuilder() {
 //    }.getOrElse(TruncateTable(table))
 //  }
 
+  def getId(ctx: PrimitiveDataTypeContext): IdentifierContext = {
+    ctx.getRuleContext(classOf[SqlBaseParser.IdentifierContext], 0)
+  }
+
   /**
    * Resolve/create a primitive type.
    */
   override def visitPrimitiveDataType(ctx: PrimitiveDataTypeContext): DataType = withOrigin(ctx) {
-    val dataType = ctx.identifier.getText.toLowerCase(Locale.ROOT)
+    val dataType = getId(ctx).getText.toLowerCase(Locale.ROOT)
     (dataType, ctx.INTEGER_VALUE().asScala.toList) match {
       case ("boolean", Nil) => BooleanType
       case ("tinyint" | "byte", Nil) => ByteType

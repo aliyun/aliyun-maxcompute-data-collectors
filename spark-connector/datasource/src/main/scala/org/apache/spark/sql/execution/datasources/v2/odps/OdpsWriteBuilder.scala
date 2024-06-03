@@ -30,6 +30,8 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.distributions.{Distribution, Distributions}
@@ -199,8 +201,8 @@ case class OdpsWriteBuilder(
     assert(queryId != null, "Missing query ID")
 
     SchemaUtils.checkColumnNameDuplication(schema.fields.map(_.name),
-      s"when inserting into $tableIdent", caseSensitiveAnalysis)
-    DataSource.validateSchema(schema)
+      caseSensitiveAnalysis)
+    DataSource.validateSchema(schema, SQLConf.get)
   }
 
   private def createWriteJobDescription(sparkSession: SparkSession,
@@ -210,7 +212,7 @@ case class OdpsWriteBuilder(
                                         options: Map[String, String],
                                         odpsOptions: OdpsOptions,
                                         supportArrowWriter: Boolean): WriteJobDescription = {
-    val outputColumns = schema.toAttributes
+    val outputColumns = DataTypeUtils.toAttributes(schema)
     val outputPartitionColumns =
       outputColumns.filter(c => partitionSchema.getFieldIndex(c.name).isDefined)
     val outputPartitionSet = AttributeSet(outputPartitionColumns)

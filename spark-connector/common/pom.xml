@@ -36,12 +36,10 @@
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-table-api</artifactId>
-            <version>${odps.sdk.table.version}</version>
         </dependency>
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-core</artifactId>
-            <version>${odps.sdk.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>

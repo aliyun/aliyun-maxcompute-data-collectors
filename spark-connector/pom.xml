@@ -21,8 +21,8 @@
     <packaging>pom</packaging>
     <properties>
         <arrow.version>4.0.0</arrow.version>
-        <odps.sdk.version>0.45.5-public</odps.sdk.version>
-        <odps.sdk.table.version>0.45.5-public</odps.sdk.table.version>
+        <odps.sdk.version>0.48.4-public</odps.sdk.version>
+        <odps.sdk.table.version>0.48.4-public</odps.sdk.table.version>
         <spark.version>3.3.1</spark.version>
         <scala.version>2.12.10</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
@@ -30,6 +30,21 @@
         <PermGen>512m</PermGen>
         <MaxPermGen>1024m</MaxPermGen>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.aliyun.odps</groupId>
+                <artifactId>odps-sdk-core</artifactId>
+                <version>${odps.sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aliyun.odps</groupId>
+                <artifactId>odps-sdk-table-api</artifactId>
+                <version>${odps.sdk.table.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>

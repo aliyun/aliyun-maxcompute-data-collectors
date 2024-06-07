@@ -206,7 +206,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       .withReuseBatch(reusedBatch)
       .build()
 
-    val arrowReader = odpsScanPartition.scan
+    var arrowReader = odpsScanPartition.scan
       .createArrowReader(odpsScanPartition.inputSplit, readerOptions)
     val schema = odpsScanPartition.scan.readSchema
 
@@ -248,6 +248,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
 
     new PartitionReader[ColumnarBatch] {
       private var columnarBatch: ColumnarBatch = _
+      private var loadData = false
 
       private def updateColumnBatch(root: VectorSchemaRoot): Unit = {
         if (columnarBatch != null && !reusedBatch) {
@@ -275,48 +276,63 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       }
 
       override def next(): Boolean = {
-        try {
-          if (bufferedReaderEnable) {
-            if (asyncRead) {
-              val nextObject = asyncQueueForVisit.take
-              if (nextObject == DONE_SENTINEL) {
-                false
-              } else nextObject match {
-                case t: Throwable =>
-                  throw new IOException(t)
-                case _ =>
-                  updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
-                  true
-              }
-            } else {
-              if (queueForVisit.nonEmpty) {
-                updateColumnBatch(queueForVisit.dequeue)
+        if (bufferedReaderEnable) {
+          if (asyncRead) {
+            val nextObject = asyncQueueForVisit.take
+            if (nextObject == DONE_SENTINEL) {
+              false
+            } else nextObject match {
+              case t: Throwable =>
+                throw new IOException(t)
+              case _ =>
+                updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
                 true
-              } else {
-                false
-              }
             }
           } else {
+            if (queueForVisit.nonEmpty) {
+              updateColumnBatch(queueForVisit.dequeue)
+              true
+            } else {
+              false
+            }
+          }
+        } else {
+          try {
             if (!arrowReader.hasNext) {
               false
             } else {
               updateColumnBatch(arrowReader.get())
+              loadData = true
               true
             }
-          }
-        } catch {
-          case cause: Throwable => {
-            val splitIndex = odpsScanPartition.inputSplit match {
-              case split: InputSplitWithIndex =>
-                split.getSplitIndex
-              case split: RowRangeInputSplit =>
-                split.getRowRange.getStartIndex
-              case _ => 0
-            }
-            val sessionId = odpsScanPartition.inputSplit.getSessionId
-            logError(s"Partition reader $splitIndex for session $sessionId " +
-              s"encountered failure ${cause.getMessage}")
-            throw cause
+          } catch {
+            case cause: Throwable =>
+              val splitIndex = odpsScanPartition.inputSplit match {
+                case split: InputSplitWithIndex =>
+                  split.getSplitIndex
+                case split: RowRangeInputSplit =>
+                  split.getRowRange.getStartIndex
+                case _ => 0
+              }
+              val sessionId = odpsScanPartition.inputSplit.getSessionId
+              logError(s"Partition reader $splitIndex for session $sessionId " +
+                s"encountered failure ${cause.getMessage}")
+              if (!loadData) {
+                if (arrowReader != null) {
+                  arrowReader.close()
+                }
+                arrowReader = odpsScanPartition.scan
+                  .createArrowReader(odpsScanPartition.inputSplit, readerOptions)
+                if (!arrowReader.hasNext) {
+                  false
+                } else {
+                  updateColumnBatch(arrowReader.get())
+                  loadData = true
+                  true
+                }
+              } else {
+                throw cause
+              }
           }
         }
       }

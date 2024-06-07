@@ -57,7 +57,7 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                                        ArrowOptions arrowOptions,
                                        EnvironmentSettings settings) throws IOException {
         super(identifier, includedPartitions, requiredDataColumns,
-                requiredPartitionColumns, bucketIds, splitOptions, arrowOptions, settings);
+                requiredPartitionColumns, bucketIds, splitOptions, arrowOptions, settings, null);
     }
 
     @Override

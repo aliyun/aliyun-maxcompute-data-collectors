@@ -109,18 +109,24 @@ case class OdpsScan(
       scanBuilder.requiredPartitions(selectedPartitions.toList.asJava)
     }
 
+    val odpsSplitMaxFileNum = catalog.odpsOptions.splitMaxFileNum
+    val splitOptionsBuilder = SplitOptions.newBuilder()
+    if (odpsSplitMaxFileNum > 0) {
+      splitOptionsBuilder.withMaxFileNum(odpsSplitMaxFileNum)
+    }
+
     val splitOptions = if (!emptyColumn) {
       if (catalog.odpsOptions.splitParallelism > 0) {
-        SplitOptions.newBuilder().SplitByParallelism(catalog.odpsOptions.splitParallelism).build()
+        splitOptionsBuilder.SplitByParallelism(catalog.odpsOptions.splitParallelism).build()
       } else {
         val rawSizePerCore = ((stats.getSizeInBytes / 1024 / 1024) /
           SparkContext.getActive.get.defaultParallelism) + 1
         val sizePerCore = math.max(math.min(rawSizePerCore, Int.MaxValue).toInt, 10)
         val splitSizeInMB = math.min(catalog.odpsOptions.splitSizeInMB, sizePerCore)
-        SplitOptions.newBuilder().SplitByByteSize(splitSizeInMB * 1024L * 1024L).build()
+        splitOptionsBuilder.SplitByByteSize(splitSizeInMB * 1024L * 1024L).build()
       }
     } else {
-      SplitOptions.newBuilder().SplitByRowOffset().build()
+      splitOptionsBuilder.SplitByRowOffset().build()
     }
 
     scanBuilder.withSplitOptions(splitOptions)

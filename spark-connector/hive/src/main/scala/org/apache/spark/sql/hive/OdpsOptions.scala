@@ -130,6 +130,10 @@ private[spark] object OdpsOptions extends Logging {
     .intConf
     .createWithDefault(20000)
 
+  val ODPS_SPLIT_MAX_FILE_NUM = buildConf("spark.sql.odps.split.maxFileNum")
+    .intConf
+    .createWithDefault(0)
+
   def odpsMetaCacheSize(conf: SQLConf): Int = {
     conf.getConf(ODPS_META_CACHE_SIZE)
   }
@@ -216,5 +220,9 @@ private[spark] object OdpsOptions extends Logging {
 
   def odpsWriterMaxBlocks(conf: SQLConf): Int = {
     conf.getConf(ODPS_WRITER_MAX_BLOCKS)
+  }
+
+  def odpsSplitMaxFileNum(conf: SQLConf): Int = {
+    conf.getConf(ODPS_SPLIT_MAX_FILE_NUM)
   }
 }

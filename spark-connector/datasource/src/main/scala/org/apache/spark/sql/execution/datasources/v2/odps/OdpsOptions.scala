@@ -92,6 +92,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val writerMaxBlocks =  parameters.getOrElse(ODPS_WRITER_MAX_BLOCKS, "20000").toInt
 
   val splitSessionParallelism = parameters.getOrElse(ODPS_SPLIT_SESSION_PARALLELISM, "1").toInt
+
+  val splitMaxFileNum = parameters.getOrElse(ODPS_SPLIT_MAX_FILE_NUM, "0").toInt
 }
 
 object OdpsOptions {
@@ -131,4 +133,6 @@ object OdpsOptions {
   val ODPS_WRITER_MAX_BLOCKS = newOption("writerBlocks")
 
   val ODPS_SPLIT_SESSION_PARALLELISM = newOption("splitSessionParallelism")
+
+  val ODPS_SPLIT_MAX_FILE_NUM = newOption("splitMaxFileNum")
 }

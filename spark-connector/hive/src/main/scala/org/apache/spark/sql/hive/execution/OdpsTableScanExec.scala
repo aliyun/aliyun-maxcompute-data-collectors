@@ -19,7 +19,6 @@ package org.apache.spark.sql.hive.execution
 
 import java.util.concurrent.TimeUnit._
 import java.util.concurrent.Executors.newFixedThreadPool
-
 import com.aliyun.odps.table.TableIdentifier
 import com.aliyun.odps.table.configuration.ArrowOptions.TimestampUnit
 import com.aliyun.odps.table.configuration.{ArrowOptions, SplitOptions}
@@ -43,11 +42,8 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.{SerializableConfiguration, Utils}
-import org.apache.spark.sql.odps.OdpsEmptyColumnPartition
-import org.apache.spark.sql.odps.OdpsScanPartition
-import org.apache.spark.sql.odps.OdpsPartitionReaderFactory
+import org.apache.spark.sql.odps.{OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition, OdpsUtils}
 import org.apache.spark.sql.odps.vectorized.OdpsArrowColumnVector
-import org.apache.spark.sql.odps.OdpsClient
 import org.apache.spark.sql.hive.OdpsOptions
 import org.apache.spark.util.ThreadUtils
 
@@ -218,14 +214,20 @@ case class OdpsTableScanExec(
 
     val readSizeInBytes = relation.tableMeta.stats.get.sizeInBytes.longValue
 
+    val odpsSplitMaxFileNum = OdpsOptions.odpsSplitMaxFileNum(conf)
+    val splitOptionsBuilder = SplitOptions.newBuilder()
+    if (odpsSplitMaxFileNum > 0) {
+      splitOptionsBuilder.withMaxFileNum(odpsSplitMaxFileNum)
+    }
+
     val splitOptions = if (!emptyColumn) {
       val rawSizePerCore = ((readSizeInBytes / 1024 / 1024) /
         SparkContext.getActive.get.defaultParallelism) + 1
       val sizePerCore = math.max(math.min(rawSizePerCore, Int.MaxValue).toInt, 10)
       val splitSizeInMB = math.min(OdpsOptions.odpsSplitSize(conf), sizePerCore)
-      SplitOptions.newBuilder().SplitByByteSize(splitSizeInMB * 1024L * 1024L).build()
+      splitOptionsBuilder.SplitByByteSize(splitSizeInMB * 1024L * 1024L).build()
     } else {
-      SplitOptions.newBuilder().SplitByRowOffset().build()
+      splitOptionsBuilder.SplitByRowOffset().build()
     }
 
     scanBuilder.withSplitOptions(splitOptions)

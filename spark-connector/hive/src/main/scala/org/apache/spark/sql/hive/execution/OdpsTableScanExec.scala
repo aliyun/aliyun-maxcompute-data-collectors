@@ -22,6 +22,7 @@ import java.util.concurrent.Executors.newFixedThreadPool
 import com.aliyun.odps.table.TableIdentifier
 import com.aliyun.odps.table.configuration.ArrowOptions.TimestampUnit
 import com.aliyun.odps.table.configuration.{ArrowOptions, SplitOptions}
+import com.aliyun.odps.table.optimizer.predicate.{Predicate => OdpsPredicate}
 import com.aliyun.odps.table.read.{TableBatchReadSession, TableReadSessionBuilder}
 import com.aliyun.odps.{OdpsException, PartitionSpec}
 import org.apache.commons.lang3.StringUtils
@@ -172,7 +173,8 @@ case class OdpsTableScanExec(
   private var metadataTime = 0L
 
   private def createTableScan(emptyColumn: Boolean,
-                              selectedPartitions: Array[CatalogTablePartition]): TableBatchReadSession = {
+                              selectedPartitions: Array[CatalogTablePartition],
+                              predicate: OdpsPredicate): TableBatchReadSession = {
     val project = relation.tableMeta.database
     val table = relation.tableMeta.identifier.table
     // TODO: support three tier model
@@ -235,7 +237,7 @@ case class OdpsTableScanExec(
         .withDatetimeUnit(TimestampUnit.MILLI)
         .withTimestampUnit(TimestampUnit.MICRO).build())
 
-    val scan = scanBuilder.buildBatchReadSession
+    val scan = scanBuilder.withFilterPredicate(predicate).buildBatchReadSession
     logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
     scan
   }
@@ -250,6 +252,13 @@ case class OdpsTableScanExec(
       if (readDataSchema.isEmpty && readPartitionSchema.isEmpty) true else false
 
     if (!emptyColumn) {
+      val predicate = if (OdpsOptions.odpsFilterPushDown(conf)) {
+        ExecutionUtils.convertToOdpsPredicate(pushedDownFilters)
+      } else {
+        OdpsPredicate.NO_PREDICATE
+      }
+      logInfo(s"Try to push down predicate ${predicate}")
+
       if (relation.partitionCols.nonEmpty) {
         val partSplits = collection.mutable.Map[Int, ArrayBuffer[CatalogTablePartition]]()
         val splitPar = OdpsOptions.odpsSplitSessionParallelism(conf)
@@ -269,7 +278,7 @@ case class OdpsTableScanExec(
 
         val future = Future.sequence(partSplits.keys.map(key =>
           Future[Array[InputPartition]] {
-            val scan = createTableScan(emptyColumn, partSplits(key).toArray)
+            val scan = createTableScan(emptyColumn, partSplits(key).toArray, predicate)
             scan.getInputSplitAssigner.getAllSplits
               .map(split => OdpsScanPartition(split, scan))
           }(executionContext)
@@ -277,15 +286,15 @@ case class OdpsTableScanExec(
         val futureResults = ThreadUtils.awaitResult(future, Duration(15, MINUTES))
         futureResults.flatten.toArray
       } else {
-        val scan = createTableScan(emptyColumn, Array.empty)
+        val scan = createTableScan(emptyColumn, Array.empty, predicate)
         scan.getInputSplitAssigner.getAllSplits
           .map(split => OdpsScanPartition(split, scan))
       }
     } else {
       val scan = if (relation.partitionCols.nonEmpty) {
-        createTableScan(emptyColumn, dynamicallySelectedPartitions)
+        createTableScan(emptyColumn, dynamicallySelectedPartitions, OdpsPredicate.NO_PREDICATE)
       } else {
-        createTableScan(emptyColumn, Array.empty)
+        createTableScan(emptyColumn, Array.empty, OdpsPredicate.NO_PREDICATE)
       }
       Array(OdpsEmptyColumnPartition(scan.getInputSplitAssigner.getTotalRowCount))
     }

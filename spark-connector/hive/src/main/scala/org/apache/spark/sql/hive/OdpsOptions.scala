@@ -134,6 +134,11 @@ private[spark] object OdpsOptions extends Logging {
     .intConf
     .createWithDefault(0)
 
+  val ODPS_FILTER_PUSHDOWN_ENABLED = buildConf("spark.sql.odps.filterPushdown.enabled")
+    .doc("When true, enable filter pushdown to ODPS datasource.")
+    .booleanConf
+    .createWithDefault(false)
+
   def odpsMetaCacheSize(conf: SQLConf): Int = {
     conf.getConf(ODPS_META_CACHE_SIZE)
   }
@@ -224,5 +229,9 @@ private[spark] object OdpsOptions extends Logging {
 
   def odpsSplitMaxFileNum(conf: SQLConf): Int = {
     conf.getConf(ODPS_SPLIT_MAX_FILE_NUM)
+  }
+
+  def odpsFilterPushDown(conf: SQLConf): Boolean = {
+    conf.getConf(ODPS_FILTER_PUSHDOWN_ENABLED)
   }
 }

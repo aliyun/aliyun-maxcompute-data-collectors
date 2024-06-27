@@ -21,7 +21,7 @@ object ExecutionUtils {
     case EqualTo(attribute, value) => BinaryPredicate.equals(Constant.of(attribute), Constant.of(value))
     case GreaterThan(attribute, value) => BinaryPredicate.greaterThan(Constant.of(attribute), Constant.of(value))
     case LessThan(attribute, value) => BinaryPredicate.lessThan(Constant.of(attribute), Constant.of(value))
-    case In(attribute, values) => InPredicate.in(Constant.of(attribute), util.Arrays.asList(values.map(Constant.of)))
+    case In(attribute, values) => InPredicate.in(Constant.of(attribute), values.map(Constant.of).toList.asJava.asInstanceOf[java.util.List[java.io.Serializable]])
     case IsNull(attribute) => UnaryPredicate.isNull(Constant.of(attribute))
     case IsNotNull(attribute) => UnaryPredicate.notNull(Constant.of(attribute))
     case And(left, right) => CompoundPredicate.and(convertToOdpsPredicate(left), convertToOdpsPredicate(right))

@@ -111,15 +111,18 @@ private[spark] object OdpsOptions extends Logging {
     .intConf
     .createWithDefault(10000)
 
-  val ODPS_TABLE_BUFFERED_READER_ENABLE = buildConf("spark.sql.odps.enableBufferedReader")
-    .doc("Enable odps buffered reader.")
-    .booleanConf
-    .createWithDefault(true)
-
   val ODPS_TABLE_ASYNC_READ_ENABLE = buildConf("spark.sql.odps.enableAsyncRead")
     .doc("Enable async read.")
     .booleanConf
-    .createWithDefault(true)
+    .createWithDefault(false)
+
+  val ODPS_ASYNC_QUEUE_SIZE = buildConf("spark.sql.odps.async.queue.size")
+    .intConf
+    .createWithDefault(8)
+
+  val ODPS_ASYNC_WAIT_TIME = buildConf("spark.sql.odps.async.wait.time")
+    .timeConf(TimeUnit.SECONDS)
+    .createWithDefault(60)
 
   val ODPS_TABLE_BUFFERED_WRITER_ENABLE = buildConf("spark.sql.odps.enableBufferedWriter")
     .doc("Enable odps buffered writer.")
@@ -211,12 +214,16 @@ private[spark] object OdpsOptions extends Logging {
     conf.getConf(ODPS_WRITER_RETRY_SLEEP_INTERVALS)
   }
 
-  def odpsTableBufferedReaderEnable(conf: SQLConf): Boolean = {
-    conf.getConf(ODPS_TABLE_BUFFERED_READER_ENABLE)
-  }
-
   def odpsTableAsyncReadEnable(conf: SQLConf): Boolean = {
     conf.getConf(ODPS_TABLE_ASYNC_READ_ENABLE)
+  }
+
+  def odpsTableAsyncQueueSize(conf: SQLConf): Int = {
+    conf.getConf(ODPS_ASYNC_QUEUE_SIZE)
+  }
+
+  def odpsTableAsyncWaitTime(conf: SQLConf): Long = {
+    conf.getConf(ODPS_ASYNC_WAIT_TIME) *  1000L
   }
 
   def odpsTableBufferedWriterEnable(conf: SQLConf): Boolean = {

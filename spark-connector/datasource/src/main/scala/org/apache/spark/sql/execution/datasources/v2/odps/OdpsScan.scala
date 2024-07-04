@@ -228,13 +228,16 @@ case class OdpsScan(
       new SerializableConfiguration(hadoopConf))
     OdpsPartitionReaderFactory(
       broadcastedConf,
-      readDataSchema, readPartitionSchema,
+      readDataSchema,
+      readPartitionSchema,
       catalog.odpsOptions.enableVectorizedReader,
       catalog.odpsOptions.columnarReaderBatchSize,
       catalog.odpsOptions.enableReuseBatch,
       catalog.odpsOptions.odpsTableCompressionCodec,
-      false,
-      false)
+      catalog.odpsOptions.asyncReadEnable,
+      catalog.odpsOptions.asyncReadQueueSize,
+      catalog.odpsOptions.asyncReadWaitTime
+    )
   }
 
   override def estimateStatistics(): Statistics = new Statistics {

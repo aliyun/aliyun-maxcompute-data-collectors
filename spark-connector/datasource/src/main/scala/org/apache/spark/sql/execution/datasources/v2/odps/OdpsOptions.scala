@@ -96,6 +96,12 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val splitMaxFileNum = parameters.getOrElse(ODPS_SPLIT_MAX_FILE_NUM, "0").toInt
 
   val filterPushDown =  parameters.getOrElse(ODPS_FILTER_PUSH_DOWN, "false").toBoolean
+
+  val asyncReadEnable =  parameters.getOrElse(ODPS_TABLE_ASYNC_READ_ENABLE, "false").toBoolean
+
+  val asyncReadQueueSize =  parameters.getOrElse(ODPS_ASYNC_QUEUE_SIZE, "8").toInt
+
+  val asyncReadWaitTime = parameters.getOrElse(ODPS_ASYNC_WAIT_TIME, "60").toLong * 1000L
 }
 
 object OdpsOptions {
@@ -139,4 +145,8 @@ object OdpsOptions {
   val ODPS_SPLIT_MAX_FILE_NUM = newOption("splitMaxFileNum")
 
   val ODPS_FILTER_PUSH_DOWN = newOption("enableFilterPushDown")
+
+  val ODPS_TABLE_ASYNC_READ_ENABLE = newOption("enableAsyncRead")
+  val ODPS_ASYNC_QUEUE_SIZE = newOption("asyncQueueSize")
+  val ODPS_ASYNC_WAIT_TIME = newOption("asyncWaitTime")
 }

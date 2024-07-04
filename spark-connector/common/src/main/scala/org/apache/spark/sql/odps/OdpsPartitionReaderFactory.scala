@@ -55,8 +55,9 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
                                       batchSize: Int,
                                       reusedBatchEnable: Boolean,
                                       compressionCodec: String,
-                                      bufferedReaderEnable: Boolean,
-                                      asyncRead: Boolean)
+                                      asyncRead: Boolean,
+                                      asyncReadQueueSize: Int,
+                                      asyncReadWaitTime: Long)
   extends PartitionReaderFactory with Logging {
 
   private val output = readDataSchema.toAttributes ++ readPartitionSchema.toAttributes
@@ -197,7 +198,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     // TODO: bearer token refresh
     val settings = OdpsClient.builder.config(conf).getOrCreate.getEnvironmentSettings
 
-    val reusedBatch = if (bufferedReaderEnable) false else reusedBatchEnable
+    val reusedBatch = if (asyncRead) false else reusedBatchEnable
     val odpsScanPartition = partition.asInstanceOf[OdpsScanPartition]
     val readerOptions = ReaderOptions.newBuilder()
       .withMaxBatchRowCount(batchSize)
@@ -211,39 +212,29 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     val schema = odpsScanPartition.scan.readSchema
 
     var inputBytes = 0L
-    val queueForVisit = new mutable.Queue[VectorSchemaRoot]
     var executor : ExecutorService = null
-    val asyncQueueForVisit = new LinkedBlockingDeque[Object]()
+    val asyncQueueForVisit = new DataQueue(asyncReadQueueSize, asyncReadWaitTime)
     val DONE_SENTINEL = new Object
 
-    if (bufferedReaderEnable) {
-      if (asyncRead) {
-        executor = Executors.newSingleThreadExecutor
-        executor.submit(new Runnable() {
-          override def run(): Unit = {
-            try {
-              while (arrowReader.hasNext) {
-                asyncQueueForVisit.add(arrowReader.get)
-              }
-              asyncQueueForVisit.add(DONE_SENTINEL)
-
-              arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
-                inputBytes = c.getCount)
-              arrowReader.close()
-            } catch {
-              case cause: Throwable =>
-                asyncQueueForVisit.add(cause)
+    if (asyncRead) {
+      executor = Executors.newSingleThreadExecutor
+      executor.submit(new Runnable() {
+        override def run(): Unit = {
+          try {
+            while (arrowReader.hasNext) {
+              asyncQueueForVisit.put(arrowReader.get)
             }
+            asyncQueueForVisit.put(DONE_SENTINEL)
+
+            arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
+              inputBytes = c.getCount)
+            arrowReader.close()
+          } catch {
+            case cause: Throwable =>
+              asyncQueueForVisit.put(cause)
           }
-        })
-      } else {
-        while (arrowReader.hasNext) {
-          queueForVisit.enqueue(arrowReader.get)
         }
-        arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
-          inputBytes = c.getCount)
-        arrowReader.close()
-      }
+      })
     }
 
     new PartitionReader[ColumnarBatch] {
@@ -276,25 +267,16 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       }
 
       override def next(): Boolean = {
-        if (bufferedReaderEnable) {
-          if (asyncRead) {
-            val nextObject = asyncQueueForVisit.take
-            if (nextObject == DONE_SENTINEL) {
-              false
-            } else nextObject match {
-              case t: Throwable =>
-                throw new IOException(t)
-              case _ =>
-                updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
-                true
-            }
-          } else {
-            if (queueForVisit.nonEmpty) {
-              updateColumnBatch(queueForVisit.dequeue)
+        if (asyncRead) {
+          val nextObject = asyncQueueForVisit.take()
+          if (nextObject == DONE_SENTINEL) {
+            false
+          } else nextObject match {
+            case t: Throwable =>
+              throw new IOException(t)
+            case _ =>
+              updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
               true
-            } else {
-              false
-            }
           }
         } else {
           try {
@@ -344,7 +326,7 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
           columnarBatch.close()
         }
 
-        if (!bufferedReaderEnable) {
+        if (!asyncRead) {
           arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
             inputBytes = c.getCount)
           arrowReader.close()
@@ -355,6 +337,15 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
 
         if (executor != null) {
           executor.shutdown()
+
+          while (!asyncQueueForVisit.isEmpty) {
+            val data = asyncQueueForVisit.take()
+            data match {
+              case root: VectorSchemaRoot =>
+                root.close()
+              case _ =>
+            }
+          }
         }
       }
     }
@@ -364,5 +355,36 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     supportColumnarRead &&
       partition.isInstanceOf[OdpsScanPartition] &&
       partition.asInstanceOf[OdpsScanPartition].scan.supportsDataFormat(arrowDataFormat)
+  }
+
+  class DataQueue(maxSize: Int, maxWaitTime: Long) {
+    private val queue = mutable.Queue[Object]()
+    private val lock = new Object
+
+    def isEmpty: Boolean = lock.synchronized {
+      queue.isEmpty
+    }
+
+    def isFull: Boolean = lock.synchronized {
+      queue.size >= maxSize
+    }
+
+    def put(item: Object): Unit = lock.synchronized {
+      if (maxSize > 0 && isFull) {
+        lock.wait(maxWaitTime)
+      }
+      queue.enqueue(item)
+      lock.notifyAll()
+    }
+
+    def take(): Object = lock.synchronized {
+      while (isEmpty) {
+        lock.notifyAll()
+        lock.wait()
+      }
+      val item = queue.dequeue()
+      lock.notifyAll()
+      item
+    }
   }
 }

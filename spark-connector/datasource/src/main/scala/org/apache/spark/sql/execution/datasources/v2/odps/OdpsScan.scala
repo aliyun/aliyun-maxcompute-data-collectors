@@ -21,16 +21,16 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 import java.util.OptionalLong
 import java.util.concurrent.Executors.newFixedThreadPool
 import java.util.concurrent.TimeUnit.MINUTES
-
 import com.aliyun.odps.table.TableIdentifier
 import com.aliyun.odps.table.configuration.ArrowOptions.TimestampUnit
 import com.aliyun.odps.table.configuration.{ArrowOptions, SplitOptions}
+import com.aliyun.odps.table.optimizer.predicate.Predicate
 import com.aliyun.odps.table.read.{TableBatchReadSession, TableReadSessionBuilder}
 
 import scala.collection.JavaConverters._
 import com.aliyun.odps.{OdpsException, PartitionSpec}
-import java.util.concurrent.ThreadFactory
 
+import java.util.concurrent.ThreadFactory
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.Configuration
@@ -43,11 +43,8 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.{SerializableConfiguration, ThreadUtils, Utils}
-import org.apache.spark.sql.odps.bucket.OdpsDefaultHasher
-import org.apache.spark.sql.odps.catalyst.expressions.OdpsHashFunction
-import org.apache.spark.sql.odps.{OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition}
+import org.apache.spark.sql.odps.{ExecutionUtils, OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition}
 import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.VIRTUAL_VIEW
-import org.apache.spark.sql.sources.EqualTo
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -66,7 +63,7 @@ case class OdpsScan(
                      readDataSchema: StructType,
                      readPartitionSchema: StructType,
                      partitionFilters: Array[Filter],
-                     bucketFilters: Array[Filter],
+                     dataFilters: Array[Filter],
                      stats: OdpsStatistics)
   extends Scan
     with Batch
@@ -82,7 +79,7 @@ case class OdpsScan(
   private lazy val partitions = createPartitions()
 
   private def createTableScan(emptyColumn: Boolean,
-                              bucketIds: Seq[Integer],
+                              predicate: Predicate,
                               selectedPartitions: Seq[PartitionSpec]): TableBatchReadSession = {
     val project = catalogTable.tableIdent.namespace.head
     val table = catalogTable.tableIdent.name
@@ -100,10 +97,6 @@ case class OdpsScan(
       .requiredPartitionColumns(requiredPartitionSchema)
       .withSettings(settings)
       .withSessionProvider(provider)
-
-    if (bucketIds.nonEmpty) {
-      scanBuilder.requiredBucketIds(bucketIds.asJava)
-    }
 
     if (partitionSchema.nonEmpty && selectedPartitions.nonEmpty) {
       scanBuilder.requiredPartitions(selectedPartitions.toList.asJava)
@@ -134,7 +127,7 @@ case class OdpsScan(
         .withDatetimeUnit(TimestampUnit.MILLI)
         .withTimestampUnit(TimestampUnit.MICRO).build())
 
-    val scan = scanBuilder.buildBatchReadSession
+    val scan = scanBuilder.withFilterPredicate(predicate).buildBatchReadSession
     logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
     scan
   }
@@ -148,25 +141,6 @@ case class OdpsScan(
 
     val emptyColumn =
       if (readDataSchema.isEmpty && readPartitionSchema.isEmpty) true else false
-
-    val bucketIds: Seq[Integer] =
-      if (bucketFilters.nonEmpty) {
-        try {
-          val hashVals = bucketFilters.map { predicate =>
-            val dataType = dataSchema.fields(dataSchema.fieldIndex(predicate.asInstanceOf[EqualTo].attribute)).dataType
-            OdpsHashFunction.hash(predicate.asInstanceOf[EqualTo].value, dataType, 0).toInt
-          }
-          val bucketId =
-            OdpsDefaultHasher.CombineHashVal(hashVals) % catalogTable.bucketSpec.get.numBuckets
-          Seq(bucketId)
-        } catch {
-          case e: Exception =>
-            logInfo("unsupported type, fallback to non-bucketing", e)
-            Nil
-        }
-      } else {
-        Nil
-      }
 
     val selectedPartitions: Seq[PartitionSpec] =
       if (partitionSchema.nonEmpty) {
@@ -198,6 +172,13 @@ case class OdpsScan(
       }
 
     if (!emptyColumn) {
+      val predicate = if (catalog.odpsOptions.filterPushDown) {
+        ExecutionUtils.convertToOdpsPredicate(dataFilters)
+      } else {
+        Predicate.NO_PREDICATE
+      }
+      logInfo(s"Try to push down predicate ${predicate}")
+
       if (partitionSchema.nonEmpty) {
         val partSplits = collection.mutable.Map[Int, ArrayBuffer[PartitionSpec]]()
         val splitPar = catalog.odpsOptions.splitSessionParallelism
@@ -217,7 +198,7 @@ case class OdpsScan(
 
         val future = Future.sequence(partSplits.keys.map(key =>
           Future[Array[InputPartition]] {
-            val scan = createTableScan(emptyColumn, bucketIds, partSplits(key))
+            val scan = createTableScan(emptyColumn, predicate, partSplits(key))
             scan.getInputSplitAssigner.getAllSplits
               .map(split => OdpsScanPartition(split, scan))
           }(executionContext)
@@ -225,15 +206,15 @@ case class OdpsScan(
         val futureResults = ThreadUtils.awaitResult(future, Duration(15, MINUTES))
         futureResults.flatten.toArray
       } else {
-        val scan = createTableScan(emptyColumn, bucketIds, Nil)
+        val scan = createTableScan(emptyColumn, predicate, Nil)
         scan.getInputSplitAssigner.getAllSplits
           .map(split => OdpsScanPartition(split, scan))
       }
     } else {
       val scan = if (partitionSchema.nonEmpty) {
-        createTableScan(emptyColumn, bucketIds, selectedPartitions)
+        createTableScan(emptyColumn, Predicate.NO_PREDICATE, selectedPartitions)
       } else {
-        createTableScan(emptyColumn, bucketIds, Nil)
+        createTableScan(emptyColumn, Predicate.NO_PREDICATE, Nil)
       }
 
       Array(OdpsEmptyColumnPartition(scan.getInputSplitAssigner.getTotalRowCount))
@@ -288,14 +269,14 @@ case class OdpsScan(
       "ReadDataSchema" -> readDataSchema.catalogString,
       "ReadPartitionSchema" -> readPartitionSchema.catalogString,
       "PartitionFilters" -> seqToString(partitionFilters),
-      "DataFilters" -> seqToString(Nil))
+      "DataFilters" -> seqToString(dataFilters))
   }
 
   private def seqToString(seq: Seq[Any]): String = seq.mkString("[", ", ", "]")
 
   override def equals(obj: Any): Boolean = obj match {
     case f: OdpsScan =>
-      tableIdent == f.tableIdent && readSchema == f.readSchema && equivalentFilters(partitionFilters, f.partitionFilters)
+      tableIdent == f.tableIdent && readSchema == f.readSchema && equivalentFilters(partitionFilters, f.partitionFilters) && equivalentFilters(dataFilters, f.dataFilters)
     case _ => false
   }
 

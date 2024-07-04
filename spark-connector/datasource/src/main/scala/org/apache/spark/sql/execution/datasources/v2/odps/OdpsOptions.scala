@@ -94,6 +94,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val splitSessionParallelism = parameters.getOrElse(ODPS_SPLIT_SESSION_PARALLELISM, "1").toInt
 
   val splitMaxFileNum = parameters.getOrElse(ODPS_SPLIT_MAX_FILE_NUM, "0").toInt
+
+  val filterPushDown =  parameters.getOrElse(ODPS_FILTER_PUSH_DOWN, "false").toBoolean
 }
 
 object OdpsOptions {
@@ -135,4 +137,6 @@ object OdpsOptions {
   val ODPS_SPLIT_SESSION_PARALLELISM = newOption("splitSessionParallelism")
 
   val ODPS_SPLIT_MAX_FILE_NUM = newOption("splitMaxFileNum")
+
+  val ODPS_FILTER_PUSH_DOWN = newOption("enableFilterPushDown")
 }

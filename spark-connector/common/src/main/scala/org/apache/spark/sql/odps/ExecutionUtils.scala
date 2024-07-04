@@ -1,10 +1,9 @@
-package org.apache.spark.sql.hive.execution
+package org.apache.spark.sql.odps
 
 import com.aliyun.odps.table.optimizer.predicate.CompoundPredicate.Operator
 import com.aliyun.odps.table.optimizer.predicate._
 import org.apache.spark.sql.sources._
 
-import java.util
 import scala.collection.JavaConverters.seqAsJavaListConverter
 
 object ExecutionUtils {

@@ -43,7 +43,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.{SerializableConfiguration, Utils}
-import org.apache.spark.sql.odps.{OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition, OdpsUtils}
+import org.apache.spark.sql.odps.{ExecutionUtils, OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition, OdpsUtils}
 import org.apache.spark.sql.odps.vectorized.OdpsArrowColumnVector
 import org.apache.spark.sql.hive.OdpsOptions
 import org.apache.spark.util.ThreadUtils
@@ -192,13 +192,6 @@ case class OdpsTableScanExec(
       .requiredPartitionColumns(requiredPartitionSchema)
       .withSettings(settings)
       .withSessionProvider(provider)
-
-    // TODO: bucketIds
-    val bucketIds: Seq[Integer] = Nil
-
-    if (bucketIds.nonEmpty) {
-      scanBuilder.requiredBucketIds(bucketIds.asJava)
-    }
 
     if (relation.partitionCols.nonEmpty) {
       scanBuilder.requiredPartitions(selectedPartitions.map(partition => {

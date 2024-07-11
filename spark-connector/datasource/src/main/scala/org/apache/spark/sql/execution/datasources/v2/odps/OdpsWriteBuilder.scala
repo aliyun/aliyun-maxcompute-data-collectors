@@ -21,14 +21,13 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 import com.aliyun.odps.PartitionSpec
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import com.aliyun.odps.table.{DataFormat, TableIdentifier}
 import com.aliyun.odps.table.configuration.ArrowOptions
 import com.aliyun.odps.table.configuration.ArrowOptions.TimestampUnit
 import com.aliyun.odps.table.write.{TableBatchWriteSession, TableWriteCapabilities, TableWriteSessionBuilder}
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.annotation.{DeveloperApi, Experimental}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
-import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -44,6 +43,7 @@ import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.{EXTERNA
 import org.apache.spark.sql.odps.{OdpsClient, OdpsWriteJobStatsTracker, WriteJobDescription}
 import org.apache.spark.util.SerializableConfiguration
 
+@Experimental
 case class OdpsWriteBuilder(
                              catalog: OdpsTableCatalog,
                              catalogTable: OdpsTable,

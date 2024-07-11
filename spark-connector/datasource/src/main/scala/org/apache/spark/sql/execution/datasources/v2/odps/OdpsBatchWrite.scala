@@ -21,6 +21,7 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 import com.aliyun.odps.table.write
 import com.aliyun.odps.table.write.TableBatchWriteSession
 import com.aliyun.odps.task.SQLTask
+import org.apache.spark.annotation.Experimental
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.write.{BatchWrite, DataWriterFactory, PhysicalWriteInfo, WriterCommitMessage}
@@ -30,6 +31,7 @@ import org.apache.spark.util.Utils
 
 import scala.collection.JavaConverters._
 
+@Experimental
 class OdpsBatchWrite(
                       catalog: OdpsTableCatalog,
                       tableIdent: Identifier,

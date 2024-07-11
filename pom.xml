@@ -18,34 +18,7 @@
     <version>2.0.5</version>
     <packaging>pom</packaging>
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>com.aliyun.odps</groupId>
-                <artifactId>odps-sdk-core</artifactId>
-                <version>0.26.2-public</version>
-            </dependency>
-            
-            <dependency>
-			    <groupId>com.aliyun.datahub</groupId>
-			    <artifactId>aliyun-sdk-datahub</artifactId>
-			    <version>2.3.0-public</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <modules>
-        <module>flume-plugin</module>
-        <module>kettle-plugin</module>
-        <module>ogg-plugin</module>
-        <module>odps-sqoop</module>
-        <module>common</module>
-        <module>presto-connector</module>
-        <module>cupid-table-api</module>
-        <module>table-api-tunnel-impl</module>
-        <module>flink-connector-odps</module>
-        <module>trino-connector</module>
-        <module>spark-datasource-v3.3</module>
         <module>spark-connector</module>
     </modules>
 
@@ -56,8 +29,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.8</source>
+                    <target>1.8</target>
                     <encoding>UTF-8</encoding>
                     <optimize>true</optimize>
                     <debug>true</debug>

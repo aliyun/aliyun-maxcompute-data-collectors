@@ -29,7 +29,6 @@ import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.catalog.TableCapability._
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.connector.read.ScanBuilder
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
 import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.AnalysisException
@@ -87,7 +86,7 @@ case class OdpsTable(
     stats: OdpsStatistics,
     bucketSpec: Option[OdpsBucketSpec] = None,
     viewText: Option[String] = None)
-  extends SupportsPartitionManagement with SupportsRead with SupportsWrite {
+  extends SupportsPartitionManagement with SupportsRead {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
   import OdpsTableType._
@@ -138,11 +137,6 @@ case class OdpsTable(
     OdpsScanBuilder(catalog, this, tableIdent, dataSchema, partitionSchema, stats, options)
   }
 
-  override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
-    new OdpsWriteBuilder(catalog, this, tableIdent, dataSchema, partitionSchema,
-      catalog.odpsOptions, bucketSpec, info)
-  }
-
   private def convertToTablePartitionSpec(
       names: Array[String],
       ident: InternalRow): TablePartitionSpec =
@@ -155,5 +149,5 @@ case class OdpsTable(
 }
 
 object OdpsTable {
-  private val CAPABILITIES = Set(BATCH_READ, BATCH_WRITE, OVERWRITE_DYNAMIC).asJava
+  private val CAPABILITIES = Set(BATCH_READ).asJava
 }

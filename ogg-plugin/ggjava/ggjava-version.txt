@@ -1,2 +1,0 @@
-Oracle GoldenGate for Big Data
-Version 19.1.0.0.1 (Build 003)

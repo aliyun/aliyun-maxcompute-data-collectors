@@ -39,7 +39,11 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Random
 
-abstract class OdpsTableDataWriter[T: ClassTag](description: WriteJobDescription)
+abstract class OdpsTableDataWriter[T: ClassTag](
+                                                 description: WriteJobDescription,
+                                                 partitionId: Int,
+                                                 attemptNumber: Int,
+                                                 taskId: Long)
   extends org.apache.spark.sql.connector.write.DataWriter[InternalRow] with Logging {
 
   protected var commitMessages: mutable.Seq[OdpsWriterCommitMessage] =
@@ -74,6 +78,8 @@ abstract class OdpsTableDataWriter[T: ClassTag](description: WriteJobDescription
           arrowBatchWriter.writeBatch(currentWriter.asInstanceOf[BatchWriter[VectorSchemaRoot]], false)
         }
         currentWriter.close()
+        logInfo(s"Commit success for " +
+          s"partition $partitionId (task $taskId, attempt $attemptNumber)")
       } catch {
         case cause: Throwable =>
           currentWriter.abort()
@@ -168,6 +174,8 @@ abstract class OdpsTableDataWriter[T: ClassTag](description: WriteJobDescription
     if (currentWriter != null) {
       try {
         currentWriter.abort()
+        logInfo(s"Abort writer for " +
+          s"partition $partitionId (task $taskId, attempt $attemptNumber)")
       } finally {
         currentWriter = null
       }
@@ -190,7 +198,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
                                  partitionId: Int,
                                  attemptNumber: Int,
                                  taskId: Long)
-  extends OdpsTableDataWriter[VectorSchemaRoot](description) {
+  extends OdpsTableDataWriter[VectorSchemaRoot](description, partitionId, attemptNumber, taskId) {
 
   newFileWriter()
 
@@ -303,7 +311,7 @@ class SingleDirectoryRecordWriter(description: WriteJobDescription,
                                   partitionId: Int,
                                   attemptNumber: Int,
                                   taskId: Long)
-  extends OdpsTableDataWriter[ArrayRecord](description) {
+  extends OdpsTableDataWriter[ArrayRecord](description, partitionId, attemptNumber, taskId) {
 
   /** for record writer */
   private var dataTypes: Array[DataType] = _

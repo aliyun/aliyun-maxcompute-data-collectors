@@ -8,7 +8,7 @@ case class OdpsWriterFactory(
                               description: WriteJobDescription) extends DataWriterFactory {
 
   override def createWriter(partitionId: Int, taskId: Long): DataWriter[InternalRow] = {
-    val attemptNumber = TaskContext.get.attemptNumber()
+    val attemptNumber = (TaskContext.get.stageAttemptNumber << 16) | TaskContext.get.attemptNumber
     if (description.supportArrowWriter) {
       if (description.dynamicPartitionColumns.isEmpty) {
         new SingleDirectoryArrowWriter(description, partitionId, attemptNumber, taskId)

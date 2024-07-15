@@ -125,7 +125,7 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
     override def apply(plan: LogicalPlan): LogicalPlan = {
       plan.transform {
         case AppendData(
-          r @ DataSourceV2Relation(table: OdpsTable, _ , _, _, options), query, writeOptions, isByName, write)
+          r @ DataSourceV2Relation(table: OdpsTable, _ , _, _, options), query, writeOptions, isByName, write, analyzedQuery)
           if !writeOptions.contains(WRITE_ODPS_TABLE_RESOLVED) =>
             val newQuery = insertRepartition(query, table)
             var newOptions = writeOptions + Tuple2(WRITE_ODPS_TABLE_RESOLVED, "true")
@@ -133,7 +133,7 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
                 newOptions = newOptions +
                   Tuple2(WRITE_ODPS_STATIC_PARTITION, options.getOrDefault(WRITE_ODPS_STATIC_PARTITION, ""))
             }
-            AppendData(r, newQuery, newOptions, isByName, write)
+            AppendData(r, newQuery, newOptions, isByName, write, analyzedQuery)
 
         case OverwritePartitionsDynamic(
           r @ DataSourceV2Relation(table: OdpsTable, _, _, _, options), query, writeOptions, isByName, write)

@@ -19,9 +19,7 @@
 package org.apache.spark.sql.execution.datasources.v2.odps
 
 import java.util
-
 import scala.collection.JavaConverters._
-
 import org.apache.spark.sql.catalyst.{InternalRow, SQLConfHelper}
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
 import org.apache.spark.sql.catalyst.expressions.{BoundReference, Cast, GenericInternalRow}
@@ -32,6 +30,7 @@ import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
 
 case class OdpsTableType private(name: String)
 object OdpsTableType {
@@ -88,7 +87,7 @@ case class OdpsTable(
     viewText: Option[String] = None)
   extends SupportsPartitionManagement with SupportsRead {
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
   import OdpsTableType._
 
   override def name(): String = tableIdent.toString

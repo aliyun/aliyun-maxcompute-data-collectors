@@ -40,6 +40,7 @@ import org.apache.spark.sql.util.SchemaUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.execution.datasources.PartitioningUtils
 import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.{EXTERNAL_TABLE, VIRTUAL_VIEW}
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.odps.{OdpsClient, OdpsWriteJobStatsTracker, WriteJobDescription}
 import org.apache.spark.util.SerializableConfiguration
 
@@ -116,7 +117,7 @@ case class OdpsWriteBuilder(
 
     override def toBatch: BatchWrite = {
       val sparkSession = SparkSession.active
-      validateInputs(sparkSession.sessionState.conf.caseSensitiveAnalysis)
+      validateInputs(sparkSession.sessionState.conf)
       val caseSensitiveMap = options.asCaseSensitiveMap.asScala.toMap
       // Hadoop Configurations are case sensitive.
       val hadoopConf = sparkSession.sessionState.newHadoopConfWithOptions(caseSensitiveMap)
@@ -194,13 +195,13 @@ case class OdpsWriteBuilder(
     this
   }
 
-  private def validateInputs(caseSensitiveAnalysis: Boolean): Unit = {
+  private def validateInputs(sqlConf: SQLConf): Unit = {
+    val caseSensitiveAnalysis = sqlConf.caseSensitiveAnalysis
     assert(schema != null, "Missing input data schema")
     assert(queryId != null, "Missing query ID")
 
-    SchemaUtils.checkColumnNameDuplication(schema.fields.map(_.name),
-      s"when inserting into $tableIdent", caseSensitiveAnalysis)
-    DataSource.validateSchema(schema)
+    SchemaUtils.checkColumnNameDuplication(schema.fields.map(_.name), caseSensitiveAnalysis)
+    DataSource.validateSchema(schema, sqlConf)
   }
 
   private def createWriteJobDescription(sparkSession: SparkSession,

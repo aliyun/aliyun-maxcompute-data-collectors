@@ -26,9 +26,9 @@ object ExecutionUtils {
     case And(left, right) => CompoundPredicate.and(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Or(left, right) => CompoundPredicate.or(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Not(child) => CompoundPredicate.not(convertToOdpsPredicate(child))
-    case StringStartsWith(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of(value + '%'))
-    case StringEndsWith(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of('%' + value))
-    case StringContains(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of('%' + value + '%'))
+    case StringStartsWith(attribute, value) => BinaryPredicate.like(Attribute(attribute), Constant.of(value + '%'))
+    case StringEndsWith(attribute, value) => BinaryPredicate.like(Attribute(attribute), Constant.of('%' + value))
+    case StringContains(attribute, value) => BinaryPredicate.like(Attribute(attribute), Constant.of('%' + value + '%'))
     case _ => Predicate.NO_PREDICATE
   }
 

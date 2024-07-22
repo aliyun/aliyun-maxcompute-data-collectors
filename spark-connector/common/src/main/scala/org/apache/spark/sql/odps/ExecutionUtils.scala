@@ -19,16 +19,15 @@ object ExecutionUtils {
     case AlwaysFalse() => RawPredicate.of("true = false")
     case EqualTo(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of(value))
     case GreaterThan(attribute, value) => BinaryPredicate.greaterThan(Attribute(attribute), Constant.of(value))
+    case GreaterThanOrEqual(attribute, value) => BinaryPredicate.greaterThanOrEqual(Attribute(attribute), Constant.of(value))
     case LessThan(attribute, value) => BinaryPredicate.lessThan(Attribute(attribute), Constant.of(value))
+    case LessThanOrEqual(attribute, value) => BinaryPredicate.lessThanOrEqual(Attribute(attribute), Constant.of(value))
     case In(attribute, values) => InPredicate.in(Attribute(attribute), values.map(Constant.of).toList.asJava.asInstanceOf[java.util.List[java.io.Serializable]])
     case IsNull(attribute) => UnaryPredicate.isNull(Attribute(attribute))
     case IsNotNull(attribute) => UnaryPredicate.notNull(Attribute(attribute))
     case And(left, right) => CompoundPredicate.and(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Or(left, right) => CompoundPredicate.or(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Not(child) => CompoundPredicate.not(convertToOdpsPredicate(child))
-    case StringStartsWith(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of(value + '%'))
-    case StringEndsWith(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of('%' + value))
-    case StringContains(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of('%' + value + '%'))
     case _ => Predicate.NO_PREDICATE
   }
 

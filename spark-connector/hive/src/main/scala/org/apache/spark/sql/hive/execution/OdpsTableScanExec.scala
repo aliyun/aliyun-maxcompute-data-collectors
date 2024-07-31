@@ -209,20 +209,21 @@ case class OdpsTableScanExec(
 
     val readSizeInBytes = relation.tableMeta.stats.get.sizeInBytes.longValue
 
-    val odpsSplitMaxFileNum = OdpsOptions.odpsSplitMaxFileNum(conf)
-    val splitOptionsBuilder = SplitOptions.newBuilder()
-    if (odpsSplitMaxFileNum > 0) {
-      splitOptionsBuilder.withMaxFileNum(odpsSplitMaxFileNum)
-    }
-
-    val splitOptions = if (!emptyColumn) {
+    val splitOptionsBuilder = if (!emptyColumn) {
       val rawSizePerCore = ((readSizeInBytes / 1024 / 1024) /
         SparkContext.getActive.get.defaultParallelism) + 1
       val sizePerCore = math.max(math.min(rawSizePerCore, Int.MaxValue).toInt, 10)
       val splitSizeInMB = math.min(OdpsOptions.odpsSplitSize(conf), sizePerCore)
-      splitOptionsBuilder.SplitByByteSize(splitSizeInMB * 1024L * 1024L).build()
+      SplitOptions.newBuilder().SplitByByteSize(splitSizeInMB * 1024L * 1024L)
     } else {
-      splitOptionsBuilder.SplitByRowOffset().build()
+      SplitOptions.newBuilder().SplitByRowOffset()
+    }
+
+    val odpsSplitMaxFileNum = OdpsOptions.odpsSplitMaxFileNum(conf)
+    val splitOptions = if (odpsSplitMaxFileNum > 0) {
+      splitOptionsBuilder.withMaxFileNum(odpsSplitMaxFileNum).build()
+    } else {
+      splitOptionsBuilder.build()
     }
 
     scanBuilder.withSplitOptions(splitOptions)

@@ -189,7 +189,7 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                 }
 
                 this.sessionId = "";
-            } catch (OdpsException exception) {
+            } catch (Exception exception) {
                 throw new IOException(exception);
             }
         } else {

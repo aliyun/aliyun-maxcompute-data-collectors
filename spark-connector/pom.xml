@@ -21,8 +21,8 @@
     <packaging>pom</packaging>
     <properties>
         <arrow.version>4.0.0</arrow.version>
-        <odps.sdk.version>0.48.4-public</odps.sdk.version>
-        <odps.sdk.table.version>0.48.4-public</odps.sdk.table.version>
+        <odps.sdk.version>0.48.7-public</odps.sdk.version>
+        <odps.sdk.table.version>0.48.7-public</odps.sdk.table.version>
         <spark.version>3.3.1</spark.version>
         <scala.version>2.12.10</scala.version>
         <scala.binary.version>2.12</scala.binary.version>

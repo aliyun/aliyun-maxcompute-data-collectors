@@ -15,10 +15,14 @@ package com.aliyun.odps.cupid.trino;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
+import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.SchemaTableName;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
@@ -30,15 +34,19 @@ public class OdpsTableHandle
     private final String tableName;
     private final OdpsTable odpsTable;
 
+    private final List<OdpsColumnHandle> desiredColumns;
+
     @JsonCreator
     public OdpsTableHandle(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
-            @JsonProperty("odpsTable") OdpsTable odpsTable)
+            @JsonProperty("odpsTable") OdpsTable odpsTable,
+            @JsonProperty("desiredColumns") List<OdpsColumnHandle> desiredColumns)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.odpsTable = requireNonNull(odpsTable, "odpsTable is null");
+        this.desiredColumns = ImmutableList.copyOf(requireNonNull(desiredColumns, "desiredColumns is null"));
     }
 
     @JsonProperty
@@ -59,6 +67,11 @@ public class OdpsTableHandle
         return odpsTable;
     }
 
+    @JsonProperty
+    public List<OdpsColumnHandle> getDesiredColumns() {
+        return desiredColumns;
+    }
+
     public SchemaTableName getSchemaTableName()
     {
         return new SchemaTableName(schemaName, tableName);
@@ -72,7 +85,7 @@ public class OdpsTableHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaName, tableName);
+        return Objects.hash(schemaName, tableName, odpsTable, desiredColumns);
     }
 
     @Override
@@ -88,7 +101,8 @@ public class OdpsTableHandle
         OdpsTableHandle other = (OdpsTableHandle) obj;
         return  Objects.equals(this.schemaName, other.schemaName) &&
                 Objects.equals(this.tableName, other.tableName) &&
-                Objects.equals(this.odpsTable, other.odpsTable);
+                Objects.equals(this.odpsTable, other.odpsTable) &&
+                Objects.equals(this.desiredColumns, other.desiredColumns);
     }
 
     @Override

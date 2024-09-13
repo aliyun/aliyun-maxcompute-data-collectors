@@ -34,8 +34,7 @@ public class OdpsRecordSetProvider
     }
 
     @Override
-    public RecordSet getRecordSet(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorSplit split, List<? extends ColumnHandle> columns)
-    {
+    public RecordSet getRecordSet(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, ConnectorTableHandle table, List<? extends ColumnHandle> columns) {
         requireNonNull(split, "partitionChunk is null");
         OdpsSplit odpsSplit = (OdpsSplit) split;
         checkArgument(odpsSplit.getConnectorId().equals(connectorId), "split is not for this connector");

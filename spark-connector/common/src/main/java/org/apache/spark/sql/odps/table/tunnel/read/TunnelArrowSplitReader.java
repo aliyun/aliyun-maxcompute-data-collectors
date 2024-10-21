@@ -31,6 +31,7 @@ import com.aliyun.odps.table.read.SplitReader;
 import com.aliyun.odps.table.utils.SchemaUtils;
 import com.aliyun.odps.tunnel.TableTunnel;
 import com.aliyun.odps.tunnel.TunnelException;
+import com.aliyun.odps.tunnel.io.CompressOption;
 import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.spark.sql.odps.table.utils.TableUtils;
@@ -180,7 +181,7 @@ public class TunnelArrowSplitReader implements SplitReader<VectorSchemaRoot> {
                 } else {
                     session = tunnel.getDownloadSession(project, table, partitionSpec, downloadId);
                 }
-                this.reader = session.openArrowRecordReader(startIndex, numRecord, readDataColumns);
+                this.reader = session.openArrowRecordReader(startIndex, numRecord, readDataColumns, null,  new CompressOption(CompressOption.CompressAlgorithm.ODPS_RAW, 0, 0), true);
             } catch (TunnelException e) {
                 throw new IOException(e);
             }

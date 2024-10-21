@@ -11,7 +11,7 @@
 
     <groupId>com.aliyun.odps</groupId>
     <artifactId>spark-connector</artifactId>
-    <version>3.3.1-odps0.43.0</version>
+    <version>3.3.1-odps0.48.0</version>
     <modules>
         <module>common</module>
         <module>datasource</module>

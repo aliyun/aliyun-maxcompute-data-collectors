@@ -56,21 +56,6 @@ class ExecutionUtilsSuite extends AnyFunSuite {
   }
 
 
-  test("convertToOdpsPredicate should handle complex nested conditions correctly") {
-    val filters = Seq(
-      And(
-        Or(EqualTo("column1", "value"), StringStartsWith("column1", "pattern")),
-        And(GreaterThan("column2", 10), IsNotNull("column3"))
-      ),
-      StringStartsWith("column1", "pattern2"),
-      Or(GreaterThan("column3", 10), IsNotNull("column4"))
-    )
-
-    val result = ExecutionUtils.convertToOdpsPredicate(filters)
-
-    assert(result.toString === "`column2` > 10 and `column3` is not null and (`column3` > 10 or `column4` is not null)")
-  }
-
   test("convertToOdpsPredicate should handle multiple IsNull conditions correctly") {
     val filters = Seq(IsNull("column1"), IsNull("column2"))
     val result = ExecutionUtils.convertToOdpsPredicate(filters)
@@ -98,5 +83,58 @@ class ExecutionUtilsSuite extends AnyFunSuite {
     assert(result.toString === "((`column1` = 'value1' and `column2` > 10) or (`column1` = 'value2' and `column3` < 5))")
   }
 
+  test("convertToOdpsPredicate should handle unknown predicate correctly (known or unknown)") {
+    val filters = Seq(
+      And(
+        Or(EqualTo("column1", "value"), StringStartsWith("column1", "pattern")),
+        And(GreaterThan("column2", 10), IsNotNull("column3"))
+      ),
+      StringStartsWith("column1", "pattern2"),
+      Or(GreaterThan("column3", 10), IsNotNull("column4"))
+    )
+
+    val result = ExecutionUtils.convertToOdpsPredicate(filters)
+
+    assert(result.toString === "`column2` > 10 and `column3` is not null and (`column3` > 10 or `column4` is not null)")
+  }
+
+  test("convertToOdpsPredicate should handle unknown predicate correctly (Not(known and unknown))") {
+    val filters = Seq(
+      Not(
+        And(GreaterThan("column2", 10), StringStartsWith("column1", "str"))
+      ),
+      StringStartsWith("column1", "pattern2"),
+      Or(GreaterThan("column3", 10), IsNotNull("column4"))
+    )
+
+    val result = ExecutionUtils.convertToOdpsPredicate(filters)
+
+    assert(result.toString === "(`column3` > 10 or `column4` is not null)")
+  }
+
+  test("convertToOdpsPredicate should handle string correctly (escape)") {
+    val filters = Seq(
+      EqualTo("column2", "I'm fine.")
+    )
+
+    val result = ExecutionUtils.convertToOdpsPredicate(filters)
+    println(result)
+
+    assert(result.toString === "`column2` = 'I\\'m fine.'")
+  }
+
+  test("convertToOdpsPredicate should handle timestamp correctly (fallback to unknown)") {
+    val filters = Seq(
+      Not(
+        And(GreaterThan("column2", 10), StringStartsWith("column1", "str"))
+      ),
+      StringStartsWith("column1", "pattern2"),
+      Or(GreaterThan("column3", 10), IsNotNull("column4"))
+    )
+
+    val result = ExecutionUtils.convertToOdpsPredicate(filters)
+
+    assert(result.toString === "(`column3` > 10 or `column4` is not null)")
+  }
 }
 

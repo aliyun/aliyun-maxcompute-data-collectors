@@ -386,7 +386,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
       val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
       val partitionSchema = getPartitionSchema(sdkTable)
       val partitionSpecs =
-        sdkTable.getPartitions.asScala.map(p => convertToTablePartitionSpec(p.getPartitionSpec))
+        sdkTable.getPartitionSpecs.asScala.map(p => convertToTablePartitionSpec(p))
 
       val prunedPartitions = if (filters.nonEmpty) {
         val predicate = new PartitionFilters(filters, partitionSchema).toPredicate

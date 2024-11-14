@@ -81,7 +81,11 @@ public class OdpsClient {
     private final static String META_LOOKUP_NAME = "META_LOOKUP_NAME";
     private final static String REFRESH_INTERVAL_SECONDS = "odps.cupid.bearer.token.refresh.interval.seconds";
     private final static String ODPS_BEARER_TOKEN_ENABLE = "odps.cupid.bearer.token.enable";
-    private static final int DEFAULT_TIMEOUT_IN_SECONDS = 300;
+
+    private final static String ODPS_TUNNEL_READ_TIMEOUT = "odps.tunnel.read.timeout.seconds";
+    private final static String ODPS_TUNNEL_CONNECT_TIMEOUT = "odps.tunnel.connect.timeout.seconds";
+    private final static String ODPS_TUNNEL_MAX_RETRIES = "odps.tunnel.max.retries";
+    private final static String ODPS_TUNNEL_RETRY_WAIT_TIME = "odps.tunnel.retry.wait.seconds";
 
     public static Builder builder() {
         return new Builder();
@@ -165,7 +169,10 @@ public class OdpsClient {
                 .withAppStsAccount(odps.getAppStsAccount())
                 .build();
         RestOptions restOptions = RestOptions.newBuilder()
-                .withReadTimeout(DEFAULT_TIMEOUT_IN_SECONDS)
+                .withReadTimeout(Integer.parseInt(getSettings(ODPS_TUNNEL_READ_TIMEOUT).orElse("300")))
+                .withConnectTimeout(Integer.parseInt(getSettings(ODPS_TUNNEL_CONNECT_TIMEOUT).orElse("20")))
+                .withRetryTimes(Integer.parseInt(getSettings(ODPS_TUNNEL_MAX_RETRIES).orElse("5")))
+                .withRetryWaitTimeInSeconds(Integer.parseInt(getSettings(ODPS_TUNNEL_RETRY_WAIT_TIME).orElse("5")))
                 .build();
         EnvironmentSettings.Builder env = EnvironmentSettings.newBuilder()
                 .withDefaultProject(odps.getDefaultProject())

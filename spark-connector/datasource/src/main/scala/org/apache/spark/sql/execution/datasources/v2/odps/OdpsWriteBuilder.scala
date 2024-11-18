@@ -30,6 +30,7 @@ import org.apache.spark.annotation.{DeveloperApi, Experimental}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.sql.catalyst.types.DataTypeUtils.toAttributes
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.distributions.{Distribution, Distributions}
 import org.apache.spark.sql.connector.expressions.{FieldReference, LogicalExpressions, NullOrdering, SortDirection, SortOrder}
@@ -211,7 +212,7 @@ case class OdpsWriteBuilder(
                                         options: Map[String, String],
                                         odpsOptions: OdpsOptions,
                                         supportArrowWriter: Boolean): WriteJobDescription = {
-    val outputColumns = schema.toAttributes
+    val outputColumns = toAttributes(schema)
     val outputPartitionColumns =
       outputColumns.filter(c => partitionSchema.getFieldIndex(c.name).isDefined)
     val outputPartitionSet = AttributeSet(outputPartitionColumns)

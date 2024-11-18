@@ -24,7 +24,7 @@
         <project.version>${spark.version}-odps${odps.version}</project.version>
         <odps.sdk.version>0.50.5-public</odps.sdk.version>
         <odps.sdk.table.version>0.50.5-public</odps.sdk.table.version>
-        <spark.version>3.4.3</spark.version>
+        <spark.version>3.5.3</spark.version>
         <scala.version>2.12.10</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <java.version>1.8</java.version>

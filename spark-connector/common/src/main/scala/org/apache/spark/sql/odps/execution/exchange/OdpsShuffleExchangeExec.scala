@@ -20,7 +20,6 @@ package org.apache.spark.sql.odps.execution.exchange
 
 import java.util.Random
 import java.util.function.Supplier
-
 import org.apache.spark.{HashPartitioner, MapOutputStatistics, Partitioner, RangePartitioner, ShuffleDependency, SparkEnv, TaskContext}
 import org.apache.spark.internal.config
 import org.apache.spark.rdd.RDD
@@ -32,6 +31,7 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, BoundReference, Uns
 import org.apache.spark.sql.catalyst.expressions.codegen.LazilyGeneratedOrdering
 import org.apache.spark.sql.catalyst.plans.logical.Statistics
 import org.apache.spark.sql.catalyst.plans.physical.{HashPartitioning, Partitioning, RangePartitioning, RoundRobinPartitioning, SinglePartition}
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.execution.{RecordBinaryComparator, SQLExecution, ShufflePartitionSpec, ShuffledRowRDD, SparkPlan, UnsafeExternalRowSorter, UnsafeRowSerializer}
 import org.apache.spark.sql.execution.exchange.{REPARTITION_BY_NUM, ShuffleExchangeLike, ShuffleOrigin}
 import org.apache.spark.sql.execution.metric.{SQLMetric, SQLMetrics, SQLShuffleReadMetricsReporter, SQLShuffleWriteMetricsReporter}
@@ -50,7 +50,8 @@ private class PartitionIdPassthrough(override val numPartitions: Int) extends Pa
 case class OdpsShuffleExchangeExec(
                                 override val outputPartitioning: Partitioning,
                                 child: SparkPlan,
-                                shuffleOrigin: ShuffleOrigin = REPARTITION_BY_NUM)
+                                shuffleOrigin: ShuffleOrigin = REPARTITION_BY_NUM,
+                                advisoryPartitionSize: Option[Long] = None)
   extends ShuffleExchangeLike {
 
   private lazy val writeMetrics =
@@ -303,7 +304,7 @@ object ShuffleExchangeExec {
           val pageSize = SparkEnv.get.memoryManager.pageSizeBytes
 
           val sorter = UnsafeExternalRowSorter.createWithRecordComparator(
-            StructType.fromAttributes(outputAttributes),
+            DataTypeUtils.fromAttributes(outputAttributes),
             recordComparatorSupplier,
             prefixComparator,
             prefixComputer,

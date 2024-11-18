@@ -59,8 +59,7 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
           case None =>
         }
         ShowColumnsCommand(table)
-
-      case i@InsertIntoStatement(r@DataSourceV2Relation(table: OdpsTable, _, _, _, _), _, _, _, _, _)
+      case i@InsertIntoStatement(r@DataSourceV2Relation(table: OdpsTable, _, _, _, _), _, _, _, _, _, _)
         if i.query.resolved =>
         if (i.partitionSpec.nonEmpty && !r.options.containsKey(WRITE_ODPS_STATIC_PARTITION)) {
           val normalizedSpec = PartitioningUtils.normalizePartitionSpec(

@@ -229,10 +229,10 @@ object OdpsUtils extends Logging {
       if (c == ',' && unclosedAngles == 0) {
         typeList :+= sb.toString()
         sb.clear()
-      } else if (c == '<') {
+      } else if (c == '<' || c == '(') {
         unclosedAngles += 1
         sb.append(c)
-      } else if (c == '>') {
+      } else if (c == '>' || c == ')') {
         unclosedAngles -= 1
         sb.append(c)
       } else {

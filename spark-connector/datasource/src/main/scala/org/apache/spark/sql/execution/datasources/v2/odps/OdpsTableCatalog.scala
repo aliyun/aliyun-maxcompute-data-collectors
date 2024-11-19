@@ -682,6 +682,7 @@ object OdpsTableCatalog {
       case BooleanType => "BOOLEAN"
       case DateType => "DATE"
       case TimestampType => "TIMESTAMP"
+      case TimestampNTZType => "TIMESTAMP_NTZ"
       case ByteType => "TINYINT"
       case ShortType => "SMALLINT"
       case IntegerType => "INT"

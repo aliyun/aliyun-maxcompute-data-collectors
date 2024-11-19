@@ -269,6 +269,8 @@ object OdpsUtils extends Logging {
       case CHAR(_) => StringType
       case VARCHAR(_) => StringType
       case "binary" => BinaryType
+      case "json" => StringType
+      case "timestamp_ntz" => TimestampNTZType
       case ARRAY(elemType) => ArrayType(typeStr2Type(elemType))
       case MAP(types) =>
         val List(keyType, valType) = splitTypes(types)

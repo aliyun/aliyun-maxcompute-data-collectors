@@ -85,7 +85,7 @@ case class OdpsTable(
     stats: OdpsStatistics,
     bucketSpec: Option[OdpsBucketSpec] = None,
     viewText: Option[String] = None)
-  extends SupportsPartitionManagement with SupportsRead {
+  extends SupportsPartitionManagement with SupportsRead with SupportsWrite {
 
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
   import OdpsTableType._
@@ -136,6 +136,11 @@ import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
     OdpsScanBuilder(catalog, this, tableIdent, dataSchema, partitionSchema, stats, options)
   }
 
+  override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
+    OdpsWriteBuilder(catalog, this, tableIdent, dataSchema, partitionSchema,
+      catalog.odpsOptions, bucketSpec, info)
+  }
+
   private def convertToTablePartitionSpec(
       names: Array[String],
       ident: InternalRow): TablePartitionSpec =
@@ -148,5 +153,5 @@ import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 }
 
 object OdpsTable {
-  private val CAPABILITIES = Set(BATCH_READ).asJava
+  private val CAPABILITIES = Set(BATCH_READ, BATCH_WRITE, OVERWRITE_DYNAMIC).asJava
 }

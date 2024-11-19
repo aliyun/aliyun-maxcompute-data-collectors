@@ -33,6 +33,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.spark.sql.odps.ArrowUtils;
 import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
@@ -172,7 +173,7 @@ public class OdpsArrowColumnVector extends ColumnVector {
 
     public OdpsArrowColumnVector(ValueVector vector, TypeInfo typeInfo) {
         super(ArrowUtils.fromArrowField(vector.getField()));
-        isTimestamp = type instanceof TimestampType;
+        isTimestamp = type instanceof TimestampType || type instanceof TimestampNTZType;
         isDate = type instanceof DateType;
 
         if (vector instanceof BitVector) {

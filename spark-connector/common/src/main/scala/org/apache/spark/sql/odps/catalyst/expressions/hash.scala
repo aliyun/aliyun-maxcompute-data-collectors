@@ -25,7 +25,9 @@ import org.apache.spark.sql.catalyst.expressions.{Expression, ExpressionDescript
 import org.apache.spark.sql.odps.bucket.OdpsDefaultHasher
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.Platform
-import org.apache.spark.unsafe.types.CalendarInterval
+import org.apache.spark.unsafe.types.UTF8String
+
+import scala.annotation.tailrec
 
 /**
  * Simulates Odps's hashing function
@@ -66,7 +68,7 @@ case class OdpsHash(children: Seq[Expression]) extends HashExpression[Int] {
        """.stripMargin
     } ++ List(
       s"""
-        |${ev.value} = (${ev.value} ^ (${ev.value} >> 8));
+         |${ev.value} = (${ev.value} ^ (${ev.value} >> 8));
       """.stripMargin
     )
 
@@ -86,9 +88,9 @@ case class OdpsHash(children: Seq[Expression]) extends HashExpression[Int] {
 
     ev.copy(code =
       code"""
-         |${hashResultType} ${ev.value} = 0;
-         |${hashResultType} $childHash = 0;
-         |$codes
+            |${hashResultType} ${ev.value} = 0;
+            |${hashResultType} $childHash = 0;
+            |$codes
        """.stripMargin)
   }
 
@@ -102,6 +104,37 @@ case class OdpsHash(children: Seq[Expression]) extends HashExpression[Int] {
     }
     OdpsDefaultHasher.CombineHashVal(hashVals)
   }
+
+  @tailrec
+  private def computeHashWithTailRec(
+                                      input: String,
+                                      dataType: DataType,
+                                      result: String,
+                                      ctx: CodegenContext): String = dataType match {
+    case NullType => ""
+    case BooleanType => genHashBoolean(input, result)
+    case ByteType | ShortType | IntegerType => genHashInt(input, result)
+    // fix for odps date type
+    case DateType => genHashDate(input, result)
+    case LongType => genHashLong(input, result)
+    case TimestampType | TimestampNTZType => genHashTimestamp(input, result)
+    case FloatType => genHashFloat(input, result)
+    case DoubleType => genHashDouble(input, result)
+    case d: DecimalType => genHashDecimal(ctx, d, input, result)
+    case CalendarIntervalType => genHashCalendarInterval(input, result)
+    case _: DayTimeIntervalType => genHashLong(input, result)
+    case _: YearMonthIntervalType => genHashInt(input, result)
+    case BinaryType => genHashBytes(input, result)
+    case StringType => genHashString(input, result)
+    case ArrayType(et, containsNull) => genHashForArray(ctx, input, result, et, containsNull)
+    case MapType(kt, vt, valueContainsNull) =>
+      genHashForMap(ctx, input, result, kt, vt, valueContainsNull)
+    case StructType(fields) => genHashForStruct(ctx, input, result, fields)
+    case udt: UserDefinedType[_] => computeHashWithTailRec(input, udt.sqlType, result, ctx)
+  }
+
+  override protected def computeHash(input: String, dataType: DataType, result: String, ctx: CodegenContext): String =
+    computeHashWithTailRec(input, dataType, result, ctx)
 
   override protected def genHashInt(i: String, result: String): String = {
     s"$result = $hasherClassName.hashInt($i);"
@@ -131,47 +164,52 @@ case class OdpsHash(children: Seq[Expression]) extends HashExpression[Int] {
     s"$result = $hasherClassName.hashUnsafeBytes($b, Platform.BYTE_ARRAY_OFFSET, $b.length);"
   }
 
+  override protected def genHashTimestamp(input: String, result: String): String = {
+    s"$result = $hasherClassName.hashTimestamp($input);"
+  }
+
+  protected def genHashDate(i: String, result: String): String = {
+    s"$result = $hasherClassName.hashDate($i);"
+  }
+
   override protected def genHashDecimal(
-      ctx: CodegenContext,
-      d: DecimalType,
-      input: String,
-      result: String): String = {
-    throw new UnsupportedOperationException("Decimal is not supported yet!")
+                                         ctx: CodegenContext,
+                                         d: DecimalType,
+                                         input: String,
+                                         result: String): String = {
+    val precision = d.precision
+    val scale = d.scale
+    s"$result = $hasherClassName.hashDecimal($input.toJavaBigDecimal(), $precision, $scale);"
   }
 
   override protected def genHashCalendarInterval(input: String, result: String): String = {
     throw new UnsupportedOperationException("CalendarInterval is not supported yet!")
   }
 
-  override protected def genHashTimestamp(input: String, result: String): String = {
-    throw new UnsupportedOperationException("Timestamp is not supported yet!")
-  }
-
-
   override protected def genHashForArray(
-      ctx: CodegenContext,
-      input: String,
-      result: String,
-      elementType: DataType,
-      containsNull: Boolean): String = {
+                                          ctx: CodegenContext,
+                                          input: String,
+                                          result: String,
+                                          elementType: DataType,
+                                          containsNull: Boolean): String = {
     throw new UnsupportedOperationException("Array is not supported yet!")
   }
 
   override protected def genHashForMap(
-      ctx: CodegenContext,
-      input: String,
-      result: String,
-      keyType: DataType,
-      valueType: DataType,
-      valueContainsNull: Boolean): String = {
+                                        ctx: CodegenContext,
+                                        input: String,
+                                        result: String,
+                                        keyType: DataType,
+                                        valueType: DataType,
+                                        valueContainsNull: Boolean): String = {
     throw new UnsupportedOperationException("Map is not supported yet!")
   }
 
   override protected def genHashForStruct(
-      ctx: CodegenContext,
-      input: String,
-      result: String,
-      fields: Array[StructField]): String = {
+                                           ctx: CodegenContext,
+                                           input: String,
+                                           result: String,
+                                           fields: Array[StructField]): String = {
     throw new UnsupportedOperationException("Struct is not supported yet!")
   }
 
@@ -192,40 +230,31 @@ object OdpsHashFunction
   }
 
   override protected def hashUnsafeBytes(base: AnyRef, offset: Long, len: Int, seed: Long): Long = {
-    assert(len > 0)
-    val bytes = new Array[Char](len)
-    Platform.copyMemory(base, offset, bytes, Platform.BYTE_ARRAY_OFFSET, len)
     OdpsDefaultHasher.hashUnsafeBytes(base, offset, len)
   }
 
-  def hashTimestamp(timestamp: Long): Long = {
-    throw new UnsupportedOperationException("Timestamp type is not supported!")
-  }
-
-  def hashCalendarInterval(calendarInterval: CalendarInterval): Long = {
-    throw new UnsupportedOperationException("CalendarInterval type is not supported!")
-  }
-
   override def hash(value: Any, dataType: DataType, seed: Long): Long = {
-    dataType match {
-      case StringType | BinaryType =>
-        OdpsDefaultHasher.hashString(
-          if (value == null) null.asInstanceOf[String] else String.valueOf(value))
-      case LongType =>
-        OdpsDefaultHasher.hashLong(
-          if (value == null) null.asInstanceOf[Long] else value.asInstanceOf[Long])
-      case IntegerType | ShortType =>
-        OdpsDefaultHasher.hashInt(
-          if (value == null) null.asInstanceOf[Integer] else value.asInstanceOf[Integer])
-      case DoubleType =>
-        OdpsDefaultHasher.hashDouble(
-          if (value == null) null.asInstanceOf[Double] else value.asInstanceOf[Double])
-      case FloatType =>
-        OdpsDefaultHasher.hashFloat(
-          if (value == null) null.asInstanceOf[Float] else value.asInstanceOf[Float])
-      case BooleanType =>
-        OdpsDefaultHasher.hashBoolean(
-          if (value == null) null.asInstanceOf[Boolean] else value.asInstanceOf[Boolean])
+    value match {
+      case null => 0
+      case b: Boolean => OdpsDefaultHasher.hashBoolean(b)
+      case b: Byte => OdpsDefaultHasher.hashTinyInt(b)
+      case s: Short => OdpsDefaultHasher.hashSmallInt(s)
+      case i: Int if dataType.isInstanceOf[DateType] =>
+        OdpsDefaultHasher.hashDate(i)
+      case i: Int => OdpsDefaultHasher.hashInt(i)
+      // TODO: for odps datetime type
+      case timestamp: Long if dataType.isInstanceOf[TimestampType] =>
+        OdpsDefaultHasher.hashTimestamp(timestamp)
+      case l: Long =>  OdpsDefaultHasher.hashLong(l)
+      case f: Float => OdpsDefaultHasher.hashFloat(f)
+      case d: Double => OdpsDefaultHasher.hashDouble(d)
+      case a: Array[Byte] =>
+        hashUnsafeBytes(a, Platform.BYTE_ARRAY_OFFSET, a.length, seed)
+      case s: UTF8String =>
+        hashUnsafeBytes(s.getBaseObject, s.getBaseOffset, s.numBytes(), seed)
+      case d: Decimal =>
+        OdpsDefaultHasher.hashDecimal(d.toJavaBigDecimal, dataType.asInstanceOf[DecimalType].precision,
+          dataType.asInstanceOf[DecimalType].scale)
       case _ => throw new UnsupportedOperationException(s"unsupported type ${dataType}")
     }
   }

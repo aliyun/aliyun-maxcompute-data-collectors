@@ -93,10 +93,19 @@ case class OdpsWriteBuilder(
           }
         case _ =>
           if (partitionSchema.nonEmpty) {
-            partitionSchema.map(partitionColumn => LogicalExpressions.sort(
-              FieldReference(partitionColumn.name),
-              SortDirection.ASCENDING,
-              SortDirection.ASCENDING.defaultNullOrdering())).toArray
+            // For dynamic partition write
+            val dynamicPartitionCols =
+              options.getOrDefault("writeOdpsDynamicPartitionColumns", "")
+            if (dynamicPartitionCols.nonEmpty) {
+              val colSet = dynamicPartitionCols.split(",").toSet
+              partitionSchema.filter(partitionColumn => colSet.contains(partitionColumn.name))
+                .map(partitionColumn => LogicalExpressions.sort(
+                  FieldReference(partitionColumn.name),
+                  SortDirection.ASCENDING,
+                  SortDirection.ASCENDING.defaultNullOrdering())).toArray
+            } else {
+              Array.empty
+            }
           } else {
             Array.empty
           }
@@ -152,27 +161,19 @@ case class OdpsWriteBuilder(
       val odpsStaticPartition = new PartitionSpec
       if (partitionSchema.nonEmpty) {
         val partitionSpecValue = options.getOrDefault("writeOdpsStaticPartition", "")
-        var isDynamic = partitionSpecValue.isEmpty
-        if (!partitionSpecValue.isEmpty) {
-          val partitionSpec = partitionSpecValue.split(",")
-            .map(_.split("="))
-            .filter(_.length == 2)
-            .map(kv => kv(0) -> kv(1).replaceAll("'", "").replaceAll("\"", ""))
-            .toMap
-          val partitionColumnNames = partitionSchema.fields
-            .map(PartitioningUtils.getColName(_, caseSensitive = false))
-          var numStaticPartitions = 0
-          partitionColumnNames.foreach { field =>
-            if (partitionSpec.contains(field) && !partitionSpec(field).isEmpty && !isDynamic) {
-              odpsStaticPartition.set(field, partitionSpec(field))
-              numStaticPartitions = numStaticPartitions + 1
-            } else {
-              isDynamic = true
+        if (partitionSpecValue.nonEmpty) {
+          val groups = partitionSpecValue.split(",")
+          groups.foreach { group =>
+            val kv = group.split("=")
+            if (kv.length != 2) {
+              throw new IllegalArgumentException("Invalid partition spec.")
             }
+            if (kv(0).isEmpty || kv(1).isEmpty) {
+              throw new IllegalArgumentException("Invalid partition spec.")
+            }
+            odpsStaticPartition.set(kv(0), kv(1))
           }
-          if (numStaticPartitions > 0) {
-            sinkBuilder.partition(odpsStaticPartition)
-          }
+          sinkBuilder.partition(odpsStaticPartition)
         }
       }
 

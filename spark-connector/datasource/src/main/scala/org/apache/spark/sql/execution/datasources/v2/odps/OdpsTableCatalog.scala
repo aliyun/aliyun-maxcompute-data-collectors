@@ -533,11 +533,16 @@ object OdpsTableCatalog {
   def getBucketSpec(sdkTable: SdkTable): Option[OdpsBucketSpec] = {
     val clusterInfo = sdkTable.getClusterInfo
     if (clusterInfo != null && clusterInfo.getClusterCols.size() > 0) {
+      val sortColumns: Seq[SortColumn] = if (clusterInfo.getSortCols != null) {
+        clusterInfo.getSortCols.asScala.map(s => SortColumn(s.getName, s.getOrder))
+      } else {
+        Seq.empty
+      }
       Some(OdpsBucketSpec(
         clusterInfo.getClusterType.toLowerCase,
         clusterInfo.getBucketNum.toInt,
         clusterInfo.getClusterCols.asScala,
-        clusterInfo.getSortCols.asScala.map(s => SortColumn(s.getName, s.getOrder))))
+        sortColumns))
     } else {
       None
     }

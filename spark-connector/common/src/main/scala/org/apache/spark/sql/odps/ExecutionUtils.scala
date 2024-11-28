@@ -124,18 +124,28 @@ object ExecutionUtils {
   }
 
   private def convertToOdpsPredicate(filter: Filter): Predicate = filter match {
-    case EqualTo(attribute, value) => BinaryPredicate.equals(Attribute.of(attribute), Constant.of(value))
-    case GreaterThan(attribute, value) => BinaryPredicate.greaterThan(Attribute.of(attribute), Constant.of(value))
-    case GreaterThanOrEqual(attribute, value) => BinaryPredicate.greaterThanOrEqual(Attribute.of(attribute), Constant.of(value))
-    case LessThan(attribute, value) => BinaryPredicate.lessThan(Attribute.of(attribute), Constant.of(value))
-    case LessThanOrEqual(attribute, value) => BinaryPredicate.lessThanOrEqual(Attribute.of(attribute), Constant.of(value))
-    case In(attribute, values) => InPredicate.in(Attribute.of(attribute), values.map(Constant.of).toList.asJava.asInstanceOf[java.util.List[java.io.Serializable]])
-    case IsNull(attribute) => UnaryPredicate.isNull(Attribute.of(attribute))
-    case IsNotNull(attribute) => UnaryPredicate.notNull(Attribute.of(attribute))
+    case EqualTo(attribute, value) => BinaryPredicate.equals(quoteAttribute(attribute), Constant.of(value))
+    case GreaterThan(attribute, value) => BinaryPredicate.greaterThan(quoteAttribute(attribute), Constant.of(value))
+    case GreaterThanOrEqual(attribute, value) => BinaryPredicate.greaterThanOrEqual(quoteAttribute(attribute), Constant.of(value))
+    case LessThan(attribute, value) => BinaryPredicate.lessThan(quoteAttribute(attribute), Constant.of(value))
+    case LessThanOrEqual(attribute, value) => BinaryPredicate.lessThanOrEqual(quoteAttribute(attribute), Constant.of(value))
+    case In(attribute, values) => InPredicate.in(quoteAttribute(attribute), values.map(Constant.of).toList.asJava.asInstanceOf[java.util.List[java.io.Serializable]])
+    case IsNull(attribute) => UnaryPredicate.isNull(quoteAttribute(attribute))
+    case IsNotNull(attribute) => UnaryPredicate.notNull(quoteAttribute(attribute))
     case And(left, right) => CompoundPredicate.and(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Or(left, right) => CompoundPredicate.or(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Not(child) => CompoundPredicate.not(convertToOdpsPredicate(child))
     case _ =>
       throw new UnsupportedOperationException(s"Unsupported filter: $filter")
+  }
+
+  // when set nestedPredicatePushdownEnabled=true, Attribute will quoteIfNeeded, so here determine whether the attribute has already been quoted
+  // {@see org.apache.spark.sql.connector.catalog.CatalogV2Implicits.MultipartIdentifierHelper.quoted}
+  // {@see org.apache.spark.sql.catalyst.util#quoteIfNeeded}
+  private def quoteAttribute(value: String): String = {
+    if (value.startsWith("`") && value.endsWith("`") && value.length() > 1) {
+      return value;
+    }
+    "`" + value + "`";
   }
 }

@@ -139,9 +139,11 @@ object ExecutionUtils {
       throw new UnsupportedOperationException(s"Unsupported filter: $filter")
   }
 
-  // when set nestedPredicatePushdownEnabled=true, Attribute will quoteIfNeeded, so here determine whether the attribute has already been quoted
-  // {@see org.apache.spark.sql.connector.catalog.CatalogV2Implicits.MultipartIdentifierHelper.quoted}
-  // {@see org.apache.spark.sql.catalyst.util#quoteIfNeeded}
+  /**
+   * when spark call [[DataSourceStrategy.translateFilter]],
+   * all Attribute will quote by [[org.apache.spark.sql.catalyst.util#quoteIfNeeded]],
+   * so here we need to determine whether the attribute has already been quoted
+   */
   private def quoteAttribute(value: String): String = {
     if (value.startsWith("`") && value.endsWith("`") && value.length() > 1) {
       value

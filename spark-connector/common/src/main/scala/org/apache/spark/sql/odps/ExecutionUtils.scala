@@ -144,8 +144,9 @@ object ExecutionUtils {
   // {@see org.apache.spark.sql.catalyst.util#quoteIfNeeded}
   private def quoteAttribute(value: String): String = {
     if (value.startsWith("`") && value.endsWith("`") && value.length() > 1) {
-      return value;
+      value
+    } else {
+      s"`${value.replace("`", "``")}`"
     }
-    "`" + value + "`";
   }
 }

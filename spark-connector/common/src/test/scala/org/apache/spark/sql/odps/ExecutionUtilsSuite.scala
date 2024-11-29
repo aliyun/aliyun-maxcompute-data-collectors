@@ -136,5 +136,19 @@ class ExecutionUtilsSuite extends AnyFunSuite {
 
     assert(result.toString === "(`column3` > 10 or `column4` is not null)")
   }
+
+  test("QuoteChines") {
+    val greaterThan = GreaterThan("`你好`", 2)
+    val result = ExecutionUtils.convertToOdpsPredicate(Seq(greaterThan))
+    println(result.toString)
+    assert(result.toString == "`你好` > 2")
+  }
+
+  test("QuoteSpecialCharacter") {
+    val greaterThan = GreaterThan("你`好", 2)
+    val result = ExecutionUtils.convertToOdpsPredicate(Seq(greaterThan))
+    println(result.toString)
+    assert(result.toString == "`你``好` > 2")
+  }
 }
 

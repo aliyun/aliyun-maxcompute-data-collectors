@@ -119,21 +119,19 @@ object ExecutionUtils {
     case _: Short => true
     case _: Byte => true
     case _: Boolean => true
-    case _: BigDecimal => true
+    case _: java.math.BigDecimal => true
     case _ => false
   }
 
   private def convertToOdpsPredicate(filter: Filter): Predicate = filter match {
-    case AlwaysTrue() => Predicate.NO_PREDICATE
-    case AlwaysFalse() => RawPredicate.of("true = false")
-    case EqualTo(attribute, value) => BinaryPredicate.equals(Attribute(attribute), Constant.of(value))
-    case GreaterThan(attribute, value) => BinaryPredicate.greaterThan(Attribute(attribute), Constant.of(value))
-    case GreaterThanOrEqual(attribute, value) => BinaryPredicate.greaterThanOrEqual(Attribute(attribute), Constant.of(value))
-    case LessThan(attribute, value) => BinaryPredicate.lessThan(Attribute(attribute), Constant.of(value))
-    case LessThanOrEqual(attribute, value) => BinaryPredicate.lessThanOrEqual(Attribute(attribute), Constant.of(value))
-    case In(attribute, values) => InPredicate.in(Attribute(attribute), values.map(Constant.of).toList.asJava.asInstanceOf[java.util.List[java.io.Serializable]])
-    case IsNull(attribute) => UnaryPredicate.isNull(Attribute(attribute))
-    case IsNotNull(attribute) => UnaryPredicate.notNull(Attribute(attribute))
+    case EqualTo(attribute, value) => BinaryPredicate.equals(quoteAttribute(attribute), Constant.of(value))
+    case GreaterThan(attribute, value) => BinaryPredicate.greaterThan(quoteAttribute(attribute), Constant.of(value))
+    case GreaterThanOrEqual(attribute, value) => BinaryPredicate.greaterThanOrEqual(quoteAttribute(attribute), Constant.of(value))
+    case LessThan(attribute, value) => BinaryPredicate.lessThan(quoteAttribute(attribute), Constant.of(value))
+    case LessThanOrEqual(attribute, value) => BinaryPredicate.lessThanOrEqual(quoteAttribute(attribute), Constant.of(value))
+    case In(attribute, values) => InPredicate.in(quoteAttribute(attribute), values.map(Constant.of).toList.asJava.asInstanceOf[java.util.List[java.io.Serializable]])
+    case IsNull(attribute) => UnaryPredicate.isNull(quoteAttribute(attribute))
+    case IsNotNull(attribute) => UnaryPredicate.notNull(quoteAttribute(attribute))
     case And(left, right) => CompoundPredicate.and(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Or(left, right) => CompoundPredicate.or(convertToOdpsPredicate(left), convertToOdpsPredicate(right))
     case Not(child) => CompoundPredicate.not(convertToOdpsPredicate(child))
@@ -141,7 +139,16 @@ object ExecutionUtils {
       throw new UnsupportedOperationException(s"Unsupported filter: $filter")
   }
 
-  private def Attribute(str: String): String = {
-    "`" + str + "`";
+
+  /**
+   * all Attribute will quote by [[org.apache.spark.sql.catalyst.util#quoteIfNeeded]],
+   * so here we need to determine whether the attribute has already been quoted
+   */
+  def quoteAttribute(value: String): String = {
+    if (value.startsWith("`") && value.endsWith("`") && value.length() > 1) {
+      value
+    } else {
+      s"`${value.replace("`", "``")}`"
+    }
   }
 }

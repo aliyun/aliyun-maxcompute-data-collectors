@@ -1,5 +1,6 @@
 package org.apache.spark.sql.odps
 
+import org.apache.spark.sql.catalyst.util.quoteIfNeeded
 import org.apache.spark.sql.sources.{And, StringStartsWith, _}
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -135,6 +136,40 @@ class ExecutionUtilsSuite extends AnyFunSuite {
     val result = ExecutionUtils.convertToOdpsPredicate(filters)
 
     assert(result.toString === "(`column3` > 10 or `column4` is not null)")
+  }
+
+  test("quoteAttribute with quoteIfNeeded") {
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("")) === "``")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("``")) === "``````")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("`")) === "````")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("ab")) === "`ab`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("a b")) === "`a b`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("a*b")) === "`a*b`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("123")) === "`123`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("1a")) === "`1a`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("`1a`")) === "```1a```")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("`_")) === "```_`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("`_`")) === "```_```")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("你好")) === "`你好`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("你`好")) === "`你``好`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("你``好")) === "`你````好`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("`你好")) === "```你好`")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("你好`")) === "`你好```")
+    assert(ExecutionUtils.quoteAttribute(quoteIfNeeded("`你好`")) === "```你好```")
+  }
+
+  test("QuoteChines") {
+    val greaterThan = GreaterThan("`你好`", 2)
+    val result = ExecutionUtils.convertToOdpsPredicate(Seq(greaterThan))
+    println(result.toString)
+    assert(result.toString == "`你好` > 2")
+  }
+
+  test("QuoteSpecialCharacter") {
+    val greaterThan = GreaterThan("你`好", 2)
+    val result = ExecutionUtils.convertToOdpsPredicate(Seq(greaterThan))
+    println(result.toString)
+    assert(result.toString == "`你``好` > 2")
   }
 }
 

@@ -127,7 +127,7 @@ case class OdpsWriteBuilder(
       }
 
       val settings = OdpsClient.get.getEnvironmentSettings
-      val provider = catalog.odpsOptions.tableReadProvider
+      val provider = catalog.odpsOptions.tableWriteProvider
 
       val arrowOptions = ArrowOptions.newBuilder()
         .withDatetimeUnit(TimestampUnit.MILLI)

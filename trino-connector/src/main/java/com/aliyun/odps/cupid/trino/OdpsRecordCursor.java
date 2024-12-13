@@ -62,7 +62,8 @@ public class OdpsRecordCursor
     Object getValueInternal(int field) {
         if (field < record.getColumnCount() && !isZeroColumn) {
             return record.get(field);
-        }return odpsInputSplit.getPartitionSpec().get(columnHandles.get(field).getName());
+        }
+        return odpsInputSplit.getPartitionSpec().get(columnHandles.get(field).getName());
     }
 
     @Override
@@ -151,7 +152,7 @@ public class OdpsRecordCursor
             return truncateToLengthAndTrimSpaces(Slices.utf8Slice(((Char) value).getValue()), columnType);
         } else if (value instanceof BigDecimal) {
             DecimalType type = (DecimalType) columnType;
-            return Decimals.encodeScaledValue((BigDecimal) value, type.getScale());
+            return Slices.utf8Slice(Decimals.encodeScaledValue((BigDecimal) value, type.getScale()).toString());
         } else {
             return Slices.utf8Slice((String) value);
         }

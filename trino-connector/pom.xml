@@ -48,9 +48,9 @@
     </build>
 
     <properties>
-        <dep.airlift.version>208</dep.airlift.version>
-        <dep.trino.version>364</dep.trino.version>
-        <dep.jackson.version>2.12.5</dep.jackson.version>
+        <dep.airlift.version>217</dep.airlift.version>
+        <dep.trino.version>390</dep.trino.version>
+        <dep.jackson.version>2.13.3</dep.jackson.version>
     </properties>
 
     <dependencies>

@@ -19,9 +19,11 @@ import com.google.common.collect.ImmutableList;
 import io.trino.spi.connector.ColumnMetadata;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 
 public class OdpsTable
@@ -47,7 +49,12 @@ public class OdpsTable
             columnsMetadata.add(new ColumnMetadata(column.getName(), column.getType()));
         }
         for (OdpsColumnHandle column : this.partitionColumns) {
-            columnsMetadata.add(new ColumnMetadata(column.getName(), column.getType(), null, "partition key", false));
+            ColumnMetadata columnMetadata = ColumnMetadata.builder()
+                    .setName(column.getName())
+                            .setType(column.getType())
+                                    .setExtraInfo(Optional.ofNullable("partition key"))
+                                            .build();
+            columnsMetadata.add(columnMetadata);
         }
         this.columnsMetadata = columnsMetadata.build();
     }

@@ -26,6 +26,7 @@ import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.*;
+import io.trino.spi.expression.ConnectorExpression;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.NullableValue;
 import io.trino.spi.predicate.TupleDomain;
@@ -92,96 +93,31 @@ public class OdpsMetadata
             return null;
         }
 
-        return new OdpsTableHandle(tableName.getSchemaName(), tableName.getTableName(), table);
+        return new OdpsTableHandle(tableName.getSchemaName(), tableName.getTableName(), table, ImmutableList.of());
     }
 
     @Override
-    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint constraint, Optional<Set<ColumnHandle>> desiredColumns) {
-        OdpsTableHandle tableHandle = (OdpsTableHandle) table;
+    public Optional<ProjectionApplicationResult<ConnectorTableHandle>> applyProjection(ConnectorSession session, ConnectorTableHandle table, List<ConnectorExpression> projections, Map<String, ColumnHandle> assignments) {
+        OdpsTableHandle handle = (OdpsTableHandle) table;
 
-        List<OdpsPartition> partitions = odpsClient.getOdpsPartitions(tableHandle.getSchemaName(),
-                tableHandle.getTableName(),
-                tableHandle.getOdpsTable(),
-                constraint);
-        TupleDomain<ColumnHandle> predicate = createPredicate(tableHandle.getOdpsTable().getPartitionColumns(), partitions);
-        List<OdpsColumnHandle> reqColumns = desiredColumns.isPresent() ?
-                desiredColumns.get().stream().map(e -> (OdpsColumnHandle) e).collect(toImmutableList())
-                : ImmutableList.of();
-        OdpsTableLayoutHandle odpsTableLayoutHandle = new OdpsTableLayoutHandle(tableHandle.getSchemaTableName(),
-                tableHandle.getOdpsTable().getDataColumns(),
-                reqColumns,
-                tableHandle.getOdpsTable().getPartitionColumns(),
-                predicate,
-                partitions
-        );
-        TupleDomain<ColumnHandle> unenforcedConstraint;
-        TupleDomain<ColumnHandle> effectivePredicate = constraint.getSummary();
-        if (effectivePredicate.isNone()) {
-            unenforcedConstraint = effectivePredicate;
-        } else {
-            // All partition key domains will be fully evaluated, so we don't need to include those
-            unenforcedConstraint = withColumnDomains(Maps.filterKeys(effectivePredicate.getDomains().get(),
-                    not(Predicates.in(tableHandle.getOdpsTable().getPartitionColumns()))));
+        if (handle.getDesiredColumns().size() > 0) {
+            return Optional.empty();
         }
 
-        return ImmutableList.of(new ConnectorTableLayoutResult(getTableLayout(session, odpsTableLayoutHandle), unenforcedConstraint));
-    }
+        ImmutableList.Builder<OdpsColumnHandle> desiredColumns = ImmutableList.builder();
+        ImmutableList.Builder<Assignment> assignmentList = ImmutableList.builder();
+        assignments.forEach((name, column) -> {
+            desiredColumns.add((OdpsColumnHandle) column);
+            assignmentList.add(new Assignment(name, column, ((OdpsColumnHandle) column).getType()));
+        });
 
-    @Override
-    public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle) {
-        return new ConnectorTableLayout(handle);
-    }
+        handle = new OdpsTableHandle(
+                handle.getSchemaName(),
+                handle.getTableName(),
+                handle.getOdpsTable(),
+                desiredColumns.build());
 
-    @VisibleForTesting
-    static TupleDomain<ColumnHandle> createPredicate(List<OdpsColumnHandle> partitionColumns, List<OdpsPartition> partitions)
-    {
-        if (partitions.isEmpty()) {
-            return TupleDomain.none();
-        }
-
-        Map<ColumnHandle, Domain> collect = partitionColumns.stream()
-                .collect(Collectors.toMap(
-                        identity(),
-                        column -> buildColumnDomain(column, partitions)));
-        return withColumnDomains(collect);
-    }
-
-    private static Domain buildColumnDomain(ColumnHandle column, List<OdpsPartition> partitions)
-    {
-        checkArgument(!partitions.isEmpty(), "partitions cannot be empty");
-
-        boolean hasNull = false;
-        List<Object> nonNullValues = new ArrayList<>();
-        Type type = null;
-
-        for (OdpsPartition partition : partitions) {
-            NullableValue value = partition.getKeys().get(column);
-            if (value == null) {
-                throw new TrinoException(OdpsErrorCode.ODPS_INTERNAL_ERROR, format("Partition %s does not have a value for partition column %s", partition, column));
-            }
-
-            if (value.isNull()) {
-                hasNull = true;
-            }
-            else {
-                nonNullValues.add(value.getValue());
-            }
-
-            if (type == null) {
-                type = value.getType();
-            }
-        }
-
-        if (!nonNullValues.isEmpty()) {
-            Domain domain = Domain.multipleValues(type, nonNullValues);
-            if (hasNull) {
-                return domain.union(Domain.onlyNull(type));
-            }
-
-            return domain;
-        }
-
-        return Domain.onlyNull(type);
+        return Optional.of(new ProjectionApplicationResult<>(handle, projections, assignmentList.build(), false));
     }
 
     @Override
@@ -246,7 +182,7 @@ public class OdpsMetadata
     }
 
     @Override
-    public ConnectorOutputTableHandle beginCreateTable(ConnectorSession session, ConnectorTableMetadata tableMetadata, Optional<ConnectorNewTableLayout> layout)
+    public ConnectorOutputTableHandle beginCreateTable(ConnectorSession session, ConnectorTableMetadata tableMetadata, Optional<ConnectorTableLayout> layout, RetryMode retryMode)
     {
         String schemaName = tableMetadata.getTable().getSchemaName();
         String tableName = tableMetadata.getTable().getTableName();
@@ -289,7 +225,7 @@ public class OdpsMetadata
     }
 
     @Override
-    public ConnectorInsertTableHandle beginInsert(ConnectorSession session, ConnectorTableHandle tableHandle)
+    public ConnectorInsertTableHandle beginInsert(ConnectorSession session, ConnectorTableHandle tableHandle, List<ColumnHandle> columns, RetryMode retryMode)
     {
         OdpsTableHandle odpsTableHandle = (OdpsTableHandle) tableHandle;
         String tableApiProvider;
@@ -397,9 +333,7 @@ public class OdpsMetadata
         List<ColumnMetadata> partitionSystemTableColumns = partitionColumns.stream()
                 .map(column -> new ColumnMetadata(
                         column.getName(),
-                        column.getType(),
-                        null,
-                        false))
+                        column.getType()))
                 .collect(toImmutableList());
 
         SystemTable partitionsSystemTable = new SystemTable()

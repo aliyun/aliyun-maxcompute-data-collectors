@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
 public class OdpsSplitManager
@@ -55,52 +56,57 @@ public class OdpsSplitManager
 
     @Override
     public ConnectorSplitSource getSplits(
-            ConnectorTransactionHandle handle,
+            ConnectorTransactionHandle transactionHandle,
             ConnectorSession session,
-            ConnectorTableLayoutHandle layout,
-            ConnectorSplitManager.SplitSchedulingStrategy splitSchedulingContext)
+            ConnectorTableHandle tableHandle,
+            DynamicFilter dynamicFilter,
+            Constraint constraint)
     {
-        OdpsTableLayoutHandle layoutHandle = (OdpsTableLayoutHandle) layout;
-        OdpsTable table = odpsClient.getTable(layoutHandle.getSchemaTableName().getSchemaName(),
-                layoutHandle.getSchemaTableName().getTableName());
+        OdpsTableHandle handle = (OdpsTableHandle) tableHandle;
+        OdpsTable table = odpsClient.getTable(handle.getSchemaName(),
+                handle.getTableName());
         // this can happen if table is removed during a query
         checkState(table != null, "Table %s.%s no longer exists",
-                layoutHandle.getSchemaTableName().getSchemaName(), layoutHandle.getSchemaTableName().getTableName());
+                handle.getSchemaName(), handle.getTableName());
 
-        Optional<List<OdpsPartition>> partitions = layoutHandle.getPartitions();
+        List<OdpsPartition> partitions = odpsClient.getOdpsPartitions(handle.getSchemaName(),
+                handle.getTableName(),
+                handle.getOdpsTable(),
+                constraint);
+        List<OdpsColumnHandle> desiredColumns = handle.getDesiredColumns().size() > 0 ? handle.getDesiredColumns() : table.getDataColumns();
         List<ConnectorSplit> splits = new ArrayList<>();
         TableReadSession tableReadSession;
         InputSplit[] inputSplits;
         boolean isZeroColumn = false;
         try {
-            Set<String> partitionColumnNames = layoutHandle.getPartitionColumns().stream().map(e -> e.getName()).collect(Collectors.toSet());
-            List<Attribute> reqColumns = layoutHandle.getDesiredColumns().stream()
+            Set<String> partitionColumnNames = handle.getOdpsTable().getPartitionColumns().stream().map(e -> e.getName()).collect(Collectors.toSet());
+            List<Attribute> reqColumns = desiredColumns.stream()
                     .filter(e -> !partitionColumnNames.contains(e.getName()))
                     .map(e -> new Attribute(e.getName(), OdpsUtils.toOdpsType(e.getType(), e.getIsStringType()).getTypeName())).collect(Collectors.toList());
             if (reqColumns.size() == 0) {
                 // tunnel must set columns
-                OdpsColumnHandle columnHandle = layoutHandle.getDataColumns().get(0);
+                OdpsColumnHandle columnHandle = handle.getOdpsTable().getDataColumns().get(0);
                 reqColumns.add(0, new Attribute(columnHandle.getName(),
                         OdpsUtils.toOdpsType(columnHandle.getType(), columnHandle.getIsStringType()).getTypeName()));
                 isZeroColumn = true;
             }
             RequiredSchema requiredSchema = RequiredSchema.columns(reqColumns);
             if (table.getPartitionColumns().size() > 0) {
-                List<PartitionSpecWithBucketFilter> partitionSpecWithBucketFilterList = partitions.get().stream()
+                List<PartitionSpecWithBucketFilter> partitionSpecWithBucketFilterList = partitions.stream()
                         .map(e -> new PartitionSpecWithBucketFilter(getPartitionSpecKVMap(e.getKeys())))
                         .collect(Collectors.toList());
                 if (partitionSpecWithBucketFilterList.size() == 0) {
                     // no part specified
                     return new FixedSplitSource(ImmutableList.of());
                 }
-                tableReadSession = new TableReadSessionBuilder(tableApiProvider, layoutHandle.getSchemaTableName().getSchemaName(),
-                        layoutHandle.getSchemaTableName().getTableName())
+                tableReadSession = new TableReadSessionBuilder(tableApiProvider, handle.getSchemaName(),
+                        handle.getTableName())
                         .readPartitions(partitionSpecWithBucketFilterList)
                         .readDataColumns(requiredSchema)
                         .build();
             } else {
-                tableReadSession = new TableReadSessionBuilder(tableApiProvider, layoutHandle.getSchemaTableName().getSchemaName(),
-                        layoutHandle.getSchemaTableName().getTableName())
+                tableReadSession = new TableReadSessionBuilder(tableApiProvider, handle.getSchemaName(),
+                        handle.getTableName())
                         .readDataColumns(requiredSchema)
                         .build();
             }
@@ -118,8 +124,8 @@ public class OdpsSplitManager
                 throw new RuntimeException(e);
             }
             String splitBase64Str = Base64.encodeBase64String(baos.toByteArray());
-            splits.add(new OdpsSplit(connectorId, layoutHandle.getSchemaTableName().getSchemaName(),
-                    layoutHandle.getSchemaTableName().getTableName(), splitBase64Str, isZeroColumn));
+            splits.add(new OdpsSplit(connectorId, handle.getSchemaName(),
+                    handle.getTableName(), splitBase64Str, isZeroColumn));
         }
         Collections.shuffle(splits);
 

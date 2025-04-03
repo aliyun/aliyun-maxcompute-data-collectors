@@ -25,9 +25,9 @@ Before using the connector, ensure the following requirements are met:
 
 ### Obtain the Connector
 
-#### Precompiled Releases (Recommended)
-- Trino 470
-- Trino 422
+#### Precompiled Releases
+- [Trino 470](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/trino/trino-maxcompute-470.zip)
+- [Trino 422](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/trino/trino-maxcompute-422.zip)
 
 #### Build from Source
 ```bash

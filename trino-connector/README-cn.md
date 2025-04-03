@@ -24,9 +24,9 @@ MaxCompute 连接器支持直接查询和处理存储于 MaxCompute 数据仓库
 
 ### 获取连接器
 
-#### 预编译版本（推荐）
-- Trino 470
-- Trino 422
+#### 预编译版本
+- [Trino 470](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/trino/trino-maxcompute-470.zip)
+- [Trino 422](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/trino/trino-maxcompute-422.zip)
 
 #### 自行构建
 ```bash

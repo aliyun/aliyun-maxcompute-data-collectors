@@ -1,169 +1,248 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.aliyun.odps.cupid</groupId>
-    <artifactId>trino-odps-connector</artifactId>
-    <version>1.0-364</version>
+    <parent>
+        <groupId>io.trino</groupId>
+        <artifactId>trino-root</artifactId>
+        <version>470</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
-                <configuration>
-                    <release>11</release>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.4</version>
-                <configuration>
-                    <!-- put your configurations here -->
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.10</version>
-                <configuration>
-                    <includes>
-                        <include>**/*Test.java</include> 只包含测试类
-                    </includes>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <artifactId>trino-maxcompute</artifactId>
+    <packaging>trino-plugin</packaging>
+    <description>Trino - MaxCompute Connector</description>
 
     <properties>
-        <dep.airlift.version>208</dep.airlift.version>
-        <dep.trino.version>364</dep.trino.version>
-        <dep.jackson.version>2.12.5</dep.jackson.version>
+        <odps.sdk.version>0.51.5-public</odps.sdk.version>
+        <dep.trino.version>470</dep.trino.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.flatbuffers</groupId>
+                <artifactId>flatbuffers-java</artifactId>
+                <version>24.3.25</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-memory-core</artifactId>
+                <version>18.1.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-vector</artifactId>
+                <version>18.1.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>2.0.16</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+
+        <!-- maxcompute sdk -->
         <dependency>
-            <groupId>io.airlift</groupId>
-            <artifactId>bootstrap</artifactId>
-            <version>${dep.airlift.version}</version>
+            <groupId>com.aliyun.odps</groupId>
+            <artifactId>odps-sdk-commons</artifactId>
+            <version>${odps.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
-            <groupId>io.airlift</groupId>
-            <artifactId>json</artifactId>
-            <version>${dep.airlift.version}</version>
+            <groupId>com.aliyun.odps</groupId>
+            <artifactId>odps-sdk-core</artifactId>
+            <version>${odps.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>aliyun-java-auth</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.antlr</groupId>
+                    <artifactId>antlr4</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.antlr</groupId>
+                    <artifactId>antlr4-runtime</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
-            <groupId>io.airlift</groupId>
-            <artifactId>log</artifactId>
-            <version>${dep.airlift.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>io.airlift</groupId>
-            <artifactId>configuration</artifactId>
-            <version>${dep.airlift.version}</version>
+            <groupId>com.aliyun.odps</groupId>
+            <artifactId>odps-sdk-table-api</artifactId>
+            <version>${odps.sdk.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>26.0-jre</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.inject</groupId>
+            <artifactId>guice</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
+            <artifactId>bootstrap</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
+            <artifactId>configuration</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
+            <artifactId>json</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-plugin-toolkit</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-memory-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-vector</artifactId>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${dep.jackson.version}</version>
-        </dependency>
-
-        <!-- Presto SPI -->
-        <dependency>
-            <groupId>io.trino</groupId>
-            <artifactId>trino-spi</artifactId>
-            <version>${dep.trino.version}</version>
+            <artifactId>jackson-annotations</artifactId>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>slice</artifactId>
-            <version>0.40</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>io.airlift</groupId>
-            <artifactId>units</artifactId>
-            <version>1.6</version>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-spi</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.openjdk.jol</groupId>
+            <artifactId>jol-core</artifactId>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-            <version>${dep.jackson.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- 未加载到系统 -->
-        <dependency>
-            <groupId>com.aliyun.odps</groupId>
-            <artifactId>cupid-table-api</artifactId>
-            <version>1.0.1-presto-SNAPSHOT</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/cupid-table-api-1.0.1-presto-SNAPSHOT.jar</systemPath>
+            <artifactId>jackson-databind</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.aliyun.odps</groupId>
-            <artifactId>cupid-sdk</artifactId>
-            <version>3.3.9</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/cupid-sdk-3.3.9.jar</systemPath>
+            <groupId>io.airlift</groupId>
+            <artifactId>node</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
-            <groupId>joda-time</groupId>
-            <artifactId>joda-time</artifactId>
-            <version>2.9.9</version>
+            <groupId>io.airlift</groupId>
+            <artifactId>junit-extensions</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.aliyun.odps.cupid</groupId>
-            <artifactId>table-api-tunnel-impl</artifactId>
-            <version>1.0-presto-SNAPSHOT</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/table-api-tunnel-impl-1.0-presto-SNAPSHOT.jar</systemPath>
+            <groupId>io.airlift</groupId>
+            <artifactId>testing</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.aliyun.odps</groupId>
-            <artifactId>odps-sdk-core</artifactId>
-            <version>0.37.10-public</version>
-            <scope>compile</scope>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-main</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.aliyun.odps</groupId>
-            <artifactId>odps-sdk-commons</artifactId>
-            <version>0.37.10-public</version>
-            <scope>compile</scope>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-testing</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-codec</groupId>
+                    <artifactId>commons-codec</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- test -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.19.8</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-
 </project>

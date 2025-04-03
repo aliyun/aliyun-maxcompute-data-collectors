@@ -1,157 +1,107 @@
-2020年12月27日[Presto SQL更名](https://trino.io/blog/2020/12/27/announcing-trino.html)为Trino。 Trino-Odps Connector作为Trino的一个Plugin，可以支持通过Trino SQL来访问Odps表的数据，并且可以结合其他Catalog的数据进行联邦查询，下面将介绍下这个Plugin的部署和使用。
+# MaxCompute Connector
 
-## 部署步骤
-Trino的部署可以参考官方文档：https://trino.io/docs/current/installation/deployment.html 为了简单起见，下面以部署一个单节点Trino Cluster为例来看下如何在Trino中加入Odps Connector。
+The MaxCompute Connector enables direct querying and processing of data stored in MaxCompute data warehouses. It is particularly suited for integrating and analyzing data between MaxCompute and systems like Hive.
 
-1、下载364的Trino版本（当前只在该版本验证过，相近版本应该也是可以支持的）：
+## Prerequisites
 
-```shell
-# trino-server-364，也可以通过浏览器下载
-wget https://repo1.maven.org/maven2/io/trino/trino-server/364/trino-server-364.tar.gz
+Before using the connector, ensure the following requirements are met:
 
-# 解压下载后的Trino包：
-tar zxvf trino-server-364.tar.gz
-```
+- **Access Permissions**  
+  Valid access to a MaxCompute project with authentication credentials (AccessKey ID/Secret).
 
-2、编译并部署Trino-ODPS Connector的Plugin jar包
+- **Network Configuration**  
+  Use Alibaba Cloud VPC for stable data transmission.  
+  🔗 [MaxCompute Network Configuration Guide](https://help.aliyun.com/zh/maxcompute/user-guide/network-connection-process)
 
-```shell
-# trino 364 基于java 11
-export JAVA_HOME=${jdk-11.0.11}
+- **Resource Groups**  
+  Requires an 🔗 [exclusive resource group](https://help.aliyun.com/zh/maxcompute/user-guide/purchase-and-use-exclusive-resource-groups-for-dts) or enabled 🔗 [Open Storage (Pay-As-You-Go)](https://help.aliyun.com/zh/maxcompute/product-overview/open-storage-pay-as-you-go).
 
-# 需要注意PATH中不要包含低版本的java
-export PATH=${JAVA_HOME}:$PATH
+- **Schema Mode (Optional)**  
+  To use Namespace Schema in Trino, enable 🔗 [Schema Mode](https://help.aliyun.com/zh/maxcompute/user-guide/schema-related-operations) in MaxCompute.
 
-# 进入trino-connector项目根目录
-cd ${workspace}/trino-connector
+---
 
-# 打包trino-ODPS connector
+## Installation and Configuration
+
+### Obtain the Connector
+
+#### Precompiled Releases (Recommended)
+- Trino 470
+- Trino 422
+
+#### Build from Source
+```bash
+# Build with Maven
 mvn clean package
-
-# 部署connector
-mkdir ${trino-server-364}/plugin/odps
-cp ${workspace}/trino-connector/target/trino-odps-connector-${version}.jar ${trino-server-364}/plugin/odps/
-cp ${workspace}/trino-connector/libs/*.jar ${trino-server-364}/plugin/odps/
+# Extract to Trino plugin directory
+unzip target/trino-maxcompute-*.zip -d $TRINO_HOME/plugin/
 ```
 
-3、配置Trino
-在解压后的trino-server-364目录下创建etc目录，etc目录里面分别需要创建config.properties，jvm.config，log.properties，node.properties以及catalog目录。
-```text
-${trino-server-364}
-  |
-  +-- config.properties
-  |
-  +-- jvm.config
-  |
-  +-- log.properties
-  |
-  +-- node.properties
-  |
-  +-- catalog
-       |
-       +-- odps.properties
+### Configuration File Example
 
+Create `maxcompute.properties` in `etc/catalog/`:
+```properties
+connector.name=maxcompute
+odps.project.name=your_project_name
+odps.access.id=your_access_key_id
+odps.access.key=your_access_key_secret
+odps.end.point=http://service.cn-hangzhou.maxcompute.aliyun.com/api
+odps.quota.name=your_quota_name
 ```
 
-- config.properties 内容如下
-```text
-coordinator=true
-node-scheduler.include-coordinator=true
-http-server.http.port=8080
-query.max-memory=5GB
-query.max-memory-per-node=1GB
-query.max-total-memory-per-node=2GB
-discovery-server.enabled=true
-discovery.uri=http://127.0.0.1:8080
+⚠️ **Important Configuration Notes**
+- Set environment variables when starting Trino:
+  ```bash
+  export _JAVA_OPTIONS="--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"
+  ```
+  🔗 [Apache Arrow Configuration Guide](https://arrow.apache.org/docs/java/install.html)
+
+---
+
+## Multi-Project Access
+
+Access multiple projects by creating separate configuration files:
 ```
-
-- jvm.config 内容如下
-```text
--server
--Xmx16G
--XX:-UseBiasedLocking
--XX:+UseG1GC
--XX:G1HeapRegionSize=32M
--XX:+ExplicitGCInvokesConcurrent
--XX:+ExitOnOutOfMemoryError
--XX:+HeapDumpOnOutOfMemoryError
--XX:-OmitStackTraceInFastThrow
--XX:ReservedCodeCacheSize=512M
--XX:PerMethodRecompilationCutoff=10000
--XX:PerBytecodeRecompilationCutoff=10000
--Djdk.attach.allowAttachSelf=true
--Djdk.nio.maxCachedBufferSize=2000000
+etc/catalog/
+├── sales.properties     # Set odps.project.name=sales
+└── analytics.properties # Set odps.project.name=analytics
 ```
+Trino will automatically create corresponding `sales` and `analytics` catalogs.
 
-- log.properties 内容如下
-```text
-io.trino=INFO
-```
+---
 
-- node.properties 内容如下
-```text
-node.environment=production
-node.id=ffffffff-ffff-ffff-ffff-fffffffffffe
-node.data-dir=/path/to/trino-server-364/data
-```
+## Data Type Mapping
 
-- odps.properties 内容如下：
-```text
-connector.name=odps
-odps.project.name=XXXXXX
-odps.access.id=XXXXXX
-odps.access.key=XXXXXX
-odps.end.point=XXXXXX
-odps.input.split.size=64
-```
-> 注意：
-> - odps.end.point和odps.tunnel.end.point的参数配置具体可以参考文档：https://help.aliyun.com/document_detail/34951.html ，根据project所在的region以及presto运行所在的网络环境来配置。
-> - 如果需要同时访问多个project，通过etc/catalog/odps.properties新增的参数来配置，odps.project.name.extra.list=cupid_test,xxx,aaaas  这样逗号分隔，配置多个。
+| MaxCompute Type | Trino Type | Notes |
+|----------------|------------|-------|
+| BOOLEAN        | BOOLEAN    | -     |
+| TINYINT        | TINYINT    | -     |
+| SMALLINT       | SMALLINT   | -     |
+| INT            | INTEGER    | -     |
+| BIGINT         | BIGINT     | -     |
+| FLOAT          | REAL       | -     |
+| DOUBLE         | DOUBLE     | -     |
+| DECIMAL        | DECIMAL    | -     |
+| STRING         | VARCHAR    | -     |
+| VARCHAR        | VARCHAR    | -     |
+| JSON           | VARCHAR    | -     |
+| CHAR           | CHAR       | -     |
+| BINARY         | VARBINARY  | -     |
+| DATE           | DATE       | -     |
+| DATETIME       | TIMESTAMP  | -     |
+| TIMESTAMP      | TIMESTAMP  | -     |
+| TIMESTAMP_NTZ  | TIMESTAMP  | -     |
 
-4、启动Trino
+> ⚠️ **Limitations**  
+> Complex types (MAP/STRUCT/ARRAY) are not yet supported but will be added in future releases.
 
-```shell
-# trino 364 基于java 11
-export JAVA_HOME=${jdk-11.0.11}
-# 需要注意PATH中不要包含低版本的java
-export PATH=${JAVA_HOME}:$PATH
-```
+---
 
-上面这些配置都完成后，就可以启动Trino了。
+## Development Roadmap
 
-- bin/launcher start 这样会把Trino放到后台运行
-- bin/launcher run 这样是在前台运行
+- ✅ Basic type read support
+- 🚧 DDL operations (In progress)
+- 📅 Write support & complex types (Planned)
 
-## 使用方式
-下面介绍通过Trino CLI的方式来连接使用Odps Catalog.
-1、下载Trino CLI
-
-```shell
-wget https://repo1.maven.org/maven2/io/trino/trino-cli/364/trino-cli-364-executable.jar
-```
-
-下载后将trino-cli-364-executable.jar重命名为trino，并且加上可执行的权限。
-```shell
-mv trino-cli-364-executable.jar trino
-chmod +x trino
-```
-
-2、运行 Trino CLI
-通过如下命令即可连接上Odps的Catalog进行使用。
-
-```shell
-./trino --server 127.0.0.1:8080 --catalog odps --schema project_name
-```
-
-在Trino CLI成功连接后，可以使用Trino的SQL对Odps表数据进行查询，例如：
-
-```sql
-show tables;
-desc tablename;
-select * from xxx limit 10;
-select count(*) from xxx;
-```
-
-限制条件
-- 不支持读取array,map,struct等复杂类型的表数据
-- 不支持将数据写入odps表
+Contributions via PRs or Issues are welcome!  
+👤 Maintainer: [Jason Zhang](https://github.com/dingxin-tech)

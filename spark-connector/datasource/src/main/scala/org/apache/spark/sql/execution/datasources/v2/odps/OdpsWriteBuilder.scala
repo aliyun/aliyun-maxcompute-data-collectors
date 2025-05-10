@@ -128,6 +128,7 @@ case class OdpsWriteBuilder(
 
       val settings = OdpsClient.get.getEnvironmentSettings
       val provider = catalog.odpsOptions.tableWriteProvider
+      val enhanceWriteCheck = catalog.odpsOptions.enhanceWriteCheck
 
       val arrowOptions = ArrowOptions.newBuilder()
         .withDatetimeUnit(TimestampUnit.MILLI)
@@ -146,6 +147,7 @@ case class OdpsWriteBuilder(
         .withSettings(settings)
         .overwrite(overwrite)
         .withSessionProvider(provider)
+        .withWriteCheck(enhanceWriteCheck)
 
       val odpsStaticPartition = new PartitionSpec
       if (partitionSchema.nonEmpty) {

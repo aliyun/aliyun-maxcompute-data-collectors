@@ -28,7 +28,7 @@ import com.aliyun.odps.{Column, OdpsException, PartitionSpec, TableSchema, Table
 import com.aliyun.odps.`type`.TypeInfoParser
 import com.aliyun.odps.utils.StringUtils
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.catalyst.analysis.{NamespaceAlreadyExistsException, NoSuchTableException, NonEmptyNamespaceException, TableAlreadyExistsException}
+import org.apache.spark.sql.catalyst.analysis.{NamespaceAlreadyExistsException, NoSuchTableException, TableAlreadyExistsException}
 import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.expressions.{BucketTransform, FieldReference, IdentityTransform, Transform}
 import org.apache.spark.sql.odps.OdpsUtils._
@@ -331,17 +331,17 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
   }
 
-  override def dropNamespace(namespace: Array[String], cascade: Boolean): Boolean =  {
+  override def dropNamespace(namespace: Array[String]): Boolean =  {
     checkNamespace(namespace)
     namespace match {
       case Array(db) =>
         if (schemaEnable) {
-          dropSchema(defaultNamespace().head, db, cascade)
+          dropSchema(defaultNamespace().head, db)
         } else {
           throw new AnalysisException("drop project not supported")
         }
       case Array(project, schema) =>
-        dropSchema(project, schema, cascade)
+        dropSchema(project, schema)
       case _ =>
         throw QueryExecutionErrors.invalidNamespaceNameError(namespace)
     }
@@ -476,16 +476,12 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
   }
 
-  def dropSchema(project: String, schema: String, cascade: Boolean): Boolean = {
+  def dropSchema(project: String, schema: String): Boolean = {
     val schemaName = project + "." + schema
     val sb = new StringBuilder()
     sb.append("DROP SCHEMA ")
     sb.append(schemaName)
-    if (cascade) {
-      sb.append(" CASCADE;")
-    } else {
-      sb.append(" RESTRICT;")
-    }
+    sb.append(" RESTRICT;")
     try {
       withClient {
         SQLTask.run(odps, sb.toString).waitForSuccess()
@@ -493,11 +489,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
       metaClient.dropSchemaInCache(project, schema)
       true
     } catch {
-      case e: Exception => if (e.getMessage.contains("One or more tables exist")) {
-        throw NonEmptyNamespaceException(e.getMessage, cause = Some(e))
-      } else {
-        throw e
-      }
+      case e: Exception => throw e
     }
   }
 
@@ -551,13 +543,8 @@ object OdpsTableCatalog {
       case IdentityTransform(FieldReference(Seq(col))) =>
         identityCols += col
 
-      case BucketTransform(numBuckets, col, sortCol) =>
-        if (sortCol.isEmpty) {
-          bucketSpec = Some(BucketSpec(numBuckets, col.map(_.fieldNames.mkString(".")), Nil))
-        } else {
-          bucketSpec = Some(BucketSpec(numBuckets, col.map(_.fieldNames.mkString(".")),
-            sortCol.map(_.fieldNames.mkString("."))))
-        }
+      case BucketTransform(numBuckets, FieldReference(Seq(col))) =>
+        bucketSpec = Some(BucketSpec(numBuckets, col :: Nil, Nil))
 
       case transform =>
         throw new UnsupportedOperationException(

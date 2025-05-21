@@ -180,6 +180,7 @@ case class OdpsScan(
           case _ => false
         }
         if (hasUnsupportedType) {
+          logWarning(s"Unsupported filter push down for decimal type with scale > 18")
           Predicate.NO_PREDICATE
         } else {
           ExecutionUtils.convertToOdpsPredicate(dataFilters)

@@ -7,6 +7,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.scalatest.funsuite.AnyFunSuite
 
+import java.math.BigDecimal
 import java.util
 
 class SQLQuerySuite extends AnyFunSuite with Logging {
@@ -68,6 +69,34 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     assert(result(0).get(5) == 5)
     assert(result(0).get(6) == 6)
     assert(result(0).get(7) == 7)
+  }
+
+  test("filterPushDownColumnDecimalTypeLargeScale") {
+    sparkSession.conf.set("spark.sql.catalog.odps.enableFilterPushDown", true)
+
+    val tableName = "testDecimalPushDown"
+    sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
+    sparkSession.sql(s"CREATE TABLE $tableName(c0 BIGINT, c1 BIGINT, c2 DECIMAL(38,26))")
+    sparkSession.sql(s"insert overwrite table $tableName values (0,1,2.00000000000000001111), (1,2,3.0)")
+    val result = sparkSession.sql(s"select * from $tableName where c0 = 0 and `c2` = 2.00000000000000001111").collect()
+    assert(result.length == 1)
+    assert(result(0).get(0) == 0)
+    assert(result(0).get(1) == 1)
+    assert(result(0).get(2).equals(new BigDecimal("2.00000000000000001111000000")))
+  }
+
+  test("filterPushDownColumnDecimalType") {
+    sparkSession.conf.set("spark.sql.catalog.odps.enableFilterPushDown", true)
+
+    val tableName = "testDecimalPushDown2"
+    sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
+    sparkSession.sql(s"CREATE TABLE $tableName(c0 BIGINT, c1 BIGINT, c2 DECIMAL(38,18))")
+    sparkSession.sql(s"insert overwrite table $tableName values (0,1,2.000000000000000001), (1,2,3.0)")
+    val result = sparkSession.sql(s"select * from $tableName where c0 = 0 and `c2` = 2.000000000000000001").collect()
+    assert(result.length == 1)
+    assert(result(0).get(0) == 0)
+    assert(result(0).get(1) == 1)
+    assert(result(0).get(2).equals(new BigDecimal("2.000000000000000001")))
   }
 
   test("testSqlInsertTable") {

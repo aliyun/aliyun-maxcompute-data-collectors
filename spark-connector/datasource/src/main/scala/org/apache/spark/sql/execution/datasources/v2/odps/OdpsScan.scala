@@ -39,7 +39,7 @@ import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory, Scan, Statistics, SupportsReportStatistics, SupportsRuntimeFiltering}
 import org.apache.spark.sql.internal.connector.SupportsMetadata
 import org.apache.spark.sql.sources.Filter
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{DecimalType, StructType}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.{SerializableConfiguration, ThreadUtils, Utils}
@@ -174,7 +174,16 @@ case class OdpsScan(
 
     if (!emptyColumn) {
       val predicate = if (catalog.odpsOptions.filterPushDown) {
-        ExecutionUtils.convertToOdpsPredicate(dataFilters)
+        val hasUnsupportedType = dataSchema.fields.exists {
+          case field if field.dataType.isInstanceOf[DecimalType] =>
+            field.dataType.asInstanceOf[DecimalType].scale > 18
+          case _ => false
+        }
+        if (hasUnsupportedType) {
+          Predicate.NO_PREDICATE
+        } else {
+          ExecutionUtils.convertToOdpsPredicate(dataFilters)
+        }
       } else {
         Predicate.NO_PREDICATE
       }

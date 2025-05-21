@@ -119,7 +119,7 @@ object ExecutionUtils {
     case _: Short => true
     case _: Byte => true
     case _: Boolean => true
-    case _: BigDecimal => true
+    case _: java.math.BigDecimal => true
     case _ => false
   }
 

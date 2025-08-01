@@ -19,16 +19,12 @@
 
 package org.apache.spark.sql.odps
 
-import java.io.IOException
-import java.util.concurrent.{ExecutorService, Executors, LinkedBlockingDeque}
 import scala.collection.JavaConverters._
 import com.aliyun.odps.table.DataFormat
 import com.aliyun.odps.table.configuration.{CompressionCodec, ReaderOptions}
 import com.aliyun.odps.table.metrics.MetricNames
 import com.aliyun.odps.table.read.TableBatchReadSession
-import com.aliyun.odps.table.read.split.impl.RowRangeInputSplit
-import com.aliyun.odps.table.read.split.{InputSplit, InputSplitWithIndex}
-import org.apache.arrow.vector.VectorSchemaRoot
+import com.aliyun.odps.table.read.split.InputSplit
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
@@ -37,14 +33,12 @@ import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeRow
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeProjection
 import org.apache.spark.sql.catalyst.types.DataTypeUtils.toAttributes
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader, PartitionReaderFactory}
-import org.apache.spark.sql.odps.vectorized._
+import org.apache.spark.sql.odps.read.columnar.{AsyncPartitionReader, SyncPartitionReader}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.SerializableConfiguration
 
-import scala.collection.mutable
-
-case class OdpsScanPartition(inputSplit: InputSplit,
+case class OdpsScanPartition(inputSplits: Array[InputSplit],
                              scan: TableBatchReadSession) extends InputPartition
 
 case class OdpsEmptyColumnPartition(rowCount: Long) extends InputPartition
@@ -95,12 +89,17 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     val odpsScanPartition = partition.asInstanceOf[OdpsScanPartition]
     val supportRecordReader = odpsScanPartition.scan.supportsDataFormat(recordDataFormat)
     if (supportRecordReader) {
+      if (odpsScanPartition.inputSplits.length > 1) {
+        throw new UnsupportedOperationException(
+          "RecordReader with multi reader num is not unsupported, please set spark.sql.catalog.odps.splitReaderNum=1" +
+            "when use recordReader")
+      }
       val readerOptions = ReaderOptions.newBuilder()
         .withSettings(settings)
         .build()
 
       val recordReader = odpsScanPartition.scan
-        .createRecordReader(odpsScanPartition.inputSplit, readerOptions)
+        .createRecordReader(odpsScanPartition.inputSplits.head, readerOptions)
       val readTypeInfos = odpsScanPartition.scan.readSchema.getColumns.asScala.map(_.getTypeInfo)
 
       new PartitionReader[InternalRow] {
@@ -199,8 +198,8 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     // TODO: bearer token refresh
     val settings = OdpsClient.builder.config(conf).getOrCreate.getEnvironmentSettings
 
-    val reusedBatch = if (asyncRead) false else reusedBatchEnable
     val odpsScanPartition = partition.asInstanceOf[OdpsScanPartition]
+    val reusedBatch = if (asyncRead && odpsScanPartition.inputSplits.length == 1) false else reusedBatchEnable
     val readerOptions = ReaderOptions.newBuilder()
       .withMaxBatchRowCount(batchSize)
       .withSettings(settings)
@@ -208,147 +207,10 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
       .withReuseBatch(reusedBatch)
       .build()
 
-    var arrowReader = odpsScanPartition.scan
-      .createArrowReader(odpsScanPartition.inputSplit, readerOptions)
-    val schema = odpsScanPartition.scan.readSchema
-
-    var inputBytes = 0L
-    var executor : ExecutorService = null
-    val asyncQueueForVisit = new DataQueue(asyncReadQueueSize, asyncReadWaitTime)
-    val DONE_SENTINEL = new Object
-
-    if (asyncRead) {
-      executor = Executors.newSingleThreadExecutor
-      executor.submit(new Runnable() {
-        override def run(): Unit = {
-          try {
-            while (arrowReader.hasNext) {
-              asyncQueueForVisit.put(arrowReader.get)
-            }
-            asyncQueueForVisit.put(DONE_SENTINEL)
-
-            arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
-              inputBytes = c.getCount)
-            arrowReader.close()
-          } catch {
-            case cause: Throwable =>
-              asyncQueueForVisit.put(cause)
-          }
-        }
-      })
-    }
-
-    new PartitionReader[ColumnarBatch] {
-      private var columnarBatch: ColumnarBatch = _
-      private var loadData = false
-
-      private def updateColumnBatch(root: VectorSchemaRoot): Unit = {
-        if (columnarBatch != null && !reusedBatch) {
-          columnarBatch.close()
-        }
-        val vectors = root.getFieldVectors
-        val fields = root.getSchema.getFields
-        val fieldNameIdxMap = fields.asScala.map(f => f.getName).zipWithIndex.toMap
-        if (allNames.nonEmpty) {
-          val arrowVectors =
-            allNames.map(name => {
-              fieldNameIdxMap.get(name) match {
-                case Some(fieldIdx) =>
-                  new OdpsArrowColumnVector(vectors.get(fieldIdx),
-                    schema.getColumn(name).get().getTypeInfo)
-                case None =>
-                  throw new RuntimeException("Missing column " + name + " from arrow reader.")
-              }
-            }).toList
-          columnarBatch = new ColumnarBatch(arrowVectors.toArray)
-        } else {
-          columnarBatch = new ColumnarBatch(new Array[OdpsArrowColumnVector](0).toArray)
-        }
-        columnarBatch.setNumRows(root.getRowCount)
-      }
-
-      override def next(): Boolean = {
-        if (asyncRead) {
-          val nextObject = asyncQueueForVisit.take()
-          if (nextObject == DONE_SENTINEL) {
-            false
-          } else nextObject match {
-            case t: Throwable =>
-              throw new IOException(t)
-            case _ =>
-              updateColumnBatch(nextObject.asInstanceOf[VectorSchemaRoot])
-              true
-          }
-        } else {
-          try {
-            if (!arrowReader.hasNext) {
-              false
-            } else {
-              updateColumnBatch(arrowReader.get())
-              loadData = true
-              true
-            }
-          } catch {
-            case cause: Throwable =>
-              val splitIndex = odpsScanPartition.inputSplit match {
-                case split: InputSplitWithIndex =>
-                  split.getSplitIndex
-                case split: RowRangeInputSplit =>
-                  split.getRowRange.getStartIndex
-                case _ => 0
-              }
-              val sessionId = odpsScanPartition.inputSplit.getSessionId
-              logError(s"Partition reader $splitIndex for session $sessionId " +
-                s"encountered failure ${cause.getMessage}")
-              if (!loadData) {
-                if (arrowReader != null) {
-                  arrowReader.close()
-                }
-                arrowReader = odpsScanPartition.scan
-                  .createArrowReader(odpsScanPartition.inputSplit, readerOptions)
-                if (!arrowReader.hasNext) {
-                  false
-                } else {
-                  updateColumnBatch(arrowReader.get())
-                  loadData = true
-                  true
-                }
-              } else {
-                throw cause
-              }
-          }
-        }
-      }
-
-      override def get(): ColumnarBatch = columnarBatch
-
-      override def close(): Unit = {
-        if (columnarBatch != null) {
-          columnarBatch.close()
-        }
-
-        if (!asyncRead) {
-          arrowReader.currentMetricsValues.counter(MetricNames.BYTES_COUNT).ifPresent(c =>
-            inputBytes = c.getCount)
-          arrowReader.close()
-        }
-
-        TaskContext.get().taskMetrics().inputMetrics
-          .incBytesRead(inputBytes)
-
-        if (executor != null) {
-          executor.shutdown()
-
-          while (!asyncQueueForVisit.isEmpty) {
-            val data = asyncQueueForVisit.take()
-            data match {
-              case root: VectorSchemaRoot =>
-                root.close()
-              case _ =>
-            }
-          }
-        }
-      }
+    if (!asyncRead && odpsScanPartition.inputSplits.length == 1) {
+      new SyncPartitionReader(odpsScanPartition, readerOptions, allNames)
+    } else {
+      new AsyncPartitionReader(odpsScanPartition, readerOptions, reusedBatch, allNames, asyncReadQueueSize)
     }
   }
 
@@ -356,36 +218,5 @@ case class OdpsPartitionReaderFactory(broadcastedConf: Broadcast[SerializableCon
     supportColumnarRead &&
       partition.isInstanceOf[OdpsScanPartition] &&
       partition.asInstanceOf[OdpsScanPartition].scan.supportsDataFormat(arrowDataFormat)
-  }
-
-  class DataQueue(maxSize: Int, maxWaitTime: Long) {
-    private val queue = mutable.Queue[Object]()
-    private val lock = new Object
-
-    def isEmpty: Boolean = lock.synchronized {
-      queue.isEmpty
-    }
-
-    def isFull: Boolean = lock.synchronized {
-      queue.size >= maxSize
-    }
-
-    def put(item: Object): Unit = lock.synchronized {
-      if (maxSize > 0 && isFull) {
-        lock.wait(maxWaitTime)
-      }
-      queue.enqueue(item)
-      lock.notifyAll()
-    }
-
-    def take(): Object = lock.synchronized {
-      while (isEmpty) {
-        lock.notifyAll()
-        lock.wait()
-      }
-      val item = queue.dequeue()
-      lock.notifyAll()
-      item
-    }
   }
 }

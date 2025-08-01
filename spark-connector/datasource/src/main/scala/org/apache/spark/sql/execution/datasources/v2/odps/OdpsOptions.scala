@@ -68,6 +68,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val splitSizeInMB = parameters.getOrElse(ODPS_SPLIT_SIZE_IN_MB, "256").toInt
 
+  val splitReaderNum = parameters.getOrElse(ODPS_SPLIT_READER_NUM, "1").toInt
+
   val splitCrossPartition = parameters.getOrElse(ODPS_SPLIT_CROSS_PARTITION, "true").toBoolean
 
   val enableArrowExtension =  parameters.getOrElse(ODPS_ARROW_EXTENSION, "false").toBoolean
@@ -128,6 +130,7 @@ object OdpsOptions {
   val ODPS_VECTORIZED_WRITER_BATCH_SIZE = newOption("columnarWriterBatchSize")
   val ODPS_HASH_CLUSTER_ENABLED = newOption("enableHashCluster")
   val ODPS_SPLIT_PARALLELISM = newOption("splitParallelism")
+  val ODPS_SPLIT_READER_NUM = newOption("splitReaderNum")
   val ODPS_SPLIT_SIZE_IN_MB = newOption("splitSizeInMB")
   val ODPS_SPLIT_CROSS_PARTITION = newOption("splitCrossPartition")
   val ODPS_ARROW_EXTENSION = newOption("enableArrowExtension")

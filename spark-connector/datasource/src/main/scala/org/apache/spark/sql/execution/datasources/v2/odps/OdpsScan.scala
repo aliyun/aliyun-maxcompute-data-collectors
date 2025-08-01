@@ -109,7 +109,10 @@ case class OdpsScan(
         val rawSizePerCore = ((stats.getSizeInBytes / 1024 / 1024) /
           SparkContext.getActive.get.defaultParallelism) + 1
         val sizePerCore = math.max(math.min(rawSizePerCore, Int.MaxValue).toInt, 10)
-        val splitSizeInMB = math.min(catalog.odpsOptions.splitSizeInMB, sizePerCore)
+        val readerNum = math.max(catalog.odpsOptions.splitReaderNum, 1)
+        val actualSplitSizeInMB = math.min(catalog.odpsOptions.splitSizeInMB, sizePerCore) / readerNum + (if (readerNum == 1) 0 else 1)
+        val splitSizeInMB = math.max(actualSplitSizeInMB, 10)
+        logInfo(s"Split size: ${splitSizeInMB}MB, readerNum: $readerNum, totalSize: ${stats.getSizeInBytes / 1024 / 1024}MB")
         SplitOptions.newBuilder().SplitByByteSize(splitSizeInMB * 1024L * 1024L)
       }
     } else {
@@ -131,6 +134,12 @@ case class OdpsScan(
     val scan = scanBuilder.withFilterPredicate(predicate).buildBatchReadSession
     logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
     scan
+  }
+
+  private def getInputPartitions(scan: TableBatchReadSession): Array[InputPartition] = {
+    scan.getInputSplitAssigner.getAllSplits.grouped(catalog.odpsOptions.splitReaderNum).map(
+      split => OdpsScanPartition(split, scan)
+    ).toArray
   }
 
   private def createPartitions(): Array[InputPartition] = {
@@ -210,16 +219,14 @@ case class OdpsScan(
         val future = Future.sequence(partSplits.keys.map(key =>
           Future[Array[InputPartition]] {
             val scan = createTableScan(emptyColumn, predicate, partSplits(key))
-            scan.getInputSplitAssigner.getAllSplits
-              .map(split => OdpsScanPartition(split, scan))
+            getInputPartitions(scan)
           }(executionContext)
         ))
         val futureResults = ThreadUtils.awaitResult(future, Duration(15, MINUTES))
         futureResults.flatten.toArray
       } else {
         val scan = createTableScan(emptyColumn, predicate, Nil)
-        scan.getInputSplitAssigner.getAllSplits
-          .map(split => OdpsScanPartition(split, scan))
+        getInputPartitions(scan)
       }
     } else {
       val scan = if (partitionSchema.nonEmpty) {

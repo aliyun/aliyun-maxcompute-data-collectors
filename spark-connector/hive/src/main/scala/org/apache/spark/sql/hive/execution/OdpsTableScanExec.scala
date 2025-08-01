@@ -274,7 +274,7 @@ case class OdpsTableScanExec(
           Future[Array[InputPartition]] {
             val scan = createTableScan(emptyColumn, partSplits(key).toArray, predicate)
             scan.getInputSplitAssigner.getAllSplits
-              .map(split => OdpsScanPartition(split, scan))
+              .map(split => OdpsScanPartition(Array(split), scan))
           }(executionContext)
         ))
         val futureResults = ThreadUtils.awaitResult(future, Duration(15, MINUTES))
@@ -282,7 +282,7 @@ case class OdpsTableScanExec(
       } else {
         val scan = createTableScan(emptyColumn, Array.empty, predicate)
         scan.getInputSplitAssigner.getAllSplits
-          .map(split => OdpsScanPartition(split, scan))
+          .map(split => OdpsScanPartition(Array(split), scan))
       }
     } else {
       val scan = if (relation.partitionCols.nonEmpty) {

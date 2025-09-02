@@ -25,7 +25,7 @@ import org.apache.spark.sql.connector.read.PartitionReader
 import org.apache.spark.sql.odps.OdpsScanPartition
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, ExecutorService, Executors, Semaphore}
 
 
@@ -38,8 +38,7 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
 
   private val inputBytes = new AtomicLong(0)
   private val schema = partition.scan.readSchema
-  private val wrappedColumnarBatch: WrappedColumnarBatch =
-    WrappedColumnarBatch(columnarBatch = null, reuseBatch)
+  private var columnarBatch: ColumnarBatch = _
   private val multiSplitsExecutor: ExecutorService = Executors.newFixedThreadPool(partition.inputSplits.length)
   private val queueSize = if (reuseBatch) partition.inputSplits.length else
     math.max(asyncReaderQueueSize, partition.inputSplits.length)
@@ -49,7 +48,7 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
   private var isClosed: Boolean = false
   private var semaphores: Array[Semaphore] = partition.inputSplits.map(_ => null)
   private var currentReaderIndex: Int = -1
-  @volatile private var readerClose: Boolean = false
+  private val readerClose: AtomicBoolean = new AtomicBoolean(false)
   init()
 
   def init(): Unit = {
@@ -58,7 +57,8 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
     }
     partition.inputSplits.zipWithIndex.foreach { case (_, index) =>
       multiSplitsExecutor.execute(new AsyncSingleReaderTask(index, readerOptions,
-        partition, inputBytes, asyncQueueForVisit, semaphores(index), DONE_SENTINEL, readerClose))
+        OdpsSubReaderInput(reuseBatch, partition, schema, inputBytes, allNames, semaphores(index)),
+        asyncQueueForVisit, DONE_SENTINEL, readerClose))
     }
   }
 
@@ -75,7 +75,7 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
         val nextObject = asyncQueueForVisit.take()
         nextObject match {
           case data: OdpsSubReaderData =>
-            wrappedColumnarBatch.updateColumnBatch(data.root, allNames, schema)
+            columnarBatch = data.batch
             currentReaderIndex = data.readerId
             true
           case DONE_SENTINEL =>
@@ -94,18 +94,18 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
     }
   }
 
-  override def get(): ColumnarBatch = wrappedColumnarBatch.columnarBatch
+  override def get(): ColumnarBatch = columnarBatch
 
   override def close(): Unit = {
     if (!isClosed) {
-      if (wrappedColumnarBatch != null) {
-        wrappedColumnarBatch.close()
+      if (columnarBatch != null) {
+        columnarBatch.close()
       }
 
       TaskContext.get().taskMetrics().inputMetrics
         .incBytesRead(inputBytes.get())
 
-      readerClose = true
+      readerClose.set(true)
 
       for (semaphore <- semaphores) {
         try {
@@ -126,7 +126,7 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
           data match {
             case data: OdpsSubReaderData =>
               try {
-                data.root.close()
+                data.batch.close()
               } catch {
                 case e: Exception =>
                   // maybe duplicate close

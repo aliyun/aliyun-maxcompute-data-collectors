@@ -18,6 +18,7 @@
 
 package org.apache.spark.sql.odps.read.columnar
 
+import com.aliyun.odps.table.DataSchema
 import com.aliyun.odps.table.configuration.ReaderOptions
 import com.aliyun.odps.table.metrics.MetricNames
 import com.aliyun.odps.table.read.SplitReader
@@ -26,34 +27,47 @@ import com.aliyun.odps.table.read.split.impl.RowRangeInputSplit
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.odps.OdpsScanPartition
+import org.apache.spark.sql.vectorized.ColumnarBatch
 
 import java.io.IOException
 import java.util.concurrent.{BlockingQueue, Semaphore}
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 
 
 case class OdpsSubReaderData(readerId: Int,
-                             root: VectorSchemaRoot)
+                             batch: ColumnarBatch)
 
+case class OdpsSubReaderInput(reuseBatch: Boolean,
+                              partition: OdpsScanPartition,
+                              schema: DataSchema,
+                              inputBytes: AtomicLong,
+                              allNames: Seq[String],
+                              semaphore: Semaphore)
 
 class AsyncSingleReaderTask(readerId: Int,
                             readerOptions: ReaderOptions,
-                            partition: OdpsScanPartition,
-                            inputBytes: AtomicLong,
+                            odpsSubReaderInput: OdpsSubReaderInput,
                             asyncQueueForVisit: BlockingQueue[Object],
-                            semaphore: Semaphore,
                             endFlag: AnyRef,
-                            readerClose: Boolean) extends Runnable with Logging {
+                            readerClose: AtomicBoolean) extends Runnable with Logging {
 
   private var incBytes = 0L
+  private val partition = odpsSubReaderInput.partition
+  private val reuseBatch = odpsSubReaderInput.reuseBatch
+  private val semaphore = odpsSubReaderInput.semaphore
+  private val allNames = odpsSubReaderInput.allNames
+  private val schema = odpsSubReaderInput.schema
+  private val inputBytes = odpsSubReaderInput.inputBytes
   private val split = partition.inputSplits(readerId)
+  private val wrappedColumnarBatch: WrappedColumnarBatch =
+    WrappedColumnarBatch(columnarBatch = null, reuseBatch)
   private var currentRoot: VectorSchemaRoot = _
   private val arrowReader: SplitReader[VectorSchemaRoot] = partition.scan
-      .createArrowReader(split, readerOptions)
+    .createArrowReader(split, readerOptions)
 
   override def run(): Unit = {
     try {
-      while (!readerClose && hasNext) {
+      while (!readerClose.get() && hasNext) {
         if (semaphore != null) {
           semaphore.acquire()
         }
@@ -70,7 +84,8 @@ class AsyncSingleReaderTask(readerId: Int,
         false
       } else {
         currentRoot = arrowReader.get()
-        asyncQueueForVisit.put(OdpsSubReaderData(readerId, currentRoot))
+        wrappedColumnarBatch.updateColumnBatch(currentRoot, allNames, schema)
+        asyncQueueForVisit.put(OdpsSubReaderData(readerId, wrappedColumnarBatch.columnarBatch))
         currentRoot = null
         true
       }
@@ -108,7 +123,7 @@ class AsyncSingleReaderTask(readerId: Int,
 }
 
 case class SingleReaderTaskException(cause: Throwable,
-                                sessionId: String,
-                                splitIndex: Long)
+                                     sessionId: String,
+                                     splitIndex: Long)
   extends IOException(s"Partition reader $splitIndex for session $sessionId " +
     s"encountered failure ${cause.getMessage}", cause)

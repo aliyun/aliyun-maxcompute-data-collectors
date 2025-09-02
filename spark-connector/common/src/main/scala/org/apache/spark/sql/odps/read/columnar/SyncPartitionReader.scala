@@ -42,7 +42,7 @@ class SyncPartitionReader(partition: OdpsScanPartition,
   private val schema: DataSchema = partition.scan.readSchema
   private var isClosed: Boolean = false
   private val arrowReader: SplitReader[VectorSchemaRoot] = partition.scan
-      .createArrowReader(partition.inputSplits.head, readerOptions)
+    .createArrowReader(partition.inputSplits.head, readerOptions)
 
   override def next(): Boolean = {
     try {

@@ -50,7 +50,7 @@ case class WrappedColumnarBatch(var columnarBatch: ColumnarBatch,
         }).toList
       columnarBatch = new ColumnarBatch(arrowVectors.toArray)
     } else {
-      columnarBatch =  new ColumnarBatch(new Array[OdpsArrowColumnVector](0).toArray)
+      columnarBatch = new ColumnarBatch(new Array[OdpsArrowColumnVector](0).toArray)
     }
     columnarBatch.setNumRows(root.getRowCount)
   }

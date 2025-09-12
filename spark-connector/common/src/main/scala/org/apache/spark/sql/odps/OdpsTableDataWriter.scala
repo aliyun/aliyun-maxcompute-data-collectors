@@ -84,7 +84,7 @@ abstract class OdpsTableDataWriter[T: ClassTag](
         case cause: Throwable =>
           currentWriter.abort()
 
-          if (cause.getMessage.contains("FlowExceeded")) {
+          if (cause.getMessage.contains("FlowExceeded") || cause.getMessage.contains("SlotExceeded")) {
             if (arrowBatchWriter != null) {
               if (arrowBatchWriter.canResume()) {
                 var waitTime = new Random().nextInt(maxSleepIntervalMs - 2000) + 2000
@@ -106,7 +106,7 @@ abstract class OdpsTableDataWriter[T: ClassTag](
                   } catch {
                     case cause: Throwable =>
                       currentWriter.abort()
-                      if (!cause.getMessage.contains("FlowExceeded")) {
+                      if (!cause.getMessage.contains("FlowExceeded") && !cause.getMessage.contains("SlotExceeded")) {
                         throw cause
                       } else if (retries >= maxRetries) {
                         logError(s"Recreate batch writer exceeded the threshold")
@@ -243,6 +243,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
           if (bytesWritten < chunkSize) {
             arrowBatchWriter.addBufferedBatch(currentWriter.newElement())
           } else {
+            currentWriter.flush()
             // No Flow Exceeded
             logInfo(s"Flush success for partition $partitionId (task $taskId, attempt $attemptNumber)")
 
@@ -253,7 +254,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
 
       } catch {
         case cause: Throwable =>
-          if (cause.getMessage.contains("FlowExceeded")) {
+          if (cause.getMessage.contains("FlowExceeded") || cause.getMessage.contains("SlotExceeded")) {
             logError(s"Encountered flow exceeded exception " +
               s"for partition $partitionId (task $taskId, attempt $attemptNumber), ${cause.getMessage} ")
 
@@ -275,6 +276,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
                 try {
                   currentWriter = createBatchWriter()
                   arrowBatchWriter.writeBatch(currentWriter, true)
+                  currentWriter.flush()
                   flushSuccess = true
 
                   logInfo(s"Retry Flush success for partition $partitionId (task $taskId, attempt $attemptNumber)")
@@ -284,7 +286,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
                 } catch {
                   case cause: Throwable =>
                     currentWriter.abort()
-                    if (!cause.getMessage.contains("FlowExceeded")) {
+                    if (!cause.getMessage.contains("FlowExceeded") && !cause.getMessage.contains("SlotExceeded")) {
                       throw cause
                     } else if (retries >= maxRetries) {
                       logError(s"Recreate batch writer exceeded the threshold, " +

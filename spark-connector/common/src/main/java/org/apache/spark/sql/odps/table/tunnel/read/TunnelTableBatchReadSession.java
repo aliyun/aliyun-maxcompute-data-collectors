@@ -271,4 +271,9 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
         }
         return downloadSession;
     }
+
+    @Override
+    public String toJson() {
+        throw new UnsupportedOperationException("Unsupported to json!");
+    }
 }

@@ -1,7 +1,9 @@
 package org.apache.spark.sql.execution.datasources.v2.odps
 
+import com.aliyun.odps.`type`.TypeInfoFactory
 import com.aliyun.odps.{Column, Odps, OdpsType, TableSchema}
 import com.aliyun.odps.account.AliyunAccount
+import com.aliyun.odps.task.SQLTask
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -11,10 +13,10 @@ import java.util
 
 class SQLQuerySuite extends AnyFunSuite with Logging {
 
-  private val project: String = ""
-  private val accessId: String = ""
-  private val accessKey: String = ""
-  private val endPoint: String = ""
+  private val project: String = ConfigLoader.getProject()
+  private val accessId: String = ConfigLoader.getAccessId()
+  private val accessKey: String = ConfigLoader.getAccessKey()
+  private val endPoint: String = ConfigLoader.getEndpoint()
 
   private val table: Identifier = Identifier.of(Array(project), "testTable")
 
@@ -179,10 +181,132 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     assert(pData4(0).get(1)=="shanghai")
   }
 
+  test("testViewToTable") {
+    sparkSession.sql("set spark.sql.odps.materializeViewToTable=true")
+
+    val tableSchema = new TableSchema
+    val columns = new util.ArrayList[Column]
+    columns.add(new Column("c0", OdpsType.BIGINT))
+    tableSchema.setColumns(columns)
+
+    val tableName = "testViewToTableSrc1"
+    createTable(tableName, tableSchema)
+    createView("testViewToTable1", tableName)
+
+    sparkSession.sql(s"insert overwrite table $tableName values (0), (1)")
+    val result = sparkSession.sql("select * from testViewToTable1 where c0 = 0 ").collect()
+
+    assert(result.length == 1)
+    assert(result(0).get(0) == 0)
+
+    val result2 = sparkSession.sql("select * from testViewToTable1 where c0 = 0 ").collect()
+    assert(result2.length == 1)
+    assert(result2(0).get(0) == 0)
+  }
+
+  test("testViewToTableForDecimalType") {
+    sparkSession.sql("set spark.sql.odps.materializeViewToTable=true")
+
+    val tableSchema = new TableSchema
+    val columns = new util.ArrayList[Column]
+    columns.add(new Column("c0", TypeInfoFactory.getDecimalTypeInfo(38, 18)))
+    tableSchema.setColumns(columns)
+
+    val tableName = "testViewToTableSrcDecimal"
+    createTable(tableName, tableSchema)
+    createView("testViewToTableDecimal", tableName)
+
+    sparkSession.sql(s"insert overwrite table $tableName values (0.123456789012345678),(10000000000000000000.000000000000000001)")
+    val result = sparkSession.sql("select * from testViewToTableDecimal where c0 = 0.123456789012345678").collect()
+    assert(result(0).get(0).asInstanceOf[java.math.BigDecimal].toPlainString == "0.123456789012345678")
+
+    val result2 = sparkSession.sql("select * from testViewToTableDecimal where c0 = 10000000000000000000.000000000000000001").collect()
+    assert(result2(0).get(0).asInstanceOf[java.math.BigDecimal].toPlainString == "10000000000000000000.000000000000000001")
+  }
+
+  test("testViewToTableForDateTimeType") {
+    sparkSession.sql("set spark.sql.odps.materializeViewToTable=true")
+
+    val tableSchema = new TableSchema
+    val columns = new util.ArrayList[Column]
+    columns.add(new Column("c0", OdpsType.DATE))
+    columns.add(new Column("c1", OdpsType.DATETIME))
+    columns.add(new Column("c2", OdpsType.TIMESTAMP))
+    columns.add(new Column("c3", OdpsType.TIMESTAMP_NTZ))
+    tableSchema.setColumns(columns)
+
+    val tableName = "testViewToTableSrc2"
+    createTable(tableName, tableSchema)
+    createView("testViewToTable2", tableName)
+
+    sparkSession.sql(s"insert overwrite table $tableName values (DATE '2022-01-01', TIMESTAMP '2022-01-01 00:00:00', TIMESTAMP '2022-01-01 00:00:00', TIMESTAMP_NTZ '2022-01-01 00:00:00')")
+    val result = sparkSession.sql("select * from testViewToTable2 where " +
+      "c0 = DATE '2022-01-01' " +
+      "and c1 = TIMESTAMP '2022-01-01 00:00:00' " +
+      "and c2 = TIMESTAMP '2022-01-01 00:00:00' " +
+      "and c3 = TIMESTAMP_NTZ '2022-01-01 00:00:00'").collect()
+
+    assert(result.length == 1)
+    assert(result(0).get(0).toString == "2022-01-01")
+    assert(result(0).get(1).toString == "2022-01-01 00:00:00.0")
+    assert(result(0).get(2).toString == "2022-01-01 00:00:00.0")
+    assert(result(0).get(3).toString == "2022-01-01T00:00")
+  }
+
+  test("testViewToTableForStringType") {
+    sparkSession.sql("set spark.sql.odps.materializeViewToTable=true")
+
+    val tableSchema = new TableSchema
+    val columns = new util.ArrayList[Column]
+    columns.add(new Column("c0", OdpsType.STRING))
+    tableSchema.setColumns(columns)
+
+    val tableName = "testViewToTableSrc3"
+    createTable(tableName, tableSchema)
+    createView("testViewToTable3", tableName)
+
+    sparkSession.sql(s"insert overwrite table $tableName values ('v1'),('v%2'),('v_3'),('v\\'4')")
+    val result = sparkSession.sql("select * from testViewToTable3").collect()
+    assert(result.length == 4)
+    assert(result(0).get(0) == "v1")
+    assert(result(1).get(0) == "v%2")
+    assert(result(2).get(0) == "v_3")
+    assert(result(3).get(0) == "v'4")
+
+    val result2 = sparkSession.sql("select * from testViewToTable3 where c0 like 'v1%'").collect()
+    assert(result2.length == 1)
+    assert(result2(0).get(0) == "v1")
+
+    val result3 = sparkSession.sql("select * from testViewToTable3 where c0 like 'v$%_' ESCAPE '$'").collect()
+    assert(result3.length == 1)
+    assert(result3(0).get(0) == "v%2")
+
+    val result4 = sparkSession.sql("select * from testViewToTable3 where c0 like 'v%'").collect()
+    assert(result4.length == 4)
+    assert(result4(0).get(0) == "v1")
+    assert(result4(1).get(0) == "v%2")
+    assert(result4(2).get(0) == "v_3")
+    assert(result4(3).get(0) == "v'4")
+
+    val result5 = sparkSession.sql("select * from testViewToTable3 where c0 like 'v\\'%'").collect()
+    assert(result5.length == 1)
+    assert(result5(0).get(0) == "v'4")
+
+    val result6 = sparkSession.sql("select * from testViewToTable3 where c0 like 'v$_%' ESCAPE '$'").collect()
+    assert(result6.length == 1)
+    assert(result6(0).get(0) == "v_3")
+  }
+
   private def createTable(taleName: String, tableSchema: TableSchema): Unit = {
     if (odps.tables().exists(taleName)) {
       odps.tables().delete(taleName)
     }
     odps.tables().create(taleName, tableSchema)
+  }
+
+  private def createView(viewName: String, tableName: String): Unit = {
+    val i = SQLTask.run(odps,
+      s"create view if not exists $project.$viewName as select * from $project.$tableName;")
+    i.waitForSuccess()
   }
 }

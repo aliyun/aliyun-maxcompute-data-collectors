@@ -42,8 +42,10 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{AnalysisException, SparkSession}
+import org.apache.spark.sql.catalyst.util.quoteIfNeeded
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits.IdentifierHelper
 import org.apache.spark.util.{SerializableConfiguration, ThreadUtils, Utils}
-import org.apache.spark.sql.odps.{ExecutionUtils, OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition}
+import org.apache.spark.sql.odps.{ExecutionUtils, OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition, OdpsUtils}
 import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.VIRTUAL_VIEW
 
 import scala.collection.mutable
@@ -81,18 +83,29 @@ case class OdpsScan(
   private def createTableScan(emptyColumn: Boolean,
                               predicate: Predicate,
                               selectedPartitions: Seq[PartitionSpec]): TableBatchReadSession = {
+    val provider = catalog.odpsOptions.tableReadProvider
     val project = catalogTable.tableIdent.namespace.head
+    val schema: String = if (catalog.odpsOptions.enableNamespaceSchema) catalogTable.tableIdent.namespace.last else "default"
     val table = catalogTable.tableIdent.name
-    val schema = if (catalog.odpsOptions.enableNamespaceSchema) catalogTable.tableIdent.namespace.last else "default"
+
+    var tableId: TableIdentifier = TableIdentifier.of(project, schema, table)
+    catalogTable.tableType match {
+      case VIRTUAL_VIEW =>
+        if (!OdpsUtils.odpsMaterializeViewToTableEnabled(
+          SparkSession.active.sessionState.conf)) {
+          throw new AnalysisException(s"Cannot read odps table of ${catalogTable.tableType.name} type")
+        }
+        tableId = materializeViewToTable()
+      case _ =>
+    }
 
     val settings = OdpsClient.get.getEnvironmentSettings
-    val provider = catalog.odpsOptions.tableReadProvider
 
     val requiredDataSchema = readDataSchema.map(attr => attr.name).asJava
     val requiredPartitionSchema = readPartitionSchema.map(attr => attr.name).asJava
 
     val scanBuilder = new TableReadSessionBuilder()
-      .identifier(TableIdentifier.of(project, schema, table))
+      .identifier(tableId)
       .requiredDataColumns(requiredDataSchema)
       .requiredPartitionColumns(requiredPartitionSchema)
       .withSettings(settings)
@@ -143,12 +156,6 @@ case class OdpsScan(
   }
 
   private def createPartitions(): Array[InputPartition] = {
-    catalogTable.tableType match {
-      case VIRTUAL_VIEW =>
-        throw new AnalysisException(s"Cannot read odps table of ${catalogTable.tableType.name} type")
-      case _ =>
-    }
-
     val emptyColumn =
       if (readDataSchema.isEmpty && readPartitionSchema.isEmpty) true else false
 
@@ -296,6 +303,26 @@ case class OdpsScan(
   // Returns whether the two given arrays of [[Filter]]s are equivalent.
   def equivalentFilters(a: Array[Filter], b: Array[Filter]): Boolean = {
     a.sortBy(_.hashCode()).sameElements(b.sortBy(_.hashCode()))
+  }
+
+  private def materializeViewToTable(): TableIdentifier = {
+    val filters = ExecutionUtils.createOdpsSqlFilter(
+      readSchema().fields.map(f => (quoteIfNeeded(f.name), f)).toMap, dataFilters,
+      SparkSession.active.sessionState.conf.sessionLocalTimeZone)
+    val query = createViewToTableSql(catalogTable.tableIdent, readSchema().fieldNames, filters)
+    val table = catalog.getViewToTable(query)
+    TableIdentifier.of(table.getProject, Option(table.getSchemaName).getOrElse("default"), table.getName)
+  }
+
+  private def createViewToTableSql(
+                                    identifier: Identifier,
+                                    selectedFields: Array[String],
+                                    filters: Option[String]): String = {
+    val tableName = identifier.asMultipartIdentifier.mkString(".")
+    val columns: String = if (selectedFields.isEmpty) "*"
+    else selectedFields.map(column => s"`$column`").mkString(",")
+    val whereClause = filters.map("WHERE " + _).getOrElse("")
+    String.format("SELECT %s FROM `%s` %s", columns, tableName, whereClause)
   }
 }
 

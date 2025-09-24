@@ -2,20 +2,44 @@ package org.apache.spark.sql.odps
 
 import com.aliyun.odps.table.optimizer.predicate.CompoundPredicate.Operator
 import com.aliyun.odps.table.optimizer.predicate._
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.StructField
 
+import java.sql.{Date, Timestamp}
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
+import java.time.temporal.ChronoField
+import java.time.{Instant, LocalDate, LocalDateTime}
+import java.util.TimeZone
 import scala.collection.JavaConverters.seqAsJavaListConverter
 
 object ExecutionUtils {
+
 
   def convertToOdpsPredicate(filters: Seq[Filter]): Predicate = {
     if (filters.isEmpty) {
       return Predicate.NO_PREDICATE
     }
-    new CompoundPredicate(Operator.AND, convertibleFilters(filters).map(convertToOdpsPredicate).asJava)
+    new CompoundPredicate(Operator.AND, convertibleFilters(filters, false).map(convertToOdpsPredicate).asJava)
   }
 
-  def convertibleFilters(filters: Seq[Filter]): Seq[Filter] = {
+  def createOdpsSqlFilter(dataTypeMap: Map[String, StructField], filters: Seq[Filter], timeZoneId: String = TimeZone.getDefault.getID): Option[String] = {
+    if (filters.isEmpty) {
+      None
+    } else {
+      val resultFilters = convertibleFilters(filters, true)
+        .map(compileFilter(dataTypeMap, _, timeZoneId))
+      if (resultFilters.isEmpty) {
+        None
+      } else {
+        Some(
+          resultFilters.mkString("(", ") AND (", ")")
+        )
+      }
+    }
+  }
+
+  def convertibleFilters(filters: Seq[Filter], convertToSql: Boolean): Seq[Filter] = {
     import org.apache.spark.sql.sources._
 
     def convertibleFiltersHelper(
@@ -62,7 +86,7 @@ object ExecutionUtils {
         val childResultOptional = convertibleFiltersHelper(pred, canPartialPushDown = false)
         childResultOptional.map(Not)
       case other =>
-        Some(other).filter(knownPredicate)
+        Some(other).filter(knownPredicate(_, convertToSql))
     }
 
     filters.flatMap { filter =>
@@ -70,16 +94,20 @@ object ExecutionUtils {
     }
   }
 
-  private def knownPredicate(predicate: Filter): Boolean = {
+  private def knownPredicate(predicate: Filter, convertToSql: Boolean): Boolean = {
     predicate match {
-      case EqualTo(_, value) => knownConstantType(value)
-      case GreaterThan(_, value) => knownConstantType(value)
-      case GreaterThanOrEqual(_, value) => knownConstantType(value)
-      case LessThan(_, value) => knownConstantType(value)
-      case LessThanOrEqual(_, value) => knownConstantType(value)
-      case In(_, values) => values.forall(knownConstantType)
+      case EqualTo(_, value) => knownConstantType(value, convertToSql)
+      case GreaterThan(_, value) => knownConstantType(value, convertToSql)
+      case GreaterThanOrEqual(_, value) => knownConstantType(value, convertToSql)
+      case LessThan(_, value) => knownConstantType(value, convertToSql)
+      case LessThanOrEqual(_, value) => knownConstantType(value, convertToSql)
+      case In(_, values) => values.forall(knownConstantType(_, convertToSql))
       case IsNull(_) => true
       case IsNotNull(_) => true
+      case EqualNullSafe(_, value) if convertToSql => knownConstantType(value, convertToSql)
+      case StringStartsWith(_, value) if convertToSql => knownConstantType(value, convertToSql)
+      case StringEndsWith(_, value) if convertToSql => knownConstantType(value, convertToSql)
+      case StringContains(_, value) if convertToSql => knownConstantType(value, convertToSql)
       case _ => false
     }
   }
@@ -110,7 +138,7 @@ object ExecutionUtils {
    *   StructType -> org.apache.spark.sql.Row
    * }}}
    */
-  private def knownConstantType(value: Any): Boolean = value match {
+  private def knownConstantType(value: Any, convertToSql: Boolean): Boolean = value match {
     case _: String => true
     case _: Int => true
     case _: Long => true
@@ -120,6 +148,11 @@ object ExecutionUtils {
     case _: Byte => true
     case _: Boolean => true
     case _: java.math.BigDecimal => true
+    case _: java.sql.Date if convertToSql => true
+    case _: java.time.LocalDate if convertToSql => true
+    case _: java.sql.Timestamp if convertToSql => true
+    case _: java.time.Instant if convertToSql => true
+    case _: LocalDateTime if convertToSql => true
     case _ => false
   }
 
@@ -150,5 +183,135 @@ object ExecutionUtils {
     } else {
       s"`${value.replace("`", "``")}`"
     }
+  }
+
+  private def compileFilter(dataTypeMap: Map[String, StructField],
+                            expression: Filter,
+                            timeZoneId: String): String = {
+
+    import org.apache.spark.sql.sources._
+
+    expression match {
+      case EqualTo(name, value) if dataTypeMap.contains(name) =>
+        val castedValue = castLiteralValue(value, dataTypeMap(name), timeZoneId)
+        String.format("%s = %s", quoteAttribute(name), castedValue)
+
+      case EqualNullSafe(name, value) if dataTypeMap.contains(name) =>
+        val castedValue = castLiteralValue(value, dataTypeMap(name), timeZoneId)
+        String.format("(%1$s IS NULL AND %2$s IS NULL) " +
+          "OR (%1$s IS NOT NULL AND %2$s IS NOT NULL AND %1$s = %2$s)",
+          quoteAttribute(name), castedValue)
+
+      case LessThan(name, value) if dataTypeMap.contains(name) =>
+        val castedValue = castLiteralValue(value, dataTypeMap(name), timeZoneId)
+        String.format("%s < %s", quoteAttribute(name), castedValue)
+
+      case LessThanOrEqual(name, value) if dataTypeMap.contains(name) =>
+        val castedValue = castLiteralValue(value, dataTypeMap(name), timeZoneId)
+        String.format("%s <= %s", quoteAttribute(name), castedValue)
+
+      case GreaterThan(name, value) if dataTypeMap.contains(name) =>
+        val castedValue = castLiteralValue(value, dataTypeMap(name), timeZoneId)
+        String.format("%s > %s", quoteAttribute(name), castedValue)
+
+      case GreaterThanOrEqual(name, value) if dataTypeMap.contains(name) =>
+        val castedValue = castLiteralValue(value, dataTypeMap(name), timeZoneId)
+        String.format("%s >= %s", quoteAttribute(name), castedValue)
+
+      case IsNull(name) if dataTypeMap.contains(name) =>
+        String.format("%s IS NULL", quoteAttribute(name))
+
+      case IsNotNull(name) if dataTypeMap.contains(name) =>
+        String.format("%s IS NOT NULL", quoteAttribute(name))
+
+      case In(name, values) if dataTypeMap.contains(name) =>
+        val castedValues = values.map(v => castLiteralValue(v, dataTypeMap(name), timeZoneId))
+        String.format("%s IN (%s)", quoteAttribute(name), castedValues.mkString(","))
+
+      case StringStartsWith(name, value) if dataTypeMap.contains(name) =>
+        String.format("%s LIKE '%s%%'", quoteAttribute(name),
+          escapeSpecialCharsForLikePattern(escape(value)))
+
+      case StringEndsWith(name, value) if dataTypeMap.contains(name) =>
+        String.format("%s LIKE '%%%s'", quoteAttribute(name),
+          escapeSpecialCharsForLikePattern(escape(value)))
+
+      case StringContains(name, value) if dataTypeMap.contains(name) =>
+        String.format("%s LIKE '%%%s%%'", quoteAttribute(name),
+          escapeSpecialCharsForLikePattern(escape(value)))
+
+      case And(left, right) =>
+        String.format("(%s) AND (%s)", compileFilter(dataTypeMap, left, timeZoneId), compileFilter(dataTypeMap, right, timeZoneId))
+
+      case Or(left, right) =>
+        String.format("(%s) OR (%s)", compileFilter(dataTypeMap, left, timeZoneId), compileFilter(dataTypeMap, right, timeZoneId))
+
+      case Not(child) =>
+        String.format("NOT (%s)", compileFilter(dataTypeMap, child, timeZoneId))
+
+      case _ =>
+        throw new UnsupportedOperationException(s"Unsupported filter: $expression")
+    }
+  }
+
+  /**
+   * Cast literal values for filters.
+   */
+  def castLiteralValue(value: Any, structField: StructField, timeZoneId: String): String = {
+    if (value == null) return null
+    value match {
+      case s: String =>
+        s"'" + escape(s) + "'"
+      case _: Date | _: LocalDate =>
+        s"DATE '$value'"
+      case _: Timestamp | _: Instant =>
+        val instant = value match {
+          case t: Timestamp => t.toInstant.atZone(DateTimeUtils.getZoneId(timeZoneId))
+          case i: Instant => i
+        }
+        if (structField.metadata.contains(OdpsUtils.DATETIME_TYPE_STRING_METADATA_KEY)) {
+          s"DATETIME '${getDateTimeFormatter(timeZoneId).format(instant)}'"
+        } else {
+          s"TIMESTAMP '${getTimeStampFormatter(timeZoneId).format(instant)}'"
+        }
+      case ldt: LocalDateTime =>
+        s"TIMESTAMP_NTZ '${ldt.format(getTimeStampFormatter("UTC"))}'"
+      case d: java.math.BigDecimal =>
+        d.stripTrailingZeros.toPlainString
+      case _ =>
+        value.toString
+    }
+  }
+
+  def escape(value: String): String = {
+    value.replace("'", "\\'")
+  }
+
+  def escapeSpecialCharsForLikePattern(str: String): String = {
+    val builder = new StringBuilder
+    for (c <- str.toCharArray) {
+      c match {
+        case '_' =>
+          builder.append("\\\\_")
+        case '%' =>
+          builder.append("\\\\%")
+        case _ =>
+          builder.append(c)
+      }
+    }
+    builder.toString
+  }
+
+  def getDateTimeFormatter(timeZoneId: String): DateTimeFormatter = {
+    DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss")
+      .withZone(DateTimeUtils.getZoneId(timeZoneId))
+  }
+
+  def getTimeStampFormatter(timeZoneId: String): DateTimeFormatter = {
+    new DateTimeFormatterBuilder()
+      .appendPattern("uuuu-MM-dd HH:mm:ss")
+      .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+      .toFormatter
+      .withZone(DateTimeUtils.getZoneId(timeZoneId))
   }
 }

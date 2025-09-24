@@ -39,7 +39,11 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val metaCacheSize = parameters.getOrElse(ODPS_META_CACHE_SIZE, "100").toInt
 
+  val viewCacheSize = parameters.getOrElse(ODPS_VIEW_CACHE_SIZE, "100").toInt
+
   val metaCacheExpireSeconds = parameters.getOrElse(ODPS_META_CACHE_EXPIRE_SECONDS, "30").toInt
+
+  val viewCacheExpireSeconds = parameters.getOrElse(ODPS_VIEW_CACHE_EXPIRE_SECONDS, "3600").toInt
 
   val metaStatsLevel = parameters.getOrElse(ODPS_META_STATS_LEVEL, "none")
 
@@ -122,6 +126,8 @@ object OdpsOptions {
   val ODPS_TABLE_WRITE_PROVIDER = newOption("tableWriteProvider")
   val ODPS_META_CACHE_SIZE = newOption("metaCacheSize")
   val ODPS_META_CACHE_EXPIRE_SECONDS = newOption("metaCacheExpireSeconds")
+  val ODPS_VIEW_CACHE_SIZE = newOption("viewCacheSize")
+  val ODPS_VIEW_CACHE_EXPIRE_SECONDS = newOption("viewCacheExpireSeconds")
   val ODPS_META_STATS_LEVEL = newOption("metaStatsLevel")
   val ODPS_VECTORIZED_READER_ENABLED = newOption("enableVectorizedReader")
   val ODPS_BATCH_REUSED_ENABLED = newOption("enableBatchReused")

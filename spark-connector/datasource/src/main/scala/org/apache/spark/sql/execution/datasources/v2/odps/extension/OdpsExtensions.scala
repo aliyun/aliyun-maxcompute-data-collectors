@@ -42,6 +42,7 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.sql.util.{CaseInsensitiveStringMap, PartitioningUtils => CatalystPartitioningUtils}
 import org.apache.spark.sql.execution.datasources.PartitioningUtils
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.odps.OdpsUtils
 
 import java.util.Locale
 import java.lang.reflect.Method
@@ -77,7 +78,14 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
       case u @ UnresolvedRelation(parts @ CatalogAndIdentifier(catalog: OdpsTableCatalog, ident), _, _) =>
         try {
           val view = catalog.loadView(ident)
-          createViewRelation(parts, catalog, view)
+          if (!OdpsUtils.odpsMaterializeViewToTableEnabled(
+            SparkSession.active.sessionState.conf)) {
+            createViewRelation(parts, catalog, view)
+          } else {
+            SubqueryAlias(
+              parts,
+              DataSourceV2Relation.create(view, Some(catalog), Some(ident), u.options))
+          }
         } catch {
           case _: Throwable =>
             u

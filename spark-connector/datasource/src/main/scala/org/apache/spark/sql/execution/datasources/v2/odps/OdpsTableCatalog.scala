@@ -47,7 +47,6 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConfHelper
   with Logging {
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
   import OdpsMetaClient._
   import OdpsTableCatalog._
 
@@ -517,6 +516,10 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
       .map(schema => Array(project, schema))
       .toArray
   }
+
+  def getViewToTable(query: String): SdkTable = {
+    metaClient.getSdkViewTable(query)
+  }
 }
 
 object OdpsTableCatalog {
@@ -533,12 +536,29 @@ object OdpsTableCatalog {
 
   def getDataSchema(sdkTable: SdkTable): StructType = {
     StructType(sdkTable.getSchema.getColumns.asScala.map(
-      c => StructField(c.getName, typeInfo2Type(c.getTypeInfo))))
+      c => {
+        val (dataType, hasDatetime) = typeInfo2Type(c.getTypeInfo)
+        val metadata = if (hasDatetime) {
+          new MetadataBuilder().putBoolean(DATETIME_TYPE_STRING_METADATA_KEY, value = true).build()
+        } else {
+          Metadata.empty
+        }
+        StructField(c.getName, dataType, metadata = metadata).withComment(c.getComment)
+      }
+    ))
   }
 
   def getPartitionSchema(sdkTable: SdkTable): StructType = {
     StructType(sdkTable.getSchema.getPartitionColumns.asScala.map(
-      c => StructField(c.getName, typeInfo2Type(c.getTypeInfo))))
+      c => {
+        val (dataType, hasDatetime) = typeInfo2Type(c.getTypeInfo, true)
+        val metadata = if (hasDatetime) {
+          new MetadataBuilder().putBoolean(DATETIME_TYPE_STRING_METADATA_KEY, value = true).build()
+        } else {
+          Metadata.empty
+        }
+        StructField(c.getName, dataType, metadata = metadata).withComment(c.getComment)
+      }))
   }
 
   def getBucketSpec(sdkTable: SdkTable): Option[OdpsBucketSpec] = {

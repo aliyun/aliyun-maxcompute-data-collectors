@@ -91,7 +91,14 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
   override def loadTable(ident: Identifier): Table = {
     checkNamespace(ident.namespace())
     withClient {
-      getTableUsingSdk(ident)
+      getTableUsingSdk(ident, false)
+    }
+  }
+
+  def loadView(ident: Identifier): OdpsTable = {
+    checkNamespace(ident.namespace())
+    withClient {
+      getTableUsingSdk(ident, true)
     }
   }
 
@@ -105,7 +112,8 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     checkNamespace(ident.namespace())
     val (project, odpsSchema) = getProjectSchema(ident.namespace())
     withClient {
-      metaClient.getSdkTableOption(project, odpsSchema, ident.name(), refresh = true).isDefined
+      val table = metaClient.getSdkTableOption(project, odpsSchema, ident.name(), refresh = true)
+      table.isDefined && !table.get.isVirtualView
     }
   }
 
@@ -424,7 +432,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
   }
 
-  private def getTableUsingSdk(ident: Identifier): OdpsTable = {
+  private def getTableUsingSdk(ident: Identifier, loadView: Boolean): OdpsTable = {
     val (project, odpsSchema) = getProjectSchema(ident.namespace())
     val table = ident.name()
     val newIdent = if (schemaEnable) {
@@ -434,6 +442,9 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
     val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
     val tableType = getTableType(sdkTable)
+    if (loadView != (tableType == OdpsTableType.VIRTUAL_VIEW)) {
+      throw new NoSuchTableException(ident)
+    }
     val dataSchema = getDataSchema(sdkTable)
     val partitionSchema = getPartitionSchema(sdkTable)
     val stats = if (sdkTable.getSize <= 0) OdpsStatistics(OptionalLong.empty(), OptionalLong.empty())

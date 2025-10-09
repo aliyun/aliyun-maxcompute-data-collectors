@@ -22,13 +22,19 @@ import com.aliyun.odps.PartitionSpec
 
 import scala.collection.JavaConverters._
 import org.apache.spark.sql.{AnalysisException, Dataset, SparkSession, SparkSessionExtensions, Strategy}
-import org.apache.spark.sql.catalyst.analysis.ResolvedTable
+import org.apache.spark.sql.catalyst.analysis.{GetColumnByOrdinal, ResolvedTable, UnresolvedRelation}
 import org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.catalyst.SQLConfHelper
-import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, Descending, SortOrder}
+import org.apache.spark.sql.catalyst.{SQLConfHelper, TableIdentifier}
+import org.apache.spark.sql.catalyst.catalog.{CatalogStorageFormat, CatalogTable, CatalogTableType}
+import org.apache.spark.sql.catalyst.catalog.CatalogTable.catalogAndNamespaceToProps
+import org.apache.spark.sql.catalyst.expressions.{Alias, Ascending, Attribute, Descending, SortOrder, UpCast}
+import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.trees.{CurrentOrigin, Origin}
+import org.apache.spark.sql.connector.catalog.LookupCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.sql.execution.datasources.v2.odps.{OdpsBucketSpec, OdpsTable}
+import org.apache.spark.sql.execution.datasources.v2.odps.{OdpsBucketSpec, OdpsTable, OdpsTableCatalog}
 import org.apache.spark.sql.odps.execution.exchange.OdpsShuffleExchangeExec
 import org.apache.spark.sql.odps.catalyst.plans.physical.OdpsHashPartitioning
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
@@ -37,12 +43,96 @@ import org.apache.spark.sql.util.{CaseInsensitiveStringMap, PartitioningUtils =>
 import org.apache.spark.sql.execution.datasources.PartitioningUtils
 import org.apache.spark.sql.types.StructType
 
+import java.util.Locale
+import java.lang.reflect.Method
 import scala.collection.mutable
 
 class OdpsExtensions extends (SparkSessionExtensions => Unit) {
 
   private val WRITE_ODPS_STATIC_PARTITION = "writeOdpsStaticPartition"
   private val WRITE_ODPS_DYNAMIC_PARTITION = "writeOdpsDynamicPartitionColumns"
+
+  case class ResolveOdpsView(spark: SparkSession)
+    extends Rule[LogicalPlan]
+      with LookupCatalog {
+
+    protected lazy val catalogManager = spark.sessionState.catalogManager
+    protected lazy val analyzer = spark.sessionState.analyzer
+
+    /**
+     * Format table name, taking into account case sensitivity.
+     */
+    private def formatTableName(name: String): String = {
+      if (conf.caseSensitiveAnalysis) name else name.toLowerCase(Locale.ROOT)
+    }
+
+    /**
+     * Format database name, taking into account case sensitivity.
+     */
+    private def formatNamespaceName(namespace: Seq[String]): Seq[String] = {
+      if (conf.caseSensitiveAnalysis) namespace else namespace.map(_.toLowerCase(Locale.ROOT))
+    }
+
+    override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperators {
+      case u @ UnresolvedRelation(parts @ CatalogAndIdentifier(catalog: OdpsTableCatalog, ident), _, _) =>
+        try {
+          val view = catalog.loadView(ident)
+          createViewRelation(parts, catalog, view)
+        } catch {
+          case _: Throwable =>
+            u
+        }
+    }
+
+    private def createViewRelation(nameParts: Seq[String], catalog: OdpsTableCatalog, view: OdpsTable): LogicalPlan = {
+      val parsedPlan =
+        parseViewText(nameParts.toArray.mkString("."), view.viewText.get)
+      val aliases = view.schema.zipWithIndex.map {
+        case (expected, pos) =>
+          val attr = GetColumnByOrdinal(pos, expected.dataType)
+          Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata =
+            Some(expected.metadata))
+      }
+
+      val ident = view.tableIdent
+      val namespace = formatNamespaceName(ident.namespace())
+      val db = namespace.head
+      val name = formatTableName(ident.name())
+      val viewProperties = catalogAndNamespaceToProps(catalog.name(), namespace)
+
+      val metadata = CatalogTable(
+        identifier = TableIdentifier(name, Some(db)),
+        tableType = CatalogTableType.VIEW,
+        storage = CatalogStorageFormat.empty,
+        schema = view.schema,
+        properties = viewProperties,
+        viewOriginalText = view.viewText,
+        viewText = view.viewText
+      )
+      val subqueryAlias = SubqueryAlias(nameParts, View(desc = metadata, isTempView = false, child = Project(aliases, parsedPlan)))
+
+      val clazz = analyzer.ResolveRelations.getClass
+      val method: Method = clazz.getDeclaredMethod(
+        "org$apache$spark$sql$catalyst$analysis$Analyzer$ResolveRelations$$resolveViews", classOf[LogicalPlan])
+      method.setAccessible(true)
+      method.invoke(analyzer.ResolveRelations, subqueryAlias).asInstanceOf[LogicalPlan]
+    }
+
+    private def parseViewText(name: String, viewText: String): LogicalPlan = {
+      val origin = Origin(
+        objectType = Some("VIEW"),
+        objectName = Some(name)
+      )
+      try {
+        CurrentOrigin.withOrigin(origin) {
+          spark.sessionState.sqlParser.parseQuery(viewText)
+        }
+      } catch {
+        case _: ParseException =>
+          throw QueryCompilationErrors.invalidViewText(viewText, name)
+      }
+    }
+  }
 
   class ResolveOdpsTable(session: SparkSession) extends Rule[LogicalPlan] with SQLConfHelper {
 
@@ -253,6 +343,7 @@ class OdpsExtensions extends (SparkSessionExtensions => Unit) {
   }
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
+    extensions.injectResolutionRule(ResolveOdpsView)
     extensions.injectResolutionRule(new ResolveOdpsTable(_))
     extensions.injectOptimizerRule(new OptimizeWriteOdpsTable(_))
     extensions.injectPlannerStrategy(new OdpsStrategy(_))

@@ -43,7 +43,7 @@ import org.apache.spark.sql.types.{DecimalType, StructType}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.{SerializableConfiguration, ThreadUtils, Utils}
-import org.apache.spark.sql.odps.{ExecutionUtils, OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition}
+import org.apache.spark.sql.odps.{ExecutionUtils, OdpsClient, OdpsEmptyColumnPartition, OdpsPartitionReaderFactory, OdpsScanPartition, OdpsUtils}
 import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.VIRTUAL_VIEW
 
 import scala.collection.mutable
@@ -131,9 +131,12 @@ case class OdpsScan(
         .withDatetimeUnit(TimestampUnit.MILLI)
         .withTimestampUnit(TimestampUnit.MICRO).build())
 
-    val scan = scanBuilder.withFilterPredicate(predicate).buildBatchReadSession
-    logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
-    scan
+    OdpsUtils.retryOnSpecificError(3, OdpsUtils.SESSION_ERROR_MESSAGE) {
+      () =>
+        val scan = scanBuilder.withFilterPredicate(predicate).buildBatchReadSession
+        logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
+        scan
+    }
   }
 
   private def getInputPartitions(scan: TableBatchReadSession): Array[InputPartition] = {

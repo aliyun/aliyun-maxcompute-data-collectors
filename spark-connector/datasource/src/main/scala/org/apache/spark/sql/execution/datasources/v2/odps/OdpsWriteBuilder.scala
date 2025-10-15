@@ -41,7 +41,7 @@ import org.apache.spark.sql.util.SchemaUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.execution.datasources.PartitioningUtils
 import org.apache.spark.sql.execution.datasources.v2.odps.OdpsTableType.{EXTERNAL_TABLE, VIRTUAL_VIEW}
-import org.apache.spark.sql.odps.{OdpsClient, OdpsWriteJobStatsTracker, WriteJobDescription}
+import org.apache.spark.sql.odps.{OdpsClient, OdpsUtils, OdpsWriteJobStatsTracker, WriteJobDescription}
 import org.apache.spark.util.SerializableConfiguration
 
 case class OdpsWriteBuilder(
@@ -176,7 +176,9 @@ case class OdpsWriteBuilder(
         }
       }
 
-      val batchSink = sinkBuilder.buildBatchWriteSession
+      val batchSink = OdpsUtils.retryOnSpecificError(3, OdpsUtils.SESSION_ERROR_MESSAGE) {
+        () => sinkBuilder.buildBatchWriteSession
+      }
       val arrowDataFormat = new DataFormat(DataFormat.Type.ARROW, DataFormat.Version.V5)
       val supportArrowWriter = batchSink.supportsDataFormat(arrowDataFormat)
 

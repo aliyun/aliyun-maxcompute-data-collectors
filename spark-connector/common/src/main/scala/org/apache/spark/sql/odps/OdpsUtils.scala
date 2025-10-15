@@ -215,6 +215,7 @@ object OdpsUtils extends Logging {
   val ODPS_EXTERNAL_TABLE = "EXTERNAL_TABLE"
   val ODPS_MANAGED_TABLE = "MANAGED_TABLE"
   val ODPS_VIRTUAL_VIEW = "VIRTUAL_VIEW"
+  val SESSION_ERROR_MESSAGE: Set[String] = Set[String]("OTSTimeout")
 
   /** Given the string representation of a type, return its DataType */
   def typeInfo2Type(typeInfo: TypeInfo): DataType = {
@@ -282,5 +283,28 @@ object OdpsUtils extends Logging {
       case _ =>
         throw new AnalysisException(s"ODPS data type: $typeStr not supported!")
     }
+  }
+
+  def retryOnSpecificError[T](maxRetries: Int, errorMessages: Set[String])(f: () => T): T = {
+    var currentRetry = 0
+    var success = false
+    var result: Option[T] = None
+
+    while (currentRetry <= maxRetries && !success) {
+      try {
+        result = Some(f())
+        success = true
+      } catch {
+        case e: Throwable if Option(e.getMessage).exists(msg => errorMessages.exists(msg.contains)) =>
+          if (currentRetry < maxRetries) {
+            Thread.sleep(3000 * (1 << currentRetry))
+            logError(s"Retrying after failure, retry count: $currentRetry", e)
+            currentRetry += 1
+          } else {
+            throw e
+          }
+      }
+    }
+    result.getOrElse(throw new RuntimeException("Unexpected error"))
   }
 }

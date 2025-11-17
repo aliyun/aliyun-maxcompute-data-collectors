@@ -7,6 +7,7 @@ import com.aliyun.odps.table.read.split.InputSplit
 import com.aliyun.odps.table.read.split.impl.IndexedInputSplit
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.spark.sql.odps.OdpsScanPartition
+import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 
@@ -224,6 +225,66 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     verify(mockSplitReader, times(1)).close()
     reader.close()
     verify(mockSplitReader, times(1)).close()
+  }
+
+  test("AsyncPartitionReader close() can be called in reuseBatch mode as expected") {
+    when(mockReaderOptions.isReuseBatch).thenReturn(true)
+    when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
+    when(mockSplitReader.hasNext).thenReturn(true).thenReturn(false)
+    when(mockSplitReader.get()).thenReturn(generateRoot())
+
+    // Create test data
+    val splits = Array(new IndexedInputSplit("0", 10))
+    val partition = OdpsScanPartition(splits.asInstanceOf[Array[InputSplit]], mockScan)
+
+    // Create reader
+    val reader = new AsyncPartitionReader(partition, mockReaderOptions, true, getAllNames, 2)
+
+    // Test - should not throw exception
+    while (reader.next()) {
+      reader.get()
+    }
+
+    // Test - should not throw exception
+    Thread.sleep(100)
+    verify(mockSplitReader).close()
+    // columnarBatch should not be closed
+    val columnarBatch = reader.getClass.getDeclaredField("columnarBatch")
+    columnarBatch.setAccessible(true)
+    val batch = spy(columnarBatch.get(reader).asInstanceOf[ColumnarBatch])
+    columnarBatch.set(reader, batch)
+    reader.close()
+    Thread.sleep(100)
+    verify(batch, times(0)).close()
+  }
+
+  test("AsyncPartitionReader close() should not be called in non-reuseBatch mode as expected") {
+    when(mockReaderOptions.isReuseBatch).thenReturn(false)
+    when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
+    when(mockSplitReader.hasNext).thenReturn(true).thenReturn(false)
+    when(mockSplitReader.get()).thenReturn(generateRoot())
+
+    // Create test data
+    val splits = Array(new IndexedInputSplit("0", 10))
+    val partition = OdpsScanPartition(splits.asInstanceOf[Array[InputSplit]], mockScan)
+
+    // Create reader
+    val reader = new AsyncPartitionReader(partition, mockReaderOptions, false, getAllNames, 2)
+
+    // Test - should not throw exception
+    while (reader.next()) {
+      reader.get()
+    }
+    Thread.sleep(100)
+    verify(mockSplitReader).close()
+    val columnarBatch = reader.getClass.getDeclaredField("columnarBatch")
+    columnarBatch.setAccessible(true)
+    val batch = spy(columnarBatch.get(reader).asInstanceOf[ColumnarBatch])
+    columnarBatch.set(reader, batch)
+    verify(batch, times(0)).close()
+    reader.close()
+    Thread.sleep(100)
+    verify(batch, times(1)).close()
   }
 
   test("AsyncPartitionReader handles exception in AsyncSingleReaderTask createReader") {

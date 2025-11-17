@@ -98,7 +98,7 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
 
   override def close(): Unit = {
     if (!isClosed) {
-      if (columnarBatch != null) {
+      if (columnarBatch != null && !reuseBatch) {
         columnarBatch.close()
       }
 

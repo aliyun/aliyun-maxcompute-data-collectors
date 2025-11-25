@@ -6,12 +6,14 @@ import com.aliyun.odps.table.read.SplitReader
 import com.aliyun.odps.table.read.split.InputSplit
 import com.aliyun.odps.table.read.split.impl.IndexedInputSplit
 import org.apache.arrow.vector.VectorSchemaRoot
+import org.apache.spark.TaskContext
+import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.sql.odps.OdpsScanPartition
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 
-import java.util.concurrent.{ExecutorService, Semaphore}
+import java.util.concurrent.{BlockingQueue, ExecutorService, Semaphore}
 import scala.collection.mutable.ArrayBuffer
 
 class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
@@ -100,10 +102,10 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     // Setup mocks
     when(mockReaderOptions.isReuseBatch).thenReturn(true)
     when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader, mockSplitReader2)
-    when(mockSplitReader.hasNext).thenReturn(true, false)
-    when(mockSplitReader2.hasNext).thenReturn(true, false)
-    when(mockSplitReader.get()).thenReturn(generateRoot(1))
-    when(mockSplitReader2.get()).thenReturn(generateRoot(2))
+    when(mockSplitReader.hasNext).thenReturn(true, true, false)
+    when(mockSplitReader2.hasNext).thenReturn(true, true, false)
+    when(mockSplitReader.get()).thenReturn(generateRoot(1), generateRoot(2))
+    when(mockSplitReader2.get()).thenReturn(generateRoot(3), generateRoot(4))
     when(mockSplitReader2.currentMetricsValues()).thenReturn(new Metrics())
 
     // Create test data
@@ -118,19 +120,25 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     val batch1 = reader.get()
     assert(reader.next())
     val batch2 = reader.get()
+    assert(reader.next())
+    val batch3 = reader.get()
+    assert(reader.next())
+    val batch4 = reader.get()
     assert(batch1 != null)
     assert(batch2 != null)
-    val numRowsArray = Array(batch1.numRows(), batch2.numRows())
-    val numColsArray = Array(batch1.numCols(), batch2.numCols())
-    val column0Array = Array(batch1, batch2)
+    assert(batch3 != null)
+    assert(batch4 != null)
+    val numRowsArray = Array(batch1.numRows(), batch2.numRows(), batch3.numRows(), batch4.numRows())
+    val numColsArray = Array(batch1.numCols(), batch2.numCols(), batch3.numCols(), batch4.numCols())
+    val column0Array = Array(batch1, batch2, batch3, batch4)
       .flatMap(batch => (0 until batch.numRows()).map(i => batch.column(0).getInt(i)))
-    val column1Array = Array(batch1, batch2)
+    val column1Array = Array(batch1, batch2, batch3, batch4)
       .flatMap(batch => (0 until batch.numRows()).map(i => batch.column(1).getUTF8String(i).toString))
 
-    assert(numRowsArray.sorted sameElements Array(1, 2))
-    assert(numColsArray.sorted sameElements Array(2, 2))
-    assert(column0Array.sorted sameElements Array(1, 1, 2))
-    assert(column1Array.sorted sameElements Array("test1", "test1", "test2"))
+    assert(numRowsArray.sorted sameElements Array(1, 2, 3, 4))
+    assert(numColsArray.sorted sameElements Array(2, 2, 2, 2))
+    assert(column0Array.sorted sameElements Array(1, 1, 1, 1, 2, 2, 2, 3, 3, 4))
+    assert(column1Array.sorted sameElements Array("test1", "test1", "test1", "test1", "test2", "test2", "test2", "test3", "test3", "test4"))
 
     // No more data
     Thread.sleep(100)
@@ -147,10 +155,10 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     // Setup mocks
     when(mockReaderOptions.isReuseBatch).thenReturn(false)
     when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader, mockSplitReader2)
-    when(mockSplitReader.hasNext).thenReturn(true, false)
-    when(mockSplitReader2.hasNext).thenReturn(true, false)
-    when(mockSplitReader.get()).thenReturn(generateRoot(1))
-    when(mockSplitReader2.get()).thenReturn(generateRoot(2))
+    when(mockSplitReader.hasNext).thenReturn(true, true, false)
+    when(mockSplitReader2.hasNext).thenReturn(true, true, false)
+    when(mockSplitReader.get()).thenReturn(generateRoot(1), generateRoot(2))
+    when(mockSplitReader2.get()).thenReturn(generateRoot(3), generateRoot(4))
     when(mockSplitReader2.currentMetricsValues()).thenReturn(new Metrics())
 
     // Create test data
@@ -160,31 +168,39 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     // Create reader
     val reader = new AsyncPartitionReader(partition, mockReaderOptions, false, getAllNames, 8)
 
+    val numRowsArray = Array.newBuilder[Int]
+    val numColsArray = Array.newBuilder[Int]
+    val column0Array = Array.newBuilder[Int]
+    val column1Array = Array.newBuilder[String]
+
     // Test - should get data from both splits
     assert(reader.next())
-    val batch1 = reader.get()
+    var batch = reader.get()
+    assert(batch != null)
+    metricsValueNonReuse(batch, numRowsArray, numColsArray, column0Array, column1Array)
     assert(reader.next())
-    val batch2 = reader.get()
-    assert(batch1 != null)
-    assert(batch2 != null)
-    val numRowsArray = Array(batch1.numRows(), batch2.numRows())
-    val numColsArray = Array(batch1.numCols(), batch2.numCols())
-    val column0Array = Array(batch1, batch2)
-      .flatMap(batch => (0 until batch.numRows()).map(i => batch.column(0).getInt(i)))
-    val column1Array = Array(batch1, batch2)
-      .flatMap(batch => (0 until batch.numRows()).map(i => batch.column(1).getUTF8String(i).toString))
+    batch = reader.get()
+    assert(batch != null)
+    metricsValueNonReuse(batch, numRowsArray, numColsArray, column0Array, column1Array)
+    assert(reader.next())
+    batch = reader.get()
+    assert(batch != null)
+    metricsValueNonReuse(batch, numRowsArray, numColsArray, column0Array, column1Array)
+    assert(reader.next())
+    batch = reader.get()
+    assert(batch != null)
+    metricsValueNonReuse(batch, numRowsArray, numColsArray, column0Array, column1Array)
 
-    assert(numRowsArray.sorted sameElements Array(1, 2))
-    assert(numColsArray.sorted sameElements Array(2, 2))
-    assert(column0Array.sorted sameElements Array(1, 1, 2))
-    assert(column1Array.sorted sameElements Array("test1", "test1", "test2"))
+    assert(numRowsArray.result().sorted sameElements Array(1, 2, 3, 4))
+    assert(numColsArray.result().sorted sameElements Array(2, 2, 2, 2))
+    assert(column0Array.result().sorted sameElements Array(1, 1, 1, 1, 2, 2, 2, 3, 3, 4))
+    assert(column1Array.result().sorted sameElements Array("test1", "test1", "test1", "test1", "test2", "test2", "test2", "test3", "test3", "test4"))
 
     // No more data
-    Thread.sleep(100)
     assert(!reader.next())
-    reader.close()
     verify(mockSplitReader).close()
     verify(mockSplitReader2).close()
+    reader.close()
   }
 
   test("AsyncPartitionReader close() can be called multiple times safely in reuseBatch mode") {
@@ -422,9 +438,9 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     val executor = getPrivateField(reader, "multiSplitsExecutor").asInstanceOf[ExecutorService]
     executor.shutdownNow()
 
-    Thread.sleep(100)
+    Thread.sleep(500)
+    verify(mockSplitReader).close()
     verify(mockSplitReader2).close()
-    verify(testVectorSchemaRoot).close()
   }
 
   test("AsyncPartitionReader with non-reuseBatch mode works correctly with larger queue") {
@@ -513,5 +529,85 @@ class AsyncPartitionReaderSuite extends BaseColumnarReaderSuite {
     assert(count == 3)
     assert(rows.toSet.equals(Set(1, 2, 3)))
     reader.close()
+  }
+
+  test("AsyncPartitionReader handles kill action in reuseBatch mode") {
+    when(mockReaderOptions.isReuseBatch).thenReturn(true)
+    when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
+    when(mockSplitReader.hasNext).thenReturn(true, true, false)
+    when(mockSplitReader.get()).thenReturn(generateRoot())
+
+    // Create test data
+    val splits = Array(new IndexedInputSplit("0", 10))
+    val partition = OdpsScanPartition(splits.asInstanceOf[Array[InputSplit]], mockScan)
+
+    // Create reader
+    var reader: AsyncPartitionReader = null
+    var originalReader: AsyncPartitionReader = null
+    val mockBatch = mock(classOf[ColumnarBatch])
+    val readerThread = new Thread(() => {
+      try {
+        val mockTaskContext = mock(classOf[TaskContext])
+        TaskContext.setTaskContext(mockTaskContext)
+        when(mockTaskContext.taskMetrics()).thenReturn(new TaskMetrics())
+        originalReader = new AsyncPartitionReader(partition, mockReaderOptions, true, getAllNames, 2)
+        reader = spy(originalReader)
+        reader.next()
+        reader.get()
+        reader.next()
+      } finally {
+        val queue = getPrivateField(originalReader, "asyncQueueForVisit").asInstanceOf[BlockingQueue[Object]]
+        queue.put(OdpsSubReaderData(0, mockBatch))
+        reader.close()
+      }
+    })
+    readerThread.start()
+    Thread.sleep(500)
+    readerThread.interrupt()
+
+    Thread.sleep(500)
+    verify(reader).close()
+    verify(mockSplitReader).close()
+    verify(mockBatch, times(0)).close()
+  }
+
+  test("AsyncPartitionReader handles kill action in non-reuseBatch mode") {
+    when(mockReaderOptions.isReuseBatch).thenReturn(false)
+    when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
+    when(mockSplitReader.hasNext).thenReturn(true, true, false)
+    when(mockSplitReader.get()).thenReturn(generateRoot())
+
+    // Create test data
+    val splits = Array(new IndexedInputSplit("0", 10))
+    val partition = OdpsScanPartition(splits.asInstanceOf[Array[InputSplit]], mockScan)
+
+    // Create reader
+    var reader: AsyncPartitionReader = null
+    var originalReader: AsyncPartitionReader = null
+    val mockBatch = mock(classOf[ColumnarBatch])
+    val readerThread = new Thread(() => {
+      try {
+        val mockTaskContext = mock(classOf[TaskContext])
+        TaskContext.setTaskContext(mockTaskContext)
+        when(mockTaskContext.taskMetrics()).thenReturn(new TaskMetrics())
+        originalReader = new AsyncPartitionReader(partition, mockReaderOptions, false, getAllNames, 2)
+        reader = spy(originalReader)
+        reader.next()
+        reader.get()
+        reader.next()
+      } finally {
+        val queue = getPrivateField(originalReader, "asyncQueueForVisit").asInstanceOf[BlockingQueue[Object]]
+        queue.put(OdpsSubReaderData(0, mockBatch))
+        reader.close()
+      }
+    })
+    readerThread.start()
+    Thread.sleep(500)
+    readerThread.interrupt()
+
+    Thread.sleep(500)
+    verify(reader).close()
+    verify(mockSplitReader).close()
+    verify(mockBatch).close()
   }
 }

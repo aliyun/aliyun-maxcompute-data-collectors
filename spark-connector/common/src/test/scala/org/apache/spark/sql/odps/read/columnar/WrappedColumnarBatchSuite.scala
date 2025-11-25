@@ -54,19 +54,6 @@ class WrappedColumnarBatchSuite extends BaseColumnarReaderSuite {
     }
   }
 
-  test("updateColumnBatch with reuseBatch = false should close previous batch") {
-    val wrappedBatch = WrappedColumnarBatch(null, reuseBatch = false)
-    wrappedBatch.updateColumnBatch(generateRoot(), Seq("id", "name"), getSchema)
-    val oldBatch = wrappedBatch.columnarBatch
-    assert(wrappedBatch.columnarBatch != null)
-    assert(wrappedBatch.columnarBatch.numRows() == 3)
-    assert(wrappedBatch.columnarBatch.numCols() == 2)
-    wrappedBatch.updateColumnBatch(generateRoot(), Seq("id", "name"), getSchema)
-    assertThrows[IndexOutOfBoundsException] {
-      oldBatch.column(0).getInt(0)
-    }
-  }
-
   test("updateColumnBatch with reuseBatch = true should reuse previous batch") {
     val wrappedBatch = WrappedColumnarBatch(null, reuseBatch = true)
     wrappedBatch.updateColumnBatch(generateRoot(), Seq("id", "name"), getSchema)

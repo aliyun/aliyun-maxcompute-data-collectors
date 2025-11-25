@@ -61,7 +61,6 @@ class AsyncSingleReaderTask(readerId: Int,
   private val split = partition.inputSplits(readerId)
   private val wrappedColumnarBatch: WrappedColumnarBatch =
     WrappedColumnarBatch(columnarBatch = null, reuseBatch)
-  private var currentRoot: VectorSchemaRoot = _
   private val arrowReader: SplitReader[VectorSchemaRoot] = partition.scan
     .createArrowReader(split, readerOptions)
 
@@ -83,18 +82,13 @@ class AsyncSingleReaderTask(readerId: Int,
         asyncQueueForVisit.put(endFlag)
         false
       } else {
-        currentRoot = arrowReader.get()
-        wrappedColumnarBatch.updateColumnBatch(currentRoot, allNames, schema)
+        wrappedColumnarBatch.updateColumnBatch(arrowReader.get(), allNames, schema)
         asyncQueueForVisit.put(OdpsSubReaderData(readerId, wrappedColumnarBatch.columnarBatch))
-        currentRoot = null
         true
       }
     } catch {
       case ie: InterruptedException =>
         logError("InterruptedException: ", ie)
-        if (currentRoot != null) {
-          currentRoot.close()
-        }
         false
       case cause: Throwable =>
         val splitIndex = split match {

@@ -11,6 +11,7 @@ import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType}
 import org.apache.arrow.vector.{FieldVector, IntVector, VarCharVector, VectorSchemaRoot}
 import org.apache.spark.TaskContext
 import org.apache.spark.executor.TaskMetrics
+import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.mockito.Mockito.{mock, when}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
@@ -19,6 +20,7 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.nio.charset.StandardCharsets
 import java.util
 import scala.collection.JavaConverters.seqAsJavaListConverter
+import scala.collection.mutable
 
 trait BaseColumnarReaderSuite extends AnyFunSuite with BeforeAndAfterEach {
 
@@ -98,4 +100,14 @@ trait BaseColumnarReaderSuite extends AnyFunSuite with BeforeAndAfterEach {
 
   def getAllNames: Seq[String] = allNames
 
+  def metricsValueNonReuse(batch: ColumnarBatch,
+                           numRowsArray: mutable.ArrayBuilder[Int],
+                           numColsArray: mutable.ArrayBuilder[Int],
+                           column0Array: mutable.ArrayBuilder[Int],
+                           column1Array: mutable.ArrayBuilder[String]): Unit = {
+    numRowsArray += batch.numRows()
+    numColsArray += batch.numCols()
+    (0 until batch.numRows()).foreach(column0Array += batch.column(0).getInt(_))
+    (0 until batch.numRows()).foreach(column1Array += batch.column(1).getUTF8String(_).toString)
+  }
 }

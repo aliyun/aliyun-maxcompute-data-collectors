@@ -72,6 +72,10 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
           semaphores(currentReaderIndex).release()
         }
 
+        if (columnarBatch != null && !reuseBatch) {
+          columnarBatch.close()
+        }
+
         val nextObject = asyncQueueForVisit.take()
         nextObject match {
           case data: OdpsSubReaderData =>
@@ -121,7 +125,7 @@ class AsyncPartitionReader(partition: OdpsScanPartition,
       if (multiSplitsExecutor != null) {
         multiSplitsExecutor.shutdownNow()
 
-        while (!asyncQueueForVisit.isEmpty) {
+        while (!asyncQueueForVisit.isEmpty && !reuseBatch) {
           val data = asyncQueueForVisit.take()
           data match {
             case data: OdpsSubReaderData =>

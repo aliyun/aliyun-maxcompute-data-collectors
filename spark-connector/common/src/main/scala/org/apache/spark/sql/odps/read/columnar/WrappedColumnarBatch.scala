@@ -31,9 +31,6 @@ case class WrappedColumnarBatch(var columnarBatch: ColumnarBatch,
   def updateColumnBatch(root: VectorSchemaRoot,
                         allNames: Seq[String],
                         schema: DataSchema): Unit = {
-    if (columnarBatch != null && !reuseBatch) {
-      columnarBatch.close()
-    }
     val vectors = root.getFieldVectors
     val fields = root.getSchema.getFields
     val fieldNameIdxMap = fields.asScala.map(f => f.getName).zipWithIndex.toMap

@@ -71,6 +71,11 @@ class AsyncSingleReaderTask(readerId: Int,
           semaphore.acquire()
         }
       }
+    } catch {
+      case ie: InterruptedException =>
+        logError("InterruptedException: ", ie)
+      case e: Throwable =>
+        throw e
     } finally {
       close()
     }

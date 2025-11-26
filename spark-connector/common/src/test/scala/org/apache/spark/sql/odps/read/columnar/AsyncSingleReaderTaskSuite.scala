@@ -228,4 +228,47 @@ class AsyncSingleReaderTaskSuite extends BaseColumnarReaderSuite {
     val exception = queue.take()
     assert(exception.isInstanceOf[SingleReaderTaskException])
   }
+
+  test("AsyncSingleReaderTask handles InterruptedException in semaphore.acquire") {
+    when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
+    when(mockSplitReader.hasNext).thenReturn(true)
+    when(mockSplitReader.get()).thenReturn(generateRoot())
+
+    // Create test data
+    val split = new IndexedInputSplit("0", 10)
+    val partition = OdpsScanPartition(Array(split), mockScan)
+    val schema = partition.scan.readSchema
+    val inputBytes = new AtomicLong(0)
+    val semaphore = new Semaphore(0)
+    val input = OdpsSubReaderInput(
+      reuseBatch = true,
+      partition = partition,
+      schema = schema,
+      inputBytes = inputBytes,
+      allNames = getAllNames,
+      semaphore = semaphore
+    )
+
+    val queue: BlockingQueue[Object] = new ArrayBlockingQueue[Object](2)
+    val readerClose = new AtomicBoolean(false)
+    val endFlag = new Object()
+
+    @volatile var uncaughtException: Throwable = null
+    val originalHandler = Thread.getDefaultUncaughtExceptionHandler
+    Thread.setDefaultUncaughtExceptionHandler((t, e) => {
+      uncaughtException = e
+    })
+
+    // Create and run the task
+    val task = spy(new AsyncSingleReaderTask(0, mockReaderOptions, input, queue, endFlag, readerClose))
+    val thread = new Thread(task)
+    thread.start()
+
+    // Wait for the task to complete
+    Thread.sleep(500)
+    thread.interrupt()
+
+    assert(uncaughtException == null)
+    Thread.setDefaultUncaughtExceptionHandler(originalHandler)
+  }
 }

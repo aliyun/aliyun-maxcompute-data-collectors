@@ -25,6 +25,7 @@ import com.aliyun.odps.table.DataSchema;
 import com.aliyun.odps.table.configuration.ReaderOptions;
 import com.aliyun.odps.table.configuration.SplitOptions;
 import com.aliyun.odps.table.enviroment.ExecutionEnvironment;
+import com.aliyun.odps.table.read.SessionStats;
 import com.aliyun.odps.table.read.SplitReader;
 import com.aliyun.odps.table.read.TableReadSessionBuilder;
 import com.aliyun.odps.table.read.impl.batch.TableBatchReadSessionBase;
@@ -70,6 +71,11 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
         Preconditions.checkArgument(split instanceof TunnelInputSplit,
                 "Input split: " + split.getClass().getName());
         return new TunnelArrowSplitReader(identifier, (TunnelInputSplit) split, readSchema, options);
+    }
+
+    @Override
+    public SessionStats getEstimatedStats() {
+        return null;
     }
 
     @Override

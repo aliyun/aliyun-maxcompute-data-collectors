@@ -2,6 +2,7 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 
 import com.aliyun.odps.{Column, Odps, OdpsType, TableSchema}
 import com.aliyun.odps.account.AliyunAccount
+import com.aliyun.odps.tunnel.TableTunnel
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -208,10 +209,58 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     assert(pData4(0).get(1)=="shanghai")
   }
 
+  test("enableDictionaryEncoding") {
+    sparkSession.conf.set("spark.sql.catalog.odps.enableDictionaryEncodingReader", true)
+
+    val tableName = "testDictionaryEncoding"
+    val count = 1000
+    uploadDictionaryData(tableName, count)
+    val result = sparkSession.sql(s"select * from $tableName").collect()
+    assert(result.length == count)
+
+    for (i <- result.indices) {
+      val row = result(i)
+      val firstCol = row.getString(0)
+      val secondCol = row.getString(1)
+
+      if (i % 2 == 0) {
+        assert(firstCol == "Beijing")
+      } else {
+        assert(firstCol == "Shanghai")
+      }
+
+      assert(secondCol == "Cat_" + (i % 10))
+    }
+  }
+
   private def createTable(taleName: String, tableSchema: TableSchema): Unit = {
     if (odps.tables().exists(taleName)) {
       odps.tables().delete(taleName)
     }
     odps.tables().create(taleName, tableSchema)
+  }
+
+  private def uploadDictionaryData(tableName: String, count: Int): Unit = {
+    val tableSchema = new TableSchema
+    val columns = new util.ArrayList[Column]
+    columns.add(new Column("city", OdpsType.STRING))
+    columns.add(new Column("category", OdpsType.STRING))
+
+    tableSchema.setColumns(columns)
+    createTable(tableName, tableSchema)
+
+    val tunnel = new TableTunnel(odps)
+    val up = tunnel.createUploadSession(project, tableName)
+
+    val writer = up.openRecordWriter(0)
+    val r = up.newRecord
+    for (i <- 0 until count) {
+      r.setString("city", if (i % 2 == 0) "Beijing"
+      else "Shanghai")
+      r.setString("category", "Cat_" + (i % 10))
+      writer.write(r)
+    }
+    writer.close()
+    up.commit()
   }
 }

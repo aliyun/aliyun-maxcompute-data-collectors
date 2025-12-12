@@ -20,9 +20,9 @@
 
     <packaging>pom</packaging>
     <properties>
-        <arrow.version>4.0.0</arrow.version>
-        <odps.sdk.version>0.53.2-public</odps.sdk.version>
-        <odps.sdk.table.version>0.53.2-public</odps.sdk.table.version>
+        <arrow.version>16.0.0</arrow.version>
+        <odps.sdk.version>0.55.0-public</odps.sdk.version>
+        <odps.sdk.table.version>0.55.1-public-SNAPSHOT</odps.sdk.table.version>
         <spark.version>3.3.1</spark.version>
         <scala.version>2.12.10</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
@@ -56,7 +56,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
-            <version>4.1.74.Final</version>
+            <version>4.1.108.Final</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

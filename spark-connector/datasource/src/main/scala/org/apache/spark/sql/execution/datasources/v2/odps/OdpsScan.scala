@@ -133,7 +133,9 @@ case class OdpsScan(
 
     OdpsUtils.retryOnSpecificError(3, OdpsUtils.SESSION_ERROR_MESSAGE) {
       () =>
-        val scan = scanBuilder.withFilterPredicate(predicate).buildBatchReadSession
+        val scan = scanBuilder.withFilterPredicate(predicate)
+          .enableExtendedArrowIPC(catalog.odpsOptions.enableDictionaryEncodingReader)
+          .buildBatchReadSession
         logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
         scan
     }

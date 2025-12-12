@@ -106,6 +106,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val asyncReadWaitTime = parameters.getOrElse(ODPS_ASYNC_WAIT_TIME, "60").toLong * 1000L
 
   val enhanceWriteCheck = parameters.getOrElse(ODPS_ENHANCE_WRITE_CHECK, "false").toBoolean
+
+  val enableDictionaryEncodingReader = parameters.getOrElse(ODPS_ENABLE_DICTIONARY_ENCODING_READER, "false").toBoolean
 }
 
 object OdpsOptions {
@@ -156,4 +158,6 @@ object OdpsOptions {
   val ODPS_ASYNC_WAIT_TIME = newOption("asyncWaitTime")
 
   val ODPS_ENHANCE_WRITE_CHECK = newOption("enhanceWriteCheck")
+
+  val ODPS_ENABLE_DICTIONARY_ENCODING_READER = newOption("enableDictionaryEncodingReader")
 }

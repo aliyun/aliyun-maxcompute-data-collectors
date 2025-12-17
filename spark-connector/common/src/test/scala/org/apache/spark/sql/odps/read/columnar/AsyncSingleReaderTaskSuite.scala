@@ -5,6 +5,7 @@ import org.apache.spark.sql.odps.OdpsScanPartition
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 
+import java.io.InterruptedIOException
 import java.nio.channels.ClosedByInterruptException
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, Semaphore}
@@ -276,6 +277,42 @@ class AsyncSingleReaderTaskSuite extends BaseColumnarReaderSuite {
   test("AsyncSingleReaderTask handles ClosedByInterruptException in arrowReader.hasNext") {
     when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
     when(mockSplitReader.hasNext).thenThrow(new ClosedByInterruptException())
+
+    // Create test data
+    val split = new IndexedInputSplit("0", 10)
+    val partition = OdpsScanPartition(Array(split), mockScan)
+    val schema = partition.scan.readSchema
+    val inputBytes = new AtomicLong(0)
+    val semaphore = new Semaphore(0)
+    val input = OdpsSubReaderInput(
+      reuseBatch = true,
+      partition = partition,
+      schema = schema,
+      inputBytes = inputBytes,
+      allNames = getAllNames,
+      semaphore = semaphore
+    )
+
+    val queue: BlockingQueue[Object] = new ArrayBlockingQueue[Object](2)
+    val readerClose = new AtomicBoolean(false)
+    val endFlag = new Object()
+
+    // Create and run the task
+    val task = new AsyncSingleReaderTask(0, mockReaderOptions, input, queue, endFlag, readerClose)
+    val thread = new Thread(task)
+    thread.start()
+
+    // Wait for the task to complete
+    Thread.sleep(500)
+
+    verify(mockSplitReader).close()
+    // no exception was put in queue
+    assert(queue.size() == 0)
+  }
+
+  test("AsyncSingleReaderTask handles InterruptedIOException in arrowReader.hasNext") {
+    when(mockScan.createArrowReader(any(), any())).thenReturn(mockSplitReader)
+    when(mockSplitReader.hasNext).thenThrow(new InterruptedIOException())
 
     // Create test data
     val split = new IndexedInputSplit("0", 10)

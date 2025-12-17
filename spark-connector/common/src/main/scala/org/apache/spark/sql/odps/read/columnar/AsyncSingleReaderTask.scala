@@ -29,7 +29,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.odps.OdpsScanPartition
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
-import java.io.IOException
+import java.io.{IOException, InterruptedIOException}
 import java.nio.channels.ClosedByInterruptException
 import java.util.concurrent.{BlockingQueue, Semaphore}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
@@ -98,6 +98,9 @@ class AsyncSingleReaderTask(readerId: Int,
         false
       case ce: ClosedByInterruptException =>
         logError("ClosedByInterruptException: ", ce)
+        false
+      case iie: InterruptedIOException =>
+        logError("InterruptedIOException: ", iie)
         false
       case cause: Throwable =>
         val splitIndex = split match {

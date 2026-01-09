@@ -1,0 +1,126 @@
+info:
+  # Make sure to give your plugin a name. In the future, we can show
+  # this to the user in a 'plugin management' admin page.
+  name: Metabase MaxCompute Driver
+
+  # For the sake of consistency with the core Metabase project you
+  # should use semantic versioning. It's not a bad idea to include the
+  # version of its major dependency (e.g., a JDBC driver) when
+  # applicable as part of the 'patch' part of the version, so we can
+  # update dependencies and have that reflected in the version number
+  #
+  # For now core Metabase modules should have a version
+  # 1.0.0-SNAPSHOT-x until version 1.0 ships and the API for plugins
+  # is locked in
+  version: 0.0.5
+
+  # Describe what your plugin does. Not used currently, but in the
+  # future we may use this description in a plugins admin page.
+  description: Allows Metabase to connect to MaxCompute databases.
+
+# You can list any dependencies needed by the plugin by specifying a
+# list of dependencies. If all dependencies are not met, the plugin
+# will not be initialized.
+#
+# A dependency may be either a 'class' or (in the future) a 'plugin' dependency
+dependencies:
+
+  # A 'class' dependency checks whether a given class is available on
+  # the classpath. It doesn't initialize the class; Metabase defers initialization
+  # until it needs to use the driver
+  # Don't use this for classes that ship as part of the plugin itself;
+  # only use it for external dependencies.
+  - class: com.aliyun.odps.jdbc.OdpsDriver
+
+    # You may optionally add a message that will be displayed for
+    # information purposes in the logs, and possibly in a plugin
+    # management page as well in the future
+    message: >
+      Metabase requires the MaxCompute JDBC driver (>= 3.7.0) to connect to MaxCompute databases.
+
+# If a plugin adds a driver it should define a driver: section.
+#
+# To define multiple drivers, you can pass a list of maps instead. Note
+# that multiple drivers currently still must share the same dependencies
+# set and initialization steps. Thus registering multiple drivers is most
+# useful for slight variations on the same driver or including an abstract
+# parent driver. Note that init steps will get ran once for each driver
+# that gets loaded. This can result in duplicate driver instances registered
+# with the DriverManager, which is certainly not ideal but does not actually
+# hurt anything.
+#
+# In the near future I might move init steps into driver itself (or
+# at least allow them there)
+driver:
+  # Name of the driver; corresponds to the keyword (e.g. :sqlite) used
+  # in the codebase
+  name: maxcompute
+  # Nice display name shown to admins when connecting a database
+  display-name: MaxCompute
+  # Whether loading this driver can be deferred until the first
+  # attempt to connect to a database of this type. Default: true. Only
+  # set this to false if absolutely neccesary.
+  lazy-load: true
+  # Parent driver, if any.
+  parent: sql-jdbc
+  # List of connection properties to ask users to set to connect to
+  # this driver.
+  connection-properties:
+    - name: project
+      display-name: Project
+      placeholder:
+      required: true
+    - name: endpoint
+      display-name: Endpoint
+      placeholder:
+      required: true
+    - name: ak
+      display-name: AccessID
+      placeholder:
+      required: true
+    - name: sk
+      display-name: AccessKey
+      placeholder:
+      required: true
+      type: secret
+      secret-kind: password
+    - name: timezone
+      display-name: TimeZone
+      placeholder: Asia/Shanghai
+      required: false
+    - name: quotaName
+      display-name: QuotaName
+      placeholder:
+      required: false
+    - name: settings
+      display-name: global settings
+      placeholder: json
+      required: false
+    - name: namespace-schema
+      display-name: Enable namespace schema
+      default: true
+      type: boolean
+    - advanced-options-start
+    - default-advanced-options
+
+# Steps to take to initialize the plugin. For lazy-load drivers, this
+# is delayed until the driver is initialized the first time we connect
+# to a database with it
+init:
+  # load-namespace tells Metabase to require a namespace from the JAR,
+  # you can do whatever Clojurey things you need to do inside that
+  # namespace
+  - step: load-namespace
+    namespace: metabase.driver.maxcompute
+  # register-jdbc-driver tells Metabase to register a JDBC driver that
+  # will be used by this driver. (It actually registers a proxy
+  # driver, because DriverManager won't allow drivers that are loaded
+  # by different classloaders than it was loaded by (i.e., the system
+  # classloader); don't worry to much about this, but know for
+  # JDBC-based drivers you need to include your dependency here)
+  - step: register-jdbc-driver
+    class: com.aliyun.odps.jdbc.OdpsDriver
+
+contact-info:
+  name: Jason Zhang
+  address: zhangdingxin.zdx@alibaba-inc.com

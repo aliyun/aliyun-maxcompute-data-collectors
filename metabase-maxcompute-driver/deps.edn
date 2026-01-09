@@ -1,0 +1,17 @@
+{:paths
+ ["src" "resources"]
+
+ :deps
+ {com.aliyun.odps/odps-jdbc {:mvn/version "3.10.0"}}
+
+ ;; build the driver with clojure -X:build
+ :aliases
+ {:build
+  ;; to avoid hardcoding these paths in the project-level deps file, an alias pointing to these extra-deps can be defined in user-specific ~/.clojure/deps.edn
+  ;; files instead; suppose we do so, and call it :metabase-core-deps, then we can simply add :metabase-core-deps to the build invocation above
+  {:extra-deps {metabase/metabase-core {:local/root "~/metabase/"}
+                metabase/build-drivers {:local/root "~/metabase/bin/build-drivers.sh"}}
+   :exec-fn    build-drivers.build-driver/build-driver!
+   :exec-args  {:driver      :maxcompute
+                :project-dir "."
+                :target-dir  "./target"}}}}

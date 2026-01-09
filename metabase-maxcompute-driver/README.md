@@ -54,8 +54,8 @@ consult the Alibaba Cloud documentation.
 1. Clone the repository:
 
 ```shell
-git clone https://github.com/dingxin-tech/metabase-maxcompute-driver
-cd repository
+git clone git@github.com:aliyun/aliyun-maxcompute-data-collectors.git
+cd aliyun-maxcompute-data-collectors/metabase-maxcompute-driver
 ```
 2. replace the metabase source code directory in `deps.edn`
 3. Build the project
@@ -99,7 +99,7 @@ Any form of contribution is also welcome.
 ## Issues
 
 If you encounter any issues or have questions, please open
-an [issue](https://github.com/dingxin-tech/metabase-maxcompute-driver/issues) on our GitHub page. We will address it as soon
+an [issue](https://github.com/aliyun/aliyun-maxcompute-data-collectors/issues) on our GitHub page. We will address it as soon
 as possible.
 
 Thank you for using the Metabase MaxCompute Driver!

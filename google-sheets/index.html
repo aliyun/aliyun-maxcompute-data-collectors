@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MaxCompute Connector for Google Sheets - Query Alibaba Cloud MaxCompute data directly in Google Sheets">
+  <meta property="og:title" content="MaxCompute Connector for Google Sheets">
+  <meta property="og:description" content="Query Alibaba Cloud MaxCompute data directly in Google Sheets">
+  <meta property="og:type" content="website">
+  <!-- TODO: Replace YOUR_GITHUB_ORG with your actual GitHub organization or username -->
+  <!-- <meta property="og:url" content="https://YOUR_GITHUB_ORG.github.io/maxcompute-sheets/"> -->
+  <title>MaxCompute Connector for Google Sheets</title>
+  <style>
+    :root {
+      --primary: #FF6A00;
+      --primary-dark: #E55D00;
+      --text: #333;
+      --text-light: #666;
+      --bg: #fff;
+      --bg-light: #f8f9fa;
+      --border: #e0e0e0;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+    }
+    
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 60px 20px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+    
+    .header p {
+      font-size: 1.25rem;
+      opacity: 0.95;
+      max-width: 600px;
+      margin: 0 auto 30px;
+    }
+    
+    .lang-switch {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    
+    .lang-switch:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .install-btn {
+      display: inline-block;
+      background: white;
+      color: var(--primary);
+      padding: 14px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .install-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    
+    /* Container */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    
+    /* Features Section */
+    .features {
+      padding: 80px 20px;
+      background: var(--bg-light);
+    }
+    
+    .section-title {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 50px;
+      color: var(--text);
+    }
+    
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+    }
+    
+    .feature-card {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      transition: all 0.3s;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    
+    .feature-icon {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    
+    .feature-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
+    }
+    
+    .feature-card h3 {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    
+    .feature-card p {
+      color: var(--text-light);
+      font-size: 0.95rem;
+    }
+    
+    /* Regions Section */
+    .regions {
+      padding: 80px 20px;
+    }
+    
+    .regions-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    
+    .region-tag {
+      background: var(--bg-light);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    
+    /* Footer */
+    .footer {
+      background: #1a1a1a;
+      color: #999;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    
+    .footer-links {
+      margin-bottom: 20px;
+    }
+    
+    .footer-links a {
+      color: #fff;
+      text-decoration: none;
+      margin: 0 20px;
+      font-size: 0.95rem;
+      transition: color 0.3s;
+    }
+    
+    .footer-links a:hover {
+      color: var(--primary);
+    }
+    
+    .footer p {
+      font-size: 0.85rem;
+    }
+    
+    /* Hidden language content */
+    [data-lang="zh"] {
+      display: none;
+    }
+    
+    html[lang="zh"] [data-lang="en"] {
+      display: none;
+    }
+    
+    html[lang="zh"] [data-lang="zh"] {
+      display: block;
+    }
+    
+    html[lang="zh"] .lang-switch {
+      background: rgba(255,255,255,0.2);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.8rem;
+      }
+      
+      .header p {
+        font-size: 1rem;
+      }
+      
+      .section-title {
+        font-size: 1.5rem;
+      }
+      
+      .lang-switch {
+        position: relative;
+        top: 0;
+        right: 0;
+        margin-bottom: 20px;
+      }
+      
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Language Switch Button -->
+  <button class="lang-switch" onclick="toggleLanguage()">
+    <span data-lang="en">中文</span>
+    <span data-lang="zh">English</span>
+  </button>
+
+  <!-- Header -->
+  <header class="header">
+    <h1>
+      <span data-lang="en">MaxCompute Connector for Google Sheets</span>
+      <span data-lang="zh">MaxCompute Google Sheets 连接器</span>
+    </h1>
+    <p>
+      <span data-lang="en">Query Alibaba Cloud MaxCompute data directly in Google Sheets. Built by Alibaba Cloud.</span>
+      <span data-lang="zh">在 Google Sheets 中直接查询阿里云 MaxCompute 数据。由阿里云开发。</span>
+    </p>
+    <!-- TODO: Replace # with your actual Google Workspace Marketplace installation URL -->
+    <a href="#" class="install-btn">
+      <span data-lang="en">Install from Marketplace</span>
+      <span data-lang="zh">从应用商店安装</span>
+    </a>
+  </header>
+
+  <!-- Features Section -->
+  <section class="features">
+    <div class="container">
+      <h2 class="section-title">
+        <span data-lang="en">Key Features</span>
+        <span data-lang="zh">核心功能</span>
+      </h2>
+      <div class="features-grid">
+        <!-- Feature 1: SQL Query -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+          </div>
+          <h3>
+            <span data-lang="en">SQL Query Execution</span>
+            <span data-lang="zh">SQL 查询执行</span>
+          </h3>
+          <p>
+            <span data-lang="en">Execute SQL queries in the sidebar and results are automatically written to your sheet (up to 10,000 rows).</span>
+            <span data-lang="zh">在侧边栏执行 SQL 查询，结果自动写入表格（最多 10,000 行）。</span>
+          </p>
+        </div>
+        
+        <!-- Feature 2: Data Catalog -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3zm2 2v14h14V5H5zm2 2h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2z"/></svg>
+          </div>
+          <h3>
+            <span data-lang="en">Data Catalog Browser</span>
+            <span data-lang="zh">数据目录浏览</span>
+          </h3>
+          <p>
+            <span data-lang="en">Navigate through Project → Schema → Tables with a three-level tree structure.</span>
+            <span data-lang="zh">通过三层树形结构浏览 Project → Schema → Tables。</span>
+          </p>
+        </div>
+        
+        <!-- Feature 3: Auto SQL -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </div>
+          <h3>
+            <span data-lang="en">One-Click SQL Generation</span>
+            <span data-lang="zh">一键生成 SQL</span>
+          </h3>
+          <p>
+            <span data-lang="en">Click on a table name to automatically generate a SELECT statement.</span>
+            <span data-lang="zh">点击表名自动生成 SELECT 查询语句。</span>
+          </p>
+        </div>
+        
+        <!-- Feature 4: Field Insert -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H7V5h10v14zm-4-7h3v2h-3v3h-2v-3H8v-2h3V9h2v3z"/></svg>
+          </div>
+          <h3>
+            <span data-lang="en">Quick Field Insert</span>
+            <span data-lang="zh">字段快速插入</span>
+          </h3>
+          <p>
+            <span data-lang="en">Click on any field name to insert it directly into the SQL editor.</span>
+            <span data-lang="zh">点击字段名直接插入到 SQL 编辑器中。</span>
+          </p>
+        </div>
+        
+        <!-- Feature 5: Partition Support -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm0 4h16v2H4V9zm0 4h16v2H4v-2zm0 4h10v2H4v-2z"/></svg>
+          </div>
+          <h3>
+            <span data-lang="en">Partition Table Support</span>
+            <span data-lang="zh">分区表支持</span>
+          </h3>
+          <p>
+            <span data-lang="en">View partition columns and browse partition lists for partitioned tables.</span>
+            <span data-lang="zh">查看分区列，浏览分区表的分区列表。</span>
+          </p>
+        </div>
+        
+        <!-- Feature 6: Logview -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          </div>
+          <h3>
+            <span data-lang="en">Logview Integration</span>
+            <span data-lang="zh">Logview 集成</span>
+          </h3>
+          <p>
+            <span data-lang="en">Instance ID is clickable and redirects to MaxCompute console for detailed job information.</span>
+            <span data-lang="zh">Instance ID 可点击跳转到 MaxCompute 控制台查看作业详情。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Regions Section -->
+  <section class="regions">
+    <div class="container">
+      <h2 class="section-title">
+        <span data-lang="en">Supported Regions</span>
+        <span data-lang="zh">支持区域</span>
+      </h2>
+      <div class="regions-list">
+        <span class="region-tag">
+          <span data-lang="en">East China (Hangzhou)</span>
+          <span data-lang="zh">华东（杭州）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">East China (Shanghai)</span>
+          <span data-lang="zh">华东（上海）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">North China (Beijing)</span>
+          <span data-lang="zh">华北（北京）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">South China (Shenzhen)</span>
+          <span data-lang="zh">华南（深圳）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">Hong Kong</span>
+          <span data-lang="zh">香港</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">Singapore</span>
+          <span data-lang="zh">新加坡</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">Japan (Tokyo)</span>
+          <span data-lang="zh">日本（东京）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">Korea (Seoul)</span>
+          <span data-lang="zh">韩国（首尔）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">Germany (Frankfurt)</span>
+          <span data-lang="zh">德国（法兰克福）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">US (Silicon Valley)</span>
+          <span data-lang="zh">美国（硅谷）</span>
+        </span>
+        <span class="region-tag">
+          <span data-lang="en">US (Virginia)</span>
+          <span data-lang="zh">美国（弗吉尼亚）</span>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="https://www.alibabacloud.com/help/en/legal/latest/alibaba-cloud-international-website-privacy-policy">
+        Privacy Policy
+      </a>
+      <a href="https://www.alibabacloud.com/help/en/legal/latest/international-website-product-terms-of-service">
+        Terms of Service
+      </a>
+    </div>
+    <p>
+      <span data-lang="en">© 2026 Alibaba Cloud. All rights reserved.</span>
+      <span data-lang="zh">© 2026 阿里云 版权所有</span>
+    </p>
+  </footer>
+
+  <script>
+    function toggleLanguage() {
+      const html = document.documentElement;
+      const currentLang = html.getAttribute('lang');
+      html.setAttribute('lang', currentLang === 'en' ? 'zh' : 'en');
+      localStorage.setItem('preferred-lang', html.getAttribute('lang'));
+    }
+    
+    // Restore preferred language on load
+    (function() {
+      const preferred = localStorage.getItem('preferred-lang');
+      if (preferred) {
+        document.documentElement.setAttribute('lang', preferred);
+      }
+    })();
+  </script>
+</body>
+</html>

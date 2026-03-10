@@ -1,0 +1,156 @@
+/**
+ * MaxCompute Data Collectors - Custom CSS
+ * Uses Alibaba Cloud orange as primary color
+ */
+
+:root {
+  --ifm-color-primary: #ff6a00;
+  --ifm-color-primary-dark: #e55d00;
+  --ifm-color-primary-darker: #d95800;
+  --ifm-color-primary-darkest: #b34800;
+  --ifm-color-primary-light: #ff7d1f;
+  --ifm-color-primary-lighter: #ff852b;
+  --ifm-color-primary-lightest: #ff9f54;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #ff8533;
+  --ifm-color-primary-dark: #ff6a00;
+  --ifm-color-primary-darker: #f06500;
+  --ifm-color-primary-darkest: #c75300;
+  --ifm-color-primary-light: #ff9b5c;
+  --ifm-color-primary-lighter: #ffa46b;
+  --ifm-color-primary-lightest: #ffc49e;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Connector cards on home page */
+.connector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+
+.connector-card {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+}
+
+.connector-card:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  text-decoration: none;
+  color: inherit;
+}
+
+.connector-card__icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.connector-card__logo {
+  height: 36px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+.connector-card__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.connector-card__description {
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-700);
+  flex: 1;
+}
+
+.connector-card__badge {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  width: fit-content;
+}
+
+.connector-card__badge--available {
+  background-color: #e6f4ea;
+  color: #1e7e34;
+}
+
+[data-theme='dark'] .connector-card__badge--available {
+  background-color: #1e3a2a;
+  color: #6dd897;
+}
+
+.connector-card__badge--coming-soon {
+  background-color: #fff3e0;
+  color: #e65100;
+}
+
+[data-theme='dark'] .connector-card__badge--coming-soon {
+  background-color: #3e2a1a;
+  color: #ffab40;
+}
+
+/* No-link connector cards (e.g. coming soon) */
+.connector-card--no-link {
+  cursor: default;
+}
+
+.connector-card--no-link:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--ifm-color-emphasis-300);
+}
+
+/* Archived connector cards */
+.connector-card--archived {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.connector-card--archived:hover {
+  opacity: 1;
+}
+
+.connector-card__badge--archived {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+[data-theme='dark'] .connector-card__badge--archived {
+  background-color: #333;
+  color: #aaa;
+}
+
+/* Presto logo: dark fill needs to be inverted in dark mode */
+[data-theme='dark'] .connector-card__logo[alt="Presto Connector"] {
+  filter: invert(1);
+}
+
+/* Hero section */
+.hero--mc {
+  background: linear-gradient(135deg, #ff6a00 0%, #e55d00 100%);
+}
+
+[data-theme='dark'] .hero--mc {
+  background: linear-gradient(135deg, #cc5500 0%, #993f00 100%);
+}

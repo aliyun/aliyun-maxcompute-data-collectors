@@ -1,0 +1,18 @@
+{
+  "title": {
+    "message": "MaxCompute \u6570\u636e\u8fde\u63a5\u5668",
+    "description": "The title in the navbar"
+  },
+  "item.label.Connectors": {
+    "message": "\u8fde\u63a5\u5668",
+    "description": "Navbar item with label Connectors"
+  },
+  "item.label.Google Sheets": {
+    "message": "Google Sheets",
+    "description": "Navbar item with label Google Sheets"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

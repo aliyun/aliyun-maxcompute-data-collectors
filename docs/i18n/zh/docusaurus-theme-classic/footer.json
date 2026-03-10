@@ -1,0 +1,53 @@
+{
+  "link.title.Connectors": {
+    "message": "\u8fde\u63a5\u5668"
+  },
+  "link.title.More Connectors": {
+    "message": "\u66f4\u591a\u8fde\u63a5\u5668"
+  },
+  "link.title.Resources": {
+    "message": "\u8d44\u6e90"
+  },
+  "link.title.Legal": {
+    "message": "\u6cd5\u5f8b\u4fe1\u606f"
+  },
+  "link.item.label.Spark Connector": {
+    "message": "Spark \u8fde\u63a5\u5668"
+  },
+  "link.item.label.Flink Connector": {
+    "message": "Flink \u8fde\u63a5\u5668"
+  },
+  "link.item.label.Flink CDC": {
+    "message": "Flink CDC"
+  },
+  "link.item.label.Kafka Connector": {
+    "message": "Kafka \u8fde\u63a5\u5668"
+  },
+  "link.item.label.Trino Connector": {
+    "message": "Trino \u8fde\u63a5\u5668"
+  },
+  "link.item.label.StarRocks Connector": {
+    "message": "StarRocks \u8fde\u63a5\u5668"
+  },
+  "link.item.label.dbt-maxcompute": {
+    "message": "dbt-maxcompute"
+  },
+  "link.item.label.Google Sheets": {
+    "message": "Google Sheets"
+  },
+  "link.item.label.GitHub": {
+    "message": "GitHub"
+  },
+  "link.item.label.Alibaba Cloud MaxCompute": {
+    "message": "\u963f\u91cc\u4e91 MaxCompute"
+  },
+  "link.item.label.Privacy Policy": {
+    "message": "\u9690\u79c1\u653f\u7b56"
+  },
+  "link.item.label.Terms of Service": {
+    "message": "\u670d\u52a1\u6761\u6b3e"
+  },
+  "copyright": {
+    "message": "Copyright \u00a9 2026 \u963f\u91cc\u4e91\u3002\u4fdd\u7559\u6240\u6709\u6743\u5229\u3002\u57fa\u4e8e Docusaurus \u6784\u5efa\u3002<br/>\u6240\u6709\u4ea7\u54c1\u540d\u79f0\u3001\u6807\u5fd7\u548c\u5546\u6807\u5747\u4e3a\u5176\u5404\u81ea\u6240\u6709\u8005\u7684\u8d22\u4ea7\uff0c\u6b64\u5904\u4ec5\u7528\u4e8e\u8bc6\u522b\u76ee\u7684\u3002"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "homepage.tagline": {
+    "message": "\u4e00\u7ec4\u7528\u4e8e\u4e0e\u963f\u91cc\u4e91 MaxCompute \u4ea4\u6362\u6570\u636e\u7684\u8fde\u63a5\u5668\u548c\u63d2\u4ef6\u96c6\u5408",
+    "description": "The tagline shown on the homepage hero"
+  },
+  "homepage.cta": {
+    "message": "\u5f00\u59cb\u4f7f\u7528",
+    "description": "The CTA button text on homepage"
+  },
+  "homepage.title": {
+    "message": "\u9996\u9875",
+    "description": "The homepage title"
+  },
+  "homepage.connectors.title": {
+    "message": "\u8fde\u63a5\u5668\u548c\u63d2\u4ef6",
+    "description": "Connectors section title"
+  },
+  "homepage.connectors.subtitle": {
+    "message": "\u9009\u62e9\u4e00\u4e2a\u8fde\u63a5\u5668\u4e0e MaxCompute \u96c6\u6210",
+    "description": "Connectors section subtitle"
+  },
+  "homepage.badge.available": {
+    "message": "\u53ef\u7528",
+    "description": "Badge text for available connectors"
+  },
+  "homepage.badge.comingSoon": {
+    "message": "\u5373\u5c06\u5f00\u6e90",
+    "description": "Badge text for coming soon connectors"
+  },
+  "homepage.badge.archived": {
+    "message": "\u5df2\u5f52\u6863",
+    "description": "Badge text for archived connectors"
+  },
+  "homepage.archived.title": {
+    "message": "\u5f52\u6863\u9879\u76ee",
+    "description": "Archived section title"
+  },
+  "homepage.archived.subtitle": {
+    "message": "\u8fd9\u4e9b\u8fde\u63a5\u5668\u5df2\u4e0d\u518d\u79ef\u6781\u7ef4\u62a4\u3002\u6e90\u4ee3\u7801\u4ecd\u53ef\u5728 GitHub \u4e0a\u83b7\u53d6\u3002",
+    "description": "Archived section subtitle"
+  },
+  "theme.navbar.mobileSidebarSecondaryMenu.backButtonLabel": {
+    "message": "\u2190 \u8fd4\u56de\u4e3b\u83dc\u5355"
+  },
+  "theme.docs.sidebar.collapseButtonTitle": {
+    "message": "\u6536\u8d77\u4fa7\u8fb9\u680f"
+  },
+  "theme.docs.sidebar.expandButtonTitle": {
+    "message": "\u5c55\u5f00\u4fa7\u8fb9\u680f"
+  }
+}

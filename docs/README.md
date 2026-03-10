@@ -1,86 +1,98 @@
-# MaxCompute Connector for Google Sheets - GitHub Pages
+# MaxCompute Data Collectors - Documentation Site
 
-This directory contains the GitHub Pages website for the MaxCompute Connector for Google Sheets add-on.
+This directory contains the [Docusaurus](https://docusaurus.io/) project that powers the documentation website for MaxCompute Data Collectors.
 
-## Setup Instructions
+**Live site**: https://aliyun.github.io/aliyun-maxcompute-data-collectors/
 
-### 1. Enable GitHub Pages
+## Site Structure
 
-1. Go to your GitHub repository settings
-2. Navigate to **Pages** section
-3. Under **Source**, select **Deploy from a branch**
-4. Select the branch (e.g., `master` or `main`) and choose `/docs` folder
-5. Click **Save**
-6. Your site will be available at: `https://<your-org>.github.io/<repo-name>/`
+| Path | Content | Source |
+|------|---------|--------|
+| `/` | Home page with connector catalog | `src/pages/index.js` |
+| `/google-sheets/` | Google Sheets connector landing page | `static/google-sheets/index.html` |
+| `/google-sheets/privacy.html` | Google Sheets privacy policy | `static/google-sheets/privacy.html` |
+| `/docs/<connector>/` | Connector documentation (Markdown) | `docs/<connector>/` |
 
-### 2. Replace Placeholders
+## Local Development
 
-Before publishing, update the following placeholders in `index.html`:
+### Prerequisites
 
-#### Google Workspace Marketplace Installation URL
-Find the install button and replace `#` with your actual Marketplace URL:
-```html
-<!-- Before -->
-<a href="#" class="install-btn">
+- Node.js >= 20
+- pnpm (`npm install -g pnpm`)
 
-<!-- After -->
-<a href="https://workspace.google.com/marketplace/app/your-app-id" class="install-btn">
-```
-
-#### OG URL (Optional)
-Update the Open Graph URL for better social sharing:
-```html
-<!-- Uncomment and update -->
-<meta property="og:url" content="https://<your-org>.github.io/<repo-name>/">
-```
-
-### 3. Google Search Console Verification
-
-To verify domain ownership for Google OAuth consent screen:
-
-1. Go to [Google Search Console](https://search.google.com/search-console)
-2. Add a new property with your GitHub Pages URL
-3. Choose **URL prefix** method
-4. Download the HTML verification file (e.g., `google1234567890abcdef.html`)
-5. Place the file in this `docs/` directory
-6. Commit and push the changes
-7. Click **Verify** in Google Search Console
-
-### 4. Update OAuth Consent Screen
-
-After your GitHub Pages is live, update your Google Cloud Console OAuth consent screen:
-
-| Field | Value |
-|-------|-------|
-| Application name | `MaxCompute Connector for Google Sheets` |
-| Application home page | `https://<your-org>.github.io/<repo-name>/` |
-| Application privacy policy link | `https://www.alibabacloud.com/help/en/legal/latest/alibaba-cloud-international-website-privacy-policy` |
-| Application terms of service link | `https://www.alibabacloud.com/help/en/legal/latest/international-website-product-terms-of-service` |
-
-## File Structure
-
-```
-docs/
-├── index.html          # Main landing page (bilingual: EN/ZH)
-├── privacy.html        # Redirect to Alibaba Cloud Privacy Policy
-├── README.md           # This file
-└── google*.html        # Google Search Console verification files (add as needed)
-```
-
-## Features
-
-- **Bilingual Support**: English and Chinese, with automatic language preference saving
-- **Responsive Design**: Works on desktop and mobile devices
-- **No External Dependencies**: Pure HTML, CSS, and vanilla JavaScript
-- **OAuth Compliant**: Includes required privacy policy and terms of service links
-
-## Local Testing
-
-To preview the site locally, you can use Python's built-in HTTP server:
+### Setup
 
 ```bash
 cd docs
-python3 -m http.server 8000
+pnpm install
 ```
 
-Then open http://localhost:8000 in your browser.
+### Start Development Server
+
+```bash
+pnpm start
+```
+
+This starts a local dev server at http://localhost:3000/aliyun-maxcompute-data-collectors/ with hot reload.
+
+### Build
+
+```bash
+pnpm build
+```
+
+The static site is generated into the `build/` directory.
+
+### Preview Build
+
+```bash
+pnpm serve
+```
+
+### i18n (Chinese)
+
+To start the dev server in Chinese:
+
+```bash
+pnpm start -- --locale zh
+```
+
+To build the Chinese version:
+
+```bash
+pnpm build -- --locale zh
+```
+
+## Adding a New Connector
+
+1. Create a new directory under `docs/docs/<connector-name>/`
+2. Add an `overview.md` with frontmatter:
+   ```markdown
+   ---
+   sidebar_position: 1
+   title: Overview
+   ---
+
+   # Connector Name
+
+   Description here...
+   ```
+3. The sidebar is auto-generated from the directory structure
+4. Add a card entry in `src/pages/index.js` in the `connectors` array
+5. Add Chinese translations in `i18n/zh/` if needed
+
+## Deployment
+
+The site is deployed automatically via GitHub Actions on push to the `google-sheets` branch. See `.github/workflows/deploy-docs.yml`.
+
+### GitHub Pages Setup
+
+In the repository Settings > Pages:
+- **Source**: GitHub Actions (not "Deploy from a branch")
+
+## Technology
+
+- **Docusaurus 3.x** - Static site generator with React
+- **i18n** - Built-in internationalization (English + Chinese)
+- **Markdown/MDX** - For connector documentation
+- **Static HTML** - Google Sheets landing page (preserved as-is)

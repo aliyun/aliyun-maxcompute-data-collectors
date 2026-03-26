@@ -31,17 +31,7 @@ public class TunnelWriteSessionProviderImpl implements TableWriteSessionProvider
 
     @Override
     public TableBatchWriteSession createBatchWriteSession(TableWriteSessionBuilder builder) throws IOException {
-        if (builder.getSessionId() == null) {
-            return new TunnelTableBatchWriteSession(builder.getIdentifier(),
-                    builder.getTargetPartitionSpec(),
-                    builder.isOverwrite(),
-                    builder.getDynamicPartitionOptions(),
-                    builder.getArrowOptions(),
-                    builder.getSettings());
-        } else {
-            return new TunnelTableBatchWriteSession(builder.getIdentifier(),
-                    builder.getSessionId(), builder.getSettings());
-        }
+        return new TunnelTableBatchWriteSession(builder);
     }
 
     @Override

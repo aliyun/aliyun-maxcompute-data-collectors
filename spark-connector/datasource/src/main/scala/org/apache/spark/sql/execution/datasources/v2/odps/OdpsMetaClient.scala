@@ -23,15 +23,14 @@ import java.util.concurrent.TimeUnit
 import com.aliyun.odps.table.TableIdentifier
 
 import scala.collection.mutable
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import com.aliyun.odps.{NoSuchObjectException, Odps, OdpsException, Project, ReloadException, Table => SdkTable}
 import com.aliyun.odps.task.SQLTask
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.odps.OdpsClient
-import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.odps.{OdpsAnalysisException, OdpsClient}
 import org.apache.spark.sql.catalyst.analysis.{NoSuchNamespaceException, NoSuchTableException}
 import org.apache.spark.sql.connector.catalog.Identifier
 
@@ -41,6 +40,8 @@ private[odps] class OdpsMetaClient(odpsOptions: OdpsOptions) extends Logging {
 
   private val cacheSize = odpsOptions.metaCacheSize
   private val cacheExpireTime = odpsOptions.metaCacheExpireSeconds
+  private val viewCacheSize = odpsOptions.metaCacheSize
+  private val viewExpireTime = odpsOptions.viewCacheExpireSeconds
 
   private val enableExternalProject = odpsOptions.enableExternalProject
   private val enableExternalTable = odpsOptions.enableExternalTable
@@ -56,20 +57,25 @@ private[odps] class OdpsMetaClient(odpsOptions: OdpsOptions) extends Logging {
       .expireAfterWrite(cacheExpireTime, TimeUnit.SECONDS)
   }
 
+  private def createViewCacheBuilder(): CacheBuilder[AnyRef, AnyRef] = {
+    CacheBuilder.newBuilder()
+      .maximumSize(viewCacheSize)
+      .expireAfterWrite(viewExpireTime, TimeUnit.SECONDS)
+  }
+
   private val projectLoader = new CacheLoader[String, Option[Project]] {
     override def load(key: String): Option[Project] = {
       try {
         val project = odps.projects().get(key)
         project.reload()
         if (project.getType.equals(Project.ProjectType.external) && !enableExternalProject) {
-            throw new Exception("Odps external project is not enable!")
+          throw new Exception("Odps external project is not enable!")
         }
         Some(project)
       } catch {
         case _: NoSuchObjectException => None
         case ex: Exception =>
-          logWarning("load odps project failed: " + ex.getMessage)
-          None
+          throw new OdpsException("load odps project failed: " + ex.getMessage, ex)
       }
     }
   }
@@ -82,14 +88,13 @@ private[odps] class OdpsMetaClient(odpsOptions: OdpsOptions) extends Logging {
         val table = odps.tables().get(key.getProject, key.getSchema, key.getTable)
         table.reload()
         if (table.isExternalTable && !enableExternalTable) {
-            throw new Exception("Odps external table is not enable!")
+          throw new Exception("Odps external table is not enable!")
         }
         Some(table)
       } catch {
         case _: NoSuchObjectException => None
         case ex: Exception =>
-          logWarning("load odps table failed: " + ex.getMessage)
-          None
+          throw new OdpsException("load odps table failed: " + ex.getMessage, ex)
       }
     }
   }
@@ -108,13 +113,30 @@ private[odps] class OdpsMetaClient(odpsOptions: OdpsOptions) extends Logging {
       } catch {
         case _: NoSuchObjectException => None
         case ex: Exception =>
-          logWarning("load odps project failed: " + ex.getMessage)
-          None
+          throw new OdpsException("load odps project failed: " + ex.getMessage, ex)
       }
     }
   }
   private val schemaCache: LoadingCache[OdpsSchema, Option[String]] =
     createCacheBuilder().build(schemaLoader)
+
+  private val viewCacheTableLoader = new CacheLoader[String, Option[SdkTable]] {
+    override def load(query: String): Option[SdkTable] = {
+      withClient {
+        val tableName =
+          s"odps_spark_materialize_odps_view_${System.currentTimeMillis()}_${query.hashCode() & Int.MaxValue}"
+        val inst = SQLTask.run(odps, s"CREATE TABLE IF NOT EXISTS $tableName LIFECYCLE 1 AS $query;")
+        logInfo(s"Materialize odps view instance: ${inst.getId}, query: $query")
+        inst.waitForSuccess()
+        val sdkTable = odps.tables().get(odps.getDefaultProject, tableName)
+        sdkTable.reload()
+        Some(sdkTable)
+      }
+    }
+  }
+
+  private val viewTableCache: LoadingCache[String, Option[SdkTable]] =
+    createViewCacheBuilder().build(viewCacheTableLoader)
 
   def initialize(): Unit = {
     val hints = mutable.Map[String, String]()
@@ -144,7 +166,7 @@ private[odps] class OdpsMetaClient(odpsOptions: OdpsOptions) extends Logging {
 
   def getProject(name: String, refresh: Boolean = false): Project = {
     getProjectOption(name, refresh)
-      .getOrElse(throw new NoSuchNamespaceException(name))
+      .getOrElse(throw new OdpsAnalysisException(message = name))
   }
 
   def getSdkTableOption(project: String, schema: String, table: String,
@@ -205,6 +227,11 @@ private[odps] class OdpsMetaClient(odpsOptions: OdpsOptions) extends Logging {
   def dropSchemaInCache(project: String, schema: String): Unit = {
     schemaCache.put(OdpsSchema(project, schema), None)
   }
+
+  def getSdkViewTable(query: String): SdkTable = {
+    viewTableCache.get(query)
+      .getOrElse(throw new NoSuchTableException(Array(query)))
+  }
 }
 
 case class OdpsSchema(project: String, schemaName: String)
@@ -228,7 +255,7 @@ private object OdpsMetaClient {
       body
     } catch {
       case NonFatal(e) if isClientException(e) =>
-        throw new AnalysisException(
+        throw new OdpsAnalysisException(
           e.getClass.getCanonicalName + ": " + e.getMessage, cause = Some(e))
       // todo NoSuchTableException
     }

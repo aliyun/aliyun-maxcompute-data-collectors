@@ -35,14 +35,7 @@ public class TunnelReadSessionProviderImpl implements TableReadSessionProvider {
     @Override
     public TableBatchReadSession createBatchReadSession(TableReadSessionBuilder builder) throws IOException {
         if (builder.getSessionId() == null) {
-            return new TunnelTableBatchReadSession(builder.getIdentifier(),
-                    builder.getRequiredPartitions(),
-                    builder.getRequiredDataColumns(),
-                    builder.getRequiredPartitionColumns(),
-                    builder.getRequiredBucketIds(),
-                    builder.getSplitOptions(),
-                    builder.getArrowOptions(),
-                    builder.getSettings());
+            return new TunnelTableBatchReadSession(builder);
         } else {
             throw new UnsupportedOperationException("Unsupported reload tunnel read session!");
         }

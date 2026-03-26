@@ -31,7 +31,10 @@ import scala.collection.mutable
  * of `expressions`.  All rows where `expressions` evaluate to the same values are guaranteed to be
  * in the same partition.
  */
-case class OdpsHashPartitioning(expressions: Seq[Expression], numPartitions: Int)
+case class OdpsHashPartitioning(expressions: Seq[Expression],
+                                numPartitions: Int,
+                                isOdpsDateTime: Seq[Boolean],
+                                isCollationAware: Boolean)
   extends Expression with Partitioning with Unevaluable {
 
   override def children: Seq[Expression] = expressions
@@ -68,7 +71,7 @@ case class OdpsHashPartitioning(expressions: Seq[Expression], numPartitions: Int
    * Returns an expression that will produce a valid partition ID(i.e. non-negative and is less
    * than numPartitions) based on hashing expressions.
    */
-  def partitionIdExpression: Expression = Pmod(OdpsHash(expressions), Literal(numPartitions))
+  def partitionIdExpression: Expression = Pmod(OdpsHash(expressions, isOdpsDateTime, isCollationAware), Literal(numPartitions))
 
   override protected def withNewChildrenInternal(newChildren: IndexedSeq[Expression]): OdpsHashPartitioning = copy(expressions = newChildren)
 }
@@ -134,7 +137,7 @@ case class OdpsHashShuffleSpec(
 
   override def createPartitioning(clustering: Seq[Expression]): Partitioning = {
     val exprs = hashKeyPositions.map(v => clustering(v.head))
-    OdpsHashPartitioning(exprs, partitioning.numPartitions)
+    OdpsHashPartitioning(exprs, partitioning.numPartitions, partitioning.isOdpsDateTime, partitioning.isCollationAware)
   }
 
   override def numPartitions: Int = partitioning.numPartitions

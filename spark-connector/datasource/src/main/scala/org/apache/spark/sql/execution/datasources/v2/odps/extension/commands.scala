@@ -60,6 +60,8 @@ case class TruncateTableExec(table: OdpsTable, refreshCache: () => Unit)
 
 case class OdpsHashRepartition(bucketAttributes: Seq[Attribute],
                                numBuckets: Int,
+                               isOdpsDateTime: Seq[Boolean],
+                               isCollationAware: Boolean,
                                child: LogicalPlan)
   extends UnaryNode {
   override def output: Seq[Attribute] = child.output

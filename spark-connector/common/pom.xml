@@ -5,7 +5,7 @@
     <parent>
         <artifactId>spark-connector</artifactId>
         <groupId>com.aliyun.odps</groupId>
-        <version>${project.version}</version>
+        <version>4.0.1-odps0.56.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -17,6 +17,12 @@
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-vector</artifactId>
             <version>${arrow.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.arrow</groupId>
@@ -27,6 +33,12 @@
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-netty</artifactId>
             <version>${arrow.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-common</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.arrow</groupId>
@@ -36,10 +48,12 @@
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-table-api</artifactId>
+            <version>${odps.sdk.table.version}</version>
         </dependency>
         <dependency>
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-core</artifactId>
+            <version>${odps.sdk.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>
@@ -60,10 +74,6 @@
                 <exclusion>
                     <groupId>stax</groupId>
                     <artifactId>stax-api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.google.code.gson</groupId>
-                    <artifactId>gson</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>commons-codec</groupId>
@@ -109,6 +119,18 @@
                     <groupId>commons-lang</groupId>
                     <artifactId>commons-lang</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>credentials-java</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>tea</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>aliyun-java-auth</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -140,6 +162,12 @@
             <groupId>org.scalacheck</groupId>
             <artifactId>scalacheck_${scala.binary.version}</artifactId>
             <version>1.15.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.4.6</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

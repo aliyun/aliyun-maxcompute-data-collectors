@@ -23,12 +23,15 @@ import com.aliyun.odps.account.Account;
 import com.aliyun.odps.account.AliyunAccount;
 import com.aliyun.odps.account.BearerTokenAccount;
 import com.aliyun.odps.account.StsAccount;
-import com.aliyun.odps.table.configuration.RestOptions;
 import com.aliyun.odps.table.enviroment.Credentials;
 import com.aliyun.odps.table.enviroment.EnvironmentSettings;
+import com.aliyun.odps.table.configuration.RestOptions;
 import com.aliyun.odps.table.utils.Preconditions;
 import com.aliyun.odps.utils.StringUtils;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
@@ -39,14 +42,15 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
+
 import scala.UninitializedFieldError;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -73,7 +77,6 @@ public class OdpsClient {
     private final static String ODPS_RUNTIME_END_POINT = "odps.runtime.end.point";
     private final static String ODPS_TUNNEL_END_POINT = "odps.tunnel.end.point";
     private final static String ODPS_TUNNEL_QUOTA_NAME = "odps.tunnel.quota.name";
-    private final static String ODPS_TUNNEL_TAGS = "odps.tunnel.tags";
 
     private final static String ODPS_PROJECT_NAME = "odps.project.name";
     private final static String ODPS_TABLE_EXECUTION_MODE = "odps.table.execution.mode";
@@ -82,10 +85,10 @@ public class OdpsClient {
     private final static String REFRESH_INTERVAL_SECONDS = "odps.cupid.bearer.token.refresh.interval.seconds";
     private final static String ODPS_BEARER_TOKEN_ENABLE = "odps.cupid.bearer.token.enable";
 
-    private final static String ODPS_TUNNEL_READ_TIMEOUT = "odps.tunnel.read.timeout.seconds";
-    private final static String ODPS_TUNNEL_CONNECT_TIMEOUT = "odps.tunnel.connect.timeout.seconds";
-    private final static String ODPS_TUNNEL_MAX_RETRIES = "odps.tunnel.max.retries";
-    private final static String ODPS_TUNNEL_RETRY_WAIT_TIME = "odps.tunnel.retry.wait.seconds";
+    private final static String ODPS_CUPID_DATA_SERVER_TIMEOUT = "odps.cupid.data.server.timeout";
+    private final static String ODPS_DATA_SERVER_CONNECT_TIMEOUT = "odps.data.server.connect.timeout";
+    private final static String ODPS_DATA_SERVER_MAX_RETRIES = "odps.data.server.max.retries";
+    private final static String ODPS_DATA_SERVER_RETRY_WAIT_TIME = "odps.data.server.retry.wait.seconds";
 
     public static Builder builder() {
         return new Builder();
@@ -97,7 +100,7 @@ public class OdpsClient {
 
         public Builder() {
             this.options = new HashMap<>();
-            this.loadDefaults = false;
+            this.loadDefaults = true;
         }
 
         public Builder config(String key, String value) {
@@ -134,8 +137,8 @@ public class OdpsClient {
 
     public OdpsClient(Builder builder) {
         this.settings = new ConcurrentHashMap<>();
-        builder.options.forEach(settings::put);
         loadDefaultSettings(builder.loadDefaults);
+        builder.options.forEach(settings::put);
         httpClient = HttpClientBuilder.create().build();
         proxyUrl = initProxyUrl();
         odps = initOdps();
@@ -168,17 +171,21 @@ public class OdpsClient {
                 .withAppAccount(odps.getAppAccount())
                 .withAppStsAccount(odps.getAppStsAccount())
                 .build();
+
         RestOptions restOptions = RestOptions.newBuilder()
-                .withReadTimeout(Integer.parseInt(getSettings(ODPS_TUNNEL_READ_TIMEOUT).orElse("300")))
-                .withConnectTimeout(Integer.parseInt(getSettings(ODPS_TUNNEL_CONNECT_TIMEOUT).orElse("20")))
-                .withRetryTimes(Integer.parseInt(getSettings(ODPS_TUNNEL_MAX_RETRIES).orElse("5")))
-                .withRetryWaitTimeInSeconds(Integer.parseInt(getSettings(ODPS_TUNNEL_RETRY_WAIT_TIME).orElse("5")))
+                .withReadTimeout(
+                        Integer.parseInt(getSettings(ODPS_CUPID_DATA_SERVER_TIMEOUT).orElse("600")))
+                .withConnectTimeout(Integer.parseInt(getSettings(ODPS_DATA_SERVER_CONNECT_TIMEOUT).orElse("20")))
+                .withRetryTimes(Integer.parseInt(getSettings(ODPS_DATA_SERVER_MAX_RETRIES).orElse("5")))
+                .withRetryWaitTimeInSeconds(Integer.parseInt(getSettings(ODPS_DATA_SERVER_RETRY_WAIT_TIME).orElse("5")))
+                .witUserAgent("ODPS SPARK")
                 .build();
+
         EnvironmentSettings.Builder env = EnvironmentSettings.newBuilder()
                 .withDefaultProject(odps.getDefaultProject())
                 .withServiceEndpoint(odps.getEndpoint())
-                .withCredentials(credentials)
-                .withRestOptions(restOptions);
+                .withRestOptions(restOptions)
+                .withCredentials(credentials);
         if (mode.equals(EnvironmentSettings.ExecutionMode.LOCAL)) {
             env.inLocalMode();
         } else if (mode.equals(EnvironmentSettings.ExecutionMode.REMOTE)) {
@@ -188,11 +195,6 @@ public class OdpsClient {
         }
         getSettings(ODPS_TUNNEL_END_POINT).ifPresent(env::withTunnelEndpoint);
         getSettings(ODPS_TUNNEL_QUOTA_NAME).ifPresent(env::withQuotaName);
-        getSettings(ODPS_TUNNEL_TAGS).ifPresent(input -> {
-            if (!input.isEmpty()) {
-                env.withTags(Arrays.asList(input.split(",")));
-            }
-        });
         return env.build();
     }
 
@@ -238,7 +240,7 @@ public class OdpsClient {
         if (isBearerTokenEnable()) {
             try {
                 String bearerToken = getBearerToken();
-                if (bearerToken != null) {
+                if (bearerToken != null && !bearerToken.isEmpty()) {
                     return new BearerTokenAccount(bearerToken);
                 }
             } catch (Throwable ex) {
@@ -315,10 +317,42 @@ public class OdpsClient {
             return null;
         }
 
-        String prefix = System.getenv(MAX_STORAGE_DATA_PROXY_PREFIX);
-        String port = System.getenv(MAX_STORAGE_DATA_PROXY_PORT);
+        String prefix;
+        String port;
+        String confPath = System.getenv(MAX_STORAGE_DATA_PROXY_CONF_PATH);
 
-        Preconditions.checkString(port, "MAX_STORAGE_DATA_PROXY_PORT");
+        if (StringUtils.isNullOrEmpty(confPath)) {
+            prefix = System.getenv(MAX_STORAGE_DATA_PROXY_PREFIX);
+            port = System.getenv(MAX_STORAGE_DATA_PROXY_PORT);
+        } else {
+            port = System.getProperty(MAX_STORAGE_DATA_PROXY_PORT);
+            if (!StringUtils.isNullOrEmpty(port)) {
+                prefix = System.getProperty(MAX_STORAGE_DATA_PROXY_PREFIX);
+            } else {
+                try (FileInputStream fis = new FileInputStream(confPath);
+                     BufferedInputStream bis = new BufferedInputStream(fis)) {
+
+                    JsonObject conf = new JsonParser().parse(
+                            new String(IOUtils.toByteArray(bis))).getAsJsonObject();
+
+                    if (conf.has(MAX_STORAGE_DATA_PROXY_PORT)) {
+                        System.setProperty(MAX_STORAGE_DATA_PROXY_PORT,
+                                conf.get(MAX_STORAGE_DATA_PROXY_PORT).getAsString());
+                    }
+
+                    if (conf.has(MAX_STORAGE_DATA_PROXY_PREFIX)) {
+                        System.setProperty(MAX_STORAGE_DATA_PROXY_PREFIX,
+                                conf.get(MAX_STORAGE_DATA_PROXY_PREFIX).getAsString());
+                    }
+                } catch (IOException e) {
+                    logger.error("Local env find conf " + confPath + " failed!", e);
+                    return null;
+                }
+                prefix = System.getProperty(MAX_STORAGE_DATA_PROXY_PREFIX);
+                port = System.getProperty(MAX_STORAGE_DATA_PROXY_PORT);
+            }
+        }
+        Preconditions.checkString(port, MAX_STORAGE_DATA_PROXY_PORT);
 
         String localHostPort;
         if (StringUtils.isNullOrEmpty(prefix)) {
@@ -345,11 +379,22 @@ public class OdpsClient {
     private String getBearerToken() throws Exception {
         String bearerToken;
         try {
-            bearerToken = postRpcCall("get_bearer_token", "".getBytes("UTF-8"));
+            String filePath = System.getenv("ODPS_BEARER_TOKEN");
+            if (filePath == null || filePath.isEmpty()) {
+                // cupid mode
+                bearerToken = postRpcCall("get_bearer_token", "".getBytes("UTF-8"));
+            } else {
+                // kube mode
+                File file = new File(filePath);
+                if (!file.exists()) {
+                    throw new Exception("Bearer token file not exist: " + filePath);
+                }
+                bearerToken = new String(Files.readAllBytes(Paths.get(filePath)));
+            }
         } catch (Exception ex) {
             logger.warn("getBearerToken failed, fallback to use BEARER_TOKEN_INITIAL_VALUE", ex);
             if (System.getenv("BEARER_TOKEN_INITIAL_VALUE") != null) {
-                bearerToken = System.getenv("BEARER_TOKEN_INITIAL_VALUE");
+                return System.getenv("BEARER_TOKEN_INITIAL_VALUE");
             } else {
                 throw ex;
             }

@@ -22,13 +22,12 @@ import com.aliyun.odps.*;
 import com.aliyun.odps.data.ArrayRecord;
 import com.aliyun.odps.table.DataFormat;
 import com.aliyun.odps.table.DataSchema;
-import com.aliyun.odps.table.TableIdentifier;
-import com.aliyun.odps.table.configuration.ArrowOptions;
 import com.aliyun.odps.table.configuration.ReaderOptions;
 import com.aliyun.odps.table.configuration.SplitOptions;
-import com.aliyun.odps.table.enviroment.EnvironmentSettings;
 import com.aliyun.odps.table.enviroment.ExecutionEnvironment;
+import com.aliyun.odps.table.read.SessionStats;
 import com.aliyun.odps.table.read.SplitReader;
+import com.aliyun.odps.table.read.TableReadSessionBuilder;
 import com.aliyun.odps.table.read.impl.batch.TableBatchReadSessionBase;
 import com.aliyun.odps.table.read.split.InputSplit;
 import com.aliyun.odps.table.utils.Preconditions;
@@ -41,23 +40,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
 
 public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
 
     private final static long DEFAULT_AVERAGE_RECORD_SIZE = 1024;
     private final static long MIN_AVERAGE_RECORD_SIZE = 256;
 
-    public TunnelTableBatchReadSession(TableIdentifier identifier,
-                                       List<PartitionSpec> includedPartitions,
-                                       List<String> requiredDataColumns,
-                                       List<String> requiredPartitionColumns,
-                                       List<Integer> bucketIds,
-                                       SplitOptions splitOptions,
-                                       ArrowOptions arrowOptions,
-                                       EnvironmentSettings settings) throws IOException {
-        super(identifier, includedPartitions, requiredDataColumns,
-                requiredPartitionColumns, bucketIds, splitOptions, arrowOptions, settings, null);
+    public TunnelTableBatchReadSession(TableReadSessionBuilder builder) throws IOException {
+        super(builder);
     }
 
     @Override
@@ -82,7 +72,12 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
         return new TunnelArrowSplitReader(identifier, (TunnelInputSplit) split, readSchema, options);
     }
 
-    @Override
+  @Override
+  public SessionStats getEstimatedStats() {
+    return new SessionStats();
+  }
+
+  @Override
     public SplitReader<ArrayRecord> createRecordReader(InputSplit split, ReaderOptions options) throws IOException {
         Preconditions.checkArgument(split instanceof TunnelInputSplit,
                 "Input split: " + split.getClass().getName());
@@ -91,7 +86,7 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
 
     @Override
     protected void planInputSplits() throws IOException {
-        if (requiredBucketIds.size() > 0) {
+        if (!requiredBucketIds.isEmpty()) {
             throw new UnsupportedOperationException("Unsupported bucket pruning in tunnel env");
         }
 
@@ -101,8 +96,8 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
             Odps odps = env.createOdpsClient();
             TableTunnel tunnel = new TableTunnel(odps);
             tunnel.setEndpoint(env.getTunnelEndpoint(identifier.getProject()));
-            // TODO: support schema
             Table table = odps.tables().get(identifier.getProject(),
+                    identifier.getSchema(),
                     identifier.getTable());
             TableSchema tableSchema = table.getSchema();
             long splitSizeInBytes = splitOptions.getSplitNumber();
@@ -113,13 +108,14 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
 
                 if (table.isPartitioned()) {
                     // TODO: public odps sdk need table.getPartitionSpecs();
-                    List<PartitionSpec> readPartitions = requiredPartitions.size() > 0 ?
+                    List<PartitionSpec> readPartitions = !requiredPartitions.isEmpty() ?
                             requiredPartitions :
-                            table.getPartitions().stream().map(Partition::getPartitionSpec).collect(Collectors.toList());
+                            table.getPartitions().stream().map(Partition::getPartitionSpec).toList();
                     for (PartitionSpec partitionSpec : readPartitions) {
                         long size = table.getPartition(partitionSpec).getSize();
                         TableTunnel.DownloadSession session = createDownloadSession(
                                 identifier.getProject(),
+                                identifier.getSchema(),
                                 identifier.getTable(),
                                 partitionSpec,
                                 tunnel);
@@ -127,34 +123,33 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                                 getInputSplitsInternal(session, size, splitSizeInBytes, partitionSpec, splitOptions));
                     }
 
-                    if (requiredDataColumns.size() == 0 &&
-                            requiredPartitionColumns.size() == 0) {
+                    if (requiredDataColumns.isEmpty() && requiredPartitionColumns.isEmpty()) {
                         requiredColumns.addAll(tableSchema.getColumns());
                         requiredColumns.addAll(tableSchema.getPartitionColumns());
                         partitionKeys = tableSchema.getPartitionColumns().stream()
-                                .map(Column::getName).collect(Collectors.toList());
+                                .map(Column::getName).toList();
                     } else {
-                        if (requiredDataColumns.size() > 0) {
+                        if (!requiredDataColumns.isEmpty()) {
                             TableUtils.validateRequiredDataColumns(requiredDataColumns,
                                     tableSchema.getColumns());
                             requiredColumns.addAll(requiredDataColumns
                                     .stream()
                                     .map(name -> tableSchema.getColumn(name.toLowerCase()))
-                                    .collect(Collectors.toList()));
+                                    .toList());
                         }
 
-                        if (requiredPartitionColumns.size() > 0) {
+                        if (!requiredPartitionColumns.isEmpty()) {
                             TableUtils.validateRequiredPartitionColumns(requiredPartitionColumns,
                                     tableSchema.getPartitionColumns());
                             requiredColumns.addAll(requiredPartitionColumns
                                     .stream()
                                     .map(name -> tableSchema.getPartitionColumn(name.toLowerCase()))
-                                    .collect(Collectors.toList()));
+                                    .toList());
                             partitionKeys = requiredPartitionColumns;
                         }
                     }
                 } else {
-                    if (requiredPartitions.size() > 0) {
+                    if (!requiredPartitions.isEmpty()) {
                         throw new UnsupportedOperationException(
                                 "Partition filter not supported for none partitioned table");
                     }
@@ -162,6 +157,7 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                     long size = table.getSize();
                     TableTunnel.DownloadSession session = createDownloadSession(
                             identifier.getProject(),
+                            identifier.getSchema(),
                             identifier.getTable(),
                             null,
                             tunnel);
@@ -171,10 +167,10 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                     TableUtils.validateRequiredDataColumns(requiredDataColumns,
                             tableSchema.getColumns());
 
-                    requiredColumns = requiredDataColumns.size() > 0 ?
+                    requiredColumns = !requiredDataColumns.isEmpty() ?
                             requiredDataColumns.stream()
                                     .map(name -> tableSchema.getColumn(name.toLowerCase()))
-                                    .collect(Collectors.toList()) : tableSchema.getColumns();
+                                    .toList() : tableSchema.getColumns();
                 }
 
                 this.readSchema = DataSchema.newBuilder()
@@ -187,7 +183,6 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
                 } else {
                     this.inputSplitAssigner = new TunnelRowRangeInputSplitAssigner(splits);
                 }
-
                 this.sessionId = "";
             } catch (Exception exception) {
                 throw new IOException(exception);
@@ -251,6 +246,7 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
     }
 
     public static TableTunnel.DownloadSession createDownloadSession(String project,
+                                                                    String schema,
                                                                     String table,
                                                                     PartitionSpec partitionSpec,
                                                                     TableTunnel tunnel) throws IOException {
@@ -259,11 +255,13 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
         TableTunnel.DownloadSession downloadSession;
         while (true) {
             try {
-                // TODO: support schema
                 if (partitionSpec == null || partitionSpec.isEmpty()) {
-                    downloadSession = tunnel.createDownloadSession(project, table, false);
+                    downloadSession = tunnel.createDownloadSession(project, schema,
+                            table, false);
                 } else {
-                    downloadSession = tunnel.createDownloadSession(project, table, partitionSpec, false);
+                    downloadSession = tunnel.createDownloadSession(project, schema,
+                            table,
+                            partitionSpec, false);
                 }
                 break;
             } catch (TunnelException e) {
@@ -281,4 +279,9 @@ public class TunnelTableBatchReadSession extends TableBatchReadSessionBase {
         }
         return downloadSession;
     }
+
+  @Override
+  public String toJson() {
+      throw new UnsupportedOperationException("Unsupported tunnel read session toJson!");
+  }
 }

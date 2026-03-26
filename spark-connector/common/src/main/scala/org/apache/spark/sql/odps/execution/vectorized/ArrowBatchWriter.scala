@@ -23,6 +23,7 @@ import com.aliyun.odps.table.arrow.constructor.{ArrowArrayWriter, ArrowBigIntWri
 import com.aliyun.odps.table.write.BatchWriter
 import org.apache.arrow.vector.complex.{ListVector, MapVector, StructVector}
 import org.apache.arrow.vector._
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters
 import org.apache.spark.sql.catalyst.util.{ArrayData, MapData}
@@ -32,7 +33,7 @@ import org.apache.spark.sql.odps.table.utils.DateTimeConstants.{MICROS_PER_MILLI
 
 class ArrowBatchWriter(outputColumns: Array[Column],
                        batch: VectorSchemaRoot,
-                       batchSize: Long) {
+                       batchSize: Long) extends Logging {
 
   private var rowCnt = 0
   private var batchCnt = 1
@@ -88,14 +89,24 @@ class ArrowBatchWriter(outputColumns: Array[Column],
       roots(currentBatchIdx).setRowCount(currentBatchRowCnt)
       fields(currentBatchIdx).foreach(_.finish())
 
-      roots.indices.foreach { ind =>
-        if (!flushAll) {
-          if (ind >= writeBatchIdx) {
+      try {
+        roots.indices.foreach { ind =>
+          if (!flushAll) {
+            if (ind >= writeBatchIdx) {
+              fileWriter.write(roots(ind))
+            }
+          } else {
             fileWriter.write(roots(ind))
           }
-        } else {
-          fileWriter.write(roots(ind))
         }
+      } catch {
+        case e: Exception =>
+          if (e.getMessage != null
+            && e.getMessage.contains("Connection refused")) {
+            logError("Got data server problem, just suicide and wait for rescheduling!", e)
+            System.exit(-1)
+          }
+          throw e
       }
 
       writeBatchIdx = roots.length

@@ -18,7 +18,6 @@
 
 package org.apache.spark.sql.odps.vectorized;
 
-import com.aliyun.odps.OdpsType;
 import com.aliyun.odps.table.arrow.accessor.*;
 import com.aliyun.odps.type.ArrayTypeInfo;
 import com.aliyun.odps.type.MapTypeInfo;
@@ -33,6 +32,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.spark.sql.odps.ArrowUtils;
 import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
@@ -72,6 +72,12 @@ public class OdpsArrowColumnVector extends ColumnVector {
             childColumns = null;
         }
         accessor.close();
+    }
+
+    @Override
+    public void closeIfFreeable() {
+        // do nothing because the vectors will be shared between batches in reuse mode
+        // and it will be closed by ColumnarBatch in non-reuse mode, so don't close here
     }
 
     @Override
@@ -172,7 +178,7 @@ public class OdpsArrowColumnVector extends ColumnVector {
 
     public OdpsArrowColumnVector(ValueVector vector, TypeInfo typeInfo) {
         super(ArrowUtils.fromArrowField(vector.getField()));
-        isTimestamp = type instanceof TimestampType;
+        isTimestamp = type instanceof TimestampType || type instanceof TimestampNTZType;
         isDate = type instanceof DateType;
 
         if (vector instanceof BitVector) {
@@ -192,7 +198,7 @@ public class OdpsArrowColumnVector extends ColumnVector {
         } else if (vector instanceof DecimalVector) {
             accessor = new ArrowDecimalAccessor((DecimalVector) vector);
         } else if (vector instanceof VarCharVector) {
-            accessor = new StringAccessor((VarCharVector) vector, typeInfo.getOdpsType().equals(OdpsType.CHAR));
+            accessor = new StringAccessor((VarCharVector) vector);
         } else if (vector instanceof VarBinaryVector) {
             accessor = new ArrowVarBinaryAccessor((VarBinaryVector) vector);
         } else if (vector instanceof DateDayVector) {
@@ -240,11 +246,8 @@ public class OdpsArrowColumnVector extends ColumnVector {
 
     private static class StringAccessor extends ArrowVarCharAccessor {
 
-        private final boolean isChar;
-
-        StringAccessor(VarCharVector vector, boolean isChar) {
+        StringAccessor(VarCharVector vector) {
             super(vector);
-            this.isChar = isChar;
         }
 
         final UTF8String getUTF8String(int rowId) {
@@ -252,13 +255,9 @@ public class OdpsArrowColumnVector extends ColumnVector {
             if (stringResult.isSet == 0) {
                 return null;
             } else {
-                UTF8String result = UTF8String.fromAddress(null,
+                return UTF8String.fromAddress(null,
                         stringResult.buffer.memoryAddress() + stringResult.start,
                         stringResult.end - stringResult.start);
-                if (isChar) {
-                    return result.trimRight();
-                }
-                return result;
             }
         }
     }

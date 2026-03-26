@@ -32,6 +32,7 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, BoundReference, Uns
 import org.apache.spark.sql.catalyst.expressions.codegen.LazilyGeneratedOrdering
 import org.apache.spark.sql.catalyst.plans.logical.Statistics
 import org.apache.spark.sql.catalyst.plans.physical.{HashPartitioning, Partitioning, RangePartitioning, RoundRobinPartitioning, SinglePartition}
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.execution.{RecordBinaryComparator, SQLExecution, ShufflePartitionSpec, ShuffledRowRDD, SparkPlan, UnsafeExternalRowSorter, UnsafeRowSerializer}
 import org.apache.spark.sql.execution.exchange.{REPARTITION_BY_NUM, ShuffleExchangeLike, ShuffleOrigin}
 import org.apache.spark.sql.execution.metric.{SQLMetric, SQLMetrics, SQLShuffleReadMetricsReporter, SQLShuffleWriteMetricsReporter}
@@ -50,7 +51,8 @@ private class PartitionIdPassthrough(override val numPartitions: Int) extends Pa
 case class OdpsShuffleExchangeExec(
                                 override val outputPartitioning: Partitioning,
                                 child: SparkPlan,
-                                shuffleOrigin: ShuffleOrigin = REPARTITION_BY_NUM)
+                                shuffleOrigin: ShuffleOrigin = REPARTITION_BY_NUM,
+                                advisoryPartitionSize: Option[Long] = None)
   extends ShuffleExchangeLike {
 
   private lazy val writeMetrics =
@@ -92,6 +94,8 @@ case class OdpsShuffleExchangeExec(
     Statistics(dataSize, Some(rowCount))
   }
 
+  override def shuffleId: Int = shuffleDependency.shuffleId
+
   /**
    * A [[ShuffleDependency]] that will partition rows of its child based on
    * the partitioning scheme defined in `newPartitioning`. Those partitions of
@@ -112,17 +116,9 @@ case class OdpsShuffleExchangeExec(
     dep
   }
 
-  /**
-   * Caches the created ShuffleRowRDD so we can reuse that.
-   */
-  private var cachedShuffleRDD: ShuffledRowRDD = null
-
   protected override def doExecute(): RDD[InternalRow] = {
-    // Returns the same ShuffleRowRDD if this plan is used by multiple plans.
-    if (cachedShuffleRDD == null) {
-      cachedShuffleRDD = new ShuffledRowRDD(shuffleDependency, readMetrics)
-    }
-    cachedShuffleRDD
+    // push down the RDD cache to SparkPlan to ensure the consistency
+    new ShuffledRowRDD(shuffleDependency, readMetrics)
   }
 
   override protected def withNewChildInternal(newChild: SparkPlan): OdpsShuffleExchangeExec = {
@@ -209,7 +205,7 @@ object ShuffleExchangeExec {
           // `HashPartitioning.partitionIdExpression` to produce partitioning key.
           override def getPartition(key: Any): Int = key.asInstanceOf[Int]
         }
-      case OdpsHashPartitioning(_, n) =>
+      case OdpsHashPartitioning(_, n, _, _) =>
         new Partitioner {
           override def numPartitions: Int = n
           // For OdpsHashPartitioning, the partitioning key is already a valid partition ID,
@@ -303,7 +299,7 @@ object ShuffleExchangeExec {
           val pageSize = SparkEnv.get.memoryManager.pageSizeBytes
 
           val sorter = UnsafeExternalRowSorter.createWithRecordComparator(
-            StructType.fromAttributes(outputAttributes),
+            DataTypeUtils.fromAttributes(outputAttributes),
             recordComparatorSupplier,
             prefixComparator,
             prefixComputer,

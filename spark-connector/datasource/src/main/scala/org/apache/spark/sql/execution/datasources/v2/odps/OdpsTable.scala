@@ -18,19 +18,21 @@
 
 package org.apache.spark.sql.execution.datasources.v2.odps
 
+import org.apache.spark.sql.catalyst.catalog.BucketSpec
+
 import java.util
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import org.apache.spark.sql.catalyst.{InternalRow, SQLConfHelper}
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
 import org.apache.spark.sql.catalyst.expressions.{BoundReference, Cast, GenericInternalRow}
 import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.catalog.TableCapability._
-import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.connector.expressions.{FieldReference, NamedReference, Transform}
 import org.apache.spark.sql.connector.read.ScanBuilder
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.connector.write.{LogicalWriteInfo, RowLevelOperation, RowLevelOperationBuilder, RowLevelOperationInfo, WriteBuilder}
+import org.apache.spark.sql.types.{DataType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
+import org.apache.spark.sql.odps.OdpsAnalysisException
 
 case class OdpsTableType private(name: String)
 object OdpsTableType {
@@ -59,7 +61,7 @@ case class OdpsBucketSpec(
     sortColumns: Seq[SortColumn]) extends SQLConfHelper {
 
   if (numBuckets <= 0 || numBuckets > conf.bucketingMaxBuckets) {
-    throw new AnalysisException(
+    throw new OdpsAnalysisException(
       s"Number of buckets should be greater than 0 but less than or equal to " +
         s"bucketing.maxBuckets (`${conf.bucketingMaxBuckets}`). Got `$numBuckets`")
   }
@@ -83,18 +85,29 @@ case class OdpsTable(
     dataSchema: StructType,
     partitionSchema: StructType,
     stats: OdpsStatistics,
+    isTransactional: Boolean,
+    isAppend2Table: Boolean,
     bucketSpec: Option[OdpsBucketSpec] = None,
     viewText: Option[String] = None)
-  extends SupportsPartitionManagement with SupportsRead {
+  extends SupportsPartitionManagement
+    with SupportsRowLevelOperations
+    with SupportsMetadataColumns
+    with SupportsRead
+    with SupportsWrite {
 
-import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
   import OdpsTableType._
 
   override def name(): String = tableIdent.toString
 
-  override lazy val schema: StructType = StructType(dataSchema ++ partitionSchema)
+  private val metaSchema = StructType(Array.empty[StructField])
 
-  override def partitioning: Array[Transform] = partitionSchema.names.toSeq.asTransforms
+  override lazy val schema: StructType = {
+    StructType(metaSchema ++ dataSchema ++ partitionSchema)
+  }
+
+  override def partitioning: Array[Transform] = partitionSchema.names.toSeq.asTransforms ++
+    bucketSpec.map(convertToBucketSpec).map(_.asTransform)
 
   override def capabilities(): util.Set[TableCapability] = OdpsTable.CAPABILITIES
 
@@ -136,6 +149,15 @@ import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
     OdpsScanBuilder(catalog, this, tableIdent, dataSchema, partitionSchema, stats, options)
   }
 
+  override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
+    OdpsWriteBuilder(catalog, this, tableIdent, metaSchema, dataSchema, partitionSchema,
+      catalog.odpsOptions, bucketSpec, info)
+  }
+
+  override def newRowLevelOperationBuilder(info: RowLevelOperationInfo): RowLevelOperationBuilder = {
+    throw new UnsupportedOperationException("Row level operation is not supported now")
+  }
+
   private def convertToTablePartitionSpec(
       names: Array[String],
       ident: InternalRow): TablePartitionSpec =
@@ -145,8 +167,13 @@ import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
         StringType).eval(ident).toString
       (name, value)
     }.toMap
+
+  private def convertToBucketSpec(bucketSpec: OdpsBucketSpec): BucketSpec =
+    BucketSpec(bucketSpec.numBuckets, bucketSpec.bucketColumnNames, bucketSpec.sortColumns.map(_.name))
+
+  override def metadataColumns(): Array[MetadataColumn] = Array.empty
 }
 
 object OdpsTable {
-  private val CAPABILITIES = Set(BATCH_READ).asJava
+  private val CAPABILITIES = Set(BATCH_READ, BATCH_WRITE, OVERWRITE_DYNAMIC, STREAMING_WRITE).asJava
 }

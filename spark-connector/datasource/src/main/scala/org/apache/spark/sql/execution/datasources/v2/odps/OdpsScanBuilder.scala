@@ -18,9 +18,10 @@
 
 package org.apache.spark.sql.execution.datasources.v2.odps
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.sources.EqualTo
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.read.{Scan, ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns}
 import org.apache.spark.sql.execution.datasources.PartitioningUtils
@@ -36,7 +37,9 @@ case class OdpsScanBuilder(
     partitionSchema: StructType,
     stats: OdpsStatistics,
     options: CaseInsensitiveStringMap)
-  extends ScanBuilder with SupportsPushDownRequiredColumns with SupportsPushDownFilters {
+  extends ScanBuilder
+    with SupportsPushDownRequiredColumns
+    with SupportsPushDownFilters {
 
   lazy val hadoopConf = {
     val caseSensitiveMap = options.asCaseSensitiveMap.asScala.toMap
@@ -58,9 +61,10 @@ case class OdpsScanBuilder(
 
   private var _partitionFilters = Array.empty[Filter]
   private var _dataFilters = Array.empty[Filter]
+  private var _bucketFilters = Array.empty[Filter]
 
   override def pushFilters(filters: Array[Filter]): Array[Filter] = {
-    val (nestedFilters, normalFilters) = filters.partition(_.containsNestedColumn)
+    val (nestedFilters, normalFilters) = filters.partition(_.v2references.exists(_.length > 1))
 
     val partitionSet = partitionSchema.map(_.name).toSet
     val (partitionFilters, nonPartitionFilters) =
@@ -68,6 +72,15 @@ case class OdpsScanBuilder(
     _partitionFilters = partitionFilters
     _dataFilters = nonPartitionFilters.filter(_.references.toSet.intersect(partitionSet).isEmpty)
 
+    if (table.bucketSpec.isDefined && table.bucketSpec.get.clusterType.toLowerCase.equals("hash")) {
+      val (bucketFilters, _) = _dataFilters.toSeq.partition {
+        case EqualTo(attr, _) =>
+            table.bucketSpec.get.bucketColumnNames.contains(attr)
+        case _ => false
+      }
+      _bucketFilters = OdpsScanBuilder.alignBucketPredicates(bucketFilters.asInstanceOf[Seq[EqualTo]],
+        table.bucketSpec).toArray
+    }
     nestedFilters ++ nonPartitionFilters
   }
 
@@ -75,7 +88,7 @@ case class OdpsScanBuilder(
 
   override def build(): Scan = {
     OdpsScan(SparkSession.active, hadoopConf, catalog, table, tableIdent, dataSchema, partitionSchema,
-      readDataSchema(), readPartitionSchema(), _partitionFilters, _dataFilters, stats)
+      readDataSchema(), readPartitionSchema(), _dataFilters, _partitionFilters, _bucketFilters, stats)
   }
 
   protected def readDataSchema(): StructType = {
@@ -101,4 +114,30 @@ case class OdpsScanBuilder(
 
   private val partitionNameSet: Set[String] =
     partitionSchema.fields.map(PartitioningUtils.getColName(_, isCaseSensitive)).toSet
+}
+
+object OdpsScanBuilder {
+  def alignBucketPredicates(
+                                     bucketPredicates: Seq[EqualTo],
+                                     bucketSpec: Option[OdpsBucketSpec]): Seq[Filter] = {
+    val alignedBucketPredicates = if (bucketSpec.isEmpty) {
+      Nil
+    } else {
+      var colSet = Set.empty[String]
+      for (
+        bucketColName <- bucketSpec.get.bucketColumnNames;
+        predicate <- bucketPredicates;
+        if bucketColName == predicate.attribute && !colSet.contains(bucketColName)
+      ) yield {
+        colSet += bucketColName
+        predicate
+      }
+    }
+    if (alignedBucketPredicates.nonEmpty &&
+      alignedBucketPredicates.size == bucketSpec.get.bucketColumnNames.size) {
+      alignedBucketPredicates
+    } else {
+      Nil
+    }
+  }
 }

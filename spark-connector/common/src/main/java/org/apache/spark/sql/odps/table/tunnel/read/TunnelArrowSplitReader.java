@@ -31,7 +31,6 @@ import com.aliyun.odps.table.read.SplitReader;
 import com.aliyun.odps.table.utils.SchemaUtils;
 import com.aliyun.odps.tunnel.TableTunnel;
 import com.aliyun.odps.tunnel.TunnelException;
-import com.aliyun.odps.tunnel.io.CompressOption;
 import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.spark.sql.odps.table.utils.TableUtils;
@@ -158,7 +157,7 @@ public class TunnelArrowSplitReader implements SplitReader<VectorSchemaRoot> {
                       ReaderOptions options) throws IOException {
         String project = identifier.getProject();
         String table = identifier.getTable();
-        // TODO: support schema
+        String schema = identifier.getSchema();
         PartitionSpec partitionSpec = split.getPartitionSpec();
         String downloadId = split.getSessionId();
         long startIndex = split.getRowRange().getStartIndex();
@@ -175,13 +174,14 @@ public class TunnelArrowSplitReader implements SplitReader<VectorSchemaRoot> {
             // if data columns size > 0, then create reader
             try {
                 TableTunnel tunnel = TableUtils.getTableTunnel(options.getSettings());
+                tunnel.getConfig().getOdps().setCurrentSchema(schema);
                 TableTunnel.DownloadSession session;
                 if (partitionSpec == null || partitionSpec.isEmpty()) {
                     session = tunnel.getDownloadSession(project, table, downloadId);
                 } else {
                     session = tunnel.getDownloadSession(project, table, partitionSpec, downloadId);
                 }
-                this.reader = session.openArrowRecordReader(startIndex, numRecord, readDataColumns, null,  new CompressOption(CompressOption.CompressAlgorithm.ODPS_RAW, 0, 0), true);
+                this.reader = session.openArrowRecordReader(startIndex, numRecord, readDataColumns);
             } catch (TunnelException e) {
                 throw new IOException(e);
             }

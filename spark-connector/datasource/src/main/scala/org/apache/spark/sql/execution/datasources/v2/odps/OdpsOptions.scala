@@ -20,6 +20,7 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 
 import java.util.Locale
 
+import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 
@@ -33,13 +34,25 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val DEFAULT_TABLE_PROVIDER = MAX_STORAGE_TABLE_PROVIDER
 
-  val tableReadProvider = parameters.getOrElse(ODPS_TABLE_READ_PROVIDER, DEFAULT_TABLE_PROVIDER)
+  val tableReadProvider = if (SparkContext.getActive.exists(_.isLocal)) {
+    parameters.getOrElse(ODPS_TABLE_READ_PROVIDER, TUNNEL_TABLE_PROVIDER)
+  } else {
+    parameters.getOrElse(ODPS_TABLE_READ_PROVIDER, DEFAULT_TABLE_PROVIDER)
+  }
 
-  val tableWriteProvider = parameters.getOrElse(ODPS_TABLE_WRITE_PROVIDER, DEFAULT_TABLE_PROVIDER)
+  val tableWriteProvider = if (SparkContext.getActive.exists(_.isLocal)) {
+    parameters.getOrElse(ODPS_TABLE_WRITE_PROVIDER, TUNNEL_TABLE_PROVIDER)
+  } else {
+    parameters.getOrElse(ODPS_TABLE_WRITE_PROVIDER, DEFAULT_TABLE_PROVIDER)
+  }
 
   val metaCacheSize = parameters.getOrElse(ODPS_META_CACHE_SIZE, "100").toInt
 
+  val viewCacheSize = parameters.getOrElse(ODPS_VIEW_CACHE_SIZE, "100").toInt
+
   val metaCacheExpireSeconds = parameters.getOrElse(ODPS_META_CACHE_EXPIRE_SECONDS, "30").toInt
+
+  val viewCacheExpireSeconds = parameters.getOrElse(ODPS_VIEW_CACHE_EXPIRE_SECONDS, "3600").toInt
 
   val metaStatsLevel = parameters.getOrElse(ODPS_META_STATS_LEVEL, "none")
 
@@ -68,6 +81,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val splitSizeInMB = parameters.getOrElse(ODPS_SPLIT_SIZE_IN_MB, "256").toInt
 
+  val splitReaderNum = parameters.getOrElse(ODPS_SPLIT_READER_NUM, "1").toInt
+
   val splitCrossPartition = parameters.getOrElse(ODPS_SPLIT_CROSS_PARTITION, "true").toBoolean
 
   val enableArrowExtension =  parameters.getOrElse(ODPS_ARROW_EXTENSION, "false").toBoolean
@@ -76,7 +91,7 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val enableExternalTable =  parameters.getOrElse(ODPS_ENABLE_EXTERNAL_TABLE, "false").toBoolean
 
-  val odpsTableCompressionCodec = parameters.getOrElse(ODPS_TABLE_COMPRESSION_CODEC, "zstd")
+  val odpsTableCompressionCodec = parameters.getOrElse(ODPS_TABLE_COMPRESSION_CODEC, "none")
 
   val enableNamespaceSchema =  parameters.getOrElse(ODPS_NAMESPACE_SCHEMA_TABLE, "false").toBoolean
 
@@ -91,17 +106,36 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
 
   val writerMaxBlocks =  parameters.getOrElse(ODPS_WRITER_MAX_BLOCKS, "20000").toInt
 
-  val splitSessionParallelism = parameters.getOrElse(ODPS_SPLIT_SESSION_PARALLELISM, "1").toInt
+  val splitSessionParallelism =  parameters.getOrElse(ODPS_SPLIT_SESSION_PARALLELISM, "1").toInt
 
   val splitMaxFileNum = parameters.getOrElse(ODPS_SPLIT_MAX_FILE_NUM, "0").toInt
 
+  val splitMaxWaitTime = parameters.getOrElse(ODPS_SPLIT_MAX_WAIT_TIME, "15").toInt
+
   val filterPushDown =  parameters.getOrElse(ODPS_FILTER_PUSH_DOWN, "false").toBoolean
+
+  val enableSplitSession =
+    parameters.getOrElse(ODPS_SPLIT_SESSION_PARALLELISM_ENABLE, "true").toBoolean
+
+  val enableRuntimeFilter = parameters.getOrElse(ODPS_RUNTIME_FILTER_ENABLE, "false").toBoolean
 
   val asyncReadEnable =  parameters.getOrElse(ODPS_TABLE_ASYNC_READ_ENABLE, "false").toBoolean
 
   val asyncReadQueueSize =  parameters.getOrElse(ODPS_ASYNC_QUEUE_SIZE, "8").toInt
 
   val asyncReadWaitTime = parameters.getOrElse(ODPS_ASYNC_WAIT_TIME, "60").toLong * 1000L
+
+  val forceDeduplicate = parameters.getOrElse(ODPS_ACID_INSERT_DEDUPLICATE, "false").toBoolean
+
+  val maxFieldSizeInMB = parameters.getOrElse(ODPS_MAX_FIELD_SIZE_IN_MB, "-1").toInt
+
+  val enhanceWriteCheck = parameters.getOrElse(ODPS_ENHANCE_WRITE_CHECK, "false").toBoolean
+
+  val dynamicPartitionLimit = parameters.getOrElse(ODPS_DYNAMIC_PARTITION_LIMIT, "512").toInt
+
+  val streamingWriteLimit = parameters.getOrElse(ODPS_STREAMING_WRITE_LIMIT, "60").toInt
+
+  val enableCollationAware = parameters.getOrElse(ODPS_COLLATION_AWARE, "false").toBoolean
 }
 
 object OdpsOptions {
@@ -118,6 +152,8 @@ object OdpsOptions {
   val ODPS_TABLE_WRITE_PROVIDER = newOption("tableWriteProvider")
   val ODPS_META_CACHE_SIZE = newOption("metaCacheSize")
   val ODPS_META_CACHE_EXPIRE_SECONDS = newOption("metaCacheExpireSeconds")
+  val ODPS_VIEW_CACHE_SIZE = newOption("viewCacheSize")
+  val ODPS_VIEW_CACHE_EXPIRE_SECONDS = newOption("viewCacheExpireSeconds")
   val ODPS_META_STATS_LEVEL = newOption("metaStatsLevel")
   val ODPS_VECTORIZED_READER_ENABLED = newOption("enableVectorizedReader")
   val ODPS_BATCH_REUSED_ENABLED = newOption("enableBatchReused")
@@ -127,6 +163,7 @@ object OdpsOptions {
   val ODPS_HASH_CLUSTER_ENABLED = newOption("enableHashCluster")
   val ODPS_SPLIT_PARALLELISM = newOption("splitParallelism")
   val ODPS_SPLIT_SIZE_IN_MB = newOption("splitSizeInMB")
+  val ODPS_SPLIT_READER_NUM = newOption("splitReaderNum")
   val ODPS_SPLIT_CROSS_PARTITION = newOption("splitCrossPartition")
   val ODPS_ARROW_EXTENSION = newOption("enableArrowExtension")
   val ODPS_ENABLE_EXTERNAL_PROJECT = newOption("enableExternalProject")
@@ -141,12 +178,29 @@ object OdpsOptions {
   val ODPS_WRITER_MAX_BLOCKS = newOption("writerBlocks")
 
   val ODPS_SPLIT_SESSION_PARALLELISM = newOption("splitSessionParallelism")
-
   val ODPS_SPLIT_MAX_FILE_NUM = newOption("splitMaxFileNum")
 
+  val ODPS_SPLIT_MAX_WAIT_TIME = newOption("splitMaxWaitTime")
+  val ODPS_SPLIT_SESSION_PARALLELISM_ENABLE = newOption("splitSessionParallelismEnable")
+
   val ODPS_FILTER_PUSH_DOWN = newOption("enableFilterPushDown")
+
+  val ODPS_ROW_LEVEL_OPERATION_ENABLE = newOption("enableRowLevelOperation")
+  val ODPS_RUNTIME_FILTER_ENABLE = newOption("enableRuntimeFilter")
 
   val ODPS_TABLE_ASYNC_READ_ENABLE = newOption("enableAsyncRead")
   val ODPS_ASYNC_QUEUE_SIZE = newOption("asyncQueueSize")
   val ODPS_ASYNC_WAIT_TIME = newOption("asyncWaitTime")
+
+  val ODPS_ACID_INSERT_DEDUPLICATE = newOption("enableDeltaInsertDeduplicate")
+
+  val ODPS_MAX_FIELD_SIZE_IN_MB = newOption("maxFieldSizeInMB")
+
+  val ODPS_ENHANCE_WRITE_CHECK = newOption("enhanceWriteCheck")
+
+  val ODPS_DYNAMIC_PARTITION_LIMIT = newOption("dynamicPartitionLimit")
+
+  val ODPS_STREAMING_WRITE_LIMIT = newOption("streamingWriteLimit")
+
+  val ODPS_COLLATION_AWARE = newOption("enableCollationAware")
 }

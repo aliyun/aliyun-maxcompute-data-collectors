@@ -28,7 +28,7 @@ import com.aliyun.odps.table.write.{BatchWriter, TableBatchWriteSession, WriterA
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, UnsafeProjection}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.connector.write.WriterCommitMessage
 import org.apache.spark.sql.execution.datasources.{WriteJobStatsTracker, WriteTaskStats}
 import org.apache.spark.sql.odps.execution.vectorized.ArrowBatchWriter
@@ -40,14 +40,13 @@ import scala.reflect.ClassTag
 import scala.util.Random
 
 abstract class OdpsTableDataWriter[T: ClassTag](
-                                                 description: WriteJobDescription,
-                                                 partitionId: Int,
-                                                 attemptNumber: Int,
-                                                 taskId: Long)
+      description: WriteJobDescription,
+      partitionId: Int,
+      attemptNumber: Int,
+      taskId: Long)
   extends org.apache.spark.sql.connector.write.DataWriter[InternalRow] with Logging {
 
-  protected var commitMessages: mutable.Seq[OdpsWriterCommitMessage] =
-    mutable.Seq[OdpsWriterCommitMessage]()
+  protected var commitMessages: OdpsWriterCommitMessage = _
 
   protected var currentWriter: BatchWriter[T] = _
 
@@ -68,6 +67,13 @@ abstract class OdpsTableDataWriter[T: ClassTag](
   protected val maxSleepIntervalMs = description.maxSleepIntervalMs
 
   protected val chunkSize = description.chunkSize
+
+  protected val dropDuplicates = description.dropDuplicates
+
+  protected var currentGroupingKey: UnsafeRow = _
+
+  protected val groupingProjection: UnsafeProjection =
+    UnsafeProjection.create(description.primaryKeyColumns, description.allColumns)
 
   protected def createBatchWriter(): BatchWriter[T]
 
@@ -133,7 +139,7 @@ abstract class OdpsTableDataWriter[T: ClassTag](
         }
       }
 
-      commitMessages :+= currentWriter.commit
+      commitMessages = currentWriter.commit
 
       val bytesWritten = currentWriter.currentMetricsValues
         .counter(MetricNames.BYTES_COUNT).orElse(new BytesCount).getCount
@@ -233,6 +239,22 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
   protected var flush = false
 
   override protected def processRow(row: InternalRow): Unit = {
+    if (dropDuplicates) {
+      val groupingKey = groupingProjection(row)
+      if (currentGroupingKey == null) {
+        // first key
+        currentGroupingKey = groupingKey.copy()
+      } else {
+        if (currentGroupingKey == groupingKey) {
+          // skip current row
+          return
+        } else {
+          // next group
+          currentGroupingKey = groupingKey.copy()
+        }
+      }
+    }
+
     if (arrowBatchWriter.isFull()) {
       try {
         arrowBatchWriter.writeBatch(currentWriter, false)
@@ -382,6 +404,8 @@ final class DynamicPartitionArrowWriter(description: WriteJobDescription,
   /** Flag saying whether or not the data to be written out is partitioned. */
   private val isPartitioned = description.dynamicPartitionColumns.nonEmpty
 
+  protected var currentPartitionKey: UnsafeRow = _
+
   assert(isPartitioned,
     s"""DynamicPartitionWriteTask should be used for writing out data that's partitioned.
        |In this case neither is true.
@@ -390,7 +414,20 @@ final class DynamicPartitionArrowWriter(description: WriteJobDescription,
 
   /** Writes a row */
   override def write(row: InternalRow): Unit = {
-    // ensureInitialized(row)
+    if (dropDuplicates) {
+      val partitionKey = getDynamicPartition(row)
+      if (currentPartitionKey == null) {
+        // first partition
+        currentPartitionKey = partitionKey.copy()
+      } else {
+        if (currentPartitionKey != partitionKey) {
+          // new partition
+          currentPartitionKey = partitionKey.copy()
+          currentGroupingKey = null
+        }
+      }
+    }
+
     processRow(getOutputRowWithDynamicPartition(row))
   }
 
@@ -398,6 +435,9 @@ final class DynamicPartitionArrowWriter(description: WriteJobDescription,
   private val getOutputRowWithDynamicPartition =
     UnsafeProjection.create(description.dataColumns ++ description.dynamicPartitionColumns,
       description.allColumns)
+
+  private val getDynamicPartition =
+    UnsafeProjection.create(description.dynamicPartitionColumns, description.allColumns)
 }
 
 /**
@@ -407,9 +447,10 @@ final class DynamicPartitionArrowWriter(description: WriteJobDescription,
 /** A shared job description for all the write tasks. */
 class WriteJobDescription(
                            val serializableHadoopConf: SerializableConfiguration,
-                           val batchSink: TableBatchWriteSession,
+                           var batchSink: TableBatchWriteSession,
                            val staticPartition: PartitionSpec,
                            val allColumns: Seq[Attribute],
+                           val metaColumns: Seq[Attribute],
                            val dataColumns: Seq[Attribute],
                            val partitionColumns: Seq[Attribute],
                            val dynamicPartitionColumns: Seq[Attribute],
@@ -417,24 +458,27 @@ class WriteJobDescription(
                            val statsTrackers: Seq[WriteJobStatsTracker],
                            val writeBatchSize: Long,
                            val timeZoneId: String,
-                           val supportArrowWriter: Boolean,
+                           var supportArrowWriter: Boolean,
                            val enableArrowExtension: Boolean,
                            val compressionCodec: String,
                            val chunkSize: Int,
                            val maxRetries: Int,
                            val maxSleepIntervalMs: Int,
-                           val maxBlocks: Int)
+                           val maxBlocks: Int,
+                           val dropDuplicates: Boolean,
+                           val primaryKeyColumns: Seq[Attribute])
   extends Serializable {
 
-  assert(AttributeSet(allColumns) == AttributeSet(partitionColumns ++ dataColumns),
+  assert(AttributeSet(allColumns) == AttributeSet(metaColumns ++ partitionColumns ++ dataColumns),
     s"""
        |All columns: ${allColumns.mkString(", ")}
+       |Meta columns: ${metaColumns.mkString(", ")}
        |Partition columns: ${partitionColumns.mkString(", ")}
        |Data columns: ${dataColumns.mkString(", ")}
        """.stripMargin)
 }
 
 /** The result of a successful write task. */
-case class WriteTaskResult(commitMessage: Seq[OdpsWriterCommitMessage],
+case class WriteTaskResult(commitMessage: OdpsWriterCommitMessage,
                            stats: Seq[WriteTaskStats])
   extends WriterCommitMessage

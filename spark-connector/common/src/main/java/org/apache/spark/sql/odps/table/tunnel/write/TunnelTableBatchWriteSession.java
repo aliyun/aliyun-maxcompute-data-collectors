@@ -22,14 +22,12 @@ import com.aliyun.odps.*;
 import com.aliyun.odps.data.ArrayRecord;
 import com.aliyun.odps.table.DataFormat;
 import com.aliyun.odps.table.DataSchema;
-import com.aliyun.odps.table.TableIdentifier;
-import com.aliyun.odps.table.configuration.ArrowOptions;
 import com.aliyun.odps.table.configuration.DynamicPartitionOptions;
 import com.aliyun.odps.table.configuration.WriterOptions;
-import com.aliyun.odps.table.enviroment.EnvironmentSettings;
 import com.aliyun.odps.table.enviroment.ExecutionEnvironment;
 import com.aliyun.odps.table.utils.Preconditions;
 import com.aliyun.odps.table.write.BatchWriter;
+import com.aliyun.odps.table.write.TableWriteSessionBuilder;
 import com.aliyun.odps.table.write.WriterAttemptId;
 import com.aliyun.odps.table.write.WriterCommitMessage;
 import com.aliyun.odps.table.write.impl.batch.TableBatchWriteSessionBase;
@@ -49,19 +47,8 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
 
     protected transient TableTunnel.UploadSession session;
 
-    public TunnelTableBatchWriteSession(TableIdentifier identifier,
-                                        PartitionSpec partitionSpec,
-                                        boolean overwrite,
-                                        DynamicPartitionOptions dynamicPartitionOptions,
-                                        ArrowOptions arrowOptions,
-                                        EnvironmentSettings settings) throws IOException {
-        super(identifier, partitionSpec, overwrite, dynamicPartitionOptions, arrowOptions, null, settings);
-    }
-
-    public TunnelTableBatchWriteSession(TableIdentifier identifier,
-                                        String sessionId,
-                                        EnvironmentSettings settings) throws IOException {
-        super(identifier, sessionId, settings);
+    public TunnelTableBatchWriteSession(TableWriteSessionBuilder builder) throws IOException {
+        super(builder);
     }
 
     @Override
@@ -74,8 +61,8 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         Odps odps = env.createOdpsClient();
         TableTunnel tunnel = new TableTunnel(odps);
         tunnel.setEndpoint(env.getTunnelEndpoint(identifier.getProject()));
-        // TODO: support schema
         Table table = odps.tables().get(identifier.getProject(),
+                identifier.getSchema(),
                 identifier.getTable());
         try {
             if (table.isPartitioned()) {
@@ -88,9 +75,8 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
                             .map(Column::getName).collect(Collectors.toList()));
                 }
 
-                // TODO: support schema
                 if (!table.hasPartition(targetPartitionSpec)) {
-                    createPartition(identifier.getProject(), identifier.getTable(),
+                    createPartition(identifier.getProject(), identifier.getSchema(), identifier.getTable(),
                             targetPartitionSpec, odps);
                 }
             }
@@ -102,13 +88,14 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         long sleep = 2000;
         while (true) {
             try {
-                // TODO: support schema
                 if (targetPartitionSpec.isEmpty()) {
                     session = tunnel.createUploadSession(identifier.getProject(),
+                            identifier.getSchema(),
                             identifier.getTable(),
                             overwrite);
                 } else {
                     session = tunnel.createUploadSession(identifier.getProject(),
+                            identifier.getSchema(),
                             identifier.getTable(),
                             targetPartitionSpec,
                             overwrite);
@@ -190,14 +177,13 @@ public class TunnelTableBatchWriteSession extends TableBatchWriteSessionBase {
         return false;
     }
 
-    public static void createPartition(String project, String table,
+    public static void createPartition(String project, String schema, String table,
                                        PartitionSpec partitionSpec, Odps odps) throws IOException {
         int retry = 0;
         long sleep = 2000;
         while (true) {
             try {
-                // TODO: support schema
-                odps.tables().get(project, table).createPartition(partitionSpec, true);
+                odps.tables().get(project, schema, table).createPartition(partitionSpec, true);
                 break;
             } catch (OdpsException e) {
                 retry++;

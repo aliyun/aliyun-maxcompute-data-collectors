@@ -20,21 +20,20 @@ package org.apache.spark.sql.execution.datasources.v2.odps
 
 import java.util
 import java.util.OptionalLong
-
 import scala.collection.mutable
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import com.aliyun.odps.task.SQLTask
-import com.aliyun.odps.{Column, OdpsException, PartitionSpec, TableSchema, Table => SdkTable}
-import com.aliyun.odps.`type`.TypeInfoParser
+import com.aliyun.odps.{Column, NoSuchObjectException, OdpsException, OdpsType, PartitionSpec, TableSchema, Table => SdkTable}
+import com.aliyun.odps.`type`.{ArrayTypeInfo, CharTypeInfo, DecimalTypeInfo, MapTypeInfo, SimplePrimitiveTypeInfo, StructTypeInfo, TypeInfo, TypeInfoParser, VarcharTypeInfo}
 import com.aliyun.odps.utils.StringUtils
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.catalyst.analysis.{NamespaceAlreadyExistsException, NoSuchTableException, NonEmptyNamespaceException, TableAlreadyExistsException}
+import org.apache.spark.sql.catalyst.analysis.{NamespaceAlreadyExistsException, NoSuchFunctionException, NoSuchTableException, TableAlreadyExistsException}
 import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.expressions.{BucketTransform, FieldReference, IdentityTransform, Transform}
 import org.apache.spark.sql.odps.OdpsUtils._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import org.apache.spark.sql.{AnalysisException, sources}
+import org.apache.spark.sql.sources
 import org.apache.spark.sql.catalyst.catalog.{BucketSpec, CatalogTable, CatalogTableType, CatalogUtils}
 import org.apache.spark.sql.catalyst.{InternalRow, SQLConfHelper, StructFilters}
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
@@ -43,11 +42,20 @@ import org.apache.spark.sql.errors.{QueryCompilationErrors, QueryExecutionErrors
 import org.apache.spark.sql.execution.datasources.DataSource
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.util.CharVarcharUtils
+import org.apache.spark.sql.connector.catalog.TableChange._
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction
+import org.apache.spark.sql.odps.OdpsAnalysisException
+import org.apache.spark.sql.odps.udf.UDFManager
 
-class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConfHelper
+import scala.annotation.tailrec
+
+class OdpsTableCatalog extends TableCatalog
+  with FunctionCatalog
+  with SupportsNamespaces
+  with SQLConfHelper
   with Logging {
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
   import OdpsMetaClient._
   import OdpsTableCatalog._
 
@@ -91,9 +99,18 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
   override def loadTable(ident: Identifier): Table = {
     checkNamespace(ident.namespace())
     withClient {
-      getTableUsingSdk(ident)
+      getTableUsingSdk(ident, false)
     }
   }
+
+  def loadView(ident: Identifier): OdpsTable = {
+    checkNamespace(ident.namespace())
+    withClient {
+      getTableUsingSdk(ident, true)
+    }
+  }
+
+  override def loadTable(ident: Identifier, writePrivileges: util.Set[TableWritePrivilege]): Table = loadTable(ident)
 
   override def invalidateTable(ident: Identifier): Unit = {
     checkNamespace(ident.namespace())
@@ -105,7 +122,8 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     checkNamespace(ident.namespace())
     val (project, odpsSchema) = getProjectSchema(ident.namespace())
     withClient {
-      metaClient.getSdkTableOption(project, odpsSchema, ident.name(), refresh = true).isDefined
+      val table = metaClient.getSdkTableOption(project, odpsSchema, ident.name(), refresh = true)
+      table.isDefined && !table.get.isVirtualView
     }
   }
 
@@ -140,6 +158,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     val storage = DataSource.buildStorageFormatFromOptions(toOptions(tableProperties.toMap))
       .copy(locationUri = location.map(CatalogUtils.stringToURI))
     val tableType = if (location.isDefined) CatalogTableType.EXTERNAL else CatalogTableType.MANAGED
+    val lifecycle = Option(properties.get("lifecycle"))
 
     val tableDesc = CatalogTable(
       identifier = TableIdentifier(table, Some(odpsSchema)),
@@ -154,7 +173,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
       comment = Option(properties.get(TableCatalog.PROP_COMMENT)))
 
     withClient {
-      SQLTask.run(odps, getSQLString(project, odpsSchema, table, tableSchema, ifNotExists = false, tableDesc))
+      SQLTask.run(odps, getSQLString(project, odpsSchema, table, tableSchema, ifNotExists = false, tableDesc, lifecycle))
         .waitForSuccess()
     }
 
@@ -162,7 +181,22 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
   }
 
   override def alterTable(ident: Identifier, changes: TableChange*): Table = {
-    throw new AnalysisException("alter table not supported")
+    checkNamespace(ident.namespace())
+
+    val (project, odpsSchema) = getProjectSchema(ident.namespace())
+    val tableName = ident.name()
+    val table = metaClient.getSdkTable(project, odpsSchema, tableName)
+    metaClient.invalidateTableCache(project, odpsSchema, ident.name())
+
+    val updateClause = getTableChangeQuery(table, changes.toArray)
+
+    updateClause.foreach(sql => {
+      withClient {
+        SQLTask.run(odps, sql).waitForSuccess()
+      }
+    })
+
+    loadTable(ident)
   }
 
   override def dropTable(ident: Identifier): Boolean = {
@@ -206,7 +240,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     val newTable = newIdent.name()
 
     if (!conf.resolver(oldProject, newProject)) {
-      throw new AnalysisException("rename table to different project not supported")
+      throw new OdpsAnalysisException("rename table to different project not supported")
     }
 
     val sdkTable = metaClient.getSdkTable(oldProject, oldOdpsSchema, oldTable)
@@ -237,6 +271,19 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
       val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
       sdkTable.truncate()
       metaClient.invalidateTableCache(project, odpsSchema, table)
+    }
+  }
+
+  override def listFunctions(namespace: Array[String]): Array[Identifier] = {
+    UDFManager.listFunctionNames().asScala.map(Identifier.of(namespace, _)).toArray
+  }
+
+  override def loadFunction(ident: Identifier): UnboundFunction = {
+    val function = UDFManager.getUnboundFunction(ident.name())
+    if (function != null) {
+      function
+    } else {
+      throw new NoSuchFunctionException(ident)
     }
   }
 
@@ -322,7 +369,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
         if (schemaEnable) {
           createSchema(defaultNamespace().head, db)
         } else {
-          throw new AnalysisException("create project not supported")
+          throw new OdpsAnalysisException("create project not supported")
         }
       case Array(project, schema) =>
         createSchema(project, schema)
@@ -338,7 +385,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
         if (schemaEnable) {
           dropSchema(defaultNamespace().head, db, cascade)
         } else {
-          throw new AnalysisException("drop project not supported")
+          throw new OdpsAnalysisException("drop project not supported")
         }
       case Array(project, schema) =>
         dropSchema(project, schema, cascade)
@@ -348,7 +395,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
   }
 
   override def alterNamespace(namespace: Array[String], changes: NamespaceChange*): Unit = {
-    throw new AnalysisException("alter namespace not supported")
+    throw new OdpsAnalysisException("alter namespace not supported")
   }
 
   override def defaultNamespace(): Array[String] = synchronized {
@@ -373,6 +420,36 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
   }
 
+  def getPartitionBucket(tableIdent: Identifier, sdkPartitionSpec: PartitionSpec): Option[Int] = {
+    checkNamespace(tableIdent.namespace())
+    val (project, odpsSchema) = getProjectSchema(tableIdent.namespace())
+    val table = tableIdent.name()
+    withClient {
+      val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
+      try {
+        val part = sdkTable.getPartition(sdkPartitionSpec)
+        part.reload()
+        if (part.getClusterInfo != null) {
+          Some(part.getClusterInfo.getBucketNum.toInt)
+        } else {
+          None
+        }
+      } catch {
+        case e: NoSuchObjectException =>
+          None
+      }
+    }
+  }
+
+  def hasChar(sdkTable: SdkTable): Boolean = {
+    sdkTable.getSchema.getPartitionColumns.asScala.foreach { field =>
+      if (field.getType.equals(com.aliyun.odps.OdpsType.CHAR)) {
+        return true
+      }
+    }
+    false
+  }
+
   def listPartitions(tableIdent: Identifier): Array[TablePartitionSpec] =
     listPartitionsByFilter(tableIdent, Array.empty)
 
@@ -385,9 +462,36 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     withClient {
       val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
       val partitionSchema = getPartitionSchema(sdkTable)
-      val partitionSpecs =
-        sdkTable.getPartitionSpecs.asScala.map(p => convertToTablePartitionSpec(p))
+      val partitionSpecs = if (hasChar(sdkTable)) {
+        sdkTable.getPartitions.asScala.map(p => convertToTablePartitionSpec(p.getPartitionSpec))
+      } else {
+        sdkTable.getPartitionSpecs.asScala.map(convertToTablePartitionSpec)
+      }
+      val prunedPartitions = if (filters.nonEmpty) {
+        val predicate = new PartitionFilters(filters, partitionSchema).toPredicate
+        partitionSpecs.filter(p => predicate.eval(convertToPartIdent(p, partitionSchema)))
+      } else {
+        partitionSpecs
+      }
 
+      prunedPartitions.toArray
+    }
+  }
+
+  def listPartitionSpecByFilter(
+                                 tableIdent: Identifier,
+                                 filters: Array[Filter]): Array[TablePartitionSpec] = {
+    checkNamespace(tableIdent.namespace())
+    val (project, odpsSchema) = getProjectSchema(tableIdent.namespace())
+    val table = tableIdent.name()
+    withClient {
+      val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
+      val partitionSchema = getPartitionSchema(sdkTable)
+      val partitionSpecs = if (hasChar(sdkTable)) {
+        sdkTable.getPartitions.asScala.map(p => convertToTablePartitionSpec(p.getPartitionSpec))
+      } else {
+        sdkTable.getPartitionSpecs.asScala.map(convertToTablePartitionSpec)
+      }
       val prunedPartitions = if (filters.nonEmpty) {
         val predicate = new PartitionFilters(filters, partitionSchema).toPredicate
         partitionSpecs.filter(p => predicate.eval(convertToPartIdent(p, partitionSchema)))
@@ -424,7 +528,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
   }
 
-  private def getTableUsingSdk(ident: Identifier): OdpsTable = {
+  private def getTableUsingSdk(ident: Identifier, loadView: Boolean): OdpsTable = {
     val (project, odpsSchema) = getProjectSchema(ident.namespace())
     val table = ident.name()
     val newIdent = if (schemaEnable) {
@@ -434,14 +538,40 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     }
     val sdkTable = metaClient.getSdkTable(project, odpsSchema, table)
     val tableType = getTableType(sdkTable)
+    if (loadView != (tableType == OdpsTableType.VIRTUAL_VIEW)) {
+      throw new NoSuchTableException(ident)
+    }
     val dataSchema = getDataSchema(sdkTable)
     val partitionSchema = getPartitionSchema(sdkTable)
     val stats = if (sdkTable.getSize <= 0) OdpsStatistics(OptionalLong.empty(), OptionalLong.empty())
       else OdpsStatistics(OptionalLong.of(sdkTable.getSize), OptionalLong.empty())
-    val bucketSpec = getBucketSpec(sdkTable)
+    val clusterInfo = sdkTable.getClusterInfo
+    var isAppend2Table = false
+    val bucketSpec = if (clusterInfo != null && clusterInfo.getClusterCols.size() > 0) {
+      if (clusterInfo.getClusterType == "range" && sdkTable.isTransactional) {
+        isAppend2Table = true
+        None
+      } else {
+        val sortColumns: Seq[SortColumn] = if (clusterInfo.getSortCols != null) {
+          clusterInfo.getSortCols.asScala.map(s => SortColumn(s.getName, s.getOrder)).toSeq
+        } else {
+          Seq.empty
+        }
+        Some(OdpsBucketSpec(
+          clusterInfo.getClusterType.toLowerCase,
+          clusterInfo.getBucketNum.toInt,
+          clusterInfo.getClusterCols.asScala.toSeq,
+          sortColumns
+        ))
+      }
+    } else {
+      None
+    }
     val viewText = if (sdkTable.isVirtualView) Some(sdkTable.getViewText) else None
+    val isTransactional = bucketSpec.isDefined && sdkTable.isTransactional
 
-    OdpsTable(this, newIdent, tableType, dataSchema, partitionSchema, stats, bucketSpec, viewText)
+    OdpsTable(this, newIdent, tableType, dataSchema, partitionSchema, stats, isTransactional, isAppend2Table,
+      bucketSpec, viewText)
   }
 
   def checkNamespace(namespace: Array[String]): Unit = {
@@ -494,7 +624,7 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
       true
     } catch {
       case e: Exception => if (e.getMessage.contains("One or more tables exist")) {
-        throw NonEmptyNamespaceException(e.getMessage, cause = Some(e))
+        throw new OdpsAnalysisException(e.getMessage, cause = Some(e))
       } else {
         throw e
       }
@@ -505,6 +635,10 @@ class OdpsTableCatalog extends TableCatalog with SupportsNamespaces with SQLConf
     metaClient.getSchemas(project, refresh = true)
       .map(schema => Array(project, schema))
       .toArray
+  }
+
+  def getViewToTable(query: String): SdkTable = {
+    metaClient.getSdkViewTable(query)
   }
 }
 
@@ -522,22 +656,45 @@ object OdpsTableCatalog {
 
   def getDataSchema(sdkTable: SdkTable): StructType = {
     StructType(sdkTable.getSchema.getColumns.asScala.map(
-      c => StructField(c.getName, typeInfo2Type(c.getTypeInfo))))
+      c => {
+        val (dataType, hasDatetime) = typeInfo2Type(c.getTypeInfo)
+        val metadata = if (hasDatetime) {
+          new MetadataBuilder().putBoolean(DATETIME_TYPE_STRING_METADATA_KEY, value = true).build()
+        } else {
+          Metadata.empty
+        }
+        StructField(c.getName, dataType, nullable = c.isNullable, metadata = metadata).withComment(c.getComment)
+      }
+    ).toArray)
   }
 
   def getPartitionSchema(sdkTable: SdkTable): StructType = {
     StructType(sdkTable.getSchema.getPartitionColumns.asScala.map(
-      c => StructField(c.getName, typeInfo2Type(c.getTypeInfo))))
+      c => {
+        val (dataType, hasDatetime) = typeInfo2Type(c.getTypeInfo, charAsString = true)
+        val metadata = if (hasDatetime) {
+          new MetadataBuilder().putBoolean(DATETIME_TYPE_STRING_METADATA_KEY, value = true).build()
+        } else {
+          Metadata.empty
+        }
+        StructField(c.getName, dataType, metadata = metadata).withComment(c.getComment)
+      }).toArray)
   }
 
   def getBucketSpec(sdkTable: SdkTable): Option[OdpsBucketSpec] = {
     val clusterInfo = sdkTable.getClusterInfo
     if (clusterInfo != null && clusterInfo.getClusterCols.size() > 0) {
+      val sortColumns: Seq[SortColumn] = if (clusterInfo.getSortCols != null) {
+        clusterInfo.getSortCols.asScala.map(s => SortColumn(s.getName, s.getOrder)).toSeq
+      } else {
+        Seq.empty
+      }
       Some(OdpsBucketSpec(
         clusterInfo.getClusterType.toLowerCase,
         clusterInfo.getBucketNum.toInt,
-        clusterInfo.getClusterCols.asScala,
-        clusterInfo.getSortCols.asScala.map(s => SortColumn(s.getName, s.getOrder))))
+        clusterInfo.getClusterCols.asScala.toSeq,
+        sortColumns
+       ))
     } else {
       None
     }
@@ -579,7 +736,8 @@ object OdpsTableCatalog {
       tableName: String,
       schema: TableSchema,
       ifNotExists: Boolean,
-      tableDefinition: CatalogTable): String = {
+      tableDefinition: CatalogTable,
+      lifecycle: Option[String]): String = {
     val sb = new StringBuilder()
     if (tableDefinition.tableType != CatalogTableType.EXTERNAL) {
       sb.append("CREATE TABLE ")
@@ -633,7 +791,7 @@ object OdpsTableCatalog {
       val bucketCols = bucketSpec.bucketColumnNames.mkString("(", ",", ")")
       sb.append(bucketCols)
       val sortCols = bucketSpec.sortColumnNames.mkString("(", ",", ")")
-      if (sortCols.nonEmpty) {
+      if (bucketSpec.sortColumnNames.nonEmpty) {
         sb.append(" SORTED BY ").append(sortCols)
       }
       sb.append(" INTO ").append(bucketSpec.numBuckets).append(" BUCKETS")
@@ -671,6 +829,8 @@ object OdpsTableCatalog {
       sb.append(" TBLPROPERTIES ").append(props)
     }
 
+    lifecycle.foreach(l => sb.append(s" LIFECYCLE $l"))
+
     sb.append(';')
     sb.toString
   }
@@ -682,6 +842,7 @@ object OdpsTableCatalog {
       case BooleanType => "BOOLEAN"
       case DateType => "DATE"
       case TimestampType => "TIMESTAMP"
+      case TimestampNTZType => "TIMESTAMP_NTZ"
       case ByteType => "TINYINT"
       case ShortType => "SMALLINT"
       case IntegerType => "INT"
@@ -692,8 +853,50 @@ object OdpsTableCatalog {
       case a: ArrayType => a.sql
       case m: MapType => m.sql
       case s: StructType => s.sql
+      case c: CharType => c.sql
+      case v: VarcharType => v.sql
       case _ =>
-        throw new AnalysisException("Spark data type:" + dataType + " not supported!")
+        throw new OdpsAnalysisException("Spark data type:" + dataType + " not supported!")
+    }
+  }
+
+  def typeInfoToString(typeInfo: TypeInfo): String = {
+    typeInfo match {
+      case s: SimplePrimitiveTypeInfo =>
+        s.getOdpsType match {
+          case OdpsType.FLOAT => "FLOAT"
+          case OdpsType.DOUBLE => "DOUBLE"
+          case OdpsType.BOOLEAN => "BOOLEAN"
+          case OdpsType.DATE => "DATE"
+          case OdpsType.DATETIME => "DATETIME"
+          case OdpsType.TIMESTAMP => "TIMESTAMP"
+          case OdpsType.TIMESTAMP_NTZ => "TIMESTAMP_NTZ"
+          case OdpsType.TINYINT => "TINYINT"
+          case OdpsType.SMALLINT => "SMALLINT"
+          case OdpsType.INT => "INT"
+          case OdpsType.BIGINT => "BIGINT"
+          case OdpsType.STRING => "STRING"
+          case OdpsType.BINARY => "BINARY"
+          case _ =>
+            throw new OdpsAnalysisException("Primitive type info:" + s.getOdpsType + " not supported!")
+        }
+      case d: DecimalTypeInfo =>
+        DecimalType(d.getPrecision, d.getScale).sql
+      case a: ArrayTypeInfo =>
+        s"ARRAY<${typeInfoToString(a.getElementTypeInfo)}>"
+      case m: MapTypeInfo =>
+        s"MAP<${typeInfoToString(m.getKeyTypeInfo)}, ${typeInfoToString(m.getValueTypeInfo)}>"
+      case s: StructTypeInfo =>
+        s"STRUCT<${s.getFieldNames.asScala.zip(s.getFieldTypeInfos.asScala).map {
+          case (name, typeInfo) =>
+            s"$name:${typeInfoToString(typeInfo)}"
+        }.mkString(",")}>"
+      case c: CharTypeInfo =>
+        CharType(c.getLength).sql
+      case v: VarcharTypeInfo =>
+        VarcharType(v.getLength).sql
+      case _ =>
+        throw new OdpsAnalysisException("Odps data type:" + typeInfo + " not supported!")
     }
   }
 
@@ -701,7 +904,8 @@ object OdpsTableCatalog {
       partitionSpec: TablePartitionSpec,
       partitionSchema: StructType): InternalRow = {
     InternalRow.fromSeq(partitionSchema.map { field =>
-      Cast(Literal(partitionSpec(field.name)), field.dataType, None).eval()
+      Cast(Literal(partitionSpec(field.name)),
+        CharVarcharUtils.replaceCharVarcharWithString(field.dataType), None).eval()
     })
   }
 
@@ -722,6 +926,72 @@ object OdpsTableCatalog {
       partitionSpec.set(field.name, value)
     }
     partitionSpec
+  }
+
+  def getTableChangeQuery(table: SdkTable,
+                          changes: Array[TableChange]): Array[String] = {
+    val tableName = table.getName
+    val result = mutable.ArrayBuilder.make[String]
+    changes.foreach {
+      case addColumn: AddColumn =>
+        val columnName: String = addColumn.fieldNames().mkString(".")
+        val dataType = typeToName(addColumn.dataType())
+        val position = addColumn.position()
+        val suffix = position match {
+          case _: First => "FIRST"
+          case _: After => s"AFTER ${position.asInstanceOf[After].column()}"
+          case _ => ""
+        }
+        result += s"ALTER TABLE $tableName ADD COLUMNS ($columnName $dataType);"
+        if (position != null) {
+          result += s"ALTER TABLE $tableName CHANGE $columnName $columnName $dataType $suffix;"
+        }
+      case renameColumn: RenameColumn =>
+        val columnName = renameColumn.fieldNames().mkString(".")
+        result += s"ALTER TABLE $tableName CHANGE COLUMN $columnName RENAME TO ${renameColumn.newName()};"
+      case deleteColumn: DeleteColumn =>
+        val columnName = deleteColumn.fieldNames().mkString(".")
+        result += s"ALTER TABLE $tableName DROP COLUMN $columnName;"
+      case updateColumnType: UpdateColumnType =>
+        val columnName = updateColumnType.fieldNames().mkString(".")
+        val dataType = typeToName(updateColumnType.newDataType())
+        result += s"ALTER TABLE $tableName CHANGE COLUMN $columnName $columnName $dataType;"
+      case updateColumnNullability: UpdateColumnNullability =>
+        val columnName = updateColumnNullability.fieldNames().mkString(".")
+        val nullable = if (updateColumnNullability.nullable()) "NULL" else "NOT NULL"
+        result += s"ALTER TABLE $tableName CHANGE COLUMN $columnName $nullable;"
+      case updateColumnComment: UpdateColumnComment =>
+        val parentTypeInfo = table.getSchema.getColumn(updateColumnComment.fieldNames()(0)).getTypeInfo
+        val columnName = updateColumnComment.fieldNames().mkString(".")
+        val dataType = getNestedFieldString(parentTypeInfo, updateColumnComment.fieldNames(), 0)
+        result += s"ALTER TABLE $tableName CHANGE COLUMN $columnName $columnName $dataType COMMENT \'${updateColumnComment.newComment()}\';"
+      case updateColumnPosition: UpdateColumnPosition =>
+        val parentTypeInfo = table.getSchema.getColumn(updateColumnPosition.fieldNames()(0)).getTypeInfo
+        val columnName = updateColumnPosition.fieldNames().mkString(".")
+        // the dataType need to get the correct type if the field name is nested
+        val dataType = getNestedFieldString(parentTypeInfo, updateColumnPosition.fieldNames(), 0)
+        val position = updateColumnPosition.position()
+        val suffix = position match {
+          case _: First => "FIRST"
+          case _: After => s"AFTER ${position.asInstanceOf[After].column()}"
+          case _ => ""
+        }
+        result += s"ALTER TABLE $tableName CHANGE $columnName $columnName $dataType $suffix;"
+      case other: TableChange =>
+        throw QueryCompilationErrors.unsupportedTableChangeInJDBCCatalogError(other, tableName)
+    }
+    result.result()
+  }
+
+  @tailrec
+  private def getNestedFieldString(typeInfo: TypeInfo, fieldNames: Array[String], index: Int): String = {
+    if (index == fieldNames.length - 1) {
+      typeInfoToString(typeInfo)
+    } else {
+      val structInfo = typeInfo.asInstanceOf[StructTypeInfo]
+      val fieldIndex = structInfo.getFieldNames.indexOf(fieldNames(index + 1))
+      getNestedFieldString(structInfo.getFieldTypeInfos.get(fieldIndex), fieldNames, index + 1)
+    }
   }
 }
 

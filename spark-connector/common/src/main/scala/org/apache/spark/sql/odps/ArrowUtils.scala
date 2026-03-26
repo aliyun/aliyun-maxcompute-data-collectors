@@ -73,6 +73,11 @@ private[sql] object ArrowUtils {
       DecimalType(d.getPrecision, d.getScale)
     }
     case date: ArrowType.Date if date.getUnit == DateUnit.DAY => DateType
+    /** for timestamp ntz */
+    // case tsNtz: ArrowType.Timestamp
+    //   if tsNtz.getUnit == TimeUnit.MICROSECOND && tsNtz.getTimezone == null => TimestampNTZType
+    // case tsNanoNtz: ArrowType.Timestamp
+    //   if tsNanoNtz.getUnit == TimeUnit.NANOSECOND && tsNanoNtz.getTimezone == null => TimestampNTZType
     /** for tunnel datetime */
     case datetime: ArrowType.Date if datetime.getUnit == DateUnit.MILLISECOND => TimestampType
     case ts: ArrowType.Timestamp if ts.getUnit == TimeUnit.MICROSECOND => TimestampType
@@ -161,7 +166,7 @@ private[sql] object ArrowUtils {
           val dt = fromArrowField(child)
           StructField(child.getName, dt, child.isNullable)
         }
-        StructType(fields)
+        StructType(fields.toArray)
       case arrowType => fromArrowType(arrowType)
     }
   }
@@ -182,7 +187,7 @@ private[sql] object ArrowUtils {
     StructType(schema.getFields.asScala.map { field =>
       val dt = fromArrowField(field)
       StructField(field.getName, dt, field.isNullable)
-    })
+    }.toArray)
   }
   /*
     /** Return Map with conf settings to be used in ArrowPythonRunner */

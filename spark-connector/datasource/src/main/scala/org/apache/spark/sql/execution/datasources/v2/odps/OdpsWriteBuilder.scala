@@ -19,6 +19,7 @@
 package org.apache.spark.sql.execution.datasources.v2.odps
 
 import com.aliyun.odps.PartitionSpec
+import com.aliyun.odps.table.configuration.DynamicPartitionOptions
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -140,6 +141,10 @@ case class OdpsWriteBuilder(
         .supportRangeBuckets(true)
         .build()
 
+      val dynamicPartitionOptions = DynamicPartitionOptions.newBuilder()
+        .withDynamicPartitionLimit(odpsOptions.dynamicPartitionLimit)
+        .build()
+
       val sinkBuilder = new TableWriteSessionBuilder()
         .identifier(TableIdentifier.of(project, odpsSchema, table))
         .withArrowOptions(arrowOptions)
@@ -148,6 +153,7 @@ case class OdpsWriteBuilder(
         .overwrite(overwrite)
         .withSessionProvider(provider)
         .withWriteCheck(enhanceWriteCheck)
+        .withDynamicPartitionOptions(dynamicPartitionOptions)
 
       val odpsStaticPartition = new PartitionSpec
       if (partitionSchema.nonEmpty) {

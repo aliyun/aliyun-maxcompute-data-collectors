@@ -233,6 +233,28 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     }
   }
 
+  test("dynamicPartitionLimit - write to partitioned table with custom limit") {
+    sparkSession.conf.set("spark.sql.catalog.odps.dynamicPartitionLimit", "1000")
+
+    val tableName = "test_dynamic_partition_limit"
+    sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
+    sparkSession.sql(s"CREATE TABLE $tableName(name STRING, num BIGINT) PARTITIONED BY (p1 STRING)")
+
+    sparkSession.sql(s"INSERT INTO $tableName PARTITION (p1='a') SELECT 'hz', 100")
+    sparkSession.sql(s"INSERT INTO $tableName PARTITION (p1='b') SELECT 'sh', 200")
+
+    val data = sparkSession.sql(s"SELECT * FROM $tableName ORDER BY p1").collect()
+    assert(data.length == 2)
+    assert(data(0).getString(0) == "hz")
+    assert(data(0).getLong(1) == 100)
+    assert(data(0).getString(2) == "a")
+    assert(data(1).getString(0) == "sh")
+    assert(data(1).getLong(1) == 200)
+    assert(data(1).getString(2) == "b")
+
+    sparkSession.conf.unset("spark.sql.catalog.odps.dynamicPartitionLimit")
+  }
+
   private def createTable(taleName: String, tableSchema: TableSchema): Unit = {
     if (odps.tables().exists(taleName)) {
       odps.tables().delete(taleName)

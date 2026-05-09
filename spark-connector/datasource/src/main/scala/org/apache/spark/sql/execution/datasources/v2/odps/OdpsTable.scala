@@ -47,8 +47,8 @@ case class SortColumn(name: String, order: String)
 object SortColumn {
   def apply(name: String, orderTag: Int): SortColumn = {
     val order = orderTag match {
-      case 0 => "asc"
-      case 1 => "desc"
+      case 0 => "ASC"
+      case 1 => "DESC"
     }
     new SortColumn(name, order)
   }

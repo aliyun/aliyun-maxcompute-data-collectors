@@ -224,6 +224,62 @@ class OdpsTableSuite extends AnyFunSuite with Logging {
     }
   }
 
+  test("getBucketSpec - cluster table with sort columns") {
+    val tableName = "cluster_table_with_sort"
+    dropTable(tableName)
+    SQLTask.run(odps, odps.getDefaultProject,
+      s"CREATE TABLE $project.$tableName (id BIGINT, name STRING) CLUSTERED BY (id) SORTED BY (name) INTO 4 BUCKETS;",
+      "SQLCreateTableTask",
+      new util.HashMap[String, String](),
+      null).waitForSuccess()
+
+    val sdkTable = odps.tables().get(tableName)
+    val bucketSpec = OdpsTableCatalog.getBucketSpec(sdkTable)
+    assert(bucketSpec.isDefined)
+    assert(bucketSpec.get.clusterType == "hash")
+    assert(bucketSpec.get.numBuckets == 4)
+    assert(bucketSpec.get.bucketColumnNames == Seq("id"))
+    assert(bucketSpec.get.sortColumns == Seq(SortColumn("name", "ASC")))
+
+    dropTable(tableName)
+  }
+
+  test("getBucketSpec - cluster table without sort columns") {
+    val tableName = "cluster_table_without_sort"
+    dropTable(tableName)
+    SQLTask.run(odps, odps.getDefaultProject,
+      s"CREATE TABLE $project.$tableName (id BIGINT, name STRING) CLUSTERED BY (id) INTO 4 BUCKETS;",
+      "SQLCreateTableTask",
+      new util.HashMap[String, String](),
+      null).waitForSuccess()
+
+    val sdkTable = odps.tables().get(tableName)
+    val bucketSpec = OdpsTableCatalog.getBucketSpec(sdkTable)
+    assert(bucketSpec.isDefined)
+    assert(bucketSpec.get.clusterType == "hash")
+    assert(bucketSpec.get.numBuckets == 4)
+    assert(bucketSpec.get.bucketColumnNames == Seq("id"))
+    assert(bucketSpec.get.sortColumns.isEmpty)
+
+    dropTable(tableName)
+  }
+
+  test("getBucketSpec - non-clustered table") {
+    val tableName = "non_clustered_table"
+    dropTable(tableName)
+    SQLTask.run(odps, odps.getDefaultProject,
+      s"CREATE TABLE $project.$tableName (id BIGINT, name STRING);",
+      "SQLCreateTableTask",
+      new util.HashMap[String, String](),
+      null).waitForSuccess()
+
+    val sdkTable = odps.tables().get(tableName)
+    val bucketSpec = OdpsTableCatalog.getBucketSpec(sdkTable)
+    assert(bucketSpec.isEmpty)
+
+    dropTable(tableName)
+  }
+
   private def createPartTable(): OdpsTable = {
     if (catalog.tableExists(partTable)) {
       catalog.dropTable(partTable)
@@ -295,6 +351,12 @@ class OdpsTableSuite extends AnyFunSuite with Logging {
 
   private def hasPartitions(table: SupportsPartitionManagement): Boolean = {
     !table.listPartitionIdentifiers(Array.empty, InternalRow.empty).isEmpty
+  }
+
+  private def dropTable(tableName: String): Unit = {
+    if (odps.tables().exists(tableName)) {
+      odps.tables().delete(tableName)
+    }
   }
 
   private def createPartitionUseOdpsSQL(tableName: String, partition: String): Unit = {

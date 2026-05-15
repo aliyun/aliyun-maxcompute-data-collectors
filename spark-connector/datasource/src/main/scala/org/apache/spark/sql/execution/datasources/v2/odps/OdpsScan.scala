@@ -135,6 +135,7 @@ case class OdpsScan(
       () =>
         val scan = scanBuilder.withFilterPredicate(predicate)
           .enableExtendedArrowIPC(catalog.odpsOptions.enableDictionaryEncodingReader)
+          .enableUniqueMapKey(catalog.odpsOptions.enableUniqueMapKey)
           .buildBatchReadSession
         logInfo(s"Create table scan ${scan.getId} for ${scan.getTableIdentifier}")
         scan

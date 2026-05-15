@@ -6,6 +6,7 @@ import com.aliyun.odps.tunnel.TableTunnel
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.odps.OdpsClient
 import org.scalatest.funsuite.AnyFunSuite
 
 import java.math.BigDecimal
@@ -31,6 +32,10 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     .config("spark.sql.defaultCatalog", "odps")
     .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
     .config("spark.sql.catalog.odps.enhanceWriteCheck", "true")
+    .config("spark.sql.catalog.odps.dynamicPartitionLimit", "1000")
+    .config("spark.sql.catalog.odps.enableFilterPushDown", true)
+    .config("spark.sql.catalog.odps.enableDictionaryEncodingReader", true)
+    .config("spark.sql.catalog.odps.enableUniqueMapKey", true)
     .getOrCreate()
 
   private def odps: Odps = {
@@ -41,8 +46,6 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
   }
 
   test("filterPushDownColumnNames") {
-    sparkSession.conf.set("spark.sql.catalog.odps.enableFilterPushDown", true)
-
     val tableSchema = new TableSchema
     val columns = new util.ArrayList[Column]
     columns.add(new Column("c0", OdpsType.BIGINT))
@@ -73,8 +76,6 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
   }
 
   test("filterPushDownColumnDecimalTypeLargeScale") {
-    sparkSession.conf.set("spark.sql.catalog.odps.enableFilterPushDown", true)
-
     val tableName = "testDecimalPushDown"
     sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
     sparkSession.sql(s"CREATE TABLE $tableName(c0 BIGINT, c1 BIGINT, c2 DECIMAL(38,26))")
@@ -87,8 +88,6 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
   }
 
   test("filterPushDownColumnDecimalType") {
-    sparkSession.conf.set("spark.sql.catalog.odps.enableFilterPushDown", true)
-
     val tableName = "testDecimalPushDown2"
     sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
     sparkSession.sql(s"CREATE TABLE $tableName(c0 BIGINT, c1 BIGINT, c2 DECIMAL(38,18))")
@@ -181,37 +180,35 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
 
     val data = sparkSession.sql("SELECT * FROM spark_sql_test_partition_table order by num").collect()
     assert(data.length == 6)
-    assert(data(0).get(0)=="hz")
-    assert(data(0).get(1)==160)
-    assert(data(0).get(2)=="2017")
-    assert(data(0).get(3)=="hangzhou")
-    assert(data(3).get(0)=="hz")
-    assert(data(3).get(1)==400)
-    assert(data(3).get(2)=="2017")
-    assert(data(3).get(3)=="hangzhou")
+    assert(data(0).get(0) == "hz")
+    assert(data(0).get(1) == 160)
+    assert(data(0).get(2) == "2017")
+    assert(data(0).get(3) == "hangzhou")
+    assert(data(3).get(0) == "hz")
+    assert(data(3).get(1) == 400)
+    assert(data(3).get(2) == "2017")
+    assert(data(3).get(3) == "hangzhou")
 
     val pData1 = sparkSession.sql("SELECT p1 FROM spark_sql_test_partition_table").collect()
     assert(pData1.length == 6)
-    assert(pData1(5).get(0)=="2017")
+    assert(pData1(5).get(0) == "2017")
 
     val pData2 = sparkSession.sql("SELECT p2 FROM spark_sql_test_partition_table order by p2").collect()
     assert(pData2.length == 6)
-    assert(pData2(0).get(0)=="hangzhou")
+    assert(pData2(0).get(0) == "hangzhou")
 
     val pData3 = sparkSession.sql("SELECT p1,p2 FROM spark_sql_test_partition_table order by p2").collect()
     assert(pData3.length == 6)
-    assert(pData3(0).get(0)=="2017")
-    assert(pData3(0).get(1)=="hangzhou")
+    assert(pData3(0).get(0) == "2017")
+    assert(pData3(0).get(1) == "hangzhou")
 
     val pData4 = sparkSession.sql("SELECT p1,p2 FROM spark_sql_test_partition_table where p2='shanghai'").collect()
     assert(pData4.length == 3)
-    assert(pData4(0).get(0)=="2017")
-    assert(pData4(0).get(1)=="shanghai")
+    assert(pData4(0).get(0) == "2017")
+    assert(pData4(0).get(1) == "shanghai")
   }
 
   test("enableDictionaryEncoding") {
-    sparkSession.conf.set("spark.sql.catalog.odps.enableDictionaryEncodingReader", true)
-
     val tableName = "testDictionaryEncoding"
     val count = 1000
     uploadDictionaryData(tableName, count)
@@ -234,8 +231,6 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
   }
 
   test("dynamicPartitionLimit - write to partitioned table with custom limit") {
-    sparkSession.conf.set("spark.sql.catalog.odps.dynamicPartitionLimit", "1000")
-
     val tableName = "test_dynamic_partition_limit"
     sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
     sparkSession.sql(s"CREATE TABLE $tableName(name STRING, num BIGINT) PARTITIONED BY (p1 STRING)")
@@ -251,8 +246,68 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     assert(data(1).getString(0) == "sh")
     assert(data(1).getLong(1) == 200)
     assert(data(1).getString(2) == "b")
+  }
 
-    sparkSession.conf.unset("spark.sql.catalog.odps.dynamicPartitionLimit")
+  test("enableUniqueMapKey - read map with duplicate keys") {
+    val tableName = "test_unique_map_key"
+    sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
+    sparkSession.sql(s"CREATE TABLE $tableName(id BIGINT, value MAP<STRING, STRING>)")
+
+    val recordCount = 100
+    val mapValueCount = 10
+    uploadMapData(tableName, recordCount, mapValueCount)
+
+    val dfTrue = sparkSession.table(tableName)
+      .selectExpr("id", "map_entries(value) as entries")
+      .orderBy("id")
+    val resultTrue = dfTrue.collect()
+    assert(resultTrue.length == recordCount)
+
+    // read with enableUniqueMapKey=true
+    for (i <- 0 until recordCount) {
+      assert(resultTrue(i).getLong(0) == i)
+      val map = resultTrue(i).getSeq[org.apache.spark.sql.Row](1)
+      assert(map.size == 1)
+    }
+  }
+
+  private def uploadMapData(tableName: String, recordCount: Int, mapValueCount: Int): Unit = {
+    import com.aliyun.odps.table.TableIdentifier
+    import com.aliyun.odps.table.write.{TableWriteSessionBuilder, WriterAttemptId}
+    import com.aliyun.odps.table.configuration.WriterOptions
+    import org.apache.arrow.vector.{BigIntVector, VectorSchemaRoot}
+    import org.apache.arrow.vector.complex.MapVector
+    import org.apache.arrow.vector.complex.impl.{BigIntWriterImpl, UnionMapWriter}
+
+    val settings = OdpsClient.get.getEnvironmentSettings
+    val sink = new TableWriteSessionBuilder()
+      .identifier(TableIdentifier.of(project, "default", tableName))
+      .withSettings(settings)
+      .overwrite(true)
+      .buildBatchWriteSession()
+    val writer = sink.createArrowWriter(0,
+      WriterAttemptId.of(0),
+      WriterOptions.newBuilder().withSettings(settings).build())
+    val root = writer.newElement()
+    val intWriter = new BigIntWriterImpl(root.getFieldVectors().get(0).asInstanceOf[BigIntVector])
+    val mapWriter = new UnionMapWriter(root.getFieldVectors().get(1).asInstanceOf[MapVector])
+    for (i <- 0 until recordCount) {
+      intWriter.setPosition(i)
+      intWriter.writeBigInt(i)
+      mapWriter.startMap()
+      for (j <- 0 until mapValueCount) {
+        mapWriter.startEntry()
+        mapWriter.key().varChar().writeVarChar("key" + i)
+        mapWriter.value().varChar().writeVarChar("value" + j)
+        mapWriter.endEntry()
+      }
+      mapWriter.endMap()
+    }
+    root.setRowCount(recordCount)
+    writer.write(root)
+    writer.close()
+    val message = writer.commit()
+    sink.commit(Array(message))
   }
 
   private def createTable(taleName: String, tableSchema: TableSchema): Unit = {

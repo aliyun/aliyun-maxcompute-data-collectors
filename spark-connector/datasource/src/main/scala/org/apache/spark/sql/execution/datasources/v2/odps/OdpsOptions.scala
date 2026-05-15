@@ -110,6 +110,8 @@ class OdpsOptions(val parameters: CaseInsensitiveMap[String]) extends Serializab
   val enableDictionaryEncodingReader = parameters.getOrElse(ODPS_ENABLE_DICTIONARY_ENCODING_READER, "false").toBoolean
 
   val dynamicPartitionLimit = parameters.getOrElse(ODPS_DYNAMIC_PARTITION_LIMIT, "512").toInt
+
+  val enableUniqueMapKey = parameters.getOrElse(ODPS_ENABLE_UNIQUE_MAP_KEY, "false").toBoolean
 }
 
 object OdpsOptions {
@@ -164,4 +166,6 @@ object OdpsOptions {
   val ODPS_ENABLE_DICTIONARY_ENCODING_READER = newOption("enableDictionaryEncodingReader")
 
   val ODPS_DYNAMIC_PARTITION_LIMIT = newOption("dynamicPartitionLimit")
+
+  val ODPS_ENABLE_UNIQUE_MAP_KEY = newOption("enableUniqueMapKey")
 }

@@ -26,6 +26,7 @@ import com.aliyun.odps.table.metrics.MetricNames
 import com.aliyun.odps.table.metrics.count.{BytesCount, RecordCount}
 import com.aliyun.odps.table.write.{BatchWriter, TableBatchWriteSession, WriterAttemptId, WriterCommitMessage => OdpsWriterCommitMessage}
 import org.apache.arrow.vector.VectorSchemaRoot
+import org.apache.spark.TaskContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, UnsafeProjection}
@@ -69,6 +70,21 @@ abstract class OdpsTableDataWriter[T: ClassTag](
 
   protected val chunkSize = description.chunkSize
 
+  private var rowsWritten: Long = 0
+
+  private val KILL_TASK_CHECK_INTERVAL = 100
+
+  protected def checkInterrupted(): Unit = {
+    if (rowsWritten % KILL_TASK_CHECK_INTERVAL == 0) {
+      checkKilled()
+    }
+    rowsWritten += 1
+  }
+
+  protected def checkKilled(): Unit = {
+    TaskContext.get().killTaskIfInterrupted()
+  }
+
   protected def createBatchWriter(): BatchWriter[T]
 
   protected def commitFile(): Unit = {
@@ -97,6 +113,7 @@ abstract class OdpsTableDataWriter[T: ClassTag](
 
                   logInfo("Try to recreate batch writer, wait time: " + waitTime)
 
+                  checkKilled()
                   Thread.sleep(waitTime)
                   try {
                     currentWriter = createBatchWriter()
@@ -215,6 +232,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
   }
 
   override def write(row: InternalRow): Unit = {
+    checkInterrupted()
     processRow(row)
   }
 
@@ -272,6 +290,7 @@ class SingleDirectoryArrowWriter(description: WriteJobDescription,
                 logInfo(s"Try to recreate batch writer, wait time $waitTime, " +
                   s"partition $partitionId (task $taskId, attempt $attemptNumber)")
 
+                checkKilled()
                 Thread.sleep(waitTime)
                 try {
                   currentWriter = createBatchWriter()
@@ -367,6 +386,7 @@ class SingleDirectoryRecordWriter(description: WriteJobDescription,
 
   /** Writes a row */
   override def write(row: InternalRow): Unit = {
+    checkInterrupted()
     processRow(row)
   }
 }
@@ -393,6 +413,7 @@ final class DynamicPartitionArrowWriter(description: WriteJobDescription,
   /** Writes a row */
   override def write(row: InternalRow): Unit = {
     // ensureInitialized(row)
+    checkInterrupted()
     processRow(getOutputRowWithDynamicPartition(row))
   }
 

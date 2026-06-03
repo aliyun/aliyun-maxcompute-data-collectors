@@ -70,7 +70,7 @@
 | **错误与日志脱敏** | 日志和 UI 失败信息只保留长度摘要、HTTP 码等已知安全字段，不展示原始 SQL、Project、Schema、Table、Sheet 名或 Instance ID |
 | **Sheet 作用域** | 查询结果写入当前打开的电子表格 |
 | **本地历史** | 查询历史只在浏览器本地存储，不上传服务端 |
-| **网络白名单** | 仅允许出站到 MaxCompute 官方 endpoint，不出站到任何其它域名 |
+| **网络出站** | 仅向 MaxCompute 和 OSS 官方 endpoint 发送 HTTPS 请求 |
 
 #### OAuth 权限
 
@@ -80,9 +80,10 @@
 | `script.container.ui` | 在 Google Sheets 中显示菜单和侧边栏 |
 | `script.external_request` | 向 MaxCompute API 发送签名 HTTPS 请求 |
 | `script.storage` | 保存当前用户的连接配置和语言偏好 |
+| `script.scriptapp` | 创建和管理定时触发器（定时调度功能） |
 | `userinfo.email` | 把提交者 Google 账号 email 写入 MaxCompute 任务审计字段 `EXT_NODE_ONDUTY` |
 
-插件不申请 Google Drive 或全 Spreadsheet 范围的权限。
+插件不申请 Google Drive 权限。
 
 ### 安装
 
@@ -190,7 +191,7 @@ clasp open
 
 ### 支持的 Region
 
-支持 **MaxCompute 所有 Region**——`appsscript.json` 已默认为全球公共 endpoint 配置 `urlFetchWhitelist`，无需额外操作。Endpoint 输入框只接受官方域名格式 `https://service.{region}.maxcompute.aliyun.com/api`，按你 Project 所在 Region 填即可。
+支持 **MaxCompute 所有 Region**。Endpoint 输入框只接受官方域名格式 `https://service.{region}.maxcompute.aliyun.com/api`，按你 Project 所在 Region 填即可。
 
 ### 文档
 
@@ -269,7 +270,7 @@ Why it works:
 | **Logging / failures** | Logs and UI failure messages keep only length summaries, HTTP codes, and known-safe text — never raw SQL, project, schema, table, sheet, or Instance ID |
 | **Sheet scope** | Only the currently open spreadsheet is accessed (`spreadsheets.currentonly`) |
 | **Local history** | Query history stays in the browser; nothing is uploaded |
-| **Network whitelist** | Outbound traffic is restricted to official MaxCompute endpoints |
+| **Network** | Outbound HTTPS only to official MaxCompute and OSS endpoints |
 
 #### OAuth scopes
 
@@ -279,9 +280,10 @@ Why it works:
 | `script.container.ui` | Add the MaxCompute menu and HTML sidebars in Google Sheets |
 | `script.external_request` | Send signed HTTPS requests to MaxCompute API endpoints |
 | `script.storage` | Persist per-user connection settings and language preference |
+| `script.scriptapp` | Create and manage time-driven triggers (scheduled jobs) |
 | `userinfo.email` | Record submitter Google account email into MaxCompute audit field `EXT_NODE_ONDUTY` |
 
-The add-on does **not** request broad Google Drive or full-spreadsheet scopes.
+The add-on does **not** request Google Drive scopes.
 
 ### Installation
 
@@ -389,7 +391,7 @@ For async cancellation, sidebar restoration, and recent Instance history, see th
 
 ### Supported Regions
 
-**All MaxCompute regions are supported.** The add-on's `appsscript.json` ships with `urlFetchWhitelist` covering every official MaxCompute public endpoint worldwide. The Endpoint field accepts the standard form `https://service.{region}.maxcompute.aliyun.com/api` — just enter the endpoint of the region your project lives in.
+**All MaxCompute regions are supported.** The Endpoint field accepts the standard form `https://service.{region}.maxcompute.aliyun.com/api` — just enter the endpoint of the region your project lives in.
 
 ### Documentation
 

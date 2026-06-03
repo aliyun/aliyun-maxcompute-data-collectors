@@ -1,0 +1,20 @@
+# clasp
+.clasp.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Logs
+*.log
+
+# Generated release package
+dist/
+
+# Superpowers local dev
+.superpowers/

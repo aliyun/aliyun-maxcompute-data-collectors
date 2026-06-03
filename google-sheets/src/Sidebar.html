@@ -1,0 +1,3649 @@
+<!-- Copyright 2024-2026 Alibaba Cloud. Licensed under the Apache License, Version 2.0. -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    /* ── Carbon-inspired tokens ── */
+    :root {
+      --seed-bg: #ffffff;
+      --seed-fg: #161616;
+      --seed-primary: #0f62fe;
+      --seed-surface: #f4f4f4;
+      --seed-radius: 4px;
+      --bg-page: var(--seed-bg);
+      --bg-surface: var(--seed-surface);
+      --bg-hover: #e8e8e8;
+      --bg-active: #e0e0e0;
+      --text-primary: var(--seed-fg);
+      --text-secondary: #525252;
+      --text-inverse: #ffffff;
+      --border-subtle: #e0e0e0;
+      --border-default: #c6c6c6;
+      --accent: var(--seed-primary);
+      --accent-hover: #0043ce;
+      --accent-subtle: #e8f0fe;
+      --success: #24a148;
+      --success-bg: #e6f4ea;
+      --warning: #f1c21b;
+      --warning-bg: #fff8e1;
+      --danger: #da1e28;
+      --danger-bg: #fce8e8;
+      --info: var(--seed-primary);
+      --info-bg: #e8f0fe;
+      --shadow-raised: 0 2px 6px rgba(0,0,0,0.08);
+      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --radius-sm: 2px;
+      --radius-md: var(--seed-radius);
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background: var(--bg-page);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: var(--success-bg);
+      color: var(--success);
+    }
+    .status-badge.error { background: var(--danger-bg); color: var(--danger); }
+    .status-badge.checking { background: var(--bg-surface); color: var(--text-secondary); }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-page);
+      position: sticky;
+      top: 0;
+      z-index: 9;
+    }
+    .tab {
+      flex: 1;
+      padding: var(--space-sm) var(--space-md);
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--text-primary); }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+    .tab-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    /* ── More Dropdown ── */
+    .tab-more {
+      position: relative;
+      flex: 0 0 auto;
+      padding: var(--space-sm) 14px;
+    }
+    .tab-more.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 8px;
+      min-width: 140px;
+      background: var(--bg-page);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-raised);
+      z-index: 20;
+      display: none;
+      overflow: hidden;
+    }
+    .dropdown-menu.open { display: block; }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .dropdown-item:hover { background: var(--bg-surface); }
+    .dropdown-item.active {
+      color: var(--accent);
+      background: var(--accent-subtle);
+      font-weight: 600;
+    }
+
+    /* ── Content ── */
+    .content { padding: var(--space-md); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      font-family: var(--font-sans);
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--accent); color: var(--text-inverse); border-color: var(--accent);
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--bg-page); color: var(--text-primary); border-color: var(--border-default);
+    }
+    .btn-secondary:hover:not(:disabled) { background: var(--bg-surface); }
+    .btn-ghost {
+      background: transparent; color: var(--text-secondary); border-color: transparent;
+    }
+    .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); }
+    .btn-sm { padding: 3px 8px; font-size: 11px; }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover:not(:disabled) { background: var(--danger-bg); }
+    .btn-block { width: 100%; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-page);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-md);
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .card-title {
+      font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-body { padding: var(--space-md); }
+
+    /* ── Inputs ── */
+    .input-group { margin-bottom: var(--space-md); }
+    .input-group:last-child { margin-bottom: 0; }
+    .input-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .input-field {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-page);
+      color: var(--text-primary);
+      transition: border-color 0.15s ease;
+      resize: vertical;
+    }
+    .input-field:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-subtle);
+    }
+    .input-field:disabled { background: var(--bg-surface); color: var(--text-secondary); }
+    select.input-field {
+      font-family: var(--font-sans);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 24px;
+      cursor: pointer;
+    }
+    textarea.input-field { min-height: 80px; line-height: 1.5; }
+
+    /* ── Status Tags ── */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .tag-waiting { background: var(--bg-surface); color: var(--text-secondary); }
+    .tag-running { background: var(--info-bg); color: var(--info); }
+    .tag-success { background: var(--success-bg); color: var(--success); }
+    .tag-failed { background: var(--danger-bg); color: var(--danger); }
+    .tag-cancelled { background: var(--bg-surface); color: var(--text-secondary); }
+
+    /* ── Task Status Line ── */
+    .task-status {
+      padding: 6px var(--space-md);
+      font-size: 11px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .task-status a { color: var(--accent); text-decoration: none; font-family: var(--font-mono); font-size: 10px; }
+    .task-status a:hover { text-decoration: underline; }
+    .task-status .status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Jobs Table ── */
+    .jobs-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .jobs-table th {
+      text-align: left;
+      padding: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+    }
+    .jobs-table td {
+      padding: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    .jobs-table tr:hover { background: var(--bg-surface); }
+    .job-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+    .job-sheet { color: var(--text-secondary); font-size: 11px; }
+    .job-time { color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+    .job-actions { display: flex; gap: 4px; }
+
+    /* ── Schedule List ── */
+    .schedule-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-md);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-sm);
+      background: var(--bg-page);
+    }
+    .schedule-info { flex: 1; min-width: 0; }
+    .schedule-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+    .schedule-meta { font-size: 11px; color: var(--text-secondary); }
+    .schedule-actions { display: flex; align-items: center; gap: var(--space-sm); flex-shrink: 0; }
+
+    /* ── Toggle Switch ── */
+    .toggle {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 32px;
+      height: 16px;
+      background: var(--border-default);
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      flex-shrink: 0;
+      border: none;
+      outline: none;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+    .toggle:checked { background: var(--success); }
+    .toggle:checked::after { transform: translateX(16px); }
+
+    /* ── Icons / Spinner ── */
+    .icon { width: 14px; height: 14px; flex-shrink: 0; }
+    .icon-sm { width: 12px; height: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 12px; height: 12px;
+      border: 2px solid var(--info-bg);
+      border-top-color: var(--info);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .spinner-sm { width: 10px; height: 10px; border-width: 1.5px; }
+
+    /* ── Empty State ── */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-xl) var(--space-lg);
+      color: var(--text-secondary);
+    }
+    .empty-state-icon { width: 40px; height: 40px; margin: 0 auto var(--space-md); opacity: 0.4; }
+    .empty-state-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+    .empty-state-desc { font-size: 12px; }
+
+    /* ── Export: Sheet List ── */
+    .sheet-list {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: var(--space-md);
+    }
+    .sheet-list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .sheet-list-header label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .sheet-list-count {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+    .sheet-list-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 12px;
+      transition: background 0.1s;
+    }
+    .sheet-list-item:last-child { border-bottom: none; }
+    .sheet-list-item:hover { background: var(--bg-surface); }
+    .sheet-list-item label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .sheet-list-preview {
+      margin-left: auto;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 140px;
+      direction: rtl;
+      text-align: right;
+    }
+    .export-validation {
+      font-size: 11px;
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+    .export-validation.error { color: var(--danger); }
+    .export-validation.warning { color: #b45309; }
+    .export-validation.valid { color: var(--success); }
+    .export-result-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 4px 0;
+      font-size: 12px;
+    }
+    .export-result-item .icon-success { color: var(--success); }
+    .export-result-item .icon-error { color: var(--danger); }
+    .input-hint {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-md);
+    }
+    .toolbar-left { display: flex; align-items: center; gap: var(--space-sm); }
+    .toolbar-right { display: flex; align-items: center; gap: var(--space-sm); }
+
+    /* ── Task number badge ── */
+    .task-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px; height: 20px;
+      background: var(--accent);
+      color: white;
+      font-size: 11px; font-weight: 600;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: var(--border-subtle); margin: var(--space-md) 0; }
+
+    /* ── Recent queries ── */
+    .recent-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border-subtle);
+      cursor: pointer;
+    }
+    .recent-item:hover { background: var(--bg-surface); }
+    .recent-query {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      flex: 1;
+      min-width: 0;
+    }
+    .recent-delete {
+      font-size: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .recent-delete:hover { color: var(--danger); }
+
+    /* ── Source Toggle ── */
+    .source-toggle {
+      display: flex;
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      margin-bottom: var(--space-md);
+    }
+    .source-toggle-btn {
+      flex: 1;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: var(--font-sans);
+    }
+    .source-toggle-btn.active {
+      background: var(--bg-page);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-raised);
+      font-weight: 600;
+    }
+    .source-toggle-btn:hover:not(.active) { color: var(--text-primary); }
+
+    /* ── Data Catalog ── */
+    .catalog-search {
+      position: relative;
+      margin-bottom: var(--space-md);
+    }
+    .catalog-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px; height: 14px;
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+    .catalog-search input {
+      width: 100%;
+      padding: 6px 10px 6px 32px;
+      font-size: 13px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-page);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+    }
+    .catalog-search input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-subtle);
+    }
+    .catalog-tree {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .catalog-db { border-bottom: 1px solid var(--border-subtle); }
+    .catalog-db:last-child { border-bottom: none; }
+    .catalog-db-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px var(--space-md);
+      background: var(--bg-surface);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .catalog-db-header:hover { background: var(--bg-hover); }
+    .catalog-db-header .chevron {
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .catalog-db-header.expanded .chevron { transform: rotate(90deg); }
+    .catalog-table-list { display: none; }
+    .catalog-table-list.expanded { display: block; }
+    .catalog-table-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px var(--space-md) 7px 34px;
+      font-size: 12px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .catalog-table-item:last-child { border-bottom: none; }
+    .catalog-table-item:hover { background: var(--bg-surface); }
+    .catalog-table-item.active {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .catalog-table-name { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
+    .catalog-table-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .catalog-loading-inline {
+      padding: 8px var(--space-md) 8px 34px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Schema preview ── */
+    .schema-preview {
+      margin-top: var(--space-md);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .schema-header {
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-surface);
+      font-size: 12px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .schema-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .schema-table th, .schema-table td {
+      padding: 6px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .schema-table th {
+      background: var(--bg-page);
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .schema-table tr:last-child td { border-bottom: none; }
+    .schema-type { font-family: var(--font-mono); color: var(--text-secondary); font-size: 10px; }
+    .schema-tag-pt {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: 2px;
+      background: var(--warning-bg);
+      color: #9c6f00;
+      margin-left: 4px;
+    }
+    .partition-section {
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .partition-section:hover { background: var(--bg-surface); }
+    .partition-list { display: none; }
+    .partition-list.expanded { display: block; }
+    .partition-item {
+      padding: 3px 10px 3px 20px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .partition-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+
+    /* ── Notification ── */
+    .notification {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      z-index: 100;
+      display: none;
+      animation: slideDown 0.2s ease;
+    }
+    .notification.visible { display: block; }
+    .notification.success { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+    .notification.error { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+    .notification.info { background: var(--info-bg); color: var(--info); border: 1px solid var(--info); }
+    @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* ── Schedule form ── */
+    .schedule-form-panel { margin-bottom: var(--space-md); }
+    .sched-task-preview {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
+    .sched-task-preview-item {
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sched-task-preview-item:last-child { border-bottom: none; }
+    .sched-task-preview-empty {
+      padding: 8px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+
+    /* ── Trigger status ── */
+    .trigger-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-md);
+      font-size: 11px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Notification toast -->
+  <div class="notification" id="notification"></div>
+
+
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="query" id="tabBtnQuery">
+      <span class="tab-inner">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span class="tab-label">Query</span>
+      </span>
+    </button>
+    <button class="tab" data-tab="jobs" id="tabBtnJobs">
+      <span class="tab-inner">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span class="tab-label">Jobs</span>
+      </span>
+    </button>
+    <div class="tab tab-more" id="tabMoreBtn">
+      <span class="tab-inner">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        <span class="tab-label">More</span>
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </span>
+      <div class="dropdown-menu" id="moreDropdown">
+        <div class="dropdown-item" data-tab="catalog" id="dropdownCatalog">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          Catalog
+        </div>
+        <div class="dropdown-item" data-tab="schedule" id="dropdownSchedule">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Schedule
+        </div>
+        <div class="dropdown-item" data-tab="export" id="dropdownExport">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </div>
+      </div>
+    </div>
+    <span class="status-badge checking" id="statusBadge" style="margin-left:auto;flex:0 0 auto;align-self:center;margin-right:8px;"><span class="status-dot"></span><span id="statusText"></span></span>
+  </nav>
+
+  <main>
+    <!-- Query Tab -->
+    <section id="panel-query" class="tab-panel active">
+      <div class="content">
+        <div id="taskCardsContainer"></div>
+
+        <!-- Add Task -->
+        <button class="btn btn-secondary btn-block" id="btnAddTask" style="margin-bottom: var(--space-lg);">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span id="labelAddTask">Add Task</span>
+        </button>
+
+        <!-- Actions -->
+        <div class="toolbar" style="margin-bottom:0;">
+          <div class="toolbar-left">
+            <button class="btn btn-primary" id="btnRunAll">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span id="labelRunAll">Run All</span>
+            </button>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-secondary" id="btnTestConn">
+              <span id="labelTestConn">Test Connection</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Recent Queries -->
+        <div id="recentSection">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-sm);">
+            <span style="font-size:12px; font-weight:600;" id="labelRecentQueries">Recent Queries</span>
+            <button class="btn btn-ghost btn-sm" id="btnClearHistory" style="font-size:11px;">Clear</button>
+          </div>
+          <div id="historyList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Jobs Tab -->
+    <section id="panel-jobs" class="tab-panel">
+      <div class="content" style="padding:0;">
+        <div class="toolbar" style="padding: var(--space-md) var(--space-md) 0; margin-bottom:0;">
+          <div class="toolbar-left">
+            <select class="input-field" id="jobFilterSelect" style="width:auto; min-width:100px; font-family:var(--font-sans); font-size:12px; padding:4px 24px 4px 8px;">
+              <option value="all" id="optAllStatus">All Status</option>
+              <option value="running" id="optRunning">Running</option>
+              <option value="success" id="optSuccess">Success</option>
+              <option value="failed" id="optFailed">Failed</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-ghost btn-sm" id="btnRefreshJobs" title="Refresh">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 8.26 5.36"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="btnClearJobs" title="Clear">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="jobsTableContainer"></div>
+      </div>
+    </section>
+
+    <!-- Catalog Tab -->
+    <section id="panel-catalog" class="tab-panel">
+      <div class="content">
+        <!-- Toolbar -->
+        <div class="toolbar" style="margin-bottom: var(--space-sm);">
+          <div class="toolbar-left" style="flex:1;">
+            <div class="catalog-search" style="flex:1; margin-bottom:0;">
+              <svg class="catalog-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="catalogSearch" placeholder="Search tables..." />
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-ghost btn-sm" id="btnRefreshCatalog" title="Refresh">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 8.26 5.36"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Catalog Tree -->
+        <div class="catalog-tree" id="catalogTree">
+          <div class="catalog-loading-inline" id="catalogLoading">Loading...</div>
+        </div>
+
+        <!-- Schema Preview -->
+        <div class="schema-preview" id="schemaPreview" style="display:none;">
+          <div class="schema-header">
+            <span id="schemaPreviewTitle"></span>
+            <button class="btn btn-ghost btn-sm" id="btnCopyToQuery" title="Copy to Query">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div id="schemaPreviewBody"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Schedule Tab -->
+    <section id="panel-schedule" class="tab-panel">
+      <div class="content">
+        <!-- Trigger status -->
+        <div class="trigger-bar" id="triggerBar">
+          <span id="triggerStatusText">Checking trigger...</span>
+          <button class="btn btn-sm" id="btnTriggerAction">...</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <span style="font-size:12px; font-weight:600;" id="labelScheduledJobs">Scheduled Jobs</span>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-primary btn-sm" id="btnNewSchedule">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span id="labelNewSchedule">New Schedule</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Schedule Form (hidden by default) -->
+        <div class="schedule-form-panel" id="scheduleFormPanel" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title" id="labelSchedFormTitle">New Schedule</span>
+              <button class="btn btn-ghost btn-sm" id="btnSchedFormClose">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="input-group">
+                <label class="input-label" id="labelSchedName">Schedule Name</label>
+                <input type="text" class="input-field" id="schedNameInput" placeholder="e.g. Daily Sales Refresh">
+              </div>
+              <div class="input-group">
+                <label class="input-label" id="labelSchedType">Frequency</label>
+                <select class="input-field" id="schedTypeSelect">
+                  <option value="everyNHours">Every N Hours</option>
+                  <option value="dailyAtHour">Daily at Specific Hour</option>
+                </select>
+              </div>
+              <div class="input-group" id="schedIntervalGroup">
+                <label class="input-label" id="labelSchedInterval">Interval (Hours)</label>
+                <select class="input-field" id="schedIntervalSelect">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="4">4</option>
+                  <option value="6">6</option>
+                  <option value="8">8</option>
+                  <option value="12">12</option>
+                </select>
+              </div>
+              <div class="input-group" id="schedHourGroup" style="display:none;">
+                <label class="input-label" id="labelSchedHour">Hour (0-23)</label>
+                <input type="number" class="input-field" id="schedHourInput" min="0" max="23" value="0">
+              </div>
+              <div class="input-group">
+                <label class="input-label" id="labelSchedTasks">Tasks (from Query tab)</label>
+                <div id="schedTaskPreview" class="sched-task-preview"></div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" id="btnSchedSave">Save</button>
+                <button class="btn btn-secondary" id="btnSchedCancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Schedule List -->
+        <div id="scheduleListContainer"></div>
+      </div>
+    </section>
+
+    <!-- Export Tab -->
+    <section id="panel-export" class="tab-panel">
+      <div class="content">
+        <!-- 未配置 OSS -->
+        <div id="exportNotConfigured" class="empty-state" style="display:none;">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <div class="empty-state-title" id="exportNotConfiguredTitle">OSS 未配置</div>
+          <div class="empty-state-desc" id="exportNotConfiguredDesc">请先在设置中配置 OSS 连接</div>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="google.script.run.showSettings()">
+            <span id="exportGoToSettingsText">打开设置</span>
+          </button>
+        </div>
+
+        <!-- 导出表单 -->
+        <div id="exportForm" style="display:none;">
+          <div class="input-group">
+            <label class="input-label" id="exportPrefixLabel">目录前缀</label>
+            <input type="text" id="exportPrefix" class="input-field" placeholder="exports/daily/" spellcheck="false" autocomplete="off" oninput="onExportConfigChange()">
+            <div class="input-hint" id="exportPrefixHint">OSS 目标目录，如 exports/daily/</div>
+            <div id="exportPrefixValidation" class="export-validation"></div>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label" id="exportTemplateLabel">命名模板</label>
+            <input type="text" id="exportTemplate" class="input-field" placeholder="{prefix}{sheet}_{date}.csv" spellcheck="false" autocomplete="off" oninput="onExportConfigChange()">
+            <div class="input-hint">变量: {prefix}, {sheet}, {date}, {time}, {timestamp}</div>
+            <div id="exportTemplateValidation" class="export-validation"></div>
+          </div>
+
+          <div class="sheet-list" id="exportSheetList">
+            <div class="sheet-list-header">
+              <label><input type="checkbox" id="exportSelectAll" onchange="onExportSelectAllChange()"> <span id="exportSelectAllLabel">全选</span></label>
+              <span class="sheet-list-count" id="exportSheetCount"></span>
+            </div>
+            <div id="exportSheetItems"></div>
+          </div>
+
+          <button id="btnExport" class="btn btn-primary btn-block" onclick="startBatchExport()" disabled>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span id="btnExportText">导出到 OSS</span>
+          </button>
+        </div>
+
+        <!-- 导出结果 -->
+        <div id="exportResult" style="display:none; margin-top:var(--space-md);"></div>
+      </div>
+    </section>
+  </main>
+
+<script>
+  // ============================================================
+  // 服务端注入的初始数据
+  // ============================================================
+  var __INIT__ = <?!= initialData ?>;
+
+  // ============================================================
+  // i18n 翻译字典
+  // ============================================================
+  var i18n = {
+    zh: {
+      tabQuery: 'SQL 查询', tabJobs: '任务列表', tabCatalog: '数据目录',
+      tabMore: '更多', tabSchedule: '定时调度', tabExport: '导出',
+      connected: '已连接',
+      sqlQueryMode: 'SQL 查询', attachJobMode: '关联作业',
+      sqlLabel: 'SQL 查询',
+      sqlPlaceholder: "SELECT *\nFROM your_table\nWHERE dt = '2024-01-01'\nLIMIT 100;",
+      instanceIdLabel: 'Instance ID',
+      instanceIdPlaceholder: 'Instance ID（如 20240101012345xxx）',
+      targetSheetLabel: '写入 Sheet', targetSheetNew: 'Query Result（新建）',
+      addTask: '添加任务', removeTask: '移除',
+      runAll: '全部执行', testConnection: '测试连接',
+      maxRowsHint: '最多返回 10,000 行',
+      taskSubmitting: '提交中...', taskRunning: '运行中',
+      taskWriting: '写入结果...', taskSuccess: '完成',
+      taskFailed: '失败', taskCancelled: '已取消',
+      btnCancel: '取消', btnCancelling: '取消中...',
+      recentQueries: '最近查询', clear: '清空',
+      historyClearConfirm: '确定清空最近查询历史吗？',
+      historyEnabled: '保存本地历史', historyDisabled: '本地历史已关闭',
+      jobsAllStatus: '全部状态', jobsRunning: '运行中',
+      jobsSuccess: '成功', jobsFailed: '失败',
+      jobsNoJobs: '暂无任务', jobsNoJobsDesc: '执行查询后任务将显示在这里',
+      jobsClearConfirm: '确定清空全部任务记录吗？',
+      scheduledJobs: '定时任务', newSchedule: '新建调度',
+      scheduleName: '调度名称', scheduleNamePlaceholder: '如: 每日销售报表',
+      scheduleType: '调度方式', everyNHours: '每 N 小时',
+      dailyAtHour: '每天定时', scheduleInterval: '间隔（小时）',
+      scheduleHour: '执行时间（0-23）',
+      scheduleTasks: '任务（来自查询标签）',
+      scheduleNoTasks: '请先在查询标签中配置任务',
+      scheduleSave: '保存', scheduleCancel: '取消',
+      scheduleDeleteConfirm: '确定删除该调度吗？',
+      noSchedules: '暂无调度', noSchedulesDesc: '创建调度以自动执行查询',
+      triggerInstalled: '触发器已安装', triggerNotInstalled: '触发器未安装',
+      installTrigger: '安装', uninstallTrigger: '卸载',
+      catalogSearch: '搜索表名...', catalogRefresh: '刷新',
+      catalogLoading: '正在加载数据目录...', catalogEmpty: '暂无数据',
+      copyToQuery: '复制到查询', selectTableToPreview: '点击表名查看结构',
+      showPartitions: '显示分区', partitions: '个分区',
+      statusChecking: '检查连接中...', statusConnected: '已连接',
+      statusNotConfigured: '未配置',
+      statusCheckFailed: '状态检查失败', statusTestFailed: '连接失败',
+      resultTestSuccess: '连接成功', resultTestFailed: '连接失败',
+      errorEmptySql: '请输入 SQL 查询语句',
+      errorSqlTooLong: 'SQL 长度超过限制（最多 65536 字符）。',
+      errorReadOnlySql: '仅允许提交 SELECT / WITH 只读查询。',
+      errorSingleReadOnlyQuery: '每次仅允许提交一条只读查询。',
+      errorSetBeforeQuery: 'SET 语句只能放在只读查询之前。',
+      errorReservedAuditSet: '不允许手动设置 EXT_* 审计字段。',
+      errorEmptyInstanceId: '请输入 Instance ID',
+      errorInvalidInstanceId: 'Instance ID 格式不正确。',
+      resultRows: '行数', resultColumns: '列数',
+      resultTime: '耗时', resultWrite: '写入',
+      cancelRequestFailed: '取消请求失败',
+      loadingTesting: '正在测试连接...',
+      schedFormTitle: '新建调度',
+      exportNotConfiguredTitle: 'OSS 未配置',
+      exportNotConfiguredDesc: '请先在设置中配置 OSS 连接',
+      exportGoToSettings: '打开设置',
+      exportPrefixLabel: '目录前缀',
+      exportPrefixHint: 'OSS 目标目录，如 exports/daily/',
+      exportTemplateLabel: '命名模板',
+      exportSelectAll: '全选',
+      exportBtn: '导出到 OSS',
+      exportSelected: '导出选中',
+      exportExporting: '导出中',
+      exportSuccess: '导出成功',
+      exportFailed: '导出失败',
+      exportAllDone: '全部完成',
+      exportPartialDone: '完成',
+      exportSuccessCount: '成功',
+      exportFailCount: '失败',
+      exportValidationBackslash: '不能包含反斜杠 "\\"',
+      exportValidationLeadingSlash: '不能以 "/" 开头',
+      exportValidationNoSheet: '批量导出时模板必须包含 {sheet} 变量',
+      exportValidationDuplicate: 'Key 冲突',
+      exportValidationTooLong: '生成路径超过 1023 字符限制',
+      exportValidationNearLimit: '路径接近 1023 字符限制',
+      exportSelected_: '个文件已导出'
+    },
+    en: {
+      tabQuery: 'Query', tabJobs: 'Jobs', tabCatalog: 'Catalog',
+      tabMore: 'More', tabSchedule: 'Schedule', tabExport: 'Export',
+      connected: 'Connected',
+      sqlQueryMode: 'SQL Query', attachJobMode: 'Attach Job',
+      sqlLabel: 'SQL Query',
+      sqlPlaceholder: "SELECT *\nFROM your_table\nWHERE dt = '2024-01-01'\nLIMIT 100;",
+      instanceIdLabel: 'Instance ID',
+      instanceIdPlaceholder: 'Instance ID (e.g. 20240101012345xxx)',
+      targetSheetLabel: 'Target Sheet', targetSheetNew: 'Query Result (New)',
+      addTask: 'Add Task', removeTask: 'Remove',
+      runAll: 'Run All', testConnection: 'Test Connection',
+      maxRowsHint: 'Max 10,000 rows returned',
+      taskSubmitting: 'Submitting...', taskRunning: 'Running',
+      taskWriting: 'Writing results...', taskSuccess: 'Completed',
+      taskFailed: 'Failed', taskCancelled: 'Cancelled',
+      taskSubmitted: 'Submitted', taskSubmittedDesc: 'Track progress in Jobs',
+      btnCancel: 'Cancel', btnCancelling: 'Cancelling...',
+      recentQueries: 'Recent Queries', clear: 'Clear',
+      historyClearConfirm: 'Clear recent query history?',
+      historyEnabled: 'Save local history', historyDisabled: 'Local history is off',
+      jobsAllStatus: 'All Status', jobsRunning: 'Running',
+      jobsSuccess: 'Success', jobsFailed: 'Failed',
+      jobsNoJobs: 'No jobs yet', jobsNoJobsDesc: 'Jobs will appear here after you run queries',
+      jobsClearConfirm: 'Clear all job records?',
+      scheduledJobs: 'Scheduled Jobs', newSchedule: 'New Schedule',
+      scheduleName: 'Schedule Name', scheduleNamePlaceholder: 'e.g. Daily Sales Refresh',
+      scheduleType: 'Frequency', everyNHours: 'Every N Hours',
+      dailyAtHour: 'Daily at Specific Hour', scheduleInterval: 'Interval (Hours)',
+      scheduleHour: 'Hour (0-23)',
+      scheduleTasks: 'Tasks (from Query tab)',
+      scheduleNoTasks: 'Configure tasks in the Query tab first',
+      scheduleSave: 'Save', scheduleCancel: 'Cancel',
+      scheduleDeleteConfirm: 'Delete this schedule?',
+      noSchedules: 'No schedules yet', noSchedulesDesc: 'Create a schedule to run queries automatically',
+      triggerInstalled: 'Trigger installed', triggerNotInstalled: 'Trigger not installed',
+      installTrigger: 'Install', uninstallTrigger: 'Uninstall',
+      catalogSearch: 'Search tables...', catalogRefresh: 'Refresh',
+      catalogLoading: 'Loading data catalog...', catalogEmpty: 'No data',
+      copyToQuery: 'Copy to Query', selectTableToPreview: 'Click a table to preview schema',
+      showPartitions: 'show partitions', partitions: 'partitions',
+      statusChecking: 'Checking...', statusConnected: 'Connected',
+      statusNotConfigured: 'Not configured',
+      statusCheckFailed: 'Check failed', statusTestFailed: 'Connection failed',
+      resultTestSuccess: 'Connection OK', resultTestFailed: 'Connection Failed',
+      errorEmptySql: 'Please enter SQL query',
+      errorSqlTooLong: 'SQL is too long (max 65536 chars).',
+      errorReadOnlySql: 'Only SELECT / WITH read-only queries allowed.',
+      errorSingleReadOnlyQuery: 'Only one read-only query can be submitted at a time.',
+      errorSetBeforeQuery: 'SET statements must appear before the query.',
+      errorReservedAuditSet: 'Reserved EXT_* audit fields cannot be set.',
+      errorEmptyInstanceId: 'Please enter Instance ID',
+      errorInvalidInstanceId: 'Invalid Instance ID format.',
+      resultRows: 'Rows', resultColumns: 'Columns',
+      resultTime: 'Time', resultWrite: 'Written to',
+      cancelRequestFailed: 'Cancel request failed',
+      loadingTesting: 'Testing connection...',
+      schedFormTitle: 'New Schedule',
+      exportNotConfiguredTitle: 'OSS Not Configured',
+      exportNotConfiguredDesc: 'Configure OSS connection in Settings first',
+      exportGoToSettings: 'Open Settings',
+      exportPrefixLabel: 'Directory Prefix',
+      exportPrefixHint: 'OSS target directory, e.g. exports/daily/',
+      exportTemplateLabel: 'Naming Template',
+      exportSelectAll: 'Select All',
+      exportBtn: 'Export to OSS',
+      exportSelected: 'Export Selected',
+      exportExporting: 'Exporting',
+      exportSuccess: 'Export successful',
+      exportFailed: 'Export failed',
+      exportAllDone: 'All done',
+      exportPartialDone: 'Done',
+      exportSuccessCount: 'succeeded',
+      exportFailCount: 'failed',
+      exportValidationBackslash: 'Cannot contain backslash "\\"',
+      exportValidationLeadingSlash: 'Cannot start with "/"',
+      exportValidationNoSheet: 'Template must contain {sheet} for batch export',
+      exportValidationDuplicate: 'Key conflict',
+      exportValidationTooLong: 'Path exceeds 1023 character limit',
+      exportValidationNearLimit: 'Path approaching 1023 character limit',
+      exportSelected_: 'files exported'
+    }
+  };
+
+  // ============================================================
+  // 常量 & 状态
+  // ============================================================
+
+  var MAX_HISTORY = 10;
+  var MAX_SQL_LENGTH = 65536;
+  var MAX_TASKS = 10;
+  var HISTORY_KEY = 'mc_sql_history';
+  var HISTORY_ENABLED_KEY = 'mc_sql_history_enabled';
+  var INSTANCE_HISTORY_KEY = 'mc_instance_history';
+  var INSTANCE_HISTORY_TTL_MS = 24 * 60 * 60 * 1000;
+  var POLL_INTERVALS_MS = [1000, 2000, 4000, 8000];
+  var MORE_TABS = ['catalog', 'schedule', 'export'];
+
+  var currentLang = 'en';
+  var sheetNames = [];
+  var isRunning = false;
+  var nextTaskId = 1;
+  var tasks = [];
+  var jobList = [];
+  var scheduleList = [];
+  var jobFilter = 'all';
+  var activeJobPollers = {};
+
+  // Export state
+  var exportState = {
+    inProgress: false,
+    selectedSheets: {},
+    validationTimer: null
+  };
+
+  // Catalog state
+  var catalogData = createCatalogData();
+  var expandedSchemas = createCatalogMap();
+  var catalogLoadingInFlight = false;
+  var catalogTablesLoading = createCatalogMap();
+  var catalogDetailsLoading = createCatalogMap();
+  var catalogPartitionsLoading = createCatalogMap();
+  var catalogRequestVersion = 0;
+  var searchTimer;
+  var selectedCatalogTable = null; // { schema, table }
+
+  // Notification timer
+  var notificationTimer = null;
+
+  function createCatalogData() {
+    return { schemas: [], tables: createCatalogMap(), details: createCatalogMap() };
+  }
+  function createCatalogMap() { return Object.create(null); }
+
+  // ============================================================
+  // 初始化
+  // ============================================================
+
+  (function init() {
+    // 绑定事件
+    bindEvents();
+
+    // 创建默认任务卡
+    addTask();
+
+    // 应用初始数据
+    if (window.__INIT__ && typeof __INIT__ === 'object') {
+      applyLanguage(__INIT__.language);
+      applyConnectionStatus(__INIT__.connection);
+      applySheetNames(__INIT__.sheetNames);
+      if (Array.isArray(__INIT__.jobList)) {
+        jobList = __INIT__.jobList;
+      }
+      if (Array.isArray(__INIT__.scheduleList)) {
+        scheduleList = __INIT__.scheduleList;
+      }
+    } else {
+      loadLanguagePreference();
+      checkConnection();
+      loadSheetNames();
+    }
+
+    loadHistory();
+    syncHistoryFromBackend();
+    renderJobs();
+    renderSchedules();
+    resumeRunningJobPolling();
+    initExportTab();
+  })();
+
+  function bindEvents() {
+    // Tab buttons
+    document.getElementById('tabBtnQuery').addEventListener('click', function() { switchTab('query'); });
+    document.getElementById('tabBtnJobs').addEventListener('click', function() { switchTab('jobs'); });
+    document.getElementById('tabMoreBtn').addEventListener('click', function(e) { toggleMore(e); });
+    document.getElementById('dropdownCatalog').addEventListener('click', function(e) { e.stopPropagation(); switchTab('catalog'); });
+    document.getElementById('dropdownSchedule').addEventListener('click', function(e) { e.stopPropagation(); switchTab('schedule'); });
+    document.getElementById('dropdownExport').addEventListener('click', function(e) { e.stopPropagation(); switchTab('export'); });
+
+    // Query actions
+    document.getElementById('btnAddTask').addEventListener('click', function() { addTask(); });
+    document.getElementById('btnRunAll').addEventListener('click', function() { runAll(); });
+    document.getElementById('btnTestConn').addEventListener('click', function() { testConn(); });
+    document.getElementById('btnClearHistory').addEventListener('click', function() { clearHistory(); });
+
+    // Jobs actions
+    document.getElementById('jobFilterSelect').addEventListener('change', function() {
+      jobFilter = this.value;
+      renderJobs();
+    });
+    document.getElementById('btnRefreshJobs').addEventListener('click', function() { refreshJobs(); });
+    document.getElementById('btnClearJobs').addEventListener('click', function() { clearJobsClick(); });
+
+    // Catalog actions
+    document.getElementById('catalogSearch').addEventListener('input', function() { filterTables(); });
+    document.getElementById('btnRefreshCatalog').addEventListener('click', function() { refreshCatalog(); });
+    document.getElementById('btnCopyToQuery').addEventListener('click', function() { copyPreviewToQuery(); });
+
+    // Schedule actions
+    document.getElementById('btnNewSchedule').addEventListener('click', function() { toggleScheduleForm(true); });
+    document.getElementById('btnSchedFormClose').addEventListener('click', function() { toggleScheduleForm(false); });
+    document.getElementById('btnSchedCancel').addEventListener('click', function() { toggleScheduleForm(false); });
+    document.getElementById('btnSchedSave').addEventListener('click', function() { saveScheduleClick(); });
+    document.getElementById('schedTypeSelect').addEventListener('change', function() { updateScheduleForm(); });
+    document.getElementById('btnTriggerAction').addEventListener('click', function() { triggerActionClick(); });
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.tab-more')) closeMore();
+    });
+
+    // Global keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runAll();
+      }
+    });
+  }
+
+  // ============================================================
+  // 语言
+  // ============================================================
+
+  function t(key) {
+    return (i18n[currentLang] && i18n[currentLang][key]) || (i18n.en && i18n.en[key]) || key;
+  }
+
+  function applyLanguage(lang) {
+    currentLang = (lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW') ? 'zh' : 'en';
+    updateLanguageUI();
+  }
+
+  function loadLanguagePreference() {
+    if (!window.google || !google.script) return;
+    google.script.run
+      .withSuccessHandler(applyLanguage)
+      .withFailureHandler(function() { applyLanguage('en'); })
+      .getUserLanguage();
+  }
+
+  function updateLanguageUI() {
+    // Tab labels
+    setText('tabBtnQuery .tab-label', t('tabQuery'));
+    setText('tabBtnJobs .tab-label', t('tabJobs'));
+    setText('tabBtnCatalog .tab-label', t('tabCatalog'));
+
+    // Query tab
+    setText('labelAddTask', t('addTask'));
+    updateRunAllLabel();
+    setText('labelTestConn', t('testConnection'));
+    setText('labelRecentQueries', t('recentQueries'));
+    setText('btnClearHistory', t('clear'));
+
+    // Jobs tab
+    setText('optAllStatus', t('jobsAllStatus'));
+    setText('optRunning', t('jobsRunning'));
+    setText('optSuccess', t('jobsSuccess'));
+    setText('optFailed', t('jobsFailed'));
+
+    // Catalog
+    var searchInput = document.getElementById('catalogSearch');
+    if (searchInput) searchInput.placeholder = t('catalogSearch');
+    var loadingEl = document.getElementById('catalogLoading');
+    if (loadingEl && loadingEl.style.display !== 'none') loadingEl.textContent = t('catalogLoading');
+
+    // Schedule
+    setText('labelScheduledJobs', t('scheduledJobs'));
+    setText('labelNewSchedule', t('newSchedule'));
+    setText('labelSchedFormTitle', t('schedFormTitle'));
+    setText('labelSchedName', t('scheduleName'));
+    setText('labelSchedType', t('scheduleType'));
+    setText('labelSchedInterval', t('scheduleInterval'));
+    setText('labelSchedHour', t('scheduleHour'));
+    setText('labelSchedTasks', t('scheduleTasks'));
+    setText('btnSchedSave', t('scheduleSave'));
+    setText('btnSchedCancel', t('scheduleCancel'));
+
+    var nameInput = document.getElementById('schedNameInput');
+    if (nameInput) nameInput.placeholder = t('scheduleNamePlaceholder');
+
+    // Export tab
+    setText('exportNotConfiguredTitle', t('exportNotConfiguredTitle'));
+    setText('exportNotConfiguredDesc', t('exportNotConfiguredDesc'));
+    setText('exportGoToSettingsText', t('exportGoToSettings'));
+    setText('exportPrefixLabel', t('exportPrefixLabel'));
+    setText('exportPrefixHint', t('exportPrefixHint'));
+    setText('exportTemplateLabel', t('exportTemplateLabel'));
+    setText('exportSelectAllLabel', t('exportSelectAll'));
+    if (!exportState.inProgress) {
+      setText('btnExportText', t('exportBtn'));
+    }
+
+    // Re-render task cards labels
+    renderTaskCardLabels();
+  }
+
+  function setText(idOrSelector, text) {
+    var el;
+    if (idOrSelector.indexOf(' ') >= 0) {
+      var parts = idOrSelector.split(' ');
+      var parent = document.getElementById(parts[0]);
+      if (parent) el = parent.querySelector(parts.slice(1).join(' '));
+    } else {
+      el = document.getElementById(idOrSelector);
+    }
+    if (el) el.textContent = text;
+  }
+
+  // ============================================================
+  // 连接状态
+  // ============================================================
+
+  function applyConnectionStatus(result) {
+    var badge = document.getElementById('statusBadge');
+    var textEl = document.getElementById('statusText');
+    if (result && result.configured) {
+      badge.className = 'status-badge';
+      textEl.textContent = t('statusConnected');
+    } else {
+      badge.className = 'status-badge error';
+      textEl.textContent = t('statusNotConfigured');
+    }
+  }
+
+  function checkConnection() {
+    var badge = document.getElementById('statusBadge');
+    badge.className = 'status-badge checking';
+    document.getElementById('statusText').textContent = t('statusChecking');
+    if (!window.google || !google.script) return;
+    google.script.run
+      .withSuccessHandler(applyConnectionStatus)
+      .withFailureHandler(function() {
+        badge.className = 'status-badge error';
+        document.getElementById('statusText').textContent = t('statusCheckFailed');
+      })
+      .getConnectionStatus();
+  }
+
+  function applySheetNames(names) {
+    sheetNames = names || [];
+    // Update all existing task card target sheet selects
+    tasks.forEach(function(task) {
+      var select = document.getElementById('targetSheet-' + task.id);
+      if (select) populateSheetSelect(select);
+    });
+    // Update export sheet list if form is visible
+    if (document.getElementById('exportForm').style.display !== 'none') {
+      renderExportSheetList();
+    }
+  }
+
+  function populateSheetSelect(select) {
+    var currentVal = select.value;
+    select.innerHTML = '';
+    var opt = document.createElement('option');
+    opt.value = 'Query Result';
+    opt.textContent = t('targetSheetNew');
+    select.appendChild(opt);
+    sheetNames.forEach(function(name) {
+      var o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      select.appendChild(o);
+    });
+    if (currentVal) select.value = currentVal;
+  }
+
+  function loadSheetNames() {
+    refreshSheetNames();
+  }
+
+  function refreshSheetNames(callback) {
+    if (!window.google || !google.script) return;
+    google.script.run
+      .withSuccessHandler(function(names) {
+        applySheetNames(names);
+        if (callback) callback();
+      })
+      .withFailureHandler(function() {
+        if (callback) callback();
+      })
+      .getSheetNames();
+  }
+
+  // ============================================================
+  // Tab 切换
+  // ============================================================
+
+  function switchTab(tabId) {
+    // Update tab buttons
+    document.querySelectorAll('.tab').forEach(function(t) {
+      if (!t.classList.contains('tab-more')) t.classList.remove('active');
+    });
+    document.querySelectorAll('.dropdown-item').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+
+    var moreBtn = document.getElementById('tabMoreBtn');
+    if (MORE_TABS.indexOf(tabId) >= 0) {
+      moreBtn.classList.add('active');
+      var ddItem = document.querySelector('.dropdown-item[data-tab="' + tabId + '"]');
+      if (ddItem) ddItem.classList.add('active');
+    } else {
+      moreBtn.classList.remove('active');
+      var tabBtn = document.querySelector('.tab[data-tab="' + tabId + '"]');
+      if (tabBtn) tabBtn.classList.add('active');
+    }
+
+    var panel = document.getElementById('panel-' + tabId);
+    if (panel) panel.classList.add('active');
+    closeMore();
+
+    // Lazy load catalog
+    if (tabId === 'catalog' && catalogData.schemas.length === 0) {
+      loadCatalog();
+    }
+    // Check trigger status for schedule tab
+    if (tabId === 'schedule') {
+      checkTriggerStatus();
+    }
+    // Resume polling for running jobs
+    if (tabId === 'jobs') {
+      resumeRunningJobPolling();
+    }
+    // Init export tab on switch
+    if (tabId === 'export') {
+      initExportTab();
+    }
+  }
+
+  function toggleMore(e) {
+    e.stopPropagation();
+    document.getElementById('moreDropdown').classList.toggle('open');
+  }
+
+  function closeMore() {
+    document.getElementById('moreDropdown').classList.remove('open');
+  }
+
+  // ============================================================
+  // 任务卡片管理
+  // ============================================================
+
+  function createTaskData() {
+    var id = 'task-' + (nextTaskId++);
+    return {
+      id: id,
+      mode: 'sql',
+      status: 'idle',
+      error: null,
+      summary: null,
+      logviewUrl: null,
+      serverInstanceId: null,
+      startTime: null
+    };
+  }
+
+  function addTask() {
+    if (tasks.length >= MAX_TASKS) return;
+    var task = createTaskData();
+    tasks.push(task);
+    renderNewTaskCard(task, tasks.length);
+    updateRunAllLabel();
+    updateAddTaskVisibility();
+  }
+
+  function removeTask(taskId) {
+    if (tasks.length <= 1) return;
+    var idx = tasks.findIndex(function(t) { return t.id === taskId; });
+    if (idx < 0) return;
+    var task = tasks[idx];
+    if (task.pollTimer) { clearTimeout(task.pollTimer); task.pollTimer = null; }
+    task.pollAborted = true;
+    tasks.splice(idx, 1);
+
+    var cardEl = document.getElementById('card-' + taskId);
+    if (cardEl) cardEl.remove();
+
+    // Re-number remaining cards
+    tasks.forEach(function(t, i) {
+      var numEl = document.getElementById('taskNum-' + t.id);
+      if (numEl) numEl.textContent = i + 1;
+      var titleEl = document.getElementById('taskTitle-' + t.id);
+      if (titleEl) titleEl.textContent = 'Task ' + (i + 1);
+    });
+    updateRunAllLabel();
+    updateAddTaskVisibility();
+  }
+
+  function updateRunAllLabel() {
+    var label = document.getElementById('labelRunAll');
+    label.textContent = t('runAll') + ' (' + tasks.length + ')';
+  }
+
+  function updateAddTaskVisibility() {
+    document.getElementById('btnAddTask').style.display = tasks.length >= MAX_TASKS ? 'none' : '';
+  }
+
+  function renderNewTaskCard(task, index) {
+    var container = document.getElementById('taskCardsContainer');
+    var card = document.createElement('article');
+    card.className = 'card';
+    card.id = 'card-' + task.id;
+
+    card.innerHTML =
+      '<div class="card-header">' +
+        '<span class="card-title">' +
+          '<span class="task-num" id="taskNum-' + task.id + '">' + index + '</span>' +
+          '<span id="taskTitle-' + task.id + '">Task ' + index + '</span>' +
+        '</span>' +
+        '<button class="btn btn-ghost btn-sm" id="btnRemove-' + task.id + '" title="' + t('removeTask') + '">' +
+          '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="card-body">' +
+        '<div class="source-toggle" id="sourceToggle-' + task.id + '">' +
+          '<button class="source-toggle-btn active" id="btnModeSql-' + task.id + '">' + t('sqlQueryMode') + '</button>' +
+          '<button class="source-toggle-btn" id="btnModeAttach-' + task.id + '">' + t('attachJobMode') + '</button>' +
+        '</div>' +
+        '<div id="sqlGroup-' + task.id + '">' +
+          '<div class="input-group">' +
+            '<label class="input-label">' + t('sqlLabel') + '</label>' +
+            '<textarea class="input-field" id="sqlInput-' + task.id + '" placeholder="' + escapeAttr(t('sqlPlaceholder')) + '" maxlength="65536" spellcheck="false"></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div id="attachGroup-' + task.id + '" style="display:none;">' +
+          '<div class="input-group">' +
+            '<label class="input-label">' + t('instanceIdLabel') + '</label>' +
+            '<input type="text" class="input-field" id="instanceInput-' + task.id + '" placeholder="' + escapeAttr(t('instanceIdPlaceholder')) + '" maxlength="128" spellcheck="false" style="font-family:var(--font-mono);">' +
+          '</div>' +
+        '</div>' +
+        '<div class="input-group">' +
+          '<label class="input-label">' + t('targetSheetLabel') + '</label>' +
+          '<select class="input-field" id="targetSheet-' + task.id + '"></select>' +
+        '</div>' +
+      '</div>' +
+      '<div class="task-status" id="taskStatus-' + task.id + '" style="display:none;"></div>';
+
+    container.appendChild(card);
+
+    // Populate target sheet select
+    populateSheetSelect(document.getElementById('targetSheet-' + task.id));
+
+    // Bind events
+    document.getElementById('btnRemove-' + task.id).addEventListener('click', function() {
+      removeTask(task.id);
+    });
+    document.getElementById('btnModeSql-' + task.id).addEventListener('click', function() {
+      setTaskMode(task.id, 'sql');
+    });
+    document.getElementById('btnModeAttach-' + task.id).addEventListener('click', function() {
+      setTaskMode(task.id, 'attach');
+    });
+
+    // Tab key in SQL textarea
+    var sqlInput = document.getElementById('sqlInput-' + task.id);
+    sqlInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var start = this.selectionStart;
+        var end = this.selectionEnd;
+        this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
+        this.selectionStart = this.selectionEnd = start + 2;
+      }
+    });
+  }
+
+  function setTaskMode(taskId, mode) {
+    var task = tasks.find(function(t) { return t.id === taskId; });
+    if (!task) return;
+    task.mode = mode;
+
+    var btnSql = document.getElementById('btnModeSql-' + taskId);
+    var btnAttach = document.getElementById('btnModeAttach-' + taskId);
+    var sqlGroup = document.getElementById('sqlGroup-' + taskId);
+    var attachGroup = document.getElementById('attachGroup-' + taskId);
+
+    if (mode === 'sql') {
+      btnSql.classList.add('active');
+      btnAttach.classList.remove('active');
+      sqlGroup.style.display = '';
+      attachGroup.style.display = 'none';
+    } else {
+      btnSql.classList.remove('active');
+      btnAttach.classList.add('active');
+      sqlGroup.style.display = 'none';
+      attachGroup.style.display = '';
+    }
+  }
+
+  function renderTaskCardLabels() {
+    tasks.forEach(function(task) {
+      var btnSql = document.getElementById('btnModeSql-' + task.id);
+      var btnAttach = document.getElementById('btnModeAttach-' + task.id);
+      if (btnSql) btnSql.textContent = t('sqlQueryMode');
+      if (btnAttach) btnAttach.textContent = t('attachJobMode');
+    });
+  }
+
+  function setAllTaskInputsDisabled(disabled) {
+    tasks.forEach(function(task) {
+      var sqlInput = document.getElementById('sqlInput-' + task.id);
+      var instanceInput = document.getElementById('instanceInput-' + task.id);
+      var targetSheet = document.getElementById('targetSheet-' + task.id);
+      if (sqlInput) sqlInput.disabled = disabled;
+      if (instanceInput) instanceInput.disabled = disabled;
+      if (targetSheet) targetSheet.disabled = disabled;
+      // Source toggle buttons
+      var btnSql = document.getElementById('btnModeSql-' + task.id);
+      var btnAttach = document.getElementById('btnModeAttach-' + task.id);
+      if (btnSql) btnSql.disabled = disabled;
+      if (btnAttach) btnAttach.disabled = disabled;
+    });
+    document.getElementById('btnRunAll').disabled = disabled;
+    document.getElementById('btnAddTask').disabled = disabled;
+    document.getElementById('btnTestConn').disabled = disabled;
+  }
+
+  function readTaskFromDom(task) {
+    if (task.mode === 'sql') {
+      var sqlInput = document.getElementById('sqlInput-' + task.id);
+      return {
+        mode: 'sql',
+        sql: sqlInput ? sqlInput.value.trim() : '',
+        targetSheet: getTaskTargetSheet(task.id)
+      };
+    } else {
+      var instanceInput = document.getElementById('instanceInput-' + task.id);
+      return {
+        mode: 'attach',
+        instanceId: instanceInput ? instanceInput.value.trim() : '',
+        targetSheet: getTaskTargetSheet(task.id)
+      };
+    }
+  }
+
+  function getTaskTargetSheet(taskId) {
+    var select = document.getElementById('targetSheet-' + taskId);
+    return select ? select.value : 'Query Result';
+  }
+
+  // ============================================================
+  // 查询执行（批量提交 → 立即返回，状态在 Jobs 追踪）
+  // ============================================================
+
+  function runAll() {
+    if (isRunning) return;
+
+    // 客户端验证
+    var batchTasks = [];
+    var domDataMap = [];
+    for (var i = 0; i < tasks.length; i++) {
+      var task = tasks[i];
+      var domData = readTaskFromDom(task);
+      domDataMap.push(domData);
+
+      if (domData.mode === 'sql') {
+        if (!domData.sql) {
+          showNotification('error', t('errorEmptySql') + ' (Task ' + (i + 1) + ')');
+          return;
+        }
+        if (domData.sql.length > MAX_SQL_LENGTH) {
+          showNotification('error', t('errorSqlTooLong') + ' (Task ' + (i + 1) + ')');
+          return;
+        }
+        var readOnlyError = getClientReadOnlySqlError(domData.sql);
+        if (readOnlyError) {
+          showNotification('error', readOnlyError + ' (Task ' + (i + 1) + ')');
+          return;
+        }
+        // 自动补分号
+        var sql = domData.sql;
+        if (!sql.endsWith(';')) sql = sql + ';';
+        batchTasks.push({ mode: 'sql', sql: sql, targetSheet: domData.targetSheet });
+      } else {
+        var instanceIdError = getClientInstanceIdError(domData.instanceId);
+        if (instanceIdError) {
+          showNotification('error', instanceIdError + ' (Task ' + (i + 1) + ')');
+          return;
+        }
+        batchTasks.push({ mode: 'attach', instanceId: domData.instanceId, targetSheet: domData.targetSheet });
+      }
+    }
+
+    // 进入提交状态
+    isRunning = true;
+    setAllTaskInputsDisabled(true);
+    tasks.forEach(function(task) {
+      task.status = 'submitting';
+      task.error = null;
+      task.summary = null;
+      task.startTime = Date.now();
+      updateTaskStatusDom(task);
+    });
+
+    // 提交批量任务
+    google.script.run
+      .withSuccessHandler(function(results) {
+        var asyncCount = 0;
+        results.forEach(function(result) {
+          var task = tasks[result.taskIndex];
+          if (!task) return;
+          var dd = domDataMap[result.taskIndex] || {};
+
+          if (result.error) {
+            task.status = 'failed';
+            task.error = result.error;
+            updateTaskStatusDom(task);
+            recordJobFromTask(task, dd);
+          } else if (result.sync) {
+            task.status = 'success';
+            task.summary = result.summary;
+            task.serverInstanceId = result.summary ? result.summary.instanceId : null;
+            task.logviewUrl = result.summary ? result.summary.logviewUrl : null;
+            updateTaskStatusDom(task);
+            if (dd.sql) saveToHistory(dd.sql);
+            recordJobFromTask(task, dd);
+          } else {
+            // 异步任务 → 标记已提交，在 Jobs 中追踪
+            asyncCount++;
+            task.status = 'submitted';
+            task.serverInstanceId = result.instanceId;
+            task.logviewUrl = result.logviewUrl;
+            updateTaskStatusDom(task);
+            if (dd.sql) saveToHistory(dd.sql);
+
+            // 创建 running job 并启动后台轮询
+            var job = {
+              id: result.instanceId,
+              instanceId: result.instanceId,
+              mode: task.mode,
+              sql: dd.sql || null,
+              targetSheet: dd.targetSheet,
+              status: 'running',
+              error: null,
+              logviewUrl: result.logviewUrl || null,
+              createdAt: task.startTime || Date.now(),
+              summary: null
+            };
+            jobList.unshift(job);
+            if (jobList.length > 20) jobList = jobList.slice(0, 20);
+            persistJob(job);
+            startJobPolling(job.id);
+          }
+        });
+
+        // 立即解锁 Query 界面
+        isRunning = false;
+        setAllTaskInputsDisabled(false);
+        renderJobs();
+
+        if (asyncCount > 0) {
+          showNotification('info', asyncCount + ' ' + t('taskSubmittedDesc'));
+        }
+      })
+      .withFailureHandler(function(error) {
+        var msg = getSafeServerErrorMessage(error);
+        tasks.forEach(function(task) {
+          task.status = 'failed';
+          task.error = msg;
+          updateTaskStatusDom(task);
+        });
+        isRunning = false;
+        setAllTaskInputsDisabled(false);
+      })
+      .submitBatchQuery(batchTasks);
+  }
+
+  // ============================================================
+  // Job 后台轮询（在 Jobs 界面追踪异步任务状态）
+  // ============================================================
+
+  function startJobPolling(jobId) {
+    if (activeJobPollers[jobId]) return;
+    pollJobOnce(jobId, 0);
+  }
+
+  function pollJobOnce(jobId, pollIndex) {
+    var job = findJob(jobId);
+    if (!job || (job.status !== 'running' && job.status !== 'writing')) {
+      delete activeJobPollers[jobId];
+      return;
+    }
+
+    var interval = POLL_INTERVALS_MS[Math.min(pollIndex, POLL_INTERVALS_MS.length - 1)];
+    activeJobPollers[jobId] = setTimeout(function() {
+      var job = findJob(jobId);
+      if (!job || job.status !== 'running') {
+        delete activeJobPollers[jobId];
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(progress) {
+          var job = findJob(jobId);
+          if (!job) { delete activeJobPollers[jobId]; return; }
+
+          if (!progress.instanceTerminated) {
+            pollJobOnce(jobId, pollIndex + 1);
+            return;
+          }
+
+          var taskStatus = progress.taskStatus;
+          if (taskStatus === 'Success') {
+            job.status = 'writing';
+            renderJobs();
+            writeJobResult(job);
+          } else if (taskStatus === 'Failed') {
+            job.status = 'failed';
+            job.error = progress.errorSummary || 'SQL execution failed';
+            renderJobs();
+            persistJob(job);
+            delete activeJobPollers[jobId];
+          } else if (taskStatus === 'Cancelled') {
+            job.status = 'cancelled';
+            renderJobs();
+            persistJob(job);
+            delete activeJobPollers[jobId];
+          } else {
+            job.status = 'failed';
+            job.error = 'Unexpected status: ' + taskStatus;
+            renderJobs();
+            persistJob(job);
+            delete activeJobPollers[jobId];
+          }
+        })
+        .withFailureHandler(function(error) {
+          var job = findJob(jobId);
+          if (job) {
+            job.status = 'failed';
+            job.error = getSafeServerErrorMessage(error);
+            renderJobs();
+            persistJob(job);
+          }
+          delete activeJobPollers[jobId];
+        })
+        .getQueryProgress(job.instanceId);
+    }, interval);
+  }
+
+  function writeJobResult(job) {
+    google.script.run
+      .withSuccessHandler(function(summary) {
+        job.status = 'success';
+        job.summary = summary;
+        renderJobs();
+        persistJob(job);
+        delete activeJobPollers[job.id];
+      })
+      .withFailureHandler(function(error) {
+        job.status = 'failed';
+        job.error = getSafeServerErrorMessage(error);
+        renderJobs();
+        persistJob(job);
+        delete activeJobPollers[job.id];
+      })
+      .writeQueryResult(job.instanceId, job.targetSheet, null);
+  }
+
+  function persistJob(job) {
+    if (window.google && google.script) {
+      google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){}).saveJobRecord(job);
+    }
+  }
+
+  function cancelJobClick(jobId) {
+    var job = findJob(jobId);
+    if (!job || !job.instanceId) return;
+
+    google.script.run
+      .withSuccessHandler(function() {
+        // 轮询会自然检测到 Cancelled 状态
+      })
+      .withFailureHandler(function() {
+        showNotification('error', t('cancelRequestFailed'));
+      })
+      .cancelQuery(job.instanceId);
+  }
+
+  function resumeRunningJobPolling() {
+    jobList.forEach(function(job) {
+      if ((job.status === 'running' || job.status === 'writing') && job.instanceId && !activeJobPollers[job.id]) {
+        startJobPolling(job.id);
+      }
+    });
+  }
+
+  function findJob(jobId) {
+    return jobList.find(function(j) { return j.id === jobId; }) || null;
+  }
+
+  function updateTaskStatusDom(task) {
+    var statusEl = document.getElementById('taskStatus-' + task.id);
+    if (!statusEl) return;
+
+    if (task.status === 'idle') {
+      statusEl.style.display = 'none';
+      return;
+    }
+
+    statusEl.style.display = 'flex';
+    var html = '';
+
+    switch (task.status) {
+      case 'submitting':
+        html = '<span class="spinner spinner-sm"></span><span class="status-text">' + t('taskSubmitting') + '</span>';
+        break;
+      case 'submitted':
+        html = '<span style="color:var(--accent);">&#10003;</span><span class="status-text">' + t('taskSubmitted');
+        if (task.logviewUrl && task.serverInstanceId) {
+          html += ' &mdash; <a href="' + escapeAttr(task.logviewUrl) + '" target="_blank">' +
+            escapeHtml(task.serverInstanceId.substring(0, 16)) + '...</a>';
+        }
+        html += ' <span style="color:var(--text-secondary);font-size:11px;">(' + t('taskSubmittedDesc') + ')</span>';
+        html += '</span>';
+        break;
+      case 'success':
+        html = '<span style="color:var(--success);">&#10003;</span><span class="status-text" style="color:var(--success);">' + t('taskSuccess');
+        if (task.summary) {
+          html += ' &mdash; ' + (task.summary.rowCount || 0) + ' ' + t('resultRows');
+          if (task.summary.executionTimeMs) {
+            html += ', ' + formatMs(task.summary.executionTimeMs);
+          }
+        }
+        html += '</span>';
+        break;
+      case 'failed':
+        html = '<span style="color:var(--danger);">&#10007;</span><span class="status-text" style="color:var(--danger);">' + t('taskFailed');
+        if (task.error) {
+          html += ': ' + escapeHtml(task.error.length > 100 ? task.error.substring(0, 100) + '...' : task.error);
+        }
+        html += '</span>';
+        break;
+      case 'cancelled':
+        html = '<span style="color:var(--text-secondary);">&#10007;</span><span class="status-text">' + t('taskCancelled') + '</span>';
+        break;
+    }
+
+    statusEl.innerHTML = html;
+  }
+
+  // ============================================================
+  // Job 记录
+  // ============================================================
+
+  function recordJobFromTask(task, domData) {
+    var record = {
+      id: task.serverInstanceId || ('local-' + task.id + '-' + Date.now()),
+      instanceId: task.serverInstanceId || null,
+      mode: task.mode,
+      sql: domData.sql || null,
+      targetSheet: domData.targetSheet,
+      status: task.status,
+      error: task.error || null,
+      logviewUrl: task.logviewUrl || null,
+      createdAt: task.startTime || Date.now(),
+      summary: task.summary || null
+    };
+
+    // Update local list
+    var found = false;
+    for (var i = 0; i < jobList.length; i++) {
+      if (jobList[i].id === record.id) {
+        jobList[i] = record;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      jobList.unshift(record);
+      if (jobList.length > 20) jobList = jobList.slice(0, 20);
+    }
+
+    renderJobs();
+
+    // Persist to backend (fire-and-forget)
+    if (window.google && google.script) {
+      google.script.run
+        .withSuccessHandler(function() {})
+        .withFailureHandler(function() {})
+        .saveJobRecord(record);
+    }
+  }
+
+  function renderJobs() {
+    var container = document.getElementById('jobsTableContainer');
+    var filtered = jobList;
+    if (jobFilter !== 'all') {
+      filtered = jobList.filter(function(j) { return j.status === jobFilter; });
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML =
+        '<div class="empty-state">' +
+          '<svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+            '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+            '<polyline points="14 2 14 8 20 8"/>' +
+          '</svg>' +
+          '<div class="empty-state-title">' + t('jobsNoJobs') + '</div>' +
+          '<div class="empty-state-desc">' + t('jobsNoJobsDesc') + '</div>' +
+        '</div>';
+      return;
+    }
+
+    var html = '<table class="jobs-table"><thead><tr>' +
+      '<th>Task</th><th style="width:60px;">Status</th><th style="width:40px;"></th>' +
+      '</tr></thead><tbody>';
+
+    filtered.forEach(function(job) {
+      var statusTag = getJobStatusTag(job.status);
+      var name = job.sql ? escapeHtml(job.sql.substring(0, 40)) : (job.instanceId ? escapeHtml(job.instanceId.substring(0, 20)) : 'Task');
+      var sheet = escapeHtml(job.targetSheet || '');
+      var actionHtml = getJobActionHtml(job);
+      var timeStr = job.createdAt ? formatJobTime(job.createdAt) : '';
+      var sourceTag = job.source === 'schedule' ? '<span style="background:var(--bg-secondary,#f1f3f4);color:var(--text-secondary);font-size:10px;padding:1px 4px;border-radius:3px;margin-right:4px;">&#9201; ' + escapeHtml(job.scheduleName || 'Schedule') + '</span>' : '';
+
+      html += '<tr>' +
+        '<td><div class="job-name" title="' + escapeAttr(job.sql || job.instanceId || '') + '">' + sourceTag + name + '</div>' +
+        '<div class="job-sheet">' + sheet + (timeStr ? ' <span style="color:var(--text-tertiary,#9aa0a6);font-size:10px;">' + timeStr + '</span>' : '') + '</div></td>' +
+        '<td>' + statusTag + '</td>' +
+        '<td><div class="job-actions">' + actionHtml + '</div></td>' +
+        '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    // Bind action events
+    filtered.forEach(function(job) {
+      var retryBtn = document.getElementById('jobRetry-' + job.id);
+      if (retryBtn) retryBtn.addEventListener('click', function() { retryJob(job); });
+      var logBtn = document.getElementById('jobLog-' + job.id);
+      if (logBtn) logBtn.addEventListener('click', function() {
+        if (job.logviewUrl) window.open(job.logviewUrl, '_blank');
+      });
+      var removeBtn = document.getElementById('jobRemove-' + job.id);
+      if (removeBtn) removeBtn.addEventListener('click', function() { removeJobClick(job.id); });
+    });
+  }
+
+  function getJobStatusTag(status) {
+    switch (status) {
+      case 'submitting':
+      case 'running':
+      case 'writing':
+        return '<span class="tag tag-running"><span class="spinner"></span> Running</span>';
+      case 'success':
+        return '<span class="tag tag-success">Success</span>';
+      case 'failed':
+        return '<span class="tag tag-failed">Failed</span>';
+      case 'cancelled':
+        return '<span class="tag tag-cancelled">Cancelled</span>';
+      default:
+        return '<span class="tag tag-waiting">Waiting</span>';
+    }
+  }
+
+  function getJobActionHtml(job) {
+    var safeId = escapeAttr(job.id);
+    var html = '';
+    // Running/writing jobs get a cancel button
+    if (job.status === 'running' || job.status === 'writing' || job.status === 'submitting') {
+      html += '<button class="btn btn-ghost btn-sm" id="jobCancel-' + safeId + '" title="Cancel">' +
+        '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>';
+    }
+    if (job.logviewUrl) {
+      html += '<button class="btn btn-ghost btn-sm" id="jobLog-' + safeId + '" title="View logs">' +
+        '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>';
+    }
+    if (job.status === 'failed' && job.sql) {
+      html += '<button class="btn btn-ghost btn-sm" id="jobRetry-' + safeId + '" title="Retry">' +
+        '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 8.26 5.36"/></svg></button>';
+    }
+    if (job.status !== 'running' && job.status !== 'writing' && job.status !== 'submitting') {
+      html += '<button class="btn btn-ghost btn-sm" id="jobRemove-' + safeId + '" title="Remove">' +
+        '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+    }
+    return html || '';
+  }
+
+  function retryJob(job) {
+    if (!job.sql) return;
+    // 把 SQL 放入第一个空的 SQL 模式任务卡，或新建一个
+    var targetTask = tasks.find(function(t) {
+      if (t.mode !== 'sql') return false;
+      var sqlInput = document.getElementById('sqlInput-' + t.id);
+      return sqlInput && !sqlInput.value.trim();
+    });
+    if (!targetTask && tasks.length < MAX_TASKS) {
+      addTask();
+      targetTask = tasks[tasks.length - 1];
+    }
+    if (targetTask) {
+      setTaskMode(targetTask.id, 'sql');
+      var sqlInput = document.getElementById('sqlInput-' + targetTask.id);
+      if (sqlInput) sqlInput.value = job.sql;
+      if (job.targetSheet) {
+        var select = document.getElementById('targetSheet-' + targetTask.id);
+        if (select) select.value = job.targetSheet;
+      }
+    }
+    switchTab('query');
+  }
+
+  function removeJobClick(jobId) {
+    jobList = jobList.filter(function(j) { return j.id !== jobId; });
+    renderJobs();
+    if (window.google && google.script) {
+      google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){}).removeJobRecord(jobId);
+    }
+  }
+
+  function clearJobsClick() {
+    if (!confirm(t('jobsClearConfirm'))) return;
+    jobList = [];
+    renderJobs();
+    if (window.google && google.script) {
+      google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){}).clearJobList();
+    }
+  }
+
+  function refreshJobs() {
+    if (!window.google || !google.script) return;
+    google.script.run
+      .withSuccessHandler(function(list) {
+        jobList = list || [];
+        renderJobs();
+      })
+      .withFailureHandler(function() {})
+      .getJobList();
+  }
+
+  // ============================================================
+  // 定时调度
+  // ============================================================
+
+  function renderSchedules() {
+    var container = document.getElementById('scheduleListContainer');
+    if (scheduleList.length === 0) {
+      container.innerHTML =
+        '<div class="empty-state">' +
+          '<svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+            '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' +
+          '</svg>' +
+          '<div class="empty-state-title">' + t('noSchedules') + '</div>' +
+          '<div class="empty-state-desc">' + t('noSchedulesDesc') + '</div>' +
+        '</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    scheduleList.forEach(function(schedule) {
+      var div = document.createElement('div');
+      div.className = 'schedule-item';
+
+      var metaText = '';
+      if (schedule.type === 'everyNHours') {
+        metaText = 'Every ' + (schedule.interval || 1) + 'h';
+      } else {
+        metaText = 'Daily at ' + (schedule.hour || 0) + ':00';
+      }
+      if (schedule.lastRunAt) {
+        metaText += '  Last: ' + formatTimeAgo(schedule.lastRunAt);
+      }
+      if (schedule.nextRunAt) {
+        metaText += '  Next: ' + formatTimeFuture(schedule.nextRunAt);
+      }
+      var taskCount = (schedule.tasks || []).length;
+      metaText += '  (' + taskCount + ' tasks)';
+
+      div.innerHTML =
+        '<div class="schedule-info">' +
+          '<div class="schedule-name">' + escapeHtml(schedule.name || 'Unnamed') + '</div>' +
+          '<div class="schedule-meta">' + escapeHtml(metaText) + '</div>' +
+        '</div>' +
+        '<div class="schedule-actions">' +
+          '<input type="checkbox" class="toggle" id="schedToggle-' + escapeAttr(schedule.id) + '"' + (schedule.enabled ? ' checked' : '') + ' />' +
+          '<button class="btn btn-ghost btn-sm" id="schedDelete-' + escapeAttr(schedule.id) + '" title="Delete">' +
+            '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+          '</button>' +
+        '</div>';
+
+      container.appendChild(div);
+
+      // Bind events
+      document.getElementById('schedToggle-' + schedule.id).addEventListener('change', function() {
+        toggleScheduleEnabled(schedule.id, this.checked);
+      });
+      document.getElementById('schedDelete-' + schedule.id).addEventListener('click', function() {
+        deleteScheduleClick(schedule.id);
+      });
+    });
+  }
+
+  function toggleScheduleForm(show) {
+    var panel = document.getElementById('scheduleFormPanel');
+    panel.style.display = show ? 'block' : 'none';
+    if (show) {
+      document.getElementById('schedNameInput').value = '';
+      document.getElementById('schedTypeSelect').value = 'everyNHours';
+      document.getElementById('schedIntervalSelect').value = '1';
+      document.getElementById('schedHourInput').value = '0';
+      updateScheduleForm();
+      renderScheduleTaskPreview();
+    }
+  }
+
+  function updateScheduleForm() {
+    var type = document.getElementById('schedTypeSelect').value;
+    document.getElementById('schedIntervalGroup').style.display = type === 'everyNHours' ? '' : 'none';
+    document.getElementById('schedHourGroup').style.display = type === 'dailyAtHour' ? '' : 'none';
+  }
+
+  function renderScheduleTaskPreview() {
+    var preview = document.getElementById('schedTaskPreview');
+    var html = '';
+    tasks.forEach(function(task, index) {
+      var domData = readTaskFromDom(task);
+      var text = '';
+      if (domData.mode === 'sql') {
+        text = domData.sql ? domData.sql.substring(0, 80) : '(empty SQL)';
+      } else {
+        text = 'Attach: ' + (domData.instanceId || '(empty)');
+      }
+      text += ' → ' + domData.targetSheet;
+      html += '<div class="sched-task-preview-item" title="' + escapeAttr(text) + '">' +
+        (index + 1) + '. ' + escapeHtml(text) + '</div>';
+    });
+    if (!html) {
+      html = '<div class="sched-task-preview-empty">' + t('scheduleNoTasks') + '</div>';
+    }
+    preview.innerHTML = html;
+  }
+
+  function saveScheduleClick() {
+    var name = document.getElementById('schedNameInput').value.trim();
+    if (!name) {
+      showNotification('error', t('scheduleName') + ' is required');
+      return;
+    }
+
+    var type = document.getElementById('schedTypeSelect').value;
+    var interval = parseInt(document.getElementById('schedIntervalSelect').value, 10) || 1;
+    var hour = parseInt(document.getElementById('schedHourInput').value, 10) || 0;
+
+    // 从 Query tab 任务卡收集任务
+    var scheduleTasks = [];
+    tasks.forEach(function(task) {
+      var domData = readTaskFromDom(task);
+      if (domData.mode === 'sql' && domData.sql) {
+        var sql = domData.sql;
+        if (!sql.endsWith(';')) sql += ';';
+        scheduleTasks.push({ mode: 'sql', sql: sql, targetSheet: domData.targetSheet });
+      } else if (domData.mode === 'attach' && domData.instanceId) {
+        scheduleTasks.push({ mode: 'attach', instanceId: domData.instanceId, targetSheet: domData.targetSheet });
+      }
+    });
+
+    if (scheduleTasks.length === 0) {
+      showNotification('error', t('scheduleNoTasks'));
+      return;
+    }
+
+    var schedule = {
+      id: 'sched-' + Date.now(),
+      name: name,
+      enabled: true,
+      type: type,
+      tasks: scheduleTasks
+    };
+    if (type === 'everyNHours') {
+      schedule.interval = interval;
+    } else {
+      schedule.hour = hour;
+    }
+
+    // 保存到后端
+    google.script.run
+      .withSuccessHandler(function() {
+        scheduleList.unshift(schedule);
+        renderSchedules();
+        toggleScheduleForm(false);
+        showNotification('success', 'Schedule created');
+      })
+      .withFailureHandler(function(error) {
+        showNotification('error', getSafeServerErrorMessage(error));
+      })
+      .saveSchedule(schedule);
+  }
+
+  function deleteScheduleClick(scheduleId) {
+    if (!confirm(t('scheduleDeleteConfirm'))) return;
+    google.script.run
+      .withSuccessHandler(function() {
+        scheduleList = scheduleList.filter(function(s) { return s.id !== scheduleId; });
+        renderSchedules();
+      })
+      .withFailureHandler(function(error) {
+        showNotification('error', getSafeServerErrorMessage(error));
+      })
+      .deleteSchedule(scheduleId);
+  }
+
+  function toggleScheduleEnabled(scheduleId, enabled) {
+    google.script.run
+      .withSuccessHandler(function() {
+        var sched = scheduleList.find(function(s) { return s.id === scheduleId; });
+        if (sched) sched.enabled = enabled;
+      })
+      .withFailureHandler(function(error) {
+        showNotification('error', getSafeServerErrorMessage(error));
+        // Revert toggle
+        var toggle = document.getElementById('schedToggle-' + scheduleId);
+        if (toggle) toggle.checked = !enabled;
+      })
+      .toggleSchedule(scheduleId, enabled);
+  }
+
+  function checkTriggerStatus() {
+    if (!window.google || !google.script) return;
+    google.script.run
+      .withSuccessHandler(function(status) {
+        var bar = document.getElementById('triggerBar');
+        var textEl = document.getElementById('triggerStatusText');
+        var btn = document.getElementById('btnTriggerAction');
+        if (status && status.installed) {
+          textEl.textContent = t('triggerInstalled');
+          bar.style.borderColor = 'var(--success)';
+          textEl.style.color = 'var(--success)';
+          btn.textContent = t('uninstallTrigger');
+          btn.className = 'btn btn-sm btn-danger';
+          btn.dataset.action = 'uninstall';
+        } else {
+          textEl.textContent = t('triggerNotInstalled');
+          bar.style.borderColor = 'var(--border-subtle)';
+          textEl.style.color = 'var(--text-secondary)';
+          btn.textContent = t('installTrigger');
+          btn.className = 'btn btn-sm btn-primary';
+          btn.dataset.action = 'install';
+        }
+      })
+      .withFailureHandler(function() {})
+      .getScheduleTriggerStatus();
+  }
+
+  function triggerActionClick() {
+    var btn = document.getElementById('btnTriggerAction');
+    var action = btn.dataset.action;
+    btn.disabled = true;
+
+    var runner = google.script.run
+      .withSuccessHandler(function() {
+        btn.disabled = false;
+        checkTriggerStatus();
+        showNotification('success', action === 'install' ? 'Trigger installed' : 'Trigger uninstalled');
+      })
+      .withFailureHandler(function(error) {
+        btn.disabled = false;
+        showNotification('error', getSafeServerErrorMessage(error));
+      });
+    if (action === 'install') {
+      runner.installScheduleTrigger();
+    } else {
+      runner.uninstallScheduleTrigger();
+    }
+  }
+
+  // ============================================================
+  // 数据目录
+  // ============================================================
+
+  function loadCatalog() {
+    if (catalogLoadingInFlight) return;
+    var requestVersion = catalogRequestVersion;
+    catalogLoadingInFlight = true;
+    var loadingEl = document.getElementById('catalogLoading');
+    loadingEl.textContent = t('catalogLoading');
+    loadingEl.style.display = 'block';
+
+    google.script.run
+      .withSuccessHandler(function(schemas) {
+        if (requestVersion !== catalogRequestVersion) return;
+        catalogLoadingInFlight = false;
+        loadingEl.style.display = 'none';
+        catalogData.schemas = schemas || [];
+        renderCatalogTree();
+      })
+      .withFailureHandler(function(error) {
+        if (requestVersion !== catalogRequestVersion) return;
+        catalogLoadingInFlight = false;
+        loadingEl.textContent = getSafeServerErrorMessage(error);
+      })
+      .getSchemas();
+  }
+
+  function refreshCatalog() {
+    catalogRequestVersion++;
+    catalogData = createCatalogData();
+    expandedSchemas = createCatalogMap();
+    catalogLoadingInFlight = false;
+    catalogTablesLoading = createCatalogMap();
+    catalogDetailsLoading = createCatalogMap();
+    catalogPartitionsLoading = createCatalogMap();
+    selectedCatalogTable = null;
+    document.getElementById('catalogSearch').value = '';
+    document.getElementById('schemaPreview').style.display = 'none';
+    loadCatalog();
+  }
+
+  function makeCatalogDomId(prefix, value) {
+    return prefix + '-' + encodeURIComponent(String(value || '')).replace(/%/g, '_');
+  }
+
+  function renderCatalogTree() {
+    var container = document.getElementById('catalogTree');
+    container.innerHTML = '';
+
+    if (catalogData.schemas.length === 0) {
+      container.innerHTML = '<div class="catalog-loading-inline">' + t('catalogEmpty') + '</div>';
+      return;
+    }
+
+    catalogData.schemas.forEach(function(schema) {
+      var dbDiv = document.createElement('div');
+      dbDiv.className = 'catalog-db';
+
+      var headerDiv = document.createElement('div');
+      headerDiv.className = 'catalog-db-header';
+      headerDiv.innerHTML =
+        '<svg class="icon-sm chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>' +
+        '<span>' + escapeHtml(schema.name) + '</span>' +
+        '<span class="badge-count" style="font-size:10px;color:var(--text-secondary);margin-left:auto;"></span>';
+      headerDiv.dataset.schema = schema.name;
+      headerDiv.addEventListener('click', function() { toggleSchema(this.dataset.schema); });
+
+      var tableListDiv = document.createElement('div');
+      tableListDiv.className = 'catalog-table-list';
+      tableListDiv.id = makeCatalogDomId('schema', schema.name);
+
+      dbDiv.appendChild(headerDiv);
+      dbDiv.appendChild(tableListDiv);
+      container.appendChild(dbDiv);
+    });
+  }
+
+  function toggleSchema(schemaName) {
+    var tableListDiv = document.getElementById(makeCatalogDomId('schema', schemaName));
+    var headerDiv = tableListDiv.previousElementSibling;
+    var isExpanded = expandedSchemas[schemaName];
+
+    if (isExpanded) {
+      tableListDiv.classList.remove('expanded');
+      headerDiv.classList.remove('expanded');
+      expandedSchemas[schemaName] = false;
+    } else {
+      tableListDiv.classList.add('expanded');
+      headerDiv.classList.add('expanded');
+      expandedSchemas[schemaName] = true;
+      if (!catalogData.tables[schemaName]) {
+        loadTablesForSchema(schemaName);
+      }
+    }
+  }
+
+  function loadTablesForSchema(schemaName) {
+    if (catalogTablesLoading[schemaName]) return;
+    var requestVersion = catalogRequestVersion;
+    catalogTablesLoading[schemaName] = true;
+    var tableListDiv = document.getElementById(makeCatalogDomId('schema', schemaName));
+    tableListDiv.innerHTML = '<div class="catalog-loading-inline">Loading...</div>';
+
+    google.script.run
+      .withSuccessHandler(function(tables) {
+        if (requestVersion !== catalogRequestVersion) return;
+        delete catalogTablesLoading[schemaName];
+        catalogData.tables[schemaName] = tables || [];
+        renderTablesForSchema(schemaName);
+      })
+      .withFailureHandler(function(error) {
+        if (requestVersion !== catalogRequestVersion) return;
+        delete catalogTablesLoading[schemaName];
+        tableListDiv.innerHTML = '<div class="catalog-loading-inline" style="color:var(--danger);">' + escapeHtml(getSafeServerErrorMessage(error)) + '</div>';
+      })
+      .getTables(schemaName);
+  }
+
+  function renderTablesForSchema(schemaName) {
+    var tableListDiv = document.getElementById(makeCatalogDomId('schema', schemaName));
+    var tables = catalogData.tables[schemaName] || [];
+    tableListDiv.innerHTML = '';
+
+    if (tables.length === 0) {
+      tableListDiv.innerHTML = '<div class="catalog-loading-inline">' + t('catalogEmpty') + '</div>';
+      return;
+    }
+
+    tables.forEach(function(table) {
+      var item = document.createElement('div');
+      item.className = 'catalog-table-item';
+      item.dataset.schema = schemaName;
+      item.dataset.table = table.name;
+      item.dataset.tableLower = table.name.toLowerCase();
+
+      item.innerHTML =
+        '<span class="catalog-table-name">' +
+          '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>' +
+          '<span>' + escapeHtml(table.name) + '</span>' +
+        '</span>';
+
+      item.addEventListener('click', function() {
+        selectCatalogTable(this.dataset.schema, this.dataset.table);
+      });
+
+      tableListDiv.appendChild(item);
+    });
+
+    // Update count badge
+    var headerDiv = tableListDiv.previousElementSibling;
+    if (headerDiv) {
+      var badge = headerDiv.querySelector('.badge-count');
+      if (badge) badge.textContent = tables.length;
+    }
+  }
+
+  function selectCatalogTable(schemaName, tableName) {
+    // Deselect previous
+    var prev = document.querySelector('.catalog-table-item.active');
+    if (prev) prev.classList.remove('active');
+
+    // Select new
+    var items = document.querySelectorAll('.catalog-table-item');
+    items.forEach(function(item) {
+      if (item.dataset.schema === schemaName && item.dataset.table === tableName) {
+        item.classList.add('active');
+      }
+    });
+
+    selectedCatalogTable = { schema: schemaName, table: tableName };
+
+    // Show/load schema preview
+    var tableKey = schemaName + '.' + tableName;
+    var detail = catalogData.details[tableKey];
+
+    var previewEl = document.getElementById('schemaPreview');
+    previewEl.style.display = '';
+    document.getElementById('schemaPreviewTitle').textContent = tableName + ' schema';
+
+    if (detail) {
+      renderSchemaPreview(schemaName, tableName, detail);
+    } else {
+      document.getElementById('schemaPreviewBody').innerHTML =
+        '<div style="padding:12px;text-align:center;"><span class="spinner"></span></div>';
+      loadTableDetailForPreview(schemaName, tableName);
+    }
+  }
+
+  function loadTableDetailForPreview(schemaName, tableName) {
+    var tableKey = schemaName + '.' + tableName;
+    if (catalogDetailsLoading[tableKey]) return;
+    var requestVersion = catalogRequestVersion;
+    catalogDetailsLoading[tableKey] = true;
+
+    google.script.run
+      .withSuccessHandler(function(detail) {
+        if (requestVersion !== catalogRequestVersion) return;
+        delete catalogDetailsLoading[tableKey];
+        catalogData.details[tableKey] = detail;
+        // Only render if still selected
+        if (selectedCatalogTable && selectedCatalogTable.schema === schemaName && selectedCatalogTable.table === tableName) {
+          renderSchemaPreview(schemaName, tableName, detail);
+        }
+      })
+      .withFailureHandler(function(error) {
+        if (requestVersion !== catalogRequestVersion) return;
+        delete catalogDetailsLoading[tableKey];
+        document.getElementById('schemaPreviewBody').innerHTML =
+          '<div style="padding:8px;color:var(--danger);font-size:12px;">' + escapeHtml(getSafeServerErrorMessage(error)) + '</div>';
+      })
+      .getTableDetail(tableName, schemaName);
+  }
+
+  function renderSchemaPreview(schemaName, tableName, detail) {
+    var body = document.getElementById('schemaPreviewBody');
+    var html = '<table class="schema-table"><thead><tr><th>Column</th><th>Type</th></tr></thead><tbody>';
+
+    if (detail.columns && detail.columns.length > 0) {
+      detail.columns.forEach(function(col) {
+        html += '<tr><td>' + escapeHtml(col.name) +
+          (col.comment ? '<span style="font-size:10px;color:var(--text-secondary);margin-left:4px;" title="' + escapeAttr(col.comment) + '">?</span>' : '') +
+          '</td><td class="schema-type">' + escapeHtml(col.type) + '</td></tr>';
+      });
+    }
+
+    if (detail.partitionColumns && detail.partitionColumns.length > 0) {
+      detail.partitionColumns.forEach(function(col) {
+        html += '<tr><td>' + escapeHtml(col.name) + '<span class="schema-tag-pt">PT</span></td>' +
+          '<td class="schema-type">' + escapeHtml(col.type) + '</td></tr>';
+      });
+    }
+
+    html += '</tbody></table>';
+
+    // Partition list section
+    if (detail.partitionColumns && detail.partitionColumns.length > 0) {
+      var tableKey = schemaName + '.' + tableName;
+      var safeKey = makeCatalogDomId('partition-preview', tableKey);
+      html += '<div class="partition-section" id="ptSection-' + safeKey + '" data-schema="' + escapeAttr(schemaName) + '" data-table="' + escapeAttr(tableName) + '">' +
+        '<span id="ptToggle-' + safeKey + '">+</span> ' + t('showPartitions') +
+        '</div>' +
+        '<div class="partition-list" id="ptList-' + safeKey + '"></div>';
+    }
+
+    body.innerHTML = html;
+
+    // Bind partition toggle
+    if (detail.partitionColumns && detail.partitionColumns.length > 0) {
+      var tableKey2 = schemaName + '.' + tableName;
+      var safeKey2 = makeCatalogDomId('partition-preview', tableKey2);
+      var ptSection = document.getElementById('ptSection-' + safeKey2);
+      if (ptSection) {
+        ptSection.addEventListener('click', function() {
+          loadAndTogglePartitionsPreview(this.dataset.schema, this.dataset.table);
+        });
+      }
+    }
+  }
+
+  function loadAndTogglePartitionsPreview(schemaName, tableName) {
+    var tableKey = schemaName + '.' + tableName;
+    var safeKey = makeCatalogDomId('partition-preview', tableKey);
+    var listDiv = document.getElementById('ptList-' + safeKey);
+    var toggleSpan = document.getElementById('ptToggle-' + safeKey);
+
+    if (listDiv.dataset.loaded === 'true') {
+      var expanded = listDiv.classList.toggle('expanded');
+      toggleSpan.textContent = expanded ? '-' : '+';
+      return;
+    }
+
+    if (catalogPartitionsLoading[tableKey]) return;
+    var requestVersion = catalogRequestVersion;
+    catalogPartitionsLoading[tableKey] = true;
+
+    listDiv.innerHTML = '<div class="partition-item" style="color:var(--text-secondary);">Loading...</div>';
+    listDiv.classList.add('expanded');
+    toggleSpan.textContent = '-';
+
+    google.script.run
+      .withSuccessHandler(function(partitions) {
+        if (requestVersion !== catalogRequestVersion) return;
+        delete catalogPartitionsLoading[tableKey];
+        listDiv.dataset.loaded = 'true';
+        listDiv.innerHTML = '';
+        if (partitions && partitions.length > 0) {
+          partitions.forEach(function(pt) {
+            var ptName = pt.name || pt.value;
+            var ptDiv = document.createElement('div');
+            ptDiv.className = 'partition-item';
+            ptDiv.textContent = ptName;
+            ptDiv.dataset.ptName = ptName;
+            ptDiv.addEventListener('click', function() {
+              insertToSql(this.dataset.ptName);
+            });
+            listDiv.appendChild(ptDiv);
+          });
+        } else {
+          listDiv.innerHTML = '<div class="partition-item" style="color:var(--text-secondary);">' + t('catalogEmpty') + '</div>';
+        }
+      })
+      .withFailureHandler(function(error) {
+        if (requestVersion !== catalogRequestVersion) return;
+        delete catalogPartitionsLoading[tableKey];
+        listDiv.innerHTML = '<div class="partition-item" style="color:var(--danger);">' + escapeHtml(getSafeServerErrorMessage(error)) + '</div>';
+      })
+      .getPartitions(tableName, schemaName);
+  }
+
+  function copyPreviewToQuery() {
+    if (!selectedCatalogTable) return;
+    insertTableToSql(selectedCatalogTable.schema, selectedCatalogTable.table);
+  }
+
+  function insertTableToSql(schemaName, tableName) {
+    var tableKey = schemaName + '.' + tableName;
+    var detail = catalogData.details[tableKey];
+    if (catalogDetailsLoading[tableKey]) return;
+
+    if (!detail || !detail.columns) {
+      var requestVersion = catalogRequestVersion;
+      catalogDetailsLoading[tableKey] = true;
+      google.script.run
+        .withSuccessHandler(function(newDetail) {
+          if (requestVersion !== catalogRequestVersion) return;
+          delete catalogDetailsLoading[tableKey];
+          catalogData.details[tableKey] = newDetail;
+          generateAndInsertSql(schemaName, tableName, newDetail);
+        })
+        .withFailureHandler(function(error) {
+          if (requestVersion !== catalogRequestVersion) return;
+          delete catalogDetailsLoading[tableKey];
+          showNotification('error', getSafeServerErrorMessage(error));
+        })
+        .getTableDetail(tableName, schemaName);
+    } else {
+      generateAndInsertSql(schemaName, tableName, detail);
+    }
+  }
+
+  function generateAndInsertSql(schemaName, tableName, detail) {
+    var fullTableName = buildQualifiedTableName('', schemaName, tableName);
+    var maxPtTableName = buildMaxPtTableName('', schemaName, tableName);
+    var columnList = '*';
+
+    if (detail && detail.columns && detail.columns.length > 0) {
+      columnList = detail.columns.map(function(col) {
+        return quoteSqlIdentifier(col.name);
+      }).join(', ');
+    }
+
+    var sql;
+    if (detail && detail.partitionColumns && detail.partitionColumns.length > 0) {
+      if (detail.partitionColumns.length === 1) {
+        var ptCol = quoteSqlIdentifier(detail.partitionColumns[0].name);
+        sql = 'SELECT ' + columnList + ' FROM ' + fullTableName + ' WHERE ' + ptCol + ' = MAX_PT(' + quoteSqlString(maxPtTableName) + ') LIMIT 100';
+      } else {
+        sql = 'SELECT ' + columnList + ' FROM ' + fullTableName + ' WHERE ' +
+          buildLatestPartitionPredicate(fullTableName, detail.partitionColumns) + ' LIMIT 100';
+      }
+    } else {
+      sql = 'SELECT ' + columnList + ' FROM ' + fullTableName + ' LIMIT 100';
+    }
+
+    // 插入到第一个空的 SQL 任务卡
+    var targetTask = tasks.find(function(t) {
+      if (t.mode !== 'sql') return false;
+      var sqlInput = document.getElementById('sqlInput-' + t.id);
+      return sqlInput && !sqlInput.value.trim();
+    });
+    if (!targetTask) targetTask = tasks[0];
+    if (targetTask) {
+      setTaskMode(targetTask.id, 'sql');
+      var sqlInput = document.getElementById('sqlInput-' + targetTask.id);
+      if (sqlInput) { sqlInput.value = sql; sqlInput.focus(); }
+    }
+    switchTab('query');
+  }
+
+  function buildQualifiedTableName(projectName, schemaName, tableName) {
+    var parts = [];
+    if (projectName) parts.push(quoteSqlIdentifier(projectName));
+    if (schemaName) parts.push(quoteSqlIdentifier(schemaName));
+    parts.push(quoteSqlIdentifier(tableName));
+    return parts.join('.');
+  }
+
+  function buildMaxPtTableName(projectName, schemaName, tableName) {
+    var parts = [];
+    if (projectName) parts.push(projectName);
+    if (schemaName) parts.push(schemaName);
+    parts.push(tableName);
+    return parts.join('.');
+  }
+
+  function buildLatestPartitionPredicate(fullTableName, partitionColumns) {
+    return partitionColumns.map(function(col, index) {
+      return quoteSqlIdentifier(col.name) + ' = ' +
+        buildPartitionMaxSubquery(fullTableName, partitionColumns, index);
+    }).join(' AND ');
+  }
+
+  function buildPartitionMaxSubquery(fullTableName, partitionColumns, index) {
+    var filters = [];
+    for (var i = 0; i < index; i++) {
+      filters.push(quoteSqlIdentifier(partitionColumns[i].name) + ' = ' +
+        buildPartitionMaxSubquery(fullTableName, partitionColumns, i));
+    }
+    var sql = '(SELECT MAX(' + quoteSqlIdentifier(partitionColumns[index].name) + ') FROM ' + fullTableName;
+    if (filters.length) sql += ' WHERE ' + filters.join(' AND ');
+    return sql + ')';
+  }
+
+  function quoteSqlIdentifier(name) {
+    return '`' + String(name || '').replace(/`/g, '``') + '`';
+  }
+
+  function quoteSqlString(value) {
+    return "'" + String(value || '').replace(/'/g, "''") + "'";
+  }
+
+  function insertToSql(text) {
+    var targetTask = tasks[0];
+    if (targetTask) {
+      var sqlInput = document.getElementById('sqlInput-' + targetTask.id);
+      if (sqlInput) {
+        var start = sqlInput.selectionStart;
+        var end = sqlInput.selectionEnd;
+        sqlInput.value = sqlInput.value.substring(0, start) + text + sqlInput.value.substring(end);
+        sqlInput.selectionStart = sqlInput.selectionEnd = start + text.length;
+        sqlInput.focus();
+      }
+    }
+    switchTab('query');
+  }
+
+  function filterTables() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function() {
+      var keyword = document.getElementById('catalogSearch').value.toLowerCase();
+      Object.keys(catalogData.tables).forEach(function(schemaName) {
+        var tableListDiv = document.getElementById(makeCatalogDomId('schema', schemaName));
+        if (!tableListDiv) return;
+        var items = tableListDiv.querySelectorAll('.catalog-table-item');
+        var visibleCount = 0;
+        items.forEach(function(item) {
+          var tName = item.dataset.tableLower || '';
+          var visible = !keyword || tName.indexOf(keyword) >= 0;
+          item.style.display = visible ? '' : 'none';
+          if (visible) visibleCount++;
+        });
+        var headerDiv = tableListDiv.previousElementSibling;
+        if (headerDiv) {
+          headerDiv.style.display = (visibleCount > 0 || !keyword) ? '' : 'none';
+        }
+      });
+    }, 200);
+  }
+
+  // ============================================================
+  // 测试连接
+  // ============================================================
+
+  function testConn() {
+    if (isRunning) return;
+    document.getElementById('btnTestConn').disabled = true;
+    document.getElementById('btnTestConn').textContent = t('loadingTesting');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        document.getElementById('btnTestConn').disabled = false;
+        document.getElementById('btnTestConn').textContent = t('testConnection');
+        if (result.success) {
+          applyConnectionStatus({ configured: true });
+          showNotification('success', t('resultTestSuccess') + ': ' + (result.message || 'OK'));
+        } else {
+          applyConnectionStatus({ configured: false });
+          showNotification('error', t('resultTestFailed') + ': ' + (result.message || ''));
+        }
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('btnTestConn').disabled = false;
+        document.getElementById('btnTestConn').textContent = t('testConnection');
+        showNotification('error', getSafeServerErrorMessage(error));
+      })
+      .testConnection();
+  }
+
+  // ============================================================
+  // 历史记录（localStorage + PropertiesService 同步）
+  // ============================================================
+
+  function syncHistoryFromBackend() {
+    if (!window.google || !google.script || !google.script.run) return;
+    google.script.run
+      .withSuccessHandler(function(remote) {
+        if (!remote) return;
+        applyBackendHistory_(remote);
+      })
+      .withFailureHandler(function() {})
+      .getQueryHistory();
+  }
+
+  function applyBackendHistory_(remote) {
+    var localSqlBefore = getRawLocalSqlHistory_();
+    var localEnabled = isHistoryEnabled();
+
+    if (remote.enabled === false) {
+      setHistoryEnabled(false);
+    } else {
+      setHistoryEnabled(true);
+    }
+
+    var remoteSql = Array.isArray(remote.sqlItems) ? remote.sqlItems : [];
+    if (remoteSql.length > 0 || localSqlBefore.length === 0) {
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(remoteSql)); } catch (e) {}
+      renderHistory(remoteSql);
+    } else if (localEnabled) {
+      for (var i = localSqlBefore.length - 1; i >= 0; i--) {
+        mirrorHistoryCall_('appendSqlHistory', localSqlBefore[i]);
+      }
+    }
+  }
+
+  function getRawLocalSqlHistory_() {
+    try {
+      var stored = localStorage.getItem(HISTORY_KEY);
+      var parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { return []; }
+  }
+
+  function mirrorHistoryCall_(fnName, arg) {
+    if (!window.google || !google.script || !google.script.run) return;
+    var noop = function() {};
+    switch (fnName) {
+      case 'appendSqlHistory':
+        google.script.run.withSuccessHandler(noop).withFailureHandler(noop).appendSqlHistory(arg); return;
+      case 'removeSqlHistoryAt':
+        google.script.run.withSuccessHandler(noop).withFailureHandler(noop).removeSqlHistoryAt(arg); return;
+      case 'clearSqlHistory':
+        google.script.run.withSuccessHandler(noop).withFailureHandler(noop).clearSqlHistory(); return;
+      case 'setSqlHistoryEnabled':
+        google.script.run.withSuccessHandler(noop).withFailureHandler(noop).setSqlHistoryEnabled(arg); return;
+    }
+  }
+
+  function loadHistory() {
+    renderHistory(getHistoryList());
+  }
+
+  function saveToHistory(sql) {
+    if (!isHistoryEnabled()) return;
+    var list = getHistoryList();
+    list = list.filter(function(item) { return item !== sql; });
+    list.unshift(sql);
+    if (list.length > MAX_HISTORY) list = list.slice(0, MAX_HISTORY);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); } catch (e) {}
+    renderHistory(list);
+    mirrorHistoryCall_('appendSqlHistory', sql);
+  }
+
+  function deleteFromHistory(sql) {
+    var list = getHistoryList();
+    var index = list.indexOf(sql);
+    list = list.filter(function(item) { return item !== sql; });
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); } catch (e) {}
+    renderHistory(list);
+    if (index >= 0) mirrorHistoryCall_('removeSqlHistoryAt', index);
+  }
+
+  function clearHistory() {
+    if (!confirm(t('historyClearConfirm'))) return;
+    try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+    renderHistory([]);
+    mirrorHistoryCall_('clearSqlHistory');
+  }
+
+  function isHistoryEnabled() {
+    try { return localStorage.getItem(HISTORY_ENABLED_KEY) !== 'false'; } catch (e) { return true; }
+  }
+
+  function setHistoryEnabled(enabled) {
+    try { localStorage.setItem(HISTORY_ENABLED_KEY, enabled ? 'true' : 'false'); } catch (e) {}
+  }
+
+  function getHistoryList() {
+    if (!isHistoryEnabled()) return [];
+    try {
+      var stored = localStorage.getItem(HISTORY_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) { return []; }
+  }
+
+  function renderHistory(list) {
+    var container = document.getElementById('historyList');
+    container.innerHTML = '';
+    if (list.length === 0) return;
+
+    list.forEach(function(sql) {
+      var div = document.createElement('div');
+      div.className = 'recent-item';
+      div.innerHTML =
+        '<div class="recent-query">' + escapeHtml(sql) + '</div>' +
+        '<span class="recent-delete">Remove</span>';
+
+      div.querySelector('.recent-query').addEventListener('click', function() {
+        // 插入到第一个 SQL 模式任务卡
+        var targetTask = tasks[0];
+        if (targetTask) {
+          setTaskMode(targetTask.id, 'sql');
+          var sqlInput = document.getElementById('sqlInput-' + targetTask.id);
+          if (sqlInput) { sqlInput.value = sql; sqlInput.focus(); }
+        }
+      });
+
+      div.querySelector('.recent-delete').addEventListener('click', function(e) {
+        e.stopPropagation();
+        deleteFromHistory(sql);
+      });
+
+      container.appendChild(div);
+    });
+  }
+
+  // ============================================================
+  // 客户端只读 SQL 预检
+  // ============================================================
+
+  function getClientReadOnlySqlError(sql) {
+    var statements = splitClientSqlStatements(sql);
+    var hasMainQuery = false;
+    for (var i = 0; i < statements.length; i++) {
+      var statement = statements[i];
+      var keyword = getClientFirstSqlKeyword(statement);
+      if (!keyword) continue;
+      if (keyword === 'SET') {
+        if (hasMainQuery) return t('errorSetBeforeQuery');
+        if (containsClientReservedAuditSetStatement(statement)) return t('errorReservedAuditSet');
+        continue;
+      }
+      if (hasMainQuery) return t('errorSingleReadOnlyQuery');
+      if (isClientForbiddenSqlKeyword(keyword) ||
+          (shouldClientCheckNestedForbiddenSqlOperation(keyword) && containsClientForbiddenSqlOperation(statement))) {
+        return t('errorReadOnlySql');
+      }
+      if (!isClientAllowedReadOnlySqlKeyword(keyword)) return t('errorReadOnlySql');
+      hasMainQuery = true;
+    }
+    return hasMainQuery ? '' : t('errorReadOnlySql');
+  }
+
+  function splitClientSqlStatements(sql) {
+    var statements = [];
+    var current = [];
+    var quote = null;
+    var lineComment = false;
+    var blockComment = false;
+    for (var i = 0; i < sql.length; i++) {
+      var ch = sql.charAt(i);
+      var next = i + 1 < sql.length ? sql.charAt(i + 1) : '';
+      if (lineComment) {
+        if (ch === '\n' || ch === '\r') { lineComment = false; current.push(' '); }
+        continue;
+      }
+      if (blockComment) {
+        if (ch === '*' && next === '/') { blockComment = false; current.push(' '); i++; }
+        continue;
+      }
+      if (quote) {
+        current.push(ch);
+        if (ch === '\\' && next) { current.push(next); i++; }
+        else if (ch === quote) {
+          if (next === quote) { current.push(next); i++; }
+          else { quote = null; }
+        }
+        continue;
+      }
+      if (ch === '-' && next === '-') { lineComment = true; current.push(' '); i++; continue; }
+      if (ch === '/' && next === '*') { blockComment = true; current.push(' '); i++; continue; }
+      if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; current.push(ch); continue; }
+      if (ch === ';') {
+        var stmt = current.join('').replace(/^\s+|\s+$/g, '');
+        if (stmt) statements.push(stmt);
+        current = [];
+        continue;
+      }
+      current.push(ch);
+    }
+    var last = current.join('').replace(/^\s+|\s+$/g, '');
+    if (last) statements.push(last);
+    return statements;
+  }
+
+  function getClientFirstSqlKeyword(statement) {
+    var normalized = maskClientSqlCommentsAndLiterals(statement).replace(/^\s+/, '').replace(/^[\s(]+/, '');
+    var match = normalized.match(/^([A-Za-z_]+)/);
+    return match ? match[1].toUpperCase() : '';
+  }
+
+  function isClientAllowedReadOnlySqlKeyword(keyword) {
+    return keyword === 'SELECT' || keyword === 'WITH';
+  }
+
+  function isClientForbiddenSqlKeyword(keyword) {
+    return {
+      INSERT:1,UPDATE:1,DELETE:1,MERGE:1,CREATE:1,ALTER:1,DROP:1,TRUNCATE:1,
+      RENAME:1,GRANT:1,REVOKE:1,LOAD:1,UNLOAD:1,ANALYZE:1,CALL:1,USE:1,
+      BEGIN:1,COMMIT:1,ROLLBACK:1
+    }[keyword] === 1;
+  }
+
+  function containsClientReservedAuditSetStatement(statement) {
+    var s = maskClientSqlCommentsAndLiterals(statement);
+    return /\bset\s+ext_(?:platform_id|node_id|dagtype|task_id|node_name|node_onduty)\b/i.test(s);
+  }
+
+  function shouldClientCheckNestedForbiddenSqlOperation(keyword) {
+    return keyword === 'SELECT' || keyword === 'WITH';
+  }
+
+  function containsClientForbiddenSqlOperation(statement) {
+    var s = maskClientSqlCommentsAndLiterals(statement);
+    var patterns = [
+      /\binsert\s+(?:into|overwrite)\b/i,
+      /\bupdate\s+[\s\S]+?\bset\b/i,
+      /\bdelete\s+from\b/i,
+      /\bmerge\s+into\b/i,
+      /\bcreate\s+(?:or\s+replace\s+)?(?:external\s+)?(?:materialized\s+)?(?:table|view|function|resource|instance|schema|database|role|package|volume|model)\b/i,
+      /\balter\s+(?:materialized\s+)?(?:table|view|function|resource|schema|database|role|package|volume|model)\b/i,
+      /\bdrop\s+(?:materialized\s+)?(?:table|view|function|resource|schema|database|role|package|volume|model)\b/i,
+      /\btruncate\s+table\b/i,
+      /\brename\s+table\b/i,
+      /\bmsck\s+repair\s+table\b/i,
+      /\badd\s+(?:file|jar|archive|py|resource|user)\b/i,
+      /\bremove\s+(?:file|jar|archive|py|resource|user)\b/i,
+      /\b(?:install|uninstall)\s+package\b/i,
+      /\bgrant\b/i, /\brevoke\b/i,
+      /\bload\s+data\b/i, /\bunload\b/i,
+      /\banalyze\s+(?:table|column|columns)\b/i,
+      /\bcall\b/i, /\buse\s+\S+/i,
+      /\bbegin\b/i, /\bcommit\b/i, /\brollback\b/i
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+      if (patterns[i].test(s)) return true;
+    }
+    return false;
+  }
+
+  function maskClientSqlCommentsAndLiterals(sql) {
+    var out = [];
+    var quote = null;
+    var lineComment = false;
+    var blockComment = false;
+    for (var i = 0; i < sql.length; i++) {
+      var ch = sql.charAt(i);
+      var next = i + 1 < sql.length ? sql.charAt(i + 1) : '';
+      if (lineComment) {
+        if (ch === '\n' || ch === '\r') { lineComment = false; out.push(ch); } else { out.push(' '); }
+        continue;
+      }
+      if (blockComment) {
+        if (ch === '*' && next === '/') { blockComment = false; out.push('  '); i++; } else { out.push(' '); }
+        continue;
+      }
+      if (quote) {
+        out.push(' ');
+        if (ch === '\\' && next) { out.push(' '); i++; }
+        else if (ch === quote) {
+          if (next === quote) { out.push(' '); i++; } else { quote = null; }
+        }
+        continue;
+      }
+      if (ch === '-' && next === '-') { lineComment = true; out.push('  '); i++; continue; }
+      if (ch === '/' && next === '*') { blockComment = true; out.push('  '); i++; continue; }
+      if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; out.push(' '); continue; }
+      out.push(ch);
+    }
+    return out.join('');
+  }
+
+  function getClientInstanceIdError(instanceId) {
+    instanceId = String(instanceId || '').trim();
+    if (!instanceId) return t('errorEmptyInstanceId');
+    if (instanceId.length > 128 || !/^[A-Za-z0-9_.:-]+$/.test(instanceId) || instanceId.indexOf('..') !== -1) {
+      return t('errorInvalidInstanceId');
+    }
+    return '';
+  }
+
+  // ============================================================
+  // UI 辅助函数
+  // ============================================================
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function formatMs(ms) {
+    if (!ms && ms !== 0) return '-';
+    if (ms < 1000) return ms + ' ms';
+    return (ms / 1000).toFixed(1) + ' s';
+  }
+
+  function getSafeServerErrorMessage(error) {
+    var raw = String(error && error.message ? error.message : error || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    return raw.length <= 500 ? raw : raw.slice(0, 500) + '...';
+  }
+
+  function showNotification(type, message) {
+    var el = document.getElementById('notification');
+    el.className = 'notification visible ' + type;
+    el.textContent = message;
+    if (notificationTimer) clearTimeout(notificationTimer);
+    notificationTimer = setTimeout(function() {
+      el.classList.remove('visible');
+    }, 5000);
+  }
+
+  function formatTimeAgo(timestamp) {
+    var diff = Date.now() - timestamp;
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return Math.floor(diff / 86400000) + 'd ago';
+  }
+
+  function formatTimeFuture(timestamp) {
+    var diff = timestamp - Date.now();
+    if (diff < 0) return 'overdue';
+    if (diff < 60000) return 'soon';
+    if (diff < 3600000) return 'in ' + Math.ceil(diff / 60000) + 'm';
+    if (diff < 86400000) return 'in ' + Math.ceil(diff / 3600000) + 'h';
+    return 'in ' + Math.ceil(diff / 86400000) + 'd';
+  }
+
+  function formatJobTime(timestamp) {
+    if (!timestamp) return '';
+    var d = new Date(timestamp);
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mi = String(d.getMinutes()).padStart(2, '0');
+    return mm + '-' + dd + ' ' + hh + ':' + mi;
+  }
+
+  // ============================================================
+  // Export Tab
+  // ============================================================
+
+  function initExportTab() {
+    google.script.run
+      .withSuccessHandler(function(status) {
+        var ossConfigured = !!(status && status.configured);
+        if (ossConfigured) {
+          document.getElementById('exportNotConfigured').style.display = 'none';
+          document.getElementById('exportForm').style.display = 'block';
+          loadExportPreferences();
+          if (sheetNames.length === 0) {
+            refreshSheetNames(renderExportSheetList);
+          } else {
+            renderExportSheetList();
+          }
+        } else {
+          document.getElementById('exportNotConfigured').style.display = 'block';
+          document.getElementById('exportForm').style.display = 'none';
+        }
+      })
+      .withFailureHandler(function() {
+        document.getElementById('exportNotConfigured').style.display = 'block';
+        document.getElementById('exportForm').style.display = 'none';
+      })
+      .getOssExportStatus();
+  }
+
+  function loadExportPreferences() {
+    var prefs = (__INIT__ && __INIT__.exportPreferences) || {};
+    document.getElementById('exportPrefix').value = prefs.prefix || '';
+    document.getElementById('exportTemplate').value = prefs.template || '{prefix}{sheet}_{date}.csv';
+  }
+
+  function renderExportSheetList() {
+    var container = document.getElementById('exportSheetItems');
+    container.innerHTML = '';
+    var names = sheetNames || [];
+    exportState.selectedSheets = {};
+
+    for (var i = 0; i < names.length; i++) {
+      exportState.selectedSheets[names[i]] = true;
+      var item = document.createElement('div');
+      item.className = 'sheet-list-item';
+      item.innerHTML =
+        '<label><input type="checkbox" checked data-sheet="' + escapeHtml(names[i]) + '" onchange="onExportSheetCheckChange(this)"> ' +
+        escapeHtml(names[i]) + '</label>' +
+        '<span class="sheet-list-preview" id="preview-' + i + '"></span>';
+      container.appendChild(item);
+    }
+
+    document.getElementById('exportSelectAll').checked = true;
+    onExportConfigChange();
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function onExportSelectAllChange() {
+    var checked = document.getElementById('exportSelectAll').checked;
+    var checkboxes = document.querySelectorAll('#exportSheetItems input[type=checkbox]');
+    for (var i = 0; i < checkboxes.length; i++) {
+      checkboxes[i].checked = checked;
+      var name = checkboxes[i].getAttribute('data-sheet');
+      exportState.selectedSheets[name] = checked;
+    }
+    onExportConfigChange();
+  }
+
+  function onExportSheetCheckChange(cb) {
+    var name = cb.getAttribute('data-sheet');
+    exportState.selectedSheets[name] = cb.checked;
+
+    var checkboxes = document.querySelectorAll('#exportSheetItems input[type=checkbox]');
+    var allChecked = true;
+    for (var i = 0; i < checkboxes.length; i++) {
+      if (!checkboxes[i].checked) { allChecked = false; break; }
+    }
+    document.getElementById('exportSelectAll').checked = allChecked;
+    onExportConfigChange();
+  }
+
+  function onExportConfigChange() {
+    clearTimeout(exportState.validationTimer);
+    exportState.validationTimer = setTimeout(function() {
+      updateExportPreviews();
+      validateExportConfig();
+    }, 150);
+  }
+
+  function sanitizeSheetName(name) {
+    return (name || 'export').replace(/[^a-zA-Z0-9_一-鿿-]/g, '_');
+  }
+
+
+  function computeObjectKey(template, prefix, sheetName) {
+    var now = new Date();
+    var date = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
+    var time = String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0') +
+      String(now.getSeconds()).padStart(2, '0');
+    var timestamp = date + '_' + time;
+    var safeName = sanitizeSheetName(sheetName);
+
+    return template
+      .replace(/\{prefix\}/g, prefix)
+      .replace(/\{sheet\}/g, safeName)
+      .replace(/\{date\}/g, date)
+      .replace(/\{time\}/g, time)
+      .replace(/\{timestamp\}/g, timestamp);
+  }
+
+  function updateExportPreviews() {
+    var prefix = document.getElementById('exportPrefix').value;
+    var template = document.getElementById('exportTemplate').value || '{prefix}{sheet}_{date}.csv';
+    var names = sheetNames || [];
+
+    for (var i = 0; i < names.length; i++) {
+      var el = document.getElementById('preview-' + i);
+      if (el) {
+        if (exportState.selectedSheets[names[i]]) {
+          el.textContent = computeObjectKey(template, prefix, names[i]);
+          el.title = el.textContent;
+        } else {
+          el.textContent = '';
+          el.title = '';
+        }
+      }
+    }
+
+    var selected = getSelectedSheetNames();
+    document.getElementById('exportSheetCount').textContent =
+      selected.length + ' / ' + names.length;
+  }
+
+  function validateExportConfig() {
+    var prefix = document.getElementById('exportPrefix').value;
+    var template = document.getElementById('exportTemplate').value || '{prefix}{sheet}_{date}.csv';
+    var selected = getSelectedSheetNames();
+    var errors = [];
+
+    var prefixEl = document.getElementById('exportPrefixValidation');
+    if (prefix.indexOf('\\') !== -1) {
+      prefixEl.className = 'export-validation error';
+      prefixEl.textContent = t('exportValidationBackslash');
+      errors.push('prefix');
+    } else if (/^\//.test(prefix)) {
+      prefixEl.className = 'export-validation error';
+      prefixEl.textContent = t('exportValidationLeadingSlash');
+      errors.push('prefix');
+    } else {
+      prefixEl.className = 'export-validation';
+      prefixEl.textContent = '';
+    }
+
+    var templateEl = document.getElementById('exportTemplateValidation');
+    if (selected.length >= 2 && template.indexOf('{sheet}') === -1) {
+      templateEl.className = 'export-validation error';
+      templateEl.textContent = t('exportValidationNoSheet');
+      errors.push('template');
+    } else {
+      var keys = {};
+      var duplicates = [];
+      for (var i = 0; i < selected.length; i++) {
+        var key = computeObjectKey(template, prefix, selected[i]);
+        if (keys[key]) {
+          duplicates.push(selected[i] + ' / ' + keys[key]);
+        } else {
+          keys[key] = selected[i];
+        }
+      }
+      if (duplicates.length > 0) {
+        templateEl.className = 'export-validation error';
+        templateEl.textContent = t('exportValidationDuplicate') + ': ' + duplicates[0];
+        errors.push('template');
+      } else {
+        var maxLen = 0;
+        for (var i = 0; i < selected.length; i++) {
+          var k = computeObjectKey(template, prefix, selected[i]);
+          if (k.length > maxLen) maxLen = k.length;
+        }
+        if (maxLen > 1023) {
+          templateEl.className = 'export-validation error';
+          templateEl.textContent = t('exportValidationTooLong') + ' (' + maxLen + ')';
+          errors.push('template');
+        } else if (maxLen > 900) {
+          templateEl.className = 'export-validation warning';
+          templateEl.textContent = t('exportValidationNearLimit') + ' (' + maxLen + ')';
+        } else {
+          templateEl.className = 'export-validation';
+          templateEl.textContent = '';
+        }
+      }
+    }
+
+    var btn = document.getElementById('btnExport');
+    var canExport = errors.length === 0 && selected.length > 0 && !exportState.inProgress;
+    btn.disabled = !canExport;
+    btn.querySelector('#btnExportText').textContent =
+      selected.length > 0 ? t('exportSelected') + ' (' + selected.length + ')' : t('exportBtn');
+  }
+
+  function getSelectedSheetNames() {
+    var result = [];
+    var names = sheetNames || [];
+    for (var i = 0; i < names.length; i++) {
+      if (exportState.selectedSheets[names[i]]) {
+        result.push(names[i]);
+      }
+    }
+    return result;
+  }
+
+  function startBatchExport() {
+    if (exportState.inProgress) return;
+    var selected = getSelectedSheetNames();
+    if (selected.length === 0) return;
+
+    var prefix = document.getElementById('exportPrefix').value;
+    var template = document.getElementById('exportTemplate').value || '{prefix}{sheet}_{date}.csv';
+
+    exportState.inProgress = true;
+    var btn = document.getElementById('btnExport');
+    btn.disabled = true;
+
+    var resultPanel = document.getElementById('exportResult');
+    resultPanel.style.display = 'block';
+    resultPanel.innerHTML = '';
+
+    var successCount = 0;
+    var failCount = 0;
+    var index = 0;
+
+    function exportNext() {
+      if (index >= selected.length) {
+        exportState.inProgress = false;
+        btn.disabled = false;
+        validateExportConfig();
+        var summary = document.createElement('div');
+        summary.style.cssText = 'margin-top:8px;padding:8px;border-radius:4px;font-weight:500;font-size:12px;';
+        if (failCount === 0) {
+          summary.style.background = 'var(--success-bg)';
+          summary.style.color = 'var(--success)';
+          summary.textContent = t('exportAllDone') + ': ' + successCount + ' ' + t('exportSelected_');
+        } else {
+          summary.style.background = 'var(--warning-bg)';
+          summary.style.color = '#b45309';
+          summary.textContent = t('exportPartialDone') + ': ' + successCount + ' ' + t('exportSuccessCount') + ', ' + failCount + ' ' + t('exportFailCount');
+        }
+        resultPanel.appendChild(summary);
+
+        if (successCount > 0) {
+          google.script.run.saveExportPreferences(prefix, template);
+        }
+        return;
+      }
+
+      var sheetName = selected[index];
+      var objectKey = computeObjectKey(template, prefix, sheetName);
+
+      var itemEl = document.createElement('div');
+      itemEl.className = 'export-result-item';
+      itemEl.innerHTML = '<span class="spinner spinner-sm"></span> ' + escapeHtml(sheetName);
+      resultPanel.appendChild(itemEl);
+
+      btn.querySelector('#btnExportText').textContent =
+        t('exportExporting') + ' (' + (index + 1) + '/' + selected.length + ')';
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCount++;
+            itemEl.innerHTML = '<span class="icon-success">✓</span> ' +
+              escapeHtml(sheetName) + ' <span style="color:var(--text-secondary);font-size:11px;">(' +
+              result.rows + ' rows, ' + result.sizeFormatted + ')</span>';
+          } else {
+            failCount++;
+            itemEl.innerHTML = '<span class="icon-error">✗</span> ' +
+              escapeHtml(sheetName) + ' <span style="color:var(--danger);font-size:11px;">' + t('exportFailed') + '</span>';
+          }
+          index++;
+          exportNext();
+        })
+        .withFailureHandler(function(err) {
+          failCount++;
+          var msg = (err && err.message) ? err.message : String(err || '');
+          itemEl.innerHTML = '<span class="icon-error">✗</span> ' +
+            escapeHtml(sheetName) + ' <span style="color:var(--danger);font-size:11px;">' +
+            escapeHtml(msg) + '</span>';
+          index++;
+          exportNext();
+        })
+        .exportSheetToCsv(sheetName, objectKey);
+    }
+
+    exportNext();
+  }
+
+</script>
+
+</body>
+</html>

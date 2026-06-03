@@ -1,0 +1,1237 @@
+<!-- Copyright 2024-2026 Alibaba Cloud. Licensed under the Apache License, Version 2.0. -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    /* ── Carbon-inspired tokens (aligned with Sidebar.html) ── */
+    :root {
+      --seed-bg: #ffffff;
+      --seed-fg: #161616;
+      --seed-primary: #0f62fe;
+      --seed-surface: #f4f4f4;
+      --seed-radius: 4px;
+      --bg-page: var(--seed-bg);
+      --bg-surface: var(--seed-surface);
+      --bg-hover: #e8e8e8;
+      --bg-active: #e0e0e0;
+      --text-primary: var(--seed-fg);
+      --text-secondary: #525252;
+      --text-inverse: #ffffff;
+      --border-subtle: #e0e0e0;
+      --border-default: #c6c6c6;
+      --accent: var(--seed-primary);
+      --accent-hover: #0043ce;
+      --accent-subtle: #e8f0fe;
+      --success: #24a148;
+      --success-bg: #e6f4ea;
+      --warning: #f1c21b;
+      --warning-bg: #fff8e1;
+      --danger: #da1e28;
+      --danger-bg: #fce8e8;
+      --info: var(--seed-primary);
+      --info-bg: #e8f0fe;
+      --shadow-raised: 0 2px 6px rgba(0,0,0,0.08);
+      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --radius-sm: 2px;
+      --radius-md: var(--seed-radius);
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background: var(--bg-page);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Content ── */
+    main { padding: var(--space-md); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      font-family: var(--font-sans);
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--accent); color: var(--text-inverse); border-color: var(--accent);
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--bg-page); color: var(--text-primary); border-color: var(--border-default);
+    }
+    .btn-secondary:hover:not(:disabled) { background: var(--bg-surface); }
+    .btn-ghost {
+      background: transparent; color: var(--text-secondary); border-color: transparent;
+    }
+    .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); }
+    .btn-block { width: 100%; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-page);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-md);
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .card-title {
+      font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-body { padding: var(--space-md); }
+
+    /* ── Inputs ── */
+    .input-group { margin-bottom: var(--space-md); }
+    .input-group:last-child { margin-bottom: 0; }
+    .input-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .input-field {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-page);
+      color: var(--text-primary);
+      transition: border-color 0.15s ease;
+    }
+    .input-field:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-subtle);
+    }
+    .input-field:disabled { background: var(--bg-surface); color: var(--text-secondary); }
+    select.input-field {
+      font-family: var(--font-sans);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 24px;
+      cursor: pointer;
+    }
+
+    .required {
+      color: var(--danger);
+      margin-left: 2px;
+      font-weight: 600;
+    }
+
+    /* ── Custom Endpoint ── */
+    .custom-endpoint-wrapper {
+      margin-top: var(--space-sm);
+      display: none;
+    }
+    .custom-endpoint-wrapper.visible { display: block; }
+
+    /* ── Password toggle ── */
+    .password-toggle { position: relative; }
+    .password-toggle .input-field { padding-right: 56px; }
+    .password-toggle .toggle-btn {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+    .password-toggle .toggle-btn:hover {
+      color: var(--accent);
+      background: var(--bg-hover);
+    }
+
+    /* ── Field hint ── */
+    .field-hint {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    .field-hint:empty { display: none; }
+
+    /* ── Checkbox row ── */
+    .checkbox-row {
+      margin-top: var(--space-sm);
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .checkbox-row.visible { display: flex; }
+    .checkbox-row input { margin: 0; cursor: pointer; }
+
+    /* ── Action row ── */
+    .action-row {
+      display: flex;
+      gap: var(--space-sm);
+      padding: var(--space-md);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-page);
+    }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+    .btn-secondary .spinner {
+      border: 2px solid var(--info-bg);
+      border-top-color: var(--info);
+    }
+    .btn.loading .btn-text { display: none; }
+    .btn.loading .spinner { display: inline-block; }
+
+    /* ── Result panel ── */
+    .result-panel {
+      margin: 0 var(--space-md) var(--space-md);
+      padding: 8px var(--space-md);
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      line-height: 1.5;
+      display: none;
+      border: 1px solid transparent;
+    }
+    .result-panel.visible { display: block; }
+    .result-panel.success {
+      background: var(--success-bg);
+      color: var(--success);
+      border-color: var(--success);
+    }
+    .result-panel.error {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .result-panel.info {
+      background: var(--info-bg);
+      color: var(--info);
+      border-color: var(--info);
+    }
+  </style>
+</head>
+
+<body>
+
+  <main>
+    <!-- ============ MaxCompute Required ============ -->
+    <article class="card">
+      <div class="card-header">
+        <span class="card-title" id="sectionRequired">MaxCompute · Required</span>
+      </div>
+      <div class="card-body">
+        <div class="input-group">
+          <label class="input-label" for="accessKeyId" id="labelAccessKeyId">AccessKey ID<span class="required">*</span></label>
+          <input class="input-field" type="text" id="accessKeyId" placeholder="LTAI..." maxlength="128" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="accessKeySecret" id="labelAccessKeySecret">AccessKey Secret<span class="required">*</span></label>
+          <div class="password-toggle">
+            <input class="input-field" type="password" id="accessKeySecret" placeholder="" maxlength="256" autocomplete="new-password" spellcheck="false">
+            <button type="button" class="toggle-btn" onclick="toggleSensitiveField('accessKeySecret', 'toggleSecretBtn')" id="toggleSecretBtn">Show</button>
+          </div>
+          <div class="field-hint" id="secretHint"></div>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="project" id="labelProject">Project<span class="required">*</span></label>
+          <input class="input-field" type="text" id="project" placeholder="my_project" maxlength="128" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="endpointSelect" id="labelEndpoint">Endpoint<span class="required">*</span></label>
+          <select class="input-field" id="endpointSelect" onchange="onEndpointChange()">
+            <optgroup label="" id="optGroupChina"></optgroup>
+            <optgroup label="" id="optGroupAp"></optgroup>
+            <optgroup label="" id="optGroupEu"></optgroup>
+            <optgroup label="" id="optGroupMe"></optgroup>
+            <optgroup label="" id="optGroupCustom">
+              <option value="custom" id="optionCustom"></option>
+            </optgroup>
+          </select>
+          <div class="custom-endpoint-wrapper" id="customEndpointWrapper">
+            <input class="input-field" type="text" id="customEndpoint" placeholder="https://service.{region}.maxcompute.aliyun.com/api" maxlength="256" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ============ MaxCompute Optional ============ -->
+    <article class="card">
+      <div class="card-header">
+        <span class="card-title" id="sectionOptional">MaxCompute · Optional</span>
+      </div>
+      <div class="card-body">
+        <div class="input-group">
+          <label class="input-label" for="securityToken" id="labelToken">Security Token</label>
+          <div class="password-toggle">
+            <input class="input-field" type="password" id="securityToken" placeholder="" maxlength="4096" autocomplete="new-password" spellcheck="false">
+            <button type="button" class="toggle-btn" onclick="toggleSensitiveField('securityToken', 'toggleTokenBtn')" id="toggleTokenBtn">Show</button>
+          </div>
+          <div class="field-hint" id="tokenHint"></div>
+          <label class="checkbox-row" id="clearTokenRow">
+            <input type="checkbox" id="clearSecurityToken">
+            <span id="clearTokenText">Clear saved Security Token</span>
+          </label>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary btn-block" id="btnSave" onclick="saveSettings()">
+          <span class="spinner"></span>
+          <span class="btn-text" id="btnSaveText">Save</span>
+        </button>
+        <button class="btn btn-secondary btn-block" id="btnTest" onclick="testConnection()">
+          <span class="spinner"></span>
+          <span class="btn-text" id="btnTestText">Test Connection</span>
+        </button>
+      </div>
+      <div class="result-panel" id="resultPanel"></div>
+    </article>
+
+    <!-- ============ OSS Export ============ -->
+    <article class="card">
+      <div class="card-header">
+        <span class="card-title" id="sectionOss">OSS Export</span>
+      </div>
+      <div class="card-body">
+        <div class="input-group">
+          <label class="input-label" for="ossAccessKeyId" id="labelOssAccessKeyId">OSS AccessKey ID</label>
+          <input class="input-field" type="text" id="ossAccessKeyId" placeholder="LTAI..." maxlength="128" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="ossAccessKeySecret" id="labelOssAccessKeySecret">OSS AccessKey Secret</label>
+          <div class="password-toggle">
+            <input class="input-field" type="password" id="ossAccessKeySecret" placeholder="" maxlength="256" autocomplete="new-password" spellcheck="false">
+            <button type="button" class="toggle-btn" onclick="toggleSensitiveField('ossAccessKeySecret', 'toggleOssSecretBtn')" id="toggleOssSecretBtn">Show</button>
+          </div>
+          <div class="field-hint" id="ossSecretHint"></div>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="ossEndpointSelect" id="labelOssEndpoint">OSS Endpoint</label>
+          <select class="input-field" id="ossEndpointSelect" onchange="onOssEndpointChange()">
+            <optgroup label="" id="ossOptGroupChina"></optgroup>
+            <optgroup label="" id="ossOptGroupAp"></optgroup>
+            <optgroup label="" id="ossOptGroupEu"></optgroup>
+            <optgroup label="" id="ossOptGroupMe"></optgroup>
+          </select>
+          <div class="field-hint" id="ossEndpointHint"></div>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="ossBucket" id="labelOssBucket">OSS Bucket</label>
+          <input class="input-field" type="text" id="ossBucket" placeholder="my-bucket" maxlength="63" autocomplete="off" spellcheck="false">
+          <div class="field-hint" id="ossBucketHint"></div>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" for="ossSecurityToken" id="labelOssToken">OSS Security Token</label>
+          <div class="password-toggle">
+            <input class="input-field" type="password" id="ossSecurityToken" placeholder="" maxlength="4096" autocomplete="new-password" spellcheck="false">
+            <button type="button" class="toggle-btn" onclick="toggleSensitiveField('ossSecurityToken', 'toggleOssTokenBtn')" id="toggleOssTokenBtn">Show</button>
+          </div>
+          <div class="field-hint" id="ossTokenHint"></div>
+          <label class="checkbox-row" id="ossClearTokenRow">
+            <input type="checkbox" id="ossClearSecurityToken">
+            <span id="ossClearTokenText">Clear saved OSS Security Token</span>
+          </label>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary btn-block" id="btnOssSave" onclick="saveOssSettings()">
+          <span class="spinner"></span>
+          <span class="btn-text" id="btnOssSaveText">Save</span>
+        </button>
+        <button class="btn btn-secondary btn-block" id="btnOssTest" onclick="testOssConn()">
+          <span class="spinner"></span>
+          <span class="btn-text" id="btnOssTestText">Test Connection</span>
+        </button>
+      </div>
+      <div class="result-panel" id="ossResultPanel"></div>
+    </article>
+  </main>
+
+<script>
+
+  var currentLang = 'en';
+  var existingSecretConfigured = false;
+  var existingTokenConfigured = false;
+  var existingOssSecretConfigured = false;
+  var existingOssTokenConfigured = false;
+
+  var CONFIG_FIELD_LIMITS = {
+    accessKeyId: { label: 'AccessKey ID', max: 128 },
+    accessKeySecret: { label: 'AccessKey Secret', max: 256 },
+    project: { label: 'Project', max: 128 },
+    endpoint: { label: 'Endpoint', max: 256 },
+    securityToken: { label: 'Security Token', max: 4096 }
+  };
+
+  var OSS_CONFIG_FIELD_LIMITS = {
+    accessKeyId: { label: 'OSS AccessKey ID', max: 128 },
+    accessKeySecret: { label: 'OSS AccessKey Secret', max: 256 },
+    bucket: { label: 'OSS Bucket', max: 63 },
+    endpoint: { label: 'OSS Endpoint', max: 128 },
+    securityToken: { label: 'OSS Security Token', max: 4096 }
+  };
+
+  // 预设的 MC endpoint 列表
+  var presetEndpoints = [
+    'https://service.cn-hangzhou.maxcompute.aliyun.com/api',
+    'https://service.cn-shanghai.maxcompute.aliyun.com/api',
+    'https://service.cn-beijing.maxcompute.aliyun.com/api',
+    'https://service.cn-zhangjiakou.maxcompute.aliyun.com/api',
+    'https://service.cn-wulanchabu.maxcompute.aliyun.com/api',
+    'https://service.cn-shenzhen.maxcompute.aliyun.com/api',
+    'https://service.cn-chengdu.maxcompute.aliyun.com/api',
+    'https://service.cn-hongkong.maxcompute.aliyun.com/api',
+    'https://service.cn-hangzhou-finance.maxcompute.aliyun.com/api',
+    'https://service.cn-shanghai-finance-1.maxcompute.aliyun.com/api',
+    'https://service.cn-shenzhen-finance-1.maxcompute.aliyun.com/api',
+    'https://service.cn-north-2-gov-1.maxcompute.aliyun.com/api',
+    'https://service.ap-southeast-1.maxcompute.aliyun.com/api',
+    'https://service.ap-southeast-3.maxcompute.aliyun.com/api',
+    'https://service.ap-southeast-5.maxcompute.aliyun.com/api',
+    'https://service.ap-northeast-1.maxcompute.aliyun.com/api',
+    'https://service.ap-northeast-2.maxcompute.aliyun.com/api',
+    'https://service.eu-central-1.maxcompute.aliyun.com/api',
+    'https://service.eu-west-1.maxcompute.aliyun.com/api',
+    'https://service.us-west-1.maxcompute.aliyun.com/api',
+    'https://service.us-east-1.maxcompute.aliyun.com/api',
+    'https://service.na-south-1.maxcompute.aliyun.com/api',
+    'https://service.me-east-1.maxcompute.aliyun.com/api',
+    'https://service.me-central-1.maxcompute.aliyun.com/api'
+  ];
+
+  var i18n = {
+    zh: {
+      sectionRequired: 'MaxCompute · 必填',
+      sectionOptional: 'MaxCompute · 可选',
+      sectionOss: 'OSS Export',
+      labelAccessKeyId: 'AccessKey ID<span class="required">*</span>',
+      labelAccessKeySecret: 'AccessKey Secret<span class="required">*</span>',
+      labelProject: 'Project<span class="required">*</span>',
+      labelEndpoint: 'Endpoint<span class="required">*</span>',
+      labelToken: 'Security Token',
+      labelOssAccessKeyId: 'OSS AccessKey ID',
+      labelOssAccessKeySecret: 'OSS AccessKey Secret',
+      labelOssEndpoint: 'OSS Endpoint',
+      labelOssBucket: 'OSS Bucket',
+      labelOssToken: 'OSS Security Token',
+      optGroupChina: '中国大陆',
+      optGroupAp: '亚太',
+      optGroupEu: '欧洲与美洲',
+      optGroupMe: '中东',
+      optionCustom: '自定义 Endpoint...',
+      // 中国大陆
+      endpointHangzhou: '华东 1（杭州）',
+      endpointShanghai: '华东 2（上海）',
+      endpointBeijing: '华北 2（北京）',
+      endpointZhangjiakou: '华北 3（张家口）',
+      endpointWulanchabu: '华北 6（乌兰察布）',
+      endpointShenzhen: '华南 1（深圳）',
+      endpointChengdu: '西南 1（成都）',
+      endpointHongkong: '中国香港',
+      endpointHangzhouFinance: '华东 1 金融云（杭州）',
+      endpointShanghaiFinance: '华东 2 金融云（上海）',
+      endpointShenzhenFinance: '华南 1 金融云（深圳）',
+      endpointBeijingGov: '华北 2 政务云（北京）',
+      endpointSingapore: '新加坡',
+      endpointKualaLumpur: '马来西亚（吉隆坡）',
+      endpointJakarta: '印度尼西亚（雅加达）',
+      endpointTokyo: '日本（东京）',
+      endpointSeoul: '韩国（首尔）',
+      endpointFrankfurt: '德国（法兰克福）',
+      endpointLondon: '英国（伦敦）',
+      endpointSiliconValley: '美国（硅谷）',
+      endpointVirginia: '美国（弗吉尼亚）',
+      endpointMexico: '墨西哥',
+      endpointDubai: '阿联酋（迪拜）',
+      endpointRiyadh: '沙特（利雅得）',
+      btnSave: '保存',
+      btnTest: '测试连接',
+      btnOssSave: '保存',
+      btnOssTest: '测试连接',
+      errorRequired: '请填写所有必填项',
+      errorInvalidEndpoint: 'Endpoint 格式不正确，应为 https://service.{region}.maxcompute.aliyun.com/api',
+      errorFieldTooLong: '{field} 长度超过限制（最多 {max} 字符）',
+      errorOssRequired: '请填写 OSS 所有必填项（AccessKey ID/Secret、Endpoint、Bucket）',
+      errorInvalidOssEndpoint: 'OSS Endpoint 格式不正确，应为 oss-{region}（如 oss-cn-hangzhou）',
+      errorInvalidOssBucket: 'OSS Bucket 名称不合法（3-63 字符，小写字母/数字/短横线，不能以短横线开头或结尾）',
+      saving: '保存中...',
+      saved: '配置已保存，即将关闭...',
+      testing: '正在测试连接...',
+      testSuccess: '连接正常',
+      testFailed: '连接失败',
+      ossSaving: '保存 OSS 配置中...',
+      ossSaved: 'OSS 配置已保存',
+      ossTesting: '正在测试 OSS 连接...',
+      toggleShow: 'Hide',
+      toggleHide: 'Show',
+      secretConfiguredHint: '已配置：{masked}。留空表示保持不变。',
+      tokenConfiguredHint: '已配置：{masked}。留空表示保持不变。',
+      ossSecretConfiguredHint: '已配置：{masked}。留空表示保持不变。',
+      ossTokenConfiguredHint: '已配置：{masked}。留空表示保持不变。',
+      clearToken: '清除已保存的 Security Token',
+      clearOssToken: '清除已保存的 OSS Security Token',
+      ossEndpointHint: '格式：oss-{region}（如 oss-cn-hangzhou）',
+      ossBucketHint: '3-63 字符，小写字母/数字/短横线'
+    },
+    en: {
+      sectionRequired: 'MaxCompute · Required',
+      sectionOptional: 'MaxCompute · Optional',
+      sectionOss: 'OSS Export',
+      labelAccessKeyId: 'AccessKey ID<span class="required">*</span>',
+      labelAccessKeySecret: 'AccessKey Secret<span class="required">*</span>',
+      labelProject: 'Project<span class="required">*</span>',
+      labelEndpoint: 'Endpoint<span class="required">*</span>',
+      labelToken: 'Security Token',
+      labelOssAccessKeyId: 'OSS AccessKey ID',
+      labelOssAccessKeySecret: 'OSS AccessKey Secret',
+      labelOssEndpoint: 'OSS Endpoint',
+      labelOssBucket: 'OSS Bucket',
+      labelOssToken: 'OSS Security Token',
+      optGroupChina: 'China',
+      optGroupAp: 'Asia Pacific',
+      optGroupEu: 'Europe & Americas',
+      optGroupMe: 'Middle East',
+      optionCustom: 'Custom Endpoint...',
+      endpointHangzhou: 'China (Hangzhou)',
+      endpointShanghai: 'China (Shanghai)',
+      endpointBeijing: 'China (Beijing)',
+      endpointZhangjiakou: 'China (Zhangjiakou)',
+      endpointWulanchabu: 'China (Ulanqab)',
+      endpointShenzhen: 'China (Shenzhen)',
+      endpointChengdu: 'China (Chengdu)',
+      endpointHongkong: 'Hong Kong',
+      endpointHangzhouFinance: 'China Finance (Hangzhou)',
+      endpointShanghaiFinance: 'China Finance (Shanghai)',
+      endpointShenzhenFinance: 'China Finance (Shenzhen)',
+      endpointBeijingGov: 'China Gov (Beijing)',
+      endpointSingapore: 'Singapore',
+      endpointKualaLumpur: 'Malaysia (Kuala Lumpur)',
+      endpointJakarta: 'Indonesia (Jakarta)',
+      endpointTokyo: 'Japan (Tokyo)',
+      endpointSeoul: 'South Korea (Seoul)',
+      endpointFrankfurt: 'Germany (Frankfurt)',
+      endpointLondon: 'UK (London)',
+      endpointSiliconValley: 'US (Silicon Valley)',
+      endpointVirginia: 'US (Virginia)',
+      endpointMexico: 'Mexico',
+      endpointDubai: 'UAE (Dubai)',
+      endpointRiyadh: 'SAU (Riyadh - Partner Region)',
+      btnSave: 'Save',
+      btnTest: 'Test Connection',
+      btnOssSave: 'Save',
+      btnOssTest: 'Test Connection',
+      errorRequired: 'Please fill all required fields',
+      errorInvalidEndpoint: 'Invalid endpoint. Expected https://service.{region}.maxcompute.aliyun.com/api',
+      errorFieldTooLong: '{field} is too long. Maximum length is {max} characters.',
+      errorOssRequired: 'Please fill all OSS required fields (AccessKey ID/Secret, Endpoint, Bucket)',
+      errorInvalidOssEndpoint: 'Invalid OSS endpoint. Expected oss-{region} (e.g. oss-cn-hangzhou)',
+      errorInvalidOssBucket: 'Invalid OSS bucket name (3-63 chars, lowercase/digit/hyphen, cannot start or end with hyphen)',
+      saving: 'Saving...',
+      saved: 'Settings saved, closing...',
+      testing: 'Testing connection...',
+      testSuccess: 'Connection OK',
+      testFailed: 'Connection failed',
+      ossSaving: 'Saving OSS config...',
+      ossSaved: 'OSS config saved',
+      ossTesting: 'Testing OSS connection...',
+      toggleShow: 'Hide',
+      toggleHide: 'Show',
+      secretConfiguredHint: 'Configured: {masked}. Leave blank to keep it unchanged.',
+      tokenConfiguredHint: 'Configured: {masked}. Leave blank to keep it unchanged.',
+      ossSecretConfiguredHint: 'Configured: {masked}. Leave blank to keep it unchanged.',
+      ossTokenConfiguredHint: 'Configured: {masked}. Leave blank to keep it unchanged.',
+      clearToken: 'Clear saved Security Token',
+      clearOssToken: 'Clear saved OSS Security Token',
+      ossEndpointHint: 'Format: oss-{region} (e.g. oss-cn-hangzhou)',
+      ossBucketHint: '3-63 chars, lowercase letters/digits/hyphens'
+    }
+  };
+
+  // MC Endpoint 选项数据（按分组）
+  var endpointGroups = {
+    china: [
+      { value: 'https://service.cn-hangzhou.maxcompute.aliyun.com/api', i18nKey: 'endpointHangzhou' },
+      { value: 'https://service.cn-shanghai.maxcompute.aliyun.com/api', i18nKey: 'endpointShanghai' },
+      { value: 'https://service.cn-beijing.maxcompute.aliyun.com/api', i18nKey: 'endpointBeijing' },
+      { value: 'https://service.cn-zhangjiakou.maxcompute.aliyun.com/api', i18nKey: 'endpointZhangjiakou' },
+      { value: 'https://service.cn-wulanchabu.maxcompute.aliyun.com/api', i18nKey: 'endpointWulanchabu' },
+      { value: 'https://service.cn-shenzhen.maxcompute.aliyun.com/api', i18nKey: 'endpointShenzhen' },
+      { value: 'https://service.cn-chengdu.maxcompute.aliyun.com/api', i18nKey: 'endpointChengdu' },
+      { value: 'https://service.cn-hongkong.maxcompute.aliyun.com/api', i18nKey: 'endpointHongkong' },
+      { value: 'https://service.cn-hangzhou-finance.maxcompute.aliyun.com/api', i18nKey: 'endpointHangzhouFinance' },
+      { value: 'https://service.cn-shanghai-finance-1.maxcompute.aliyun.com/api', i18nKey: 'endpointShanghaiFinance' },
+      { value: 'https://service.cn-shenzhen-finance-1.maxcompute.aliyun.com/api', i18nKey: 'endpointShenzhenFinance' },
+      { value: 'https://service.cn-north-2-gov-1.maxcompute.aliyun.com/api', i18nKey: 'endpointBeijingGov' }
+    ],
+    ap: [
+      { value: 'https://service.ap-southeast-1.maxcompute.aliyun.com/api', i18nKey: 'endpointSingapore' },
+      { value: 'https://service.ap-southeast-3.maxcompute.aliyun.com/api', i18nKey: 'endpointKualaLumpur' },
+      { value: 'https://service.ap-southeast-5.maxcompute.aliyun.com/api', i18nKey: 'endpointJakarta' },
+      { value: 'https://service.ap-northeast-1.maxcompute.aliyun.com/api', i18nKey: 'endpointTokyo' },
+      { value: 'https://service.ap-northeast-2.maxcompute.aliyun.com/api', i18nKey: 'endpointSeoul' }
+    ],
+    eu: [
+      { value: 'https://service.eu-central-1.maxcompute.aliyun.com/api', i18nKey: 'endpointFrankfurt' },
+      { value: 'https://service.eu-west-1.maxcompute.aliyun.com/api', i18nKey: 'endpointLondon' },
+      { value: 'https://service.us-west-1.maxcompute.aliyun.com/api', i18nKey: 'endpointSiliconValley' },
+      { value: 'https://service.us-east-1.maxcompute.aliyun.com/api', i18nKey: 'endpointVirginia' },
+      { value: 'https://service.na-south-1.maxcompute.aliyun.com/api', i18nKey: 'endpointMexico' }
+    ],
+    me: [
+      { value: 'https://service.me-east-1.maxcompute.aliyun.com/api', i18nKey: 'endpointDubai' },
+      { value: 'https://service.me-central-1.maxcompute.aliyun.com/api', i18nKey: 'endpointRiyadh' }
+    ]
+  };
+
+  // OSS Endpoint 选项数据（按分组），格式 oss-{region}
+  var ossEndpointGroups = {
+    china: [
+      { value: 'oss-cn-hangzhou', i18nKey: 'endpointHangzhou' },
+      { value: 'oss-cn-shanghai', i18nKey: 'endpointShanghai' },
+      { value: 'oss-cn-beijing', i18nKey: 'endpointBeijing' },
+      { value: 'oss-cn-zhangjiakou', i18nKey: 'endpointZhangjiakou' },
+      { value: 'oss-cn-wulanchabu', i18nKey: 'endpointWulanchabu' },
+      { value: 'oss-cn-shenzhen', i18nKey: 'endpointShenzhen' },
+      { value: 'oss-cn-chengdu', i18nKey: 'endpointChengdu' },
+      { value: 'oss-cn-hongkong', i18nKey: 'endpointHongkong' }
+    ],
+    ap: [
+      { value: 'oss-ap-southeast-1', i18nKey: 'endpointSingapore' },
+      { value: 'oss-ap-southeast-3', i18nKey: 'endpointKualaLumpur' },
+      { value: 'oss-ap-southeast-5', i18nKey: 'endpointJakarta' },
+      { value: 'oss-ap-northeast-1', i18nKey: 'endpointTokyo' },
+      { value: 'oss-ap-northeast-2', i18nKey: 'endpointSeoul' }
+    ],
+    eu: [
+      { value: 'oss-eu-central-1', i18nKey: 'endpointFrankfurt' },
+      { value: 'oss-eu-west-1', i18nKey: 'endpointLondon' },
+      { value: 'oss-us-west-1', i18nKey: 'endpointSiliconValley' },
+      { value: 'oss-us-east-1', i18nKey: 'endpointVirginia' },
+      { value: 'oss-na-south-1', i18nKey: 'endpointMexico' }
+    ],
+    me: [
+      { value: 'oss-me-east-1', i18nKey: 'endpointDubai' },
+      { value: 'oss-me-central-1', i18nKey: 'endpointRiyadh' }
+    ]
+  };
+
+  // 初始化
+  (function init() {
+    loadLanguagePreference();
+    loadCurrentSettings();
+    loadOssSettings();
+  })();
+
+  function loadLanguagePreference() {
+    google.script.run
+      .withSuccessHandler(function(lang) {
+        currentLang = lang || 'en';
+        updateLanguageUI();
+      })
+      .withFailureHandler(function() {
+        currentLang = 'en';
+        updateLanguageUI();
+      })
+      .getUserLanguage();
+  }
+
+  function t(key) {
+    return i18n[currentLang][key] || i18n['en'][key] || key;
+  }
+
+  function updateLanguageUI() {
+    document.getElementById('sectionRequired').textContent = t('sectionRequired');
+    document.getElementById('sectionOptional').textContent = t('sectionOptional');
+    document.getElementById('sectionOss').textContent = t('sectionOss');
+    document.getElementById('labelAccessKeyId').innerHTML = t('labelAccessKeyId');
+    document.getElementById('labelAccessKeySecret').innerHTML = t('labelAccessKeySecret');
+    document.getElementById('labelProject').innerHTML = t('labelProject');
+    document.getElementById('labelEndpoint').innerHTML = t('labelEndpoint');
+    document.getElementById('labelToken').innerHTML = t('labelToken');
+    document.getElementById('labelOssAccessKeyId').innerHTML = t('labelOssAccessKeyId');
+    document.getElementById('labelOssAccessKeySecret').innerHTML = t('labelOssAccessKeySecret');
+    document.getElementById('labelOssEndpoint').innerHTML = t('labelOssEndpoint');
+    document.getElementById('labelOssBucket').innerHTML = t('labelOssBucket');
+    document.getElementById('labelOssToken').innerHTML = t('labelOssToken');
+
+    // MC optgroup
+    document.getElementById('optGroupChina').label = t('optGroupChina');
+    document.getElementById('optGroupAp').label = t('optGroupAp');
+    document.getElementById('optGroupEu').label = t('optGroupEu');
+    document.getElementById('optGroupMe').label = t('optGroupMe');
+    document.getElementById('optionCustom').textContent = t('optionCustom');
+
+    // OSS optgroup
+    document.getElementById('ossOptGroupChina').label = t('optGroupChina');
+    document.getElementById('ossOptGroupAp').label = t('optGroupAp');
+    document.getElementById('ossOptGroupEu').label = t('optGroupEu');
+    document.getElementById('ossOptGroupMe').label = t('optGroupMe');
+
+    rebuildEndpointOptions();
+    rebuildOssEndpointOptions();
+
+    document.getElementById('btnSaveText').textContent = t('btnSave');
+    document.getElementById('btnTestText').textContent = t('btnTest');
+    document.getElementById('btnOssSaveText').textContent = t('btnOssSave');
+    document.getElementById('btnOssTestText').textContent = t('btnOssTest');
+    document.getElementById('clearTokenText').textContent = t('clearToken');
+    document.getElementById('ossClearTokenText').textContent = t('clearOssToken');
+    document.getElementById('ossEndpointHint').textContent = t('ossEndpointHint');
+    document.getElementById('ossBucketHint').textContent = t('ossBucketHint');
+
+    updateSensitiveFieldHints();
+    updateOssSensitiveFieldHints();
+  }
+
+  function rebuildEndpointOptions() {
+    var groups = {
+      china: document.getElementById('optGroupChina'),
+      ap: document.getElementById('optGroupAp'),
+      eu: document.getElementById('optGroupEu'),
+      me: document.getElementById('optGroupMe')
+    };
+
+    for (var key in groups) {
+      groups[key].innerHTML = '';
+    }
+
+    for (var groupName in endpointGroups) {
+      var options = endpointGroups[groupName];
+      var groupEl = groups[groupName];
+      for (var i = 0; i < options.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = options[i].value;
+        opt.textContent = t(options[i].i18nKey);
+        groupEl.appendChild(opt);
+      }
+    }
+
+    var savedEndpoint = document.getElementById('endpointSelect').getAttribute('data-saved');
+    if (savedEndpoint) {
+      if (presetEndpoints.indexOf(savedEndpoint) !== -1) {
+        document.getElementById('endpointSelect').value = savedEndpoint;
+      } else if (savedEndpoint === 'custom') {
+        document.getElementById('endpointSelect').value = 'custom';
+      }
+    }
+  }
+
+  function rebuildOssEndpointOptions() {
+    var groups = {
+      china: document.getElementById('ossOptGroupChina'),
+      ap: document.getElementById('ossOptGroupAp'),
+      eu: document.getElementById('ossOptGroupEu'),
+      me: document.getElementById('ossOptGroupMe')
+    };
+
+    for (var key in groups) {
+      groups[key].innerHTML = '';
+    }
+
+    for (var groupName in ossEndpointGroups) {
+      var options = ossEndpointGroups[groupName];
+      var groupEl = groups[groupName];
+      for (var i = 0; i < options.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = options[i].value;
+        opt.textContent = t(options[i].i18nKey);
+        groupEl.appendChild(opt);
+      }
+    }
+
+    var savedOssEndpoint = document.getElementById('ossEndpointSelect').getAttribute('data-saved');
+    if (savedOssEndpoint) {
+      document.getElementById('ossEndpointSelect').value = savedOssEndpoint;
+    }
+  }
+
+  function loadCurrentSettings() {
+    google.script.run
+      .withSuccessHandler(function(config) {
+        if (config.accessKeyId) document.getElementById('accessKeyId').value = config.accessKeyId;
+        if (config.project) document.getElementById('project').value = config.project;
+        existingSecretConfigured = !!config.accessKeySecretConfigured;
+        existingTokenConfigured = !!config.securityTokenConfigured;
+        document.getElementById('accessKeySecret').value = '';
+        document.getElementById('securityToken').value = '';
+        document.getElementById('accessKeySecret').setAttribute('data-masked', config.accessKeySecretMasked || '');
+        document.getElementById('securityToken').setAttribute('data-masked', config.securityTokenMasked || '');
+        updateSensitiveFieldHints();
+
+        if (config.endpoint) {
+          if (presetEndpoints.indexOf(config.endpoint) !== -1) {
+            document.getElementById('endpointSelect').value = config.endpoint;
+          } else {
+            document.getElementById('endpointSelect').value = 'custom';
+            document.getElementById('customEndpoint').value = config.endpoint;
+            document.getElementById('customEndpointWrapper').classList.add('visible');
+          }
+          document.getElementById('endpointSelect').setAttribute('data-saved', config.endpoint);
+        }
+      })
+      .withFailureHandler(function(err) {
+        showResult('error', getSafeServerErrorMessage(err));
+      })
+      .getMcConfigForUi();
+  }
+
+  function loadOssSettings() {
+    google.script.run
+      .withSuccessHandler(function(config) {
+        if (!config) return;
+        if (config.accessKeyId) document.getElementById('ossAccessKeyId').value = config.accessKeyId;
+        if (config.bucket) document.getElementById('ossBucket').value = config.bucket;
+        existingOssSecretConfigured = !!config.accessKeySecretConfigured;
+        existingOssTokenConfigured = !!config.securityTokenConfigured;
+        document.getElementById('ossAccessKeySecret').value = '';
+        document.getElementById('ossSecurityToken').value = '';
+        document.getElementById('ossAccessKeySecret').setAttribute('data-masked', config.accessKeySecretMasked || '');
+        document.getElementById('ossSecurityToken').setAttribute('data-masked', config.securityTokenMasked || '');
+        updateOssSensitiveFieldHints();
+
+        if (config.endpoint) {
+          document.getElementById('ossEndpointSelect').value = config.endpoint;
+          document.getElementById('ossEndpointSelect').setAttribute('data-saved', config.endpoint);
+        }
+      })
+      .withFailureHandler(function(err) {
+        // OSS 配置加载失败不阻塞页面
+      })
+      .getOssConfigForUi();
+  }
+
+  function updateSensitiveFieldHints() {
+    var secretMasked = document.getElementById('accessKeySecret').getAttribute('data-masked') || '';
+    var tokenMasked = document.getElementById('securityToken').getAttribute('data-masked') || '';
+    var secretHint = document.getElementById('secretHint');
+    var tokenHint = document.getElementById('tokenHint');
+    var clearTokenRow = document.getElementById('clearTokenRow');
+
+    if (existingSecretConfigured) {
+      secretHint.textContent = t('secretConfiguredHint').replace('{masked}', secretMasked || '****');
+    } else {
+      secretHint.textContent = '';
+    }
+
+    if (existingTokenConfigured) {
+      tokenHint.textContent = t('tokenConfiguredHint').replace('{masked}', tokenMasked || '****');
+      clearTokenRow.classList.add('visible');
+    } else {
+      tokenHint.textContent = '';
+      clearTokenRow.classList.remove('visible');
+      document.getElementById('clearSecurityToken').checked = false;
+    }
+  }
+
+  function updateOssSensitiveFieldHints() {
+    var secretMasked = document.getElementById('ossAccessKeySecret').getAttribute('data-masked') || '';
+    var tokenMasked = document.getElementById('ossSecurityToken').getAttribute('data-masked') || '';
+    var secretHint = document.getElementById('ossSecretHint');
+    var tokenHint = document.getElementById('ossTokenHint');
+    var clearTokenRow = document.getElementById('ossClearTokenRow');
+
+    if (existingOssSecretConfigured) {
+      secretHint.textContent = t('ossSecretConfiguredHint').replace('{masked}', secretMasked || '****');
+    } else {
+      secretHint.textContent = '';
+    }
+
+    if (existingOssTokenConfigured) {
+      tokenHint.textContent = t('ossTokenConfiguredHint').replace('{masked}', tokenMasked || '****');
+      clearTokenRow.classList.add('visible');
+    } else {
+      tokenHint.textContent = '';
+      clearTokenRow.classList.remove('visible');
+      document.getElementById('ossClearSecurityToken').checked = false;
+    }
+  }
+
+  function onEndpointChange() {
+    var select = document.getElementById('endpointSelect');
+    var wrapper = document.getElementById('customEndpointWrapper');
+
+    if (select.value === 'custom') {
+      wrapper.classList.add('visible');
+      select.setAttribute('data-saved', 'custom');
+    } else {
+      wrapper.classList.remove('visible');
+      select.setAttribute('data-saved', select.value);
+    }
+  }
+
+  function onOssEndpointChange() {
+    var select = document.getElementById('ossEndpointSelect');
+    select.setAttribute('data-saved', select.value);
+  }
+
+  function getEndpoint() {
+    var select = document.getElementById('endpointSelect');
+    if (select.value === 'custom') {
+      return document.getElementById('customEndpoint').value.trim();
+    }
+    return select.value;
+  }
+
+  function getClientEndpointError(endpoint) {
+    endpoint = String(endpoint || '').trim();
+    if (!endpoint) {
+      return t('errorRequired');
+    }
+    if (!/^https:\/\/service\.[a-z0-9-]+\.maxcompute\.aliyun\.com\/api$/i.test(endpoint)) {
+      return t('errorInvalidEndpoint');
+    }
+    return '';
+  }
+
+  function getClientConfigError(config) {
+    for (var key in CONFIG_FIELD_LIMITS) {
+      if (!CONFIG_FIELD_LIMITS.hasOwnProperty(key)) continue;
+      var rule = CONFIG_FIELD_LIMITS[key];
+      var value = String(config[key] || '');
+      if (value.length > rule.max) {
+        return t('errorFieldTooLong')
+          .replace('{field}', rule.label)
+          .replace('{max}', String(rule.max));
+      }
+    }
+    return '';
+  }
+
+  function getClientOssEndpointError(endpoint) {
+    endpoint = String(endpoint || '').trim();
+    if (!endpoint) return t('errorOssRequired');
+    if (!/^oss-[a-z0-9-]+$/.test(endpoint)) return t('errorInvalidOssEndpoint');
+    return '';
+  }
+
+  function getClientOssBucketError(bucket) {
+    bucket = String(bucket || '').trim();
+    if (!bucket) return t('errorOssRequired');
+    if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) return t('errorInvalidOssBucket');
+    return '';
+  }
+
+  function getClientOssConfigError(config) {
+    for (var key in OSS_CONFIG_FIELD_LIMITS) {
+      if (!OSS_CONFIG_FIELD_LIMITS.hasOwnProperty(key)) continue;
+      var rule = OSS_CONFIG_FIELD_LIMITS[key];
+      var value = String(config[key] || '');
+      if (value.length > rule.max) {
+        return t('errorFieldTooLong')
+          .replace('{field}', rule.label)
+          .replace('{max}', String(rule.max));
+      }
+    }
+    return '';
+  }
+
+  function toggleSensitiveField(inputId, buttonId) {
+    var input = document.getElementById(inputId);
+    var btn = document.getElementById(buttonId);
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = t('toggleShow');
+    } else {
+      input.type = 'password';
+      btn.textContent = t('toggleHide');
+    }
+  }
+
+  function setButtonLoading(btnId, loading) {
+    var btn = document.getElementById(btnId);
+    if (loading) {
+      btn.classList.add('loading');
+      btn.disabled = true;
+    } else {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  }
+
+  function saveSettings() {
+    var config = {
+      accessKeyId: document.getElementById('accessKeyId').value.trim(),
+      accessKeySecret: document.getElementById('accessKeySecret').value.trim(),
+      project: document.getElementById('project').value.trim(),
+      endpoint: getEndpoint(),
+      securityToken: document.getElementById('securityToken').value.trim(),
+      clearSecurityToken: document.getElementById('clearSecurityToken').checked
+    };
+
+    if (!config.accessKeyId || (!config.accessKeySecret && !existingSecretConfigured) || !config.project || !config.endpoint) {
+      showResult('error', t('errorRequired'));
+      return;
+    }
+    var endpointError = getClientEndpointError(config.endpoint);
+    if (endpointError) {
+      showResult('error', endpointError);
+      return;
+    }
+    var configError = getClientConfigError(config);
+    if (configError) {
+      showResult('error', configError);
+      return;
+    }
+
+    setButtonLoading('btnSave', true);
+    setButtonLoading('btnTest', true);
+    showResult('info', t('saving'));
+
+    google.script.run
+      .withSuccessHandler(function() {
+        setButtonLoading('btnSave', false);
+        setButtonLoading('btnTest', false);
+        showResult('success', t('saved'));
+        setTimeout(function() {
+          google.script.host.close();
+        }, 1500);
+      })
+      .withFailureHandler(function(err) {
+        setButtonLoading('btnSave', false);
+        setButtonLoading('btnTest', false);
+        showResult('error', getSafeServerErrorMessage(err));
+      })
+      .saveMcConfig(config);
+  }
+
+  function testConnection() {
+    var config = {
+      accessKeyId: document.getElementById('accessKeyId').value.trim(),
+      accessKeySecret: document.getElementById('accessKeySecret').value.trim(),
+      project: document.getElementById('project').value.trim(),
+      endpoint: getEndpoint(),
+      securityToken: document.getElementById('securityToken').value.trim(),
+      clearSecurityToken: document.getElementById('clearSecurityToken').checked
+    };
+
+    if (!config.accessKeyId || (!config.accessKeySecret && !existingSecretConfigured) || !config.project || !config.endpoint) {
+      showResult('error', t('errorRequired'));
+      return;
+    }
+    var endpointError = getClientEndpointError(config.endpoint);
+    if (endpointError) {
+      showResult('error', endpointError);
+      return;
+    }
+    var configError = getClientConfigError(config);
+    if (configError) {
+      showResult('error', configError);
+      return;
+    }
+
+    setButtonLoading('btnTest', true);
+    showResult('info', t('testing'));
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        setButtonLoading('btnTest', false);
+        if (result.success) {
+          showResult('success', result.message);
+        } else {
+          showResult('error', result.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        setButtonLoading('btnTest', false);
+        showResult('error', getSafeServerErrorMessage(err));
+      })
+      .testMcConnection(config);
+  }
+
+  function getOssConfig() {
+    return {
+      accessKeyId: document.getElementById('ossAccessKeyId').value.trim(),
+      accessKeySecret: document.getElementById('ossAccessKeySecret').value.trim(),
+      endpoint: document.getElementById('ossEndpointSelect').value,
+      bucket: document.getElementById('ossBucket').value.trim(),
+      securityToken: document.getElementById('ossSecurityToken').value.trim(),
+      clearSecurityToken: document.getElementById('ossClearSecurityToken').checked
+    };
+  }
+
+  function saveOssSettings() {
+    var config = getOssConfig();
+
+    if (!config.accessKeyId || (!config.accessKeySecret && !existingOssSecretConfigured) || !config.endpoint || !config.bucket) {
+      showOssResult('error', t('errorOssRequired'));
+      return;
+    }
+    var ossEndpointError = getClientOssEndpointError(config.endpoint);
+    if (ossEndpointError) {
+      showOssResult('error', ossEndpointError);
+      return;
+    }
+    var ossBucketError = getClientOssBucketError(config.bucket);
+    if (ossBucketError) {
+      showOssResult('error', ossBucketError);
+      return;
+    }
+    var ossConfigError = getClientOssConfigError(config);
+    if (ossConfigError) {
+      showOssResult('error', ossConfigError);
+      return;
+    }
+
+    setButtonLoading('btnOssSave', true);
+    setButtonLoading('btnOssTest', true);
+    showOssResult('info', t('ossSaving'));
+
+    google.script.run
+      .withSuccessHandler(function() {
+        setButtonLoading('btnOssSave', false);
+        setButtonLoading('btnOssTest', false);
+        showOssResult('success', t('ossSaved'));
+        loadOssSettings();
+      })
+      .withFailureHandler(function(err) {
+        setButtonLoading('btnOssSave', false);
+        setButtonLoading('btnOssTest', false);
+        showOssResult('error', getSafeServerErrorMessage(err));
+      })
+      .saveOssConfig(config);
+  }
+
+  function testOssConn() {
+    var config = getOssConfig();
+
+    if (!config.accessKeyId || (!config.accessKeySecret && !existingOssSecretConfigured) || !config.endpoint || !config.bucket) {
+      showOssResult('error', t('errorOssRequired'));
+      return;
+    }
+    var ossEndpointError = getClientOssEndpointError(config.endpoint);
+    if (ossEndpointError) {
+      showOssResult('error', ossEndpointError);
+      return;
+    }
+    var ossBucketError = getClientOssBucketError(config.bucket);
+    if (ossBucketError) {
+      showOssResult('error', ossBucketError);
+      return;
+    }
+
+    setButtonLoading('btnOssTest', true);
+    showOssResult('info', t('ossTesting'));
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        setButtonLoading('btnOssTest', false);
+        if (result && result.success) {
+          showOssResult('success', result.message);
+        } else {
+          showOssResult('error', (result && result.message) || t('testFailed'));
+        }
+      })
+      .withFailureHandler(function(err) {
+        setButtonLoading('btnOssTest', false);
+        showOssResult('error', getSafeServerErrorMessage(err));
+      })
+      .testOssConnection(config);
+  }
+
+  function getSafeServerErrorMessage(error) {
+    var raw = String(error && error.message ? error.message : error || '');
+    if (!raw) {
+      return 'Server error: messageLen=0';
+    }
+
+    var safePatterns = [
+      /^(?:[A-Za-z][A-Za-z0-9_]*:\s*)?messageLen=\d+$/,
+      /^HTTP\s+\d+$/,
+      /^Endpoint 格式不正确/,
+      /^OSS Endpoint 格式不正确/,
+      /^OSS Bucket 名称不合法/,
+      /长度超过限制（最多 \d+ 字符）$/,
+      /^请填写所有必填项$/,
+      /^Please fill all required fields$/,
+      /^请填写 OSS 所有必填项/,
+      /^请先配置 AccessKey、Project 和 Endpoint/,
+      /^Please configure AccessKey, Project, and Endpoint first$/,
+      /^请先配置 OSS 连接/
+    ];
+    for (var i = 0; i < safePatterns.length; i++) {
+      if (safePatterns[i].test(raw)) {
+        return raw;
+      }
+    }
+
+    var requestId = raw.match(/\brequestId=([A-Za-z0-9_.:-]+)/);
+    return 'Server error: messageLen=' + raw.length +
+      (requestId ? ' requestId=' + requestId[1].replace(/:+$/, '') : '');
+  }
+
+  function showResult(type, message) {
+    var panel = document.getElementById('resultPanel');
+    panel.className = 'result-panel visible ' + type;
+    panel.textContent = message;
+  }
+
+  function showOssResult(type, message) {
+    var panel = document.getElementById('ossResultPanel');
+    panel.className = 'result-panel visible ' + type;
+    panel.textContent = message;
+  }
+
+</script>
+
+</body>
+</html>

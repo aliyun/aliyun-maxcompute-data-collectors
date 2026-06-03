@@ -1,0 +1,17 @@
+{
+  "name": "maxcompute-google-sheet-plugin",
+  "private": true,
+  "type": "commonjs",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build:release": "node scripts/build-release.js",
+    "test": "node --test tests/*.test.js",
+    "test:local": "node --test tests/*.test.js",
+    "release:local": "npm test && npm run build:release && npm run release:verify-package && node -e \"const fs=require('fs'); for (const f of ['src/appsscript.json','src/.clasp.example.json','dist/apps-script/appsscript.json','dist/apps-script/.clasp.json','package.json']) JSON.parse(fs.readFileSync(f,'utf8')); if (fs.existsSync('src/.clasp.json')) JSON.parse(fs.readFileSync('src/.clasp.json','utf8')); console.log('json ok')\"",
+    "release:verify-package": "node scripts/verify-release-package.js",
+    "release:verify-public": "node scripts/verify-public-release.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

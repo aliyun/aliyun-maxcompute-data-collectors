@@ -1,5 +1,5 @@
 {
-  "name": "maxcompute-google-sheet-plugin",
+  "name": "maxcompute-connector-google-sheets",
   "private": true,
   "type": "commonjs",
   "license": "Apache-2.0",

@@ -1,4 +1,4 @@
-# MaxCompute Query for Google Sheets
+# MaxCompute Connector for Google Sheets
 
 > 在 Google Sheets 中直接查询阿里云 MaxCompute（原 ODPS）数据仓库。
 > Query Alibaba Cloud MaxCompute (formerly ODPS) data directly from Google Sheets.
@@ -11,7 +11,7 @@
 
 ### 简介
 
-**MaxCompute Query for Google Sheets** 是一个 Google Sheets 的 Editor add-on（编辑器插件），让数据分析师、业务人员和开发者无需编写代码或导出文件，就能从 Google Sheets 内运行 MaxCompute 只读 SQL，并把结果写回当前表格。
+**MaxCompute Connector for Google Sheets** 是一个 Google Sheets 的 Editor add-on（编辑器插件），让数据分析师、业务人员和开发者无需编写代码或导出文件，就能从 Google Sheets 内运行 MaxCompute 只读 SQL，并把结果写回当前表格。
 
 适用人群：
 
@@ -210,7 +210,7 @@ clasp open
 
 ### Overview
 
-**MaxCompute Query for Google Sheets** is a Google Sheets Editor add-on that lets data analysts, business users, and developers run read-only MaxCompute SQL from a sidebar and write the results back into the current spreadsheet — without writing code or exporting files.
+**MaxCompute Connector for Google Sheets** is a Google Sheets Editor add-on that lets data analysts, business users, and developers run read-only MaxCompute SQL from a sidebar and write the results back into the current spreadsheet — without writing code or exporting files.
 
 Who it is for:
 

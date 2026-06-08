@@ -191,8 +191,7 @@ function splitSqlStatements_(sql) {
     var next = i + 1 < sql.length ? sql.charAt(i + 1) : '';
 
     if (lineComment) {
-      if (ch === '
-' || ch === '') {
+      if (ch === '\n' || ch === '\r') {
         lineComment = false;
         current.push(' ');
       }
@@ -210,7 +209,7 @@ function splitSqlStatements_(sql) {
 
     if (quote) {
       current.push(ch);
-      if (ch === '\' && next) {
+      if (ch === '\\' && next) {
         current.push(next);
         i++;
       } else if (ch === quote) {
@@ -421,8 +420,7 @@ function maskSqlCommentsAndLiterals_(sql) {
     var next = i + 1 < sql.length ? sql.charAt(i + 1) : '';
 
     if (lineComment) {
-      if (ch === '
-' || ch === '') {
+      if (ch === '\n' || ch === '\r') {
         lineComment = false;
         out.push(ch);
       } else {
@@ -444,7 +442,7 @@ function maskSqlCommentsAndLiterals_(sql) {
 
     if (quote) {
       out.push(' ');
-      if (ch === '\' && next) {
+      if (ch === '\\' && next) {
         out.push(' ');
         i++;
       } else if (ch === quote) {
@@ -976,8 +974,7 @@ function buildAuditTaskName_(auditContext) {
  * @return {string}
  */
 function normalizeAuditValue_(value) {
-  return String(value || '').replace(/[
-	]+/g, ' ');
+  return String(value || '').replace(/[\r\n\t]+/g, ' ');
 }
 
 /**

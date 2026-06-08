@@ -152,23 +152,19 @@ function buildOssStringToSign_(method, contentMd5, contentType, date, headers, r
 
   // 1. HTTP Method
   sb.push(method.toUpperCase());
-  sb.push('
-');
+  sb.push('\n');
 
   // 2. Content-MD5（无 body 时为空）
   sb.push(contentMd5);
-  sb.push('
-');
+  sb.push('\n');
 
   // 3. Content-Type（无 body 时为空）
   sb.push(contentType);
-  sb.push('
-');
+  sb.push('\n');
 
   // 4. Date
   sb.push(date);
-  sb.push('
-');
+  sb.push('\n');
 
   // 5. CanonicalizedOSSHeaders（x-oss-* 按字母序）
   sb.push(buildOssCanonicalizedHeaders_(headers));
@@ -205,9 +201,7 @@ function buildOssCanonicalizedHeaders_(headers) {
   }
 
   ossHeaders.sort();
-  return ossHeaders.join('
-') + '
-';
+  return ossHeaders.join('\n') + '\n';
 }
 
 /**

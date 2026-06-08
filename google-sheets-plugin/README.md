@@ -1,4 +1,4 @@
-# MaxCompute Connector for Google Sheets
+# MaxCompute Query for Google Sheets
 
 > 在 Google Sheets 中直接查询阿里云 MaxCompute（原 ODPS）数据仓库。
 > Query Alibaba Cloud MaxCompute (formerly ODPS) data directly from Google Sheets.
@@ -11,7 +11,7 @@
 
 ### 简介
 
-**MaxCompute Connector for Google Sheets** 是一个 Google Sheets 的 Editor add-on（编辑器插件），让数据分析师、业务人员和开发者无需编写代码或导出文件，就能从 Google Sheets 内运行 MaxCompute 只读 SQL，并把结果写回当前表格。
+**MaxCompute Query for Google Sheets** 是一个 Google Sheets 的 Editor add-on（编辑器插件），让数据分析师、业务人员和开发者无需编写代码或导出文件，就能从 Google Sheets 内运行 MaxCompute 只读 SQL，并把结果写回当前表格。
 
 适用人群：
 
@@ -52,7 +52,7 @@
 #### 作业审计
 
 - 每条提交到 MaxCompute 的查询都会按照 [MaxCompute 通用作业标识约定](https://help.aliyun.com/zh/maxcompute/user-guide/general-operation-identification-convention) 自动写入审计字段（提交平台、Spreadsheet ID/名、目标 Sheet 名、提交者 email），便于在 MaxCompute 控制台、Logview、Information Schema 中追溯。
-- 审计字段通过 MaxCompute 控制台、Logview、Information Schema 可追溯。
+- 审计字段说明、查看方式、典型场景见：[作业审计字段说明](docs/audit-metadata.md)。
 
 #### 用户体验
 
@@ -68,22 +68,21 @@
 | **只读 SQL** | V1（当前）在客户端两层启发式拦截 DDL/DML/permission/load/resource/package/MSCK 等副作用语句；V2（规划）将下沉到 MaxCompute 服务端权限隔离。算法、误判、迁移说明见 [只读 SQL 限制](docs/read-only-sql-guard.md) |
 | **审计字段不可伪造** | 用户 SQL 不能手动 `SET EXT_*` 字段 |
 | **错误与日志脱敏** | 日志和 UI 失败信息只保留长度摘要、HTTP 码等已知安全字段，不展示原始 SQL、Project、Schema、Table、Sheet 名或 Instance ID |
-| **Sheet 作用域** | 查询结果写入当前打开的电子表格 |
+| **Sheet 作用域** | 仅访问当前打开的电子表格（`spreadsheets.currentonly`） |
 | **本地历史** | 查询历史只在浏览器本地存储，不上传服务端 |
-| **网络出站** | 仅向 MaxCompute 和 OSS 官方 endpoint 发送 HTTPS 请求 |
+| **网络白名单** | 仅允许出站到 MaxCompute 官方 endpoint，不出站到任何其它域名 |
 
 #### OAuth 权限
 
 | Scope | 用途 |
 |-------|------|
-| `spreadsheets` | 读写电子表格（定时调度需要 openById） |
+| `spreadsheets.currentonly` | 仅读写当前打开的电子表格 |
 | `script.container.ui` | 在 Google Sheets 中显示菜单和侧边栏 |
 | `script.external_request` | 向 MaxCompute API 发送签名 HTTPS 请求 |
 | `script.storage` | 保存当前用户的连接配置和语言偏好 |
-| `script.scriptapp` | 创建和管理定时触发器（定时调度功能） |
 | `userinfo.email` | 把提交者 Google 账号 email 写入 MaxCompute 任务审计字段 `EXT_NODE_ONDUTY` |
 
-插件不申请 Google Drive 权限。
+插件不申请 Google Drive 或全 Spreadsheet 范围的权限。
 
 ### 安装
 
@@ -191,15 +190,16 @@ clasp open
 
 ### 支持的 Region
 
-支持 **MaxCompute 所有 Region**。Endpoint 输入框只接受官方域名格式 `https://service.{region}.maxcompute.aliyun.com/api`，按你 Project 所在 Region 填即可。
+支持 **MaxCompute 所有 Region**——`appsscript.json` 已默认为全球公共 endpoint 配置 `urlFetchWhitelist`，无需额外操作。Endpoint 输入框只接受官方域名格式 `https://service.{region}.maxcompute.aliyun.com/api`，按你 Project 所在 Region 填即可。
 
 ### 文档
 
 | 文档 | 内容 |
 |------|------|
+| [docs/audit-metadata.md](docs/audit-metadata.md) | 作业审计字段说明（中英双语） |
 | [docs/read-only-sql-guard.md](docs/read-only-sql-guard.md) | 只读 SQL 限制：算法、误判、V1/V2 路线 |
 | [docs/long-running-jobs-instance-attach.md](docs/long-running-jobs-instance-attach.md) | 长作业与 Attach 使用指南 |
-| [docs/technical-design.md](docs/technical-design.md) | 架构、签名、数据目录、开发与发布流程（面向开发者与维护者） |
+| [docs/技术方案.md](docs/技术方案.md) · [docs/technical-design.md](docs/technical-design.md) | 架构、签名、数据目录、开发与发布流程（面向开发者与维护者） |
 
 ### 许可证
 
@@ -211,7 +211,7 @@ clasp open
 
 ### Overview
 
-**MaxCompute Connector for Google Sheets** is a Google Sheets Editor add-on that lets data analysts, business users, and developers run read-only MaxCompute SQL from a sidebar and write the results back into the current spreadsheet — without writing code or exporting files.
+**MaxCompute Query for Google Sheets** is a Google Sheets Editor add-on that lets data analysts, business users, and developers run read-only MaxCompute SQL from a sidebar and write the results back into the current spreadsheet — without writing code or exporting files.
 
 Who it is for:
 
@@ -252,7 +252,7 @@ Why it works:
 #### Job audit
 
 - Every query submitted to MaxCompute is auto-tagged following the [MaxCompute generic operation identification convention](https://help.aliyun.com/zh/maxcompute/user-guide/general-operation-identification-convention) (source platform, Spreadsheet ID/name, target Sheet name, submitter email) so jobs can be traced from the MaxCompute console, Logview, and Information Schema.
-- Audit fields can be traced via the MaxCompute console, Logview, and Information Schema.
+- Field reference, lookup paths, and use cases: [Job audit metadata](docs/audit-metadata.md).
 
 #### UX
 
@@ -270,20 +270,19 @@ Why it works:
 | **Logging / failures** | Logs and UI failure messages keep only length summaries, HTTP codes, and known-safe text — never raw SQL, project, schema, table, sheet, or Instance ID |
 | **Sheet scope** | Only the currently open spreadsheet is accessed (`spreadsheets.currentonly`) |
 | **Local history** | Query history stays in the browser; nothing is uploaded |
-| **Network** | Outbound HTTPS only to official MaxCompute and OSS endpoints |
+| **Network whitelist** | Outbound traffic is restricted to official MaxCompute endpoints |
 
 #### OAuth scopes
 
 | Scope | Purpose |
 |-------|---------|
-| `spreadsheets` | Read/write spreadsheets (scheduled jobs require openById) |
+| `spreadsheets.currentonly` | Read/write only the currently open spreadsheet |
 | `script.container.ui` | Add the MaxCompute menu and HTML sidebars in Google Sheets |
 | `script.external_request` | Send signed HTTPS requests to MaxCompute API endpoints |
 | `script.storage` | Persist per-user connection settings and language preference |
-| `script.scriptapp` | Create and manage time-driven triggers (scheduled jobs) |
 | `userinfo.email` | Record submitter Google account email into MaxCompute audit field `EXT_NODE_ONDUTY` |
 
-The add-on does **not** request Google Drive scopes.
+The add-on does **not** request broad Google Drive or full-spreadsheet scopes.
 
 ### Installation
 
@@ -391,15 +390,16 @@ For async cancellation, sidebar restoration, and recent Instance history, see th
 
 ### Supported Regions
 
-**All MaxCompute regions are supported.** The Endpoint field accepts the standard form `https://service.{region}.maxcompute.aliyun.com/api` — just enter the endpoint of the region your project lives in.
+**All MaxCompute regions are supported.** The add-on's `appsscript.json` ships with `urlFetchWhitelist` covering every official MaxCompute public endpoint worldwide. The Endpoint field accepts the standard form `https://service.{region}.maxcompute.aliyun.com/api` — just enter the endpoint of the region your project lives in.
 
 ### Documentation
 
 | Document | Contents |
 |----------|----------|
+| [docs/audit-metadata.md](docs/audit-metadata.md) | Job audit metadata reference (bilingual) |
 | [docs/read-only-sql-guard.md](docs/read-only-sql-guard.md) | Read-only SQL guard: algorithm, misclassifications, V1/V2 roadmap |
 | [docs/long-running-jobs-instance-attach.md](docs/long-running-jobs-instance-attach.md) | Long-running jobs & attach guide |
-| [docs/technical-design.md](docs/technical-design.md) | Architecture, signing, catalog, development & release workflow (for developers and maintainers) |
+| [docs/technical-design.md](docs/technical-design.md) · [docs/技术方案.md](docs/技术方案.md) | Architecture, signing, catalog, development & release workflow (for developers and maintainers) |
 
 ### License
 

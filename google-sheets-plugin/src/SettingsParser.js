@@ -78,8 +78,7 @@ var SettingsParser_ = (function() {
       var next = i + 1 < sql.length ? sql.charAt(i + 1) : '';
 
       if (lineComment) {
-        if (ch === '
-' || ch === '') {
+        if (ch === '\n' || ch === '\r') {
           lineComment = false;
         }
         continue;
@@ -94,7 +93,7 @@ var SettingsParser_ = (function() {
       }
 
       if (quote) {
-        if (ch === '\' && next) {
+        if (ch === '\\' && next) {
           i++;
         } else if (ch === quote) {
           if (next === quote) {
@@ -187,8 +186,7 @@ var SettingsParser_ = (function() {
       var next = i + 1 < sql.length ? sql.charAt(i + 1) : '';
 
       if (lineComment) {
-        if (ch === '
-' || ch === '') {
+        if (ch === '\n' || ch === '\r') {
           lineComment = false;
           out.push(ch);
         }
@@ -206,7 +204,7 @@ var SettingsParser_ = (function() {
 
       if (quote) {
         out.push(ch);
-        if (ch === '\' && next) {
+        if (ch === '\\' && next) {
           out.push(next);
           i++;
         } else if (ch === quote) {
@@ -268,7 +266,7 @@ var SettingsParser_ = (function() {
       .replace(doubled, quote)
       .replace(/\'/g, '\'')
       .replace(/\"/g, '"')
-      .replace(/\\/g, '\');
+      .replace(/\\/g, '\\');
   }
 
   return {

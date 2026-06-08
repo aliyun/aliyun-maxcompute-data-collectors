@@ -80,14 +80,24 @@ function showSidebar() {
   }
 
   // 收集首屏需要的全部初始数据
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
   var sheetNames;
   try {
-    sheetNames = SpreadsheetApp.getActiveSpreadsheet().getSheets().map(function(s) {
+    sheetNames = ss.getSheets().map(function(s) {
       return s.getName();
     });
   } catch (e) {
     sheetNames = [];
   }
+
+  var activeSheet = { id: 0, name: '' };
+  var activeSheetSql = null;
+  try {
+    var as = ss.getActiveSheet();
+    activeSheet = { id: as.getSheetId(), name: as.getName() };
+    activeSheetSql = loadSheetSql(activeSheet.id);
+  } catch (e) {}
 
   // 预加载 Job 列表和 Schedule 列表
   var jobList = [];
@@ -108,6 +118,8 @@ function showSidebar() {
       configured: true
     },
     sheetNames: sheetNames,
+    activeSheet: activeSheet,
+    activeSheetSql: activeSheetSql,
     jobList: jobList,
     scheduleList: scheduleList,
     ossConfigured: ossConfigured,
@@ -429,8 +441,7 @@ function sanitizeSpreadsheetCell_(cell) {
   if (typeof cell !== 'string') {
     return cell;
   }
-  if (/^[\s]*[=+\-@]/.test(cell) || /^[	
-]/.test(cell)) {
+  if (/^[\s]*[=+\-@]/.test(cell) || /^[\t\n]/.test(cell)) {
     return "'" + cell;
   }
   return cell;
@@ -447,8 +458,7 @@ function normalizeSheetName_(sheetName) {
 
   sheetName = sheetName
     .replace(/[\[\]\*\?\/\:]/g, '_')
-    .replace(/[
-	]+/g, ' ')
+    .replace(/[\n\t]+/g, ' ')
     .replace(/^\s+|\s+$/g, '');
 
   if (!sheetName) {
@@ -655,8 +665,8 @@ function toSafeScriptJson_(value) {
     .replace(/</g, '\u003c')
     .replace(/>/g, '\u003e')
     .replace(/&/g, '\u0026')
-    .replace(/ /g, '\u2028')
-    .replace(/ /g, '\u2029');
+    .replace(new RegExp('\u2028', 'g'), '\u2028')
+    .replace(new RegExp('\u2029', 'g'), '\u2029');
 }
 
 
@@ -672,6 +682,67 @@ function getSheetNames() {
   return SpreadsheetApp.getActiveSpreadsheet()
     .getSheets()
     .map(function(s) { return s.getName(); });
+}
+
+function activateSheet(sheetName) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (sheet) sheet.activate();
+}
+
+function saveSheetSql(sheetId, data) {
+  var props = PropertiesService.getDocumentProperties();
+  props.setProperty('mc_sheet_sql_' + sheetId, JSON.stringify(data));
+}
+
+function loadSheetSql(sheetId) {
+  var props = PropertiesService.getDocumentProperties();
+  var raw = props.getProperty('mc_sheet_sql_' + sheetId);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+function getActiveSheetInfo() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  return { id: sheet.getSheetId(), name: sheet.getName() };
+}
+
+function switchSheet(currentSheetId, currentData, targetSheetName) {
+  if (currentSheetId && currentData) {
+    saveSheetSql(currentSheetId, currentData);
+  }
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var targetSheet = ss.getSheetByName(targetSheetName);
+  if (!targetSheet) {
+    throw new Error('Sheet not found: ' + targetSheetName);
+  }
+  targetSheet.activate();
+  var targetId = targetSheet.getSheetId();
+  var savedSql = loadSheetSql(targetId);
+  return { id: targetId, name: targetSheetName, sqlData: savedSql };
+}
+
+function getAllSheetSqlBindings() {
+  var props = PropertiesService.getDocumentProperties();
+  var all = props.getProperties();
+  var bindings = [];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+  var sheetMap = {};
+  sheets.forEach(function(s) { sheetMap[s.getSheetId()] = s.getName(); });
+
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf('mc_sheet_sql_') !== 0) return;
+    var sheetId = key.replace('mc_sheet_sql_', '');
+    var sheetName = sheetMap[sheetId];
+    if (!sheetName) return;
+    try {
+      var data = JSON.parse(all[key]);
+      if (data && data.mode === 'sql' && data.sql) {
+        bindings.push({ sheetId: sheetId, targetSheet: sheetName, sql: data.sql });
+      }
+    } catch (e) {}
+  });
+  return bindings;
 }
 
 /**
@@ -1002,88 +1073,6 @@ var MAX_JOB_LIST_ENTRIES = 20;
 
 /** Job 列表中 SQL 显示的最大长度 */
 var MAX_JOB_SQL_DISPLAY_LENGTH = 200;
-
-/**
- * 批量提交任务（SQL 查询 + Attach Job 混合）
- *
- * 遍历 tasks 数组，每个任务独立处理，一个失败不影响其他。
- * mode === 'sql': 调用 submitSqlJobOnly_() 提交新查询
- * mode === 'attach': 验证 instanceId 有效性，构建 logviewUrl
- *
- * @param {Array<Object>} tasks - 任务列表
- *   每个元素: { mode: 'sql'|'attach', sql?: string, instanceId?: string, targetSheet: string }
- * @return {Array<Object>} 各任务的提交结果
- *   成功: { taskIndex, instanceId, logviewUrl, mode }
- *   同步完成: { taskIndex, sync: true, summary, mode }
- *   失败: { taskIndex, error: string, mode }
- */
-function submitBatchQuery(tasks) {
-  if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-    throw new Error('任务列表不能为空');
-  }
-
-  var config = getMcConfig_();
-  assertUsableMcConfig_(config);
-
-  var results = [];
-  for (var i = 0; i < tasks.length; i++) {
-    var task = tasks[i];
-    var mode = task.mode || 'sql';
-    var targetSheet = normalizeSheetName_(task.targetSheet);
-
-    try {
-      if (mode === 'attach') {
-        // Attach Job 模式：验证 instanceId，构建 logviewUrl
-        var attachInstanceId = normalizeInstanceId_(task.instanceId);
-        results.push({
-          taskIndex: i,
-          instanceId: attachInstanceId,
-          logviewUrl: buildLogviewUrl_(attachInstanceId),
-          mode: 'attach'
-        });
-      } else {
-        // SQL Query 模式：提交新查询
-        var sql = task.sql;
-        if (!sql || !sql.trim()) {
-          throw new Error('SQL 不能为空');
-        }
-
-        var ctx = getQueryContext_(targetSheet);
-        var submitResult = submitSqlJobOnly_(sql.trim(), ctx);
-
-        if (submitResult.sync) {
-          // 同步完成，直接写入 Sheet
-          var maxRows = MAX_RESULT_ROWS;
-          var data = prepareResultData_(submitResult.result, maxRows);
-          writePreparedResultToSheet_(data, targetSheet);
-          var summary = buildQuerySummary_(data, '', targetSheet);
-          summary.sync = true;
-          results.push({
-            taskIndex: i,
-            sync: true,
-            summary: summary,
-            mode: 'sql'
-          });
-        } else {
-          results.push({
-            taskIndex: i,
-            instanceId: submitResult.instanceId,
-            logviewUrl: buildLogviewUrl_(submitResult.instanceId),
-            mode: 'sql'
-          });
-        }
-      }
-    } catch (e) {
-      results.push({
-        taskIndex: i,
-        error: e.message || String(e),
-        mode: mode
-      });
-    }
-  }
-
-  return results;
-}
 
 /**
  * 附加到已有 MaxCompute Instance

@@ -98,15 +98,13 @@ function test_getTableSchema() {
     Logger.log('类型: ' + schema.type);
     Logger.log('注释: ' + schema.comment);
 
-    Logger.log('
-普通列 (' + schema.columns.length + '):');
+    Logger.log('\n普通列 (' + schema.columns.length + '):');
     Logger.log('前 20 个普通列名: ' + schema.columns.slice(0, 20).map(function(col) {
       return col.name;
     }).join(','));
 
     if (schema.partitionColumns && schema.partitionColumns.length > 0) {
-      Logger.log('
-分区列数量: ' + schema.partitionColumns.length);
+      Logger.log('\n分区列数量: ' + schema.partitionColumns.length);
       Logger.log('前 20 个分区列名: ' + schema.partitionColumns.slice(0, 20).map(function(col) {
         return col.name;
       }).join(','));
@@ -625,33 +623,22 @@ function qaCheckOdpsSignature_() {
 function runAllCatalogTests() {
   Logger.log('========================================');
   Logger.log('运行所有数据目录测试');
-  Logger.log('========================================
-');
+  Logger.log('========================================\n');
   
   test_listSchemas();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_listTables();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_getTableSchema();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_listPartitions();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_getTableDetail();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   Logger.log('========================================');
   Logger.log('所有测试完成');
@@ -664,38 +651,25 @@ function runAllCatalogTests() {
 function runAllSqlTests() {
   Logger.log('========================================');
   Logger.log('运行所有 SQL 测试');
-  Logger.log('========================================
-');
+  Logger.log('========================================\n');
 
   test_readOnlySqlGuard();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
 
   test_endpointValidation();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_odpsSignature();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_connectionStatus();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_executeSimpleQuery();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   test_executeInvalidSql();
-  Logger.log('
-----------------------------------------
-');
+  Logger.log('\n----------------------------------------\n');
   
   Logger.log('========================================');
   Logger.log('所有测试完成');
@@ -707,8 +681,6 @@ function runAllSqlTests() {
  */
 function runAllTests() {
   runAllCatalogTests();
-  Logger.log('
-
-');
+  Logger.log('\n\n');
   runAllSqlTests();
 }

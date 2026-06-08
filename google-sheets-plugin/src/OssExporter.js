@@ -147,8 +147,7 @@ function convertValuesToCsv_(values) {
     }
     lines.push(fields.join(','));
   }
-  return CSV_BOM + lines.join('
-');
+  return CSV_BOM + lines.join('\n');
 }
 
 /**
@@ -163,8 +162,7 @@ function convertValuesToCsv_(values) {
 function escapeCsvField_(value) {
   var str = (value === null || value === undefined) ? '' : String(value);
   if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1 ||
-      str.indexOf('
-') !== -1 || str.indexOf('') !== -1) {
+      str.indexOf('\n') !== -1 || str.indexOf('\r') !== -1) {
     return '"' + str.replace(/"/g, '""') + '"';
   }
   return str;
@@ -226,8 +224,8 @@ function validateObjectKey_(key) {
   if (!key || key.length > 1023) {
     throw new Error('Object Key 长度须为 1-1023 字符');
   }
-  if (key.indexOf('\') !== -1) {
-    throw new Error('Object Key 不能包含反斜杠 (\)');
+  if (key.indexOf('\\') !== -1) {
+    throw new Error('Object Key 不能包含反斜杠');
   }
   if (/^\//.test(key)) {
     throw new Error('Object Key 不能以 / 开头');

@@ -339,13 +339,15 @@ function clearScheduleState_(state, scheduleId) {
  * @return {number} 下次执行时间戳
  */
 function calculateNextRunAt_(schedule, now) {
-  if (schedule.frequencyType === 'everyNHours') {
-    var intervalMs = (schedule.frequencyValue || 1) * 3600000;
+  var freqType = schedule.frequencyType || schedule.type;
+
+  if (freqType === 'everyNHours') {
+    var intervalMs = (schedule.frequencyValue || schedule.interval || 1) * 3600000;
     return now + intervalMs;
   }
 
-  if (schedule.frequencyType === 'dailyAtHour') {
-    var hour = schedule.frequencyValue || 0;
+  if (freqType === 'dailyAtHour') {
+    var hour = schedule.frequencyValue || schedule.hour || 0;
     var d = new Date(now);
     var next = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, 0, 0, 0);
     if (next.getTime() <= now) {
@@ -354,7 +356,6 @@ function calculateNextRunAt_(schedule, now) {
     return next.getTime();
   }
 
-  // 默认 1 小时后
   return now + 3600000;
 }
 
@@ -538,12 +539,24 @@ function saveSchedule(schedule) {
     var found = false;
     for (var i = 0; i < list.length; i++) {
       if (list[i].id === schedule.id) {
+        var existing = list[i];
+        schedule.createdAt = existing.createdAt;
+        schedule.spreadsheetId = existing.spreadsheetId;
+        schedule.lastRunAt = existing.lastRunAt;
+        schedule.lastRunStatus = existing.lastRunStatus;
+        schedule.nextRunAt = calculateNextRunAt_(schedule, Date.now());
         list[i] = schedule;
         found = true;
         break;
       }
     }
     if (!found) {
+      schedule.createdAt = Date.now();
+      schedule.nextRunAt = calculateNextRunAt_(schedule, Date.now());
+      try {
+        var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+        if (ss2) schedule.spreadsheetId = ss2.getId();
+      } catch (e2) {}
       list.unshift(schedule);
     }
   }

@@ -151,23 +151,19 @@ function buildCanonicalString_(method, headers, resource, prefix) {
 
   // 1. HTTP Method
   sb.push(method.toUpperCase());
-  sb.push('
-');
+  sb.push('\n');
 
   // 2. Content-MD5
   sb.push(getHeaderValue_(headers, 'Content-MD5') || '');
-  sb.push('
-');
+  sb.push('\n');
 
   // 3. Content-Type
   sb.push(getHeaderValue_(headers, 'Content-Type') || '');
-  sb.push('
-');
+  sb.push('\n');
 
   // 4. Date (必须)
   sb.push(getHeaderValue_(headers, 'Date') || '');
-  sb.push('
-');
+  sb.push('\n');
 
   // 5. x-odps-* headers (按字母序排序)
   var odpsHeaders = [];
@@ -184,8 +180,7 @@ function buildCanonicalString_(method, headers, resource, prefix) {
     sb.push(k);
     sb.push(':');
     sb.push(getHeaderValue_(headers, k) || '');
-    sb.push('
-');
+    sb.push('\n');
   }
 
   // 6. CanonicalizedResource

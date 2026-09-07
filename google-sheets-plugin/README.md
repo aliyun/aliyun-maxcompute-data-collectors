@@ -57,7 +57,7 @@
 #### 用户体验
 
 - 中英文双语界面，按用户偏好持久化。
-- 最近查询历史保存在浏览器 `localStorage`，可禁用、单条删除、一键清空。
+- 最近查询历史缓存在浏览器 `localStorage` 并同步至同一 Apps Script 用户属性，可禁用、单条删除、一键清空。
 
 ### 安全与隐私
 
@@ -67,22 +67,23 @@
 | **传输** | 全程 HTTPS；Endpoint 必须为 MaxCompute 官方 API（`https://service.{region}.maxcompute.aliyun.com/api`） |
 | **只读 SQL** | V1（当前）在客户端两层启发式拦截 DDL/DML/permission/load/resource/package/MSCK 等副作用语句；V2（规划）将下沉到 MaxCompute 服务端权限隔离。算法、误判、迁移说明见 [只读 SQL 限制](docs/read-only-sql-guard.md) |
 | **审计字段不可伪造** | 用户 SQL 不能手动 `SET EXT_*` 字段 |
-| **错误与日志脱敏** | 日志和 UI 失败信息只保留长度摘要、HTTP 码等已知安全字段，不展示原始 SQL、Project、Schema、Table、Sheet 名或 Instance ID |
-| **Sheet 作用域** | 仅访问当前打开的电子表格（`spreadsheets.currentonly`） |
-| **本地历史** | 查询历史只在浏览器本地存储，不上传服务端 |
-| **网络白名单** | 仅允许出站到 MaxCompute 官方 endpoint，不出站到任何其它域名 |
+| **错误与日志脱敏** | 查询 UI 保留错误原文以便排障，并限制长度、转义 HTML；作业与审计日志可能包含项目、Sheet 和 Instance ID，对外共享前须脱敏 |
+| **Sheet 作用域** | 读写用户选择的目标表格；定时任务通过已记录的 spreadsheet ID 重新打开表格（`spreadsheets`） |
+| **本地历史** | 查询历史缓存于浏览器并同步到同一 Apps Script 用户属性，可关闭保存 |
+| **网络白名单** | 允许明确列出的 MaxCompute、Google userinfo 与 OSS 区域 Bucket 域名；自定义区域发布前须审查白名单 |
 
 #### OAuth 权限
 
 | Scope | 用途 |
 |-------|------|
-| `spreadsheets.currentonly` | 仅读写当前打开的电子表格 |
+| `spreadsheets` | 读写结果表格；定时任务使用 `openById` 恢复目标表格 |
+| `script.scriptapp` | 管理用户显式启用的定时触发器 |
 | `script.container.ui` | 在 Google Sheets 中显示菜单和侧边栏 |
-| `script.external_request` | 向 MaxCompute API 发送签名 HTTPS 请求 |
+| `script.external_request` | 向 MaxCompute API 发送签名 HTTPS 请求，或按用户选择向 OSS 上传 CSV |
 | `script.storage` | 保存当前用户的连接配置和语言偏好 |
 | `userinfo.email` | 把提交者 Google 账号 email 写入 MaxCompute 任务审计字段 `EXT_NODE_ONDUTY` |
 
-插件不申请 Google Drive 或全 Spreadsheet 范围的权限。
+插件不申请 Google Drive 权限。当前定时任务需要完整 Spreadsheet 和触发器权限；上线前须完成 OAuth 范围审查，详见 [发布清单](docs/release-checklist.md)。
 
 ### 安装
 
@@ -183,9 +184,9 @@ clasp open
 - **只读 SQL**：不允许任何写入或副作用 SQL。
 - **单条非 SET 语句**：每次提交只能跑一条只读查询；前置 `SET` 不限。
 - **SQL 长度 ≤ 65536 字符**。
-- **作用域限于当前电子表格**：不能跨 Sheet 写入。
+- **目标表格**：手工任务绑定提交时选择的 Sheet，定时任务使用已记录的 spreadsheet ID。
 - **凭证按用户隔离**：每个 Google 用户需各自配置 AccessKey；不支持共享凭证或 SSO。
-- **本地查询历史不同步**：换浏览器/账号不可见。
+- **查询历史**：浏览器缓存与同一 Apps Script 用户属性同步；不跨 Google 账号共享，可关闭保存并清空记录。
 - **暂不支持**：多 Project 切换下拉、查询模板库、CSV/Excel 导出、图表自动生成（路线图中）。
 
 ### 支持的 Region
@@ -267,22 +268,23 @@ Why it works:
 | **Transport** | HTTPS end-to-end; the endpoint must match the official MaxCompute API form (`https://service.{region}.maxcompute.aliyun.com/api`) |
 | **Read-only SQL** | V1 (current): two-layer client-side heuristic check rejects DDL/DML, permission, load/unload, resource, package, and MSCK statements before any MaxCompute call. V2 (planned): the check will move to MaxCompute server-side permission isolation. Algorithm, misclassifications, and roadmap: [Read-only SQL guard](docs/read-only-sql-guard.md) |
 | **Audit fields** | User SQL cannot manually `SET EXT_*` fields |
-| **Logging / failures** | Logs and UI failure messages keep only length summaries, HTTP codes, and known-safe text — never raw SQL, project, schema, table, sheet, or Instance ID |
-| **Sheet scope** | Only the currently open spreadsheet is accessed (`spreadsheets.currentonly`) |
-| **Local history** | Query history stays in the browser; nothing is uploaded |
-| **Network whitelist** | Outbound traffic is restricted to official MaxCompute endpoints |
+| **Logging / failures** | Query UI preserves bounded, escaped error details for troubleshooting. Job and audit logs can include project, sheet and Instance IDs; redact evidence before sharing |
+| **Sheet scope** | Reads/writes selected sheets; scheduling reopens its recorded spreadsheet ID (`spreadsheets`) |
+| **Local history** | SQL history is mirrored to Apps Script user properties; saving can be disabled |
+| **Network whitelist** | Explicit MaxCompute, Google userinfo and regional OSS bucket hosts; custom regions need manifest review before release |
 
 #### OAuth scopes
 
 | Scope | Purpose |
 |-------|---------|
-| `spreadsheets.currentonly` | Read/write only the currently open spreadsheet |
+| `spreadsheets` | Read/write result sheets and reopen the recorded spreadsheet for scheduling |
+| `script.scriptapp` | Manage explicitly enabled user schedule triggers |
 | `script.container.ui` | Add the MaxCompute menu and HTML sidebars in Google Sheets |
-| `script.external_request` | Send signed HTTPS requests to MaxCompute API endpoints |
+| `script.external_request` | Send signed HTTPS requests to MaxCompute and user-configured OSS export endpoints |
 | `script.storage` | Persist per-user connection settings and language preference |
 | `userinfo.email` | Record submitter Google account email into MaxCompute audit field `EXT_NODE_ONDUTY` |
 
-The add-on does **not** request broad Google Drive or full-spreadsheet scopes.
+The add-on requests no Google Drive scope. Scheduling requires full spreadsheet and trigger scopes; target-visibility OAuth review remains an external release gate. See the [release checklist](docs/release-checklist.md).
 
 ### Installation
 
@@ -383,9 +385,9 @@ For async cancellation, sidebar restoration, and recent Instance history, see th
 - **Read-only SQL only.**
 - **One non-`SET` statement per submit.** Leading `SET` statements are unrestricted.
 - **SQL ≤ 65,536 characters.**
-- **Current-spreadsheet scope only.** Cannot write to other spreadsheets.
+- **Target binding.** Interactive queries use the sheet selected at submission; schedules reopen their recorded spreadsheet ID.
 - **Per-user credentials.** Each Google user configures their own AccessKey; no shared/team credentials, no SSO.
-- **Local SQL history is browser-bound.** Not synced across browsers or accounts.
+- **SQL history is user-scoped.** Browser cache is mirrored to Apps Script user properties; it is not shared across Google accounts.
 - **Not yet supported.** Multi-project switcher, query templates, CSV/Excel export, automated charts (on the roadmap).
 
 ### Supported Regions
@@ -404,3 +406,7 @@ For async cancellation, sidebar restoration, and recent Instance history, see th
 ### License
 
 [Apache License 2.0](LICENSE)
+
+## Current feature and release boundary
+
+The current sidebar includes Jobs, multiple target sheets, user schedules and optional CSV-to-OSS export. Export sends selected sheet data to the configured OSS bucket. Local verification does not establish a deployed add-on, OAuth approval or Marketplace approval. See [completion audit](docs/completion-audit.md).

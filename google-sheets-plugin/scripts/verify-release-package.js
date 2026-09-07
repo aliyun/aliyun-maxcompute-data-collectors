@@ -8,6 +8,9 @@ const REQUIRED_RELEASE_FILES = [
   'Code.js',
   'Config.js',
   'OdpsSigner.js',
+  'OssExporter.js',
+  'OssSigner.js',
+  'Scheduler.js',
   'SettingsParser.js',
   'Settings.html',
   'Sidebar.html',
@@ -21,15 +24,15 @@ const FORBIDDEN_RELEASE_FILES = [
 ];
 
 const REQUIRED_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets.currentonly',
+  'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/script.container.ui',
   'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/script.storage',
+  'https://www.googleapis.com/auth/script.scriptapp',
   'https://www.googleapis.com/auth/userinfo.email'
 ];
 
 const FORBIDDEN_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive'
 ];
 
@@ -51,7 +54,27 @@ const REQUIRED_ENDPOINT_PREFIXES = [
 ];
 
 const REQUIRED_NON_MAXCOMPUTE_URLS = [
-  'https://www.googleapis.com/'
+  'https://www.googleapis.com/',
+  'https://*.oss-ap-northeast-1.aliyuncs.com/',
+  'https://*.oss-ap-northeast-2.aliyuncs.com/',
+  'https://*.oss-ap-southeast-1.aliyuncs.com/',
+  'https://*.oss-ap-southeast-3.aliyuncs.com/',
+  'https://*.oss-ap-southeast-5.aliyuncs.com/',
+  'https://*.oss-cn-beijing.aliyuncs.com/',
+  'https://*.oss-cn-chengdu.aliyuncs.com/',
+  'https://*.oss-cn-hangzhou.aliyuncs.com/',
+  'https://*.oss-cn-hongkong.aliyuncs.com/',
+  'https://*.oss-cn-shanghai.aliyuncs.com/',
+  'https://*.oss-cn-shenzhen.aliyuncs.com/',
+  'https://*.oss-cn-wulanchabu.aliyuncs.com/',
+  'https://*.oss-cn-zhangjiakou.aliyuncs.com/',
+  'https://*.oss-eu-central-1.aliyuncs.com/',
+  'https://*.oss-eu-west-1.aliyuncs.com/',
+  'https://*.oss-me-central-1.aliyuncs.com/',
+  'https://*.oss-me-east-1.aliyuncs.com/',
+  'https://*.oss-na-south-1.aliyuncs.com/',
+  'https://*.oss-us-east-1.aliyuncs.com/',
+  'https://*.oss-us-west-1.aliyuncs.com/'
 ];
 
 const FORBIDDEN_PRODUCTION_APIS = [
@@ -96,7 +119,33 @@ const ALLOWED_PUBLIC_FUNCTIONS = [
   'getMcConfigForUi',
   'showSettings',
   'saveMcConfig',
-  'testMcConnection'
+  'testMcConnection',
+  'activateSheet',
+  'attachToInstance',
+  'clearJobList',
+  'deleteSchedule',
+  'exportSheetToCsv',
+  'getActiveSheetInfo',
+  'getAllSheetSqlBindings',
+  'getExportPreferences',
+  'getExportableSheets',
+  'getJobList',
+  'getOssConfigForUi',
+  'getOssExportStatus',
+  'getScheduleList',
+  'getScheduleTriggerStatus',
+  'installScheduleTrigger',
+  'loadSheetSql',
+  'removeJobRecord',
+  'saveExportPreferences',
+  'saveJobRecord',
+  'saveOssConfig',
+  'saveSchedule',
+  'saveSheetSql',
+  'switchSheet',
+  'testOssConnection',
+  'toggleSchedule',
+  'uninstallScheduleTrigger'
 ];
 
 function readJson(filePath) {

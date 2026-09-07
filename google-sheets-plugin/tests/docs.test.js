@@ -19,7 +19,7 @@ test('release checklist tracks external Marketplace and OAuth gates', () => {
   assert.match(doc, /deployment IDs are for CardService-based Google Workspace add-ons/);
   assert.match(doc, /OAuth consent screen/);
   assert.match(doc, /Requested OAuth scopes match in all three places/);
-  assert.match(doc, /no broad Drive\/full-spreadsheet scopes/);
+  assert.match(doc, /no broad Drive scopes/);
   assert.match(doc, /https:\/\/www\.googleapis\.com\/auth\/userinfo\.email/);
   assert.match(doc, /OAuth verification/);
   assert.match(doc, /Marketplace app review/);
@@ -92,7 +92,7 @@ test('long running job guide explains Instance ID attach workflow and limits', (
   assert.match(doc, /1 天/);
   assert.match(doc, /10000 行/);
   assert.match(doc, /不会重新执行 SQL/);
-  assert.match(doc, /不会同步到其它浏览器或其它设备/);
+  assert.match(doc, /不同 Google 账号之间不会共享/);
 });
 
 test('repository license metadata is Apache 2.0', () => {

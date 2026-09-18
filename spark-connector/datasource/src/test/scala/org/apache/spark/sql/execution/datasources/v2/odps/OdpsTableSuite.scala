@@ -52,6 +52,7 @@ class OdpsTableSuite extends AnyFunSuite with Logging {
     .config("spark.hadoop.odps.access.key", accessKey)
     .config("spark.hadoop.odps.end.point", endPoint)
     .config("spark.hadoop.odps.project.name", project)
+    .config("spark.hadoop.odps.tunnel.write.timeout.seconds", "60")
     .getOrCreate()
 
   private def odps: Odps = {

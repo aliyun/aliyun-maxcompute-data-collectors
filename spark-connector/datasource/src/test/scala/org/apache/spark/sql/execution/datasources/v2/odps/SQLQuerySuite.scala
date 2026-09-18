@@ -36,6 +36,7 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     .config("spark.sql.catalog.odps.enableFilterPushDown", true)
     .config("spark.sql.catalog.odps.enableDictionaryEncodingReader", true)
     .config("spark.sql.catalog.odps.enableUniqueMapKey", true)
+    .config("spark.hadoop.odps.tunnel.write.timeout.seconds", "60")
     .getOrCreate()
 
   private def odps: Odps = {
@@ -417,6 +418,15 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     } finally {
       TaskContext.unset()
     }
+  }
+
+  test("writeTimeout - configured via RestOptions") {
+    val settings = OdpsClient.get.getEnvironmentSettings
+    val restOptions = settings.getRestOptions()
+    assert(restOptions.isPresent, "RestOptions should be present")
+    val writeTimeout = restOptions.get().getWriteTimeout()
+    assert(writeTimeout.isPresent, "writeTimeout should be set")
+    assert(writeTimeout.get() == 60, s"expected writeTimeout=60, got ${writeTimeout.get()}")
   }
 
   private def uploadMapData(tableName: String, recordCount: Int, mapValueCount: Int): Unit = {

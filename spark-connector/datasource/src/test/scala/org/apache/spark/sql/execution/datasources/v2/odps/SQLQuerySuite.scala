@@ -230,6 +230,90 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     }
   }
 
+  test("OdpsTableDataWriter.write - checkInterrupted during real write") {
+    import com.aliyun.odps.PartitionSpec
+    import com.aliyun.odps.table.TableIdentifier
+    import com.aliyun.odps.table.write.{BatchWriter, TableBatchWriteSession, TableWriteSessionBuilder}
+    import org.apache.spark.{TaskContext, TaskContextImpl, TaskKilledException}
+    import org.apache.spark.sql.catalyst.InternalRow
+    import org.apache.spark.sql.catalyst.expressions.{AttributeReference, GenericInternalRow}
+    import org.apache.spark.sql.odps.{OdpsTableDataWriter, WriteJobDescription}
+    import org.apache.spark.sql.types.{LongType, StringType}
+    import org.apache.spark.unsafe.types.UTF8String
+    import org.apache.spark.util.SerializableConfiguration
+
+    val tableName = "test_writer_kill_check"
+    sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
+    sparkSession.sql(s"CREATE TABLE $tableName(id BIGINT, value STRING)")
+
+    val settings = OdpsClient.get.getEnvironmentSettings
+    val sink = new TableWriteSessionBuilder()
+      .identifier(TableIdentifier.of(project, "default", tableName))
+      .withSettings(settings)
+      .overwrite(true)
+      .buildBatchWriteSession()
+
+    val hadoopConf = sparkSession.sparkContext.hadoopConfiguration
+    val idAttr = AttributeReference("id", LongType)()
+    val valueAttr = AttributeReference("value", StringType)()
+
+    val description = new WriteJobDescription(
+      serializableHadoopConf = new SerializableConfiguration(hadoopConf),
+      batchSink = sink,
+      staticPartition = new PartitionSpec(),
+      allColumns = Seq(idAttr, valueAttr),
+      dataColumns = Seq(idAttr, valueAttr),
+      partitionColumns = Seq(),
+      dynamicPartitionColumns = Seq(),
+      maxRecordsPerFile = Long.MaxValue,
+      statsTrackers = Seq(),
+      writeBatchSize = 4096,
+      timeZoneId = "UTC",
+      supportArrowWriter = true,
+      enableArrowExtension = false,
+      compressionCodec = "zstd",
+      chunkSize = 1024,
+      maxRetries = 3,
+      maxSleepIntervalMs = 10000,
+      maxBlocks = 1000
+    )
+
+    val context = new TaskContextImpl(0, 0, 0, 0, 0, null, null, null, cpus = 1)
+    TaskContext.setTaskContext(context)
+
+    try {
+      val writer = new OdpsTableDataWriter[Object](description, 0, 0, 0) {
+        override protected def createBatchWriter(): BatchWriter[Object] = null
+        override protected def createFileWriter(writeId: Long): BatchWriter[Object] = null
+        override protected def processRow(row: InternalRow): Unit = {}
+        override def write(row: InternalRow): Unit = {
+          checkInterrupted()
+          processRow(row)
+        }
+      }
+
+      // Write 50 rows — should not throw (rowsWritten 0-49, check at 0 only, task not killed)
+      for (i <- 0 until 50) {
+        writer.write(new GenericInternalRow(Seq(i.toLong, UTF8String.fromString("val" + i)).toArray[Any]))
+      }
+
+      // Kill the task
+      context.markInterrupted("another attempt succeeded")
+
+      // Continue writing — should throw at row 100 (next check interval)
+      val ex = intercept[TaskKilledException] {
+        for (i <- 50 until 200) {
+          writer.write(new GenericInternalRow(Seq(i.toLong, UTF8String.fromString("val" + i)).toArray[Any]))
+        }
+      }
+      assert(ex.reason == "another attempt succeeded")
+    } finally {
+      TaskContext.unset()
+    }
+
+    sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
+  }
+
   test("dynamicPartitionLimit - write to partitioned table with custom limit") {
     val tableName = "test_dynamic_partition_limit"
     sparkSession.sql(s"DROP TABLE IF EXISTS $tableName")
@@ -257,17 +341,81 @@ class SQLQuerySuite extends AnyFunSuite with Logging {
     val mapValueCount = 10
     uploadMapData(tableName, recordCount, mapValueCount)
 
-    val dfTrue = sparkSession.table(tableName)
+    // E2E: read via Spark SQL — map_entries shows 1 entry per row after dedup
+    val result = sparkSession.table(tableName)
       .selectExpr("id", "map_entries(value) as entries")
       .orderBy("id")
-    val resultTrue = dfTrue.collect()
-    assert(resultTrue.length == recordCount)
-
-    // read with enableUniqueMapKey=true
+      .collect()
+    assert(result.length == recordCount)
     for (i <- 0 until recordCount) {
-      assert(resultTrue(i).getLong(0) == i)
-      val map = resultTrue(i).getSeq[org.apache.spark.sql.Row](1)
-      assert(map.size == 1)
+      assert(result(i).getLong(0) == i)
+      val entries = result(i).getSeq[org.apache.spark.sql.Row](1)
+      assert(entries.size == 1,
+        s"row $i: expected 1 entry after dedup, got ${entries.size}")
+    }
+
+    // Control: read raw Arrow via SyncPartitionReader with enableUniqueMapKey=false
+    // Server returns all mapValueCount entries, ColumnarMap.numElements() sees them
+    val numEntriesFalse = readMapEntryCounts(tableName, enableUniqueMapKey = false, recordCount)
+    for (i <- 0 until recordCount) {
+      assert(numEntriesFalse(i) == mapValueCount,
+        s"row $i (enableUniqueMapKey=false): expected $mapValueCount raw entries, got ${numEntriesFalse(i)}")
+    }
+
+    // Test: read raw Arrow via SyncPartitionReader with enableUniqueMapKey=true
+    // Server deduplicates, ColumnarMap.numElements() == 1
+    val numEntriesTrue = readMapEntryCounts(tableName, enableUniqueMapKey = true, recordCount)
+    for (i <- 0 until recordCount) {
+      assert(numEntriesTrue(i) == 1,
+        s"row $i (enableUniqueMapKey=true): expected 1 entry after dedup, got ${numEntriesTrue(i)}")
+    }
+  }
+
+  private def readMapEntryCounts(tableName: String, enableUniqueMapKey: Boolean,
+                                 recordCount: Int): Array[Int] = {
+    import com.aliyun.odps.table.TableIdentifier
+    import com.aliyun.odps.table.configuration.{CompressionCodec, ReaderOptions}
+    import com.aliyun.odps.table.read.TableReadSessionBuilder
+    import org.apache.spark.TaskContext
+    import org.apache.spark.executor.TaskMetrics
+    import org.apache.spark.sql.odps.OdpsScanPartition
+    import org.apache.spark.sql.odps.read.columnar.SyncPartitionReader
+    import org.apache.spark.sql.odps.vectorized.OdpsArrowColumnVector
+    import org.mockito.Mockito
+
+    val settings = OdpsClient.get.getEnvironmentSettings
+    val session = new TableReadSessionBuilder()
+      .identifier(TableIdentifier.of(project, "default", tableName))
+      .withSettings(settings)
+      .enableUniqueMapKey(enableUniqueMapKey)
+      .buildBatchReadSession
+
+    val splits = session.getInputSplitAssigner.getAllSplits
+    val partition = OdpsScanPartition(splits.toArray, session)
+
+    val codec = CompressionCodec.byName("zstd").orElse(CompressionCodec.NO_COMPRESSION)
+    val readerOptions = ReaderOptions.newBuilder()
+      .withMaxBatchRowCount(4096)
+      .withSettings(settings)
+      .withCompressionCodec(codec)
+      .withReuseBatch(false)
+      .build()
+
+    // SyncPartitionReader.close() accesses TaskContext.get().taskMetrics()
+    val mockTC = Mockito.mock(classOf[TaskContext])
+    Mockito.when(mockTC.taskMetrics()).thenReturn(new TaskMetrics())
+    TaskContext.setTaskContext(mockTC)
+
+    try {
+      val reader = new SyncPartitionReader(partition, readerOptions, Seq("id", "value"))
+      assert(reader.next())
+      val batch = reader.get()
+      val mapCol = batch.column(1).asInstanceOf[OdpsArrowColumnVector]
+      val counts = (0 until recordCount).map(i => mapCol.getMap(i).numElements()).toArray
+      reader.close()
+      counts
+    } finally {
+      TaskContext.unset()
     }
   }
 

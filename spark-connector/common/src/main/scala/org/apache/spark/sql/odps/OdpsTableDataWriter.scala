@@ -40,6 +40,20 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Random
 
+object OdpsTableDataWriter {
+  val KILL_TASK_CHECK_INTERVAL = 100
+
+  def checkInterrupted(rowsWritten: Long): Unit = {
+    if (rowsWritten % KILL_TASK_CHECK_INTERVAL == 0) {
+      checkKilled()
+    }
+  }
+
+  def checkKilled(): Unit = {
+    TaskContext.get().killTaskIfInterrupted()
+  }
+}
+
 abstract class OdpsTableDataWriter[T: ClassTag](
                                                  description: WriteJobDescription,
                                                  partitionId: Int,
@@ -72,17 +86,13 @@ abstract class OdpsTableDataWriter[T: ClassTag](
 
   private var rowsWritten: Long = 0
 
-  private val KILL_TASK_CHECK_INTERVAL = 100
-
   protected def checkInterrupted(): Unit = {
-    if (rowsWritten % KILL_TASK_CHECK_INTERVAL == 0) {
-      checkKilled()
-    }
+    OdpsTableDataWriter.checkInterrupted(rowsWritten)
     rowsWritten += 1
   }
 
   protected def checkKilled(): Unit = {
-    TaskContext.get().killTaskIfInterrupted()
+    OdpsTableDataWriter.checkKilled()
   }
 
   protected def createBatchWriter(): BatchWriter[T]

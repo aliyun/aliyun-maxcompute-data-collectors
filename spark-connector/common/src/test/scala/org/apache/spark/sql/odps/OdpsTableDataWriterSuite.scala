@@ -6,18 +6,35 @@ import org.scalatest.BeforeAndAfterEach
 
 class OdpsTableDataWriterSuite extends AnyFunSuite with BeforeAndAfterEach {
 
-  private val KILL_TASK_CHECK_INTERVAL = 100
-
   override def afterEach(): Unit = {
     TaskContext.unset()
   }
 
-  test("checkInterrupted does not throw when task is not killed") {
-    TaskContext.setTaskContext(newTaskContext())
+  test("checkInterrupted only invokes killTaskIfInterrupted at check intervals") {
+    val context = newTaskContext()
+    TaskContext.setTaskContext(context)
 
+    // rowsWritten=0 -> checks (0 % 100 == 0)
+    // rowsWritten=1..99 -> skips
+    // rowsWritten=100 -> checks (100 % 100 == 0)
+    // rowsWritten=101..199 -> skips
     for (rowsWritten <- 0L until 200L) {
-      checkInterrupted(rowsWritten)
+      OdpsTableDataWriter.checkInterrupted(rowsWritten)
     }
+
+    // If the interval logic were broken (e.g. always checks), a killed task
+    // would throw at any row. Verify the interval gate works by killing
+    // mid-interval — the next non-interval rows should NOT throw.
+    context.markInterrupted("another attempt succeeded")
+
+    // rowsWritten=150 is not a multiple of 100, so checkInterrupted should skip
+    OdpsTableDataWriter.checkInterrupted(150)
+
+    // rowsWritten=200 is a multiple of 100, so checkInterrupted should throw
+    val ex = intercept[TaskKilledException] {
+      OdpsTableDataWriter.checkInterrupted(200)
+    }
+    assert(ex.reason == "another attempt succeeded")
   }
 
   test("checkInterrupted throws TaskKilledException at next check interval after kill") {
@@ -25,15 +42,27 @@ class OdpsTableDataWriterSuite extends AnyFunSuite with BeforeAndAfterEach {
     TaskContext.setTaskContext(context)
 
     for (rowsWritten <- 0L until 50L) {
-      checkInterrupted(rowsWritten)
+      OdpsTableDataWriter.checkInterrupted(rowsWritten)
     }
 
     context.markInterrupted("another attempt succeeded")
 
     val ex = intercept[TaskKilledException] {
       for (rowsWritten <- 50L until 150L) {
-        checkInterrupted(rowsWritten)
+        OdpsTableDataWriter.checkInterrupted(rowsWritten)
       }
+    }
+    assert(ex.reason == "another attempt succeeded")
+  }
+
+  test("checkInterrupted throws immediately when killed at interval boundary") {
+    val context = newTaskContext()
+    TaskContext.setTaskContext(context)
+
+    context.markInterrupted("another attempt succeeded")
+
+    val ex = intercept[TaskKilledException] {
+      OdpsTableDataWriter.checkInterrupted(0)
     }
     assert(ex.reason == "another attempt succeeded")
   }
@@ -44,28 +73,20 @@ class OdpsTableDataWriterSuite extends AnyFunSuite with BeforeAndAfterEach {
 
     context.markInterrupted("another attempt succeeded")
 
-    // checkKilled checks every call, no interval
     val ex = intercept[TaskKilledException] {
-      checkKilled()
+      OdpsTableDataWriter.checkKilled()
     }
     assert(ex.reason == "another attempt succeeded")
   }
 
-  test("checkKilled before sleep exits retry loop early on killed task") {
-    val context = newTaskContext()
-    TaskContext.setTaskContext(context)
+  test("checkKilled does not throw when task is not killed") {
+    TaskContext.setTaskContext(newTaskContext())
 
-    context.markInterrupted("another attempt succeeded")
+    OdpsTableDataWriter.checkKilled()
+  }
 
-    val ex = intercept[TaskKilledException] {
-      var retries = 0
-      while (retries < 3) {
-        retries += 1
-        checkKilled()
-        Thread.sleep(100)
-      }
-    }
-    assert(ex.reason == "another attempt succeeded")
+  test("KILL_TASK_CHECK_INTERVAL is 100") {
+    assert(OdpsTableDataWriter.KILL_TASK_CHECK_INTERVAL == 100)
   }
 
   private def newTaskContext(): TaskContextImpl = {
@@ -79,15 +100,5 @@ class OdpsTableDataWriterSuite extends AnyFunSuite with BeforeAndAfterEach {
       localProperties = null,
       metricsSystem = null,
       cpus = 1)
-  }
-
-  private def checkInterrupted(rowsWritten: Long): Unit = {
-    if (rowsWritten % KILL_TASK_CHECK_INTERVAL == 0) {
-      checkKilled()
-    }
-  }
-
-  private def checkKilled(): Unit = {
-    TaskContext.get().killTaskIfInterrupted()
   }
 }

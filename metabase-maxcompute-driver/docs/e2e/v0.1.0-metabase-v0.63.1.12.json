@@ -1,0 +1,19 @@
+{
+  "driver_version": "0.1.0",
+  "metabase_version": "0.63.1.12",
+  "metabase_image": "metabase/metabase:v0.63.1.12",
+  "metabase_image_digest": "sha256:4f150effd4849b89c428bc98fc1df300792fbc3a3567cc5697e0daa6c13d8ff0",
+  "java_version": "25.0.3",
+  "artifact_build_baseline": "0.51.14",
+  "artifact_build_baseline_revision": "0b92e01218eca4f797df4b1c5827222610145442",
+  "tested_at": "2026-07-29T10:31:19Z",
+  "real_maxcompute": true,
+  "plugin_load": "pass",
+  "database_connection": "pass",
+  "full_schema_sync": "pass",
+  "table_count": 998,
+  "field_count": 6943,
+  "native_query": "pass",
+  "mbql_query": "pass",
+  "artifact_sha256": "20f1c6ab6c8700cfd80a126918077a60bde633b1e447a0baca59ee17c457f346"
+}

@@ -1,0 +1,88 @@
+schema_version: 1
+driver:
+  name: maxcompute
+  display_name: MaxCompute
+  maintainer: Alibaba Cloud MaxCompute
+  artifact_pattern: maxcompute-metabase-driver-{driver_version}.jar
+
+releases:
+  - driver_version: 0.1.0
+    status: range-verification-in-progress
+    artifact: maxcompute-metabase-driver-0.1.0.jar
+    metabase:
+      target_range:
+        min_inclusive: 0.51.14
+        max_exclusive: 0.64.0
+      build_baseline: 0.51.14
+      range_policy:
+        artifact_identity: same-sha256
+        load_smoke: latest patch of every minor in the target range
+        full_e2e: production version, range boundaries, and API-transition anchors
+      load_smoke_versions:
+        - version: 0.51.14
+          source_revision: 0b92e01218eca4f797df4b1c5827222610145442
+          tested_at: "2026-07-29"
+          result: pass
+        - version: 0.56.25.1
+          source_revision: 835658ec7bd2d596a18d9b4d792ccc5ba04a743f
+          role: driver-api-transition
+          tested_at: "2026-07-29"
+          result: pass
+        - version: 0.60.15
+          source_revision: 21b44885fe4fbcf0ca57282e4ef27cb8ce048ef7
+          role: interior-anchor
+          tested_at: "2026-07-29"
+          result: pass
+      tested_versions:
+        - version: 0.63.1.12
+          tested_at: "2026-07-29"
+          test_level: full_e2e
+          plugin_load: pass
+          database_connection: pass
+          full_schema_sync: pass
+          table_count: 998
+          field_count: 6943
+          native_query: pass
+          mbql_query: pass
+      pending_full_e2e:
+        - version: null
+          role: exact-production-0.51.x
+        - version: 0.51.14
+          role: minimum-line-latest-patch
+        - version: 0.56.25.1
+          role: driver-api-transition
+        - version: 0.60.15
+          role: interior-anchor
+    java:
+      release_build_runtime: "25"
+      tested_artifact_build_runtime: "23.0.1"
+      load_smoke_runtime: "23.0.1"
+      full_e2e_runtimes:
+        - metabase_version: 0.63.1.12
+          java_version: "25.0.3"
+    odps_jdbc:
+      version: 3.10.11
+      distribution: bundled
+    tested_artifact:
+      filename: maxcompute-metabase-driver-0.1.0.jar
+      sha256: 20f1c6ab6c8700cfd80a126918077a60bde633b1e447a0baca59ee17c457f346
+    evidence:
+      - docs/e2e/v0.1.0-load-smoke.md
+      - docs/e2e/v0.1.0-metabase-v0.63.1.12.md
+      - docs/e2e/v0.1.0-metabase-v0.63.1.12.json
+
+  - driver_version: 0.0.5
+    status: legacy
+    metabase:
+      target_range:
+        min_inclusive: 0.50.0
+        max_exclusive: 0.51.0
+      tested_versions:
+        - version: 0.50.21
+          tested_at: null
+    java:
+      official_metabase_runtime: "11"
+    odps_jdbc:
+      version: external
+      distribution: separate
+    evidence: []

@@ -264,9 +264,7 @@ var SettingsParser_ = (function() {
     var doubled = new RegExp(quote + quote, 'g');
     return inner
       .replace(doubled, quote)
-      .replace(/\'/g, '\'')
-      .replace(/\"/g, '"')
-      .replace(/\\/g, '\\');
+      .replace(/\\(['"\\])/g, '$1');
   }
 
   return {

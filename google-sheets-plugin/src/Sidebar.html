@@ -849,6 +849,7 @@
         <div id="attachGroup" style="display:none;">
           <div class="input-group">
             <label class="input-label" id="labelInstanceId">Instance ID</label>
+            <select class="input-field" id="attachInstanceSelect" aria-label="Recent Instance IDs"></select>
             <input type="text" class="input-field" id="instanceInput" placeholder="" maxlength="128" spellcheck="false" style="font-family:var(--font-mono);">
           </div>
         </div>
@@ -879,6 +880,7 @@
             <span style="font-size:12px; font-weight:600;" id="labelRecentQueries">Recent Queries</span>
             <button class="btn btn-ghost btn-sm" id="btnClearHistory" style="font-size:11px;">Clear</button>
           </div>
+          <label><input type="checkbox" id="historyEnabled"><span id="historyEnabledLabel">Save local history</span></label>
           <div id="historyList"></div>
         </div>
       </div>
@@ -1264,6 +1266,7 @@
 
   var MAX_HISTORY = 10;
   var MAX_SQL_LENGTH = 65536;
+  var historyRequestVersion = 0;
   var HISTORY_KEY = 'mc_sql_history';
   var HISTORY_ENABLED_KEY = 'mc_sql_history_enabled';
   var INSTANCE_HISTORY_KEY = 'mc_instance_history';
@@ -1348,6 +1351,8 @@
       initActiveSheet();
     }
 
+    applyHistoryPreference();
+    renderInstanceHistory();
     loadHistory();
     syncHistoryFromBackend();
     renderJobs();
@@ -1381,6 +1386,8 @@
     document.getElementById('btnRun').addEventListener('click', function() { runCurrentSheet(); });
     document.getElementById('btnTestConn').addEventListener('click', function() { testConn(); });
     document.getElementById('btnClearHistory').addEventListener('click', function() { clearHistory(); });
+    document.getElementById('historyEnabled').addEventListener('change', toggleHistoryEnabled);
+    document.getElementById('attachInstanceSelect').addEventListener('change', selectAttachInstanceHistory);
 
     // Jobs actions
     document.getElementById('jobFilterSelect').addEventListener('change', function() {
@@ -1439,6 +1446,8 @@
   function applyLanguage(lang) {
     currentLang = (lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW') ? 'zh' : 'en';
     updateLanguageUI();
+    applyHistoryPreference();
+    renderInstanceHistory();
   }
 
   function loadLanguagePreference() {
@@ -1850,29 +1859,35 @@
 
     saveCurrentSql();
 
-    var state = getOrCreateSheetState(currentSheetId);
+    var submittedSheetId = currentSheetId;
+    var submittedSheetName = currentSheetName;
+    var submittedMode = currentMode;
+    var state = getOrCreateSheetState(submittedSheetId);
     state.status = 'submitting';
     state.error = null;
     state.summary = null;
     state.startTime = Date.now();
-    updateExecStatusDom(state);
+    var submissionToken = {};
+    state.submissionToken = submissionToken;
+    if (currentSheetId === submittedSheetId) updateExecStatusDom(state);
 
     isRunning = true;
     setInputsDisabled(true);
 
     if (currentMode === 'attach') {
       var attachId = domData.instanceId.trim();
+      saveInstanceToHistory(attachId);
       state.status = 'submitted';
       state.instanceId = attachId;
       state.logviewUrl = null;
-      updateExecStatusDom(state);
+      if (currentSheetId === submittedSheetId) updateExecStatusDom(state);
 
       var job = {
         id: attachId,
         instanceId: attachId,
         mode: 'attach',
         sql: null,
-        targetSheet: currentSheetName,
+        targetSheet: submittedSheetName,
         status: 'running',
         error: null,
         logviewUrl: null,
@@ -1895,19 +1910,21 @@
 
     google.script.run
       .withSuccessHandler(function(result) {
+        if (state.submissionToken !== submissionToken) return;
+        if (result.instanceId) saveInstanceToHistory(result.instanceId);
         if (result.sync) {
           state.status = 'success';
           state.summary = result;
           state.instanceId = result.instanceId || null;
           state.logviewUrl = result.logviewUrl || null;
-          updateExecStatusDom(state);
+          if (currentSheetId === submittedSheetId) updateExecStatusDom(state);
           saveToHistory(domData.sql.trim());
-          recordJobFromSheet(state, domData);
+          recordJobFromSheet(state, domData, submittedSheetId, submittedSheetName, submittedMode);
         } else {
           state.status = 'submitted';
           state.instanceId = result.instanceId;
           state.logviewUrl = result.logviewUrl;
-          updateExecStatusDom(state);
+          if (currentSheetId === submittedSheetId) updateExecStatusDom(state);
           saveToHistory(domData.sql.trim());
 
           var job = {
@@ -1915,7 +1932,7 @@
             instanceId: result.instanceId,
             mode: 'sql',
             sql: domData.sql.trim(),
-            targetSheet: currentSheetName,
+            targetSheet: submittedSheetName,
             status: 'running',
             error: null,
             logviewUrl: result.logviewUrl || null,
@@ -1935,15 +1952,16 @@
         setInputsDisabled(false);
       })
       .withFailureHandler(function(error) {
+        if (state.submissionToken !== submissionToken) return;
         state.status = 'failed';
         state.error = getSafeServerErrorMessage(error);
-        updateExecStatusDom(state);
-        recordJobFromSheet(state, domData);
+        if (currentSheetId === submittedSheetId) updateExecStatusDom(state);
+        recordJobFromSheet(state, domData, submittedSheetId, submittedSheetName, submittedMode);
 
         isRunning = false;
         setInputsDisabled(false);
       })
-      .submitQuery(sql, null, currentSheetName);
+      .submitQuery(sql, null, submittedSheetName);
   }
 
   // ============================================================
@@ -2045,16 +2063,27 @@
 
   function cancelJobClick(jobId) {
     var job = findJob(jobId);
-    if (!job || !job.instanceId) return;
+    if (!job || !job.instanceId || job.cancelPending) return;
+    job.cancelPending = true;
 
     google.script.run
-      .withSuccessHandler(function() {
-        // 轮询会自然检测到 Cancelled 状态
+      .withSuccessHandler(function(result) {
+        job.cancelPending = false;
+        if (!result || /^failed(?::|$)/i.test(String(result.killResult || ''))) {
+          showNotification('error', t('cancelRequestFailed') + ': ' + getSafeCancelKillResult(result));
+        }
+        // Polling remains authoritative; a kill acknowledgement is not termination.
       })
-      .withFailureHandler(function() {
-        showNotification('error', t('cancelRequestFailed'));
+      .withFailureHandler(function(error) {
+        job.cancelPending = false;
+        showNotification('error', t('cancelRequestFailed') + ': ' + getSafeServerErrorMessage(error));
       })
       .cancelQuery(job.instanceId);
+  }
+
+  function getSafeCancelKillResult(result) {
+    var raw = String(result && result.killResult || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    return raw.length <= 200 ? raw : raw.slice(0, 200) + '...';
   }
 
   function resumeRunningJobPolling() {
@@ -2097,9 +2126,9 @@
       case 'success':
         html = '<span style="color:var(--success);">&#10003;</span><span class="status-text" style="color:var(--success);">' + t('taskSuccess');
         if (state.summary) {
-          html += ' &mdash; ' + (state.summary.rowCount || 0) + ' ' + t('resultRows');
+          html += ' &mdash; ' + escapeHtml(state.summary.rowCount || 0) + ' ' + t('resultRows');
           if (state.summary.executionTimeMs) {
-            html += ', ' + formatMs(state.summary.executionTimeMs);
+            html += ', ' + escapeHtml(formatMs(state.summary.executionTimeMs));
           }
         }
         html += '</span>';
@@ -2123,13 +2152,13 @@
   // Job 记录
   // ============================================================
 
-  function recordJobFromSheet(state, domData) {
+  function recordJobFromSheet(state, domData, sheetId, sheetName, mode) {
     var record = {
-      id: state.instanceId || ('local-' + currentSheetId + '-' + Date.now()),
+      id: state.instanceId || ('local-' + sheetId + '-' + Date.now()),
       instanceId: state.instanceId || null,
-      mode: currentMode,
+      mode: mode,
       sql: domData.sql || null,
-      targetSheet: currentSheetName,
+      targetSheet: sheetName,
       status: state.status,
       error: state.error || null,
       logviewUrl: state.logviewUrl || null,
@@ -2205,6 +2234,8 @@
 
     // Bind action events
     filtered.forEach(function(job) {
+      var cancelBtn = document.getElementById('jobCancel-' + job.id);
+      if (cancelBtn) cancelBtn.addEventListener('click', function() { cancelJobClick(job.id); });
       var retryBtn = document.getElementById('jobRetry-' + job.id);
       if (retryBtn) retryBtn.addEventListener('click', function() { retryJob(job); });
       var logBtn = document.getElementById('jobLog-' + job.id);
@@ -2856,6 +2887,7 @@
       .withFailureHandler(function(error) {
         if (requestVersion !== catalogRequestVersion) return;
         delete catalogDetailsLoading[tableKey];
+        if (!selectedCatalogTable || selectedCatalogTable.schema !== schemaName || selectedCatalogTable.table !== tableName) return;
         document.getElementById('schemaPreviewBody').innerHTML =
           '<div style="padding:8px;color:var(--danger);font-size:12px;">' + escapeHtml(getSafeServerErrorMessage(error)) + '</div>';
       })
@@ -3134,9 +3166,10 @@
 
   function syncHistoryFromBackend() {
     if (!window.google || !google.script || !google.script.run) return;
+    var requestVersion = historyRequestVersion;
     google.script.run
       .withSuccessHandler(function(remote) {
-        if (!remote) return;
+        if (!remote || requestVersion !== historyRequestVersion) return;
         applyBackendHistory_(remote);
       })
       .withFailureHandler(function() {})
@@ -3149,10 +3182,19 @@
 
     if (remote.enabled === false) {
       setHistoryEnabled(false);
+      try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+      applyHistoryPreference();
+      renderHistory([]);
+      return;
     } else {
       setHistoryEnabled(true);
     }
 
+    applyHistoryPreference();
+    if (Array.isArray(remote.instanceItems)) {
+      persistInstanceHistoryList(remote.instanceItems);
+      renderInstanceHistory();
+    }
     var remoteSql = Array.isArray(remote.sqlItems) ? remote.sqlItems : [];
     if (remoteSql.length > 0 || localSqlBefore.length === 0) {
       try { localStorage.setItem(HISTORY_KEY, JSON.stringify(remoteSql)); } catch (e) {}
@@ -3187,6 +3229,26 @@
     }
   }
 
+  function toggleHistoryEnabled() {
+    historyRequestVersion++;
+    var enabled = document.getElementById('historyEnabled').checked;
+    setHistoryEnabled(enabled);
+    if (!enabled) {
+      try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+      mirrorHistoryCall_('clearSqlHistory');
+    }
+    mirrorHistoryCall_('setSqlHistoryEnabled', enabled);
+    applyHistoryPreference();
+    loadHistory();
+  }
+
+  function applyHistoryPreference() {
+    var checkbox = document.getElementById('historyEnabled');
+    if (checkbox) checkbox.checked = isHistoryEnabled();
+    var label = document.getElementById('historyEnabledLabel');
+    if (label) label.textContent = t('historyEnabled');
+  }
+
   function loadHistory() {
     renderHistory(getHistoryList());
   }
@@ -3213,6 +3275,7 @@
 
   function clearHistory() {
     if (!confirm(t('historyClearConfirm'))) return;
+    historyRequestVersion++;
     try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
     renderHistory([]);
     mirrorHistoryCall_('clearSqlHistory');
@@ -3237,6 +3300,7 @@
   function renderHistory(list) {
     var container = document.getElementById('historyList');
     container.innerHTML = '';
+    if (!isHistoryEnabled()) { container.textContent = t('historyDisabled'); return; }
     if (list.length === 0) return;
 
     list.forEach(function(sql) {
@@ -3417,6 +3481,53 @@
     return out.join('');
   }
 
+  function saveInstanceToHistory(instanceId) {
+    if (getClientInstanceIdError(instanceId)) return;
+    var list = getInstanceHistoryList(Date.now()).filter(function(item) { return item.instanceId !== instanceId; });
+    list.unshift({ instanceId: instanceId, savedAt: Date.now() });
+    persistInstanceHistoryList(list);
+    renderInstanceHistory();
+    if (window.google && google.script) {
+      google.script.run.withSuccessHandler(function() {}).withFailureHandler(function() {}).appendInstanceHistory(instanceId);
+    }
+  }
+
+  function getInstanceHistoryList(now) {
+    try {
+      var list = JSON.parse(localStorage.getItem(INSTANCE_HISTORY_KEY) || '[]');
+      if (!Array.isArray(list)) return [];
+      return list.filter(function(item) {
+        return item && !getClientInstanceIdError(item.instanceId) && typeof item.savedAt === 'number' &&
+          item.savedAt <= now && now - item.savedAt <= INSTANCE_HISTORY_TTL_MS;
+      }).slice(0, MAX_HISTORY);
+    } catch (e) { return []; }
+  }
+
+  function persistInstanceHistoryList(list) {
+    try { localStorage.setItem(INSTANCE_HISTORY_KEY, JSON.stringify(list.slice(0, MAX_HISTORY))); } catch (e) {}
+  }
+
+  function renderInstanceHistory() {
+    var select = document.getElementById('attachInstanceSelect');
+    if (!select) return;
+    select.innerHTML = '';
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = t('attachRecentJobs');
+    select.appendChild(placeholder);
+    getInstanceHistoryList(Date.now()).forEach(function(item) {
+      var option = document.createElement('option');
+      option.value = item.instanceId;
+      option.textContent = item.instanceId;
+      select.appendChild(option);
+    });
+  }
+
+  function selectAttachInstanceHistory() {
+    var value = document.getElementById('attachInstanceSelect').value;
+    if (!getClientInstanceIdError(value)) document.getElementById('instanceInput').value = value;
+  }
+
   function getClientInstanceIdError(instanceId) {
     instanceId = String(instanceId || '').trim();
     if (!instanceId) return t('errorEmptyInstanceId');
@@ -3431,10 +3542,7 @@
   // ============================================================
 
   function escapeHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function escapeAttr(str) {
@@ -3543,10 +3651,6 @@
 
     document.getElementById('exportSelectAll').checked = true;
     onExportConfigChange();
-  }
-
-  function escapeHtml(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function onExportSelectAllChange() {

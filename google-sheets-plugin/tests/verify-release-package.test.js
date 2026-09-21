@@ -129,3 +129,21 @@ test('release package verifier rejects forbidden production Apps Script APIs', (
 
   cleanTemp();
 });
+
+
+for (const mutation of ['missing OSS region', 'duplicate OSS region', 'unbounded OSS host', 'arbitrary URL']) {
+  test('release package verifier rejects ' + mutation, () => {
+    const packageDir=buildFixturePackage();
+    const file=path.join(packageDir,'appsscript.json');
+    const manifest=JSON.parse(fs.readFileSync(file,'utf8'));
+    const oss='https://*.oss-cn-hangzhou.aliyuncs.com/';
+    if (mutation==='missing OSS region') manifest.urlFetchWhitelist=manifest.urlFetchWhitelist.filter(x=>x!==oss);
+    if (mutation==='duplicate OSS region') manifest.urlFetchWhitelist.push(oss);
+    if (mutation==='unbounded OSS host') manifest.urlFetchWhitelist.push('https://*.aliyuncs.com/');
+    if (mutation==='arbitrary URL') manifest.urlFetchWhitelist.push('https://example.com/');
+    fs.writeFileSync(file,JSON.stringify(manifest));
+    const result=verifyReleasePackage({packageDir});
+    assert.equal(result.ok,false); assert.match(result.failures.join(' '),/whitelist entry/);
+    cleanTemp();
+  });
+}

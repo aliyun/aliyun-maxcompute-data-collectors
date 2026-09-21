@@ -351,7 +351,7 @@ function isForbiddenSqlKeyword_(keyword) {
  */
 function containsReservedAuditSetStatement_(statement) {
   var s = maskSqlCommentsAndLiterals_(statement);
-  return /set\s+ext_(?:platform_id|node_id|dagtype|task_id|node_name|node_onduty)/i.test(s);
+  return /\bset\s+ext_(?:platform_id|node_id|dagtype|task_id|node_name|node_onduty)\b/i.test(s);
 }
 
 /**
@@ -370,29 +370,29 @@ function shouldCheckNestedForbiddenSqlOperation_(keyword) {
 function containsForbiddenSqlOperation_(statement) {
   var s = maskSqlCommentsAndLiterals_(statement);
   var patterns = [
-    /insert\s+(?:into|overwrite)/i,
-    /update\s+[\s\S]+?set/i,
-    /delete\s+from/i,
-    /merge\s+into/i,
-    /create\s+(?:or\s+replace\s+)?(?:external\s+)?(?:materialized\s+)?(?:table|view|function|resource|instance|schema|database|role|package|volume|model)/i,
-    /alter\s+(?:materialized\s+)?(?:table|view|function|resource|schema|database|role|package|volume|model)/i,
-    /drop\s+(?:materialized\s+)?(?:table|view|function|resource|schema|database|role|package|volume|model)/i,
-    /truncate\s+table/i,
-    /rename\s+table/i,
-    /msck\s+repair\s+table/i,
-    /add\s+(?:file|jar|archive|py|resource|user)/i,
-    /remove\s+(?:file|jar|archive|py|resource|user)/i,
-    /(?:install|uninstall)\s+package/i,
-    /grant/i,
-    /revoke/i,
-    /load\s+data/i,
-    /unload/i,
-    /analyze\s+(?:table|column|columns)/i,
-    /call/i,
-    /use\s+\S+/i,
-    /begin/i,
-    /commit/i,
-    /rollback/i
+    /\binsert\s+(?:into|overwrite)\b/i,
+    /\bupdate\s+[\s\S]+?\bset\b/i,
+    /\bdelete\s+from\b/i,
+    /\bmerge\s+into\b/i,
+    /\bcreate\s+(?:or\s+replace\s+)?(?:external\s+)?(?:materialized\s+)?(?:table|view|function|resource|instance|schema|database|role|package|volume|model)\b/i,
+    /\balter\s+(?:materialized\s+)?(?:table|view|function|resource|schema|database|role|package|volume|model)\b/i,
+    /\bdrop\s+(?:materialized\s+)?(?:table|view|function|resource|schema|database|role|package|volume|model)\b/i,
+    /\btruncate\s+table\b/i,
+    /\brename\s+table\b/i,
+    /\bmsck\s+repair\s+table\b/i,
+    /\badd\s+(?:file|jar|archive|py|resource|user)\b/i,
+    /\bremove\s+(?:file|jar|archive|py|resource|user)\b/i,
+    /\b(?:install|uninstall)\s+package\b/i,
+    /\bgrant\b/i,
+    /\brevoke\b/i,
+    /\bload\s+data\b/i,
+    /\bunload\b/i,
+    /\banalyze\s+(?:table|column|columns)\b/i,
+    /\bcall\b/i,
+    /\buse\s+\S+/i,
+    /\bbegin\b/i,
+    /\bcommit\b/i,
+    /\brollback\b/i
   ];
 
   for (var i = 0; i < patterns.length; i++) {
@@ -1233,7 +1233,7 @@ function parseInstanceResultXml_(xml) {
   // 将 \N (NULL) 替换为空字符串
   csvRows = csvRows.map(function(row) {
     return row.map(function(cell) {
-      return cell === '\N' ? '' : cell;
+      return cell === '\\N' ? '' : cell;
     });
   });
 

@@ -98,10 +98,10 @@ Google Apps Script 对单次脚本执行有时间限制。当前插件按单次�
 
 当前规则：
 
-- 仅保存在当前浏览器的 `localStorage`。
+- 缓存在浏览器 `localStorage`，并同步到同一 Apps Script 用户的 PropertiesService。
 - 最多保留 10 条。
 - 有效期为 1 天。
-- 不会同步到其它浏览器或其它设备。
+- 同一 Apps Script 用户可从后端恢复最近 Instance；不同 Google 账号之间不会共享。
 - 清理浏览器站点数据后，历史记录会消失。
 
 如果下拉列表中没有目标 Instance ID，用户仍然可以手动输入或粘贴 Instance ID。
@@ -156,7 +156,7 @@ Instance ID + Attach 解决的是“SQL 等待时间超过单次 Apps Script 调
 
 ### Recent jobs 里找不到 Instance ID 怎么办？
 
-Recent jobs 只保留当前浏览器 1 天内的最近 10 条记录。如果列表中没有目标作业，可以从之前复制的 Instance ID、Logview 页面或 MaxCompute 控制台作业记录中找到 Instance ID，然后手动粘贴到 Attach 输入框。
+Recent jobs 保留 1 天内的最近 10 条记录，可从同一用户的后端属性恢复。如果列表中没有目标作业，可以从之前复制的 Instance ID、Logview 页面或 MaxCompute 控制台作业记录中找到 Instance ID，然后手动粘贴到 Attach 输入框。
 
 ### Attach 到失败的作业会怎样？
 

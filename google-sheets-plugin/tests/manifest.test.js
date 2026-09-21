@@ -6,10 +6,11 @@ const test = require('node:test');
 const { buildRelease } = require('../scripts/build-release');
 
 const REQUIRED_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets.currentonly',
+  'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/script.container.ui',
   'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/script.storage',
+  'https://www.googleapis.com/auth/script.scriptapp',
   'https://www.googleapis.com/auth/userinfo.email'
 ];
 
@@ -55,7 +56,7 @@ test('Apps Script manifest includes required editor add-on scopes only once', ()
     assert.equal(scopes.filter((candidate) => candidate === scope).length, 1, `duplicate scope: ${scope}`);
   }
 
-  assert.equal(scopes.includes('https://www.googleapis.com/auth/spreadsheets'), false);
+  assert.deepEqual(scopes.slice().sort(), REQUIRED_SCOPES.slice().sort());
   assert.equal(scopes.includes('https://www.googleapis.com/auth/drive'), false);
 });
 
@@ -67,7 +68,7 @@ test('Apps Script manifest whitelists MaxCompute endpoint prefixes', () => {
   }
 
   for (const endpoint of whitelist) {
-    assert.match(endpoint, /^(?:https:\/\/service\.[a-z0-9-]+\.maxcompute\.aliyun\.com\/|https:\/\/www\.googleapis\.com\/)$/);
+    assert.match(endpoint, /^(?:https:\/\/service\.[a-z0-9-]+\.maxcompute\.aliyun\.com\/|https:\/\/www\.googleapis\.com\/|https:\/\/\*\.oss-[a-z0-9-]+\.aliyuncs\.com\/)$/);
   }
 
   assert.ok(whitelist.includes('https://www.googleapis.com/'), 'missing Google userinfo whitelist');

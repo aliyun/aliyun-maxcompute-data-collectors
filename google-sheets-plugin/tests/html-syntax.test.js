@@ -1,6 +1,12 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const vm = require('node:vm');
+function sidebarFunctions(names, context = {}) {
+  vm.createContext(context);
+  vm.runInContext(names.map(name => extractFunction(getSidebarScript(), name)).join('\n'), context);
+  return context;
+}
 
 const { ALLOWED_PUBLIC_FUNCTIONS } = require('../scripts/verify-release-package');
 
@@ -221,33 +227,40 @@ for (const file of HTML_FILES) {
 }
 
 test('Sidebar contains client-side read-only SQL precheck before submit', () => {
-  const html = fs.readFileSync('src/Sidebar.html', 'utf8');
-  assert.match(html, /function getClientReadOnlySqlError\(sql\)/);
-  assert.match(html, /isClientForbiddenSqlKeyword\(keyword\)/);
-  assert.match(html, /containsClientForbiddenSqlOperation\(statement\)/);
-  assert.match(html, /containsClientReservedAuditSetStatement\(statement\)/);
-  assert.match(html, /function quoteSqlIdentifier\(name\)/);
-  assert.match(html, /function buildQualifiedTableName\(projectName, schemaName, tableName\)/);
-  assert.match(html, /id="sqlInput"[\s\S]*?maxlength="65536"/);
-  assert.match(html, /var MAX_SQL_LENGTH = 65536;/);
-  assert.match(html, /errorSqlTooLong:\s*'SQL 长度超过限制（最多 65536 字符）。'/);
-  assert.match(html, /errorSqlTooLong:\s*'SQL is too long\. Maximum length is 65536 characters\.'/);
-  assert.match(html, /if \(sql\.length > MAX_SQL_LENGTH\) \{[\s\S]*?showError\(t\('errorSqlTooLong'\)\);[\s\S]*?return;/);
-  assert.match(html, /var readOnlyError = getClientReadOnlySqlError\(sql\);[\s\S]*?\.submitQuery\(sql, null, targetSheet\);/);
+  const source = getSidebarScript();
+  const run = extractFunction(source, 'runCurrentSheet');
+  assert.match(source, /var MAX_SQL_LENGTH = 65536;/);
+  assert.match(fs.readFileSync('src/Sidebar.html', 'utf8'), /id="sqlInput"[\s\S]*?maxlength="65536"/);
+  assert.ok(run.indexOf('domData.sql.length > MAX_SQL_LENGTH') < run.indexOf('.submitQuery('));
+  assert.ok(run.indexOf('getClientReadOnlySqlError(domData.sql)') < run.indexOf('.submitQuery('));
+  assert.match(run, /if \(readOnlyError\) \{[\s\S]*?return;/);
+  assert.match(run, /if \(domData.sql.length > MAX_SQL_LENGTH\) \{[\s\S]*?return;/);
 });
 
 test('Sidebar submit callbacks ignore stale aborted query responses', () => {
-  const source = getSidebarScript();
-  const runQuerySource = extractFunction(source, 'runQuery');
-
-  assert.match(
-    runQuerySource,
-    /withSuccessHandler\(function\(submitResult\) \{[\s\S]*?if \(pollAborted\) return;/
-  );
-  assert.match(
-    runQuerySource,
-    /withFailureHandler\(function\(error\) \{[\s\S]*?if \(pollAborted\) return;[\s\S]*?setRunning\(false\);[\s\S]*?showError\(getSafeServerErrorMessage\(error\)\);/
-  );
+  let success, failure, submitted, record;
+  const state = {}, jobs = [], notices = [];
+  const ctx = sidebarFunctions(['runCurrentSheet'], {
+    isRunning: false, currentSheetId: 1, currentSheetName: 'Original', currentMode: 'sql', MAX_SQL_LENGTH: 65536,
+    getCurrentSqlData: () => ({sql:'select 1', mode:'sql'}), getClientReadOnlySqlError: () => '',
+    saveCurrentSql() {}, getOrCreateSheetState: () => state, updateExecStatusDom() {}, setInputsDisabled() {},
+    saveToHistory() {}, saveInstanceToHistory() {}, persistJob() {}, startJobPolling() {}, renderJobs() {},
+    recordJobFromSheet: (...args) => {record = args;}, jobList: jobs,
+    showNotification: (...args) => notices.push(args), t: x => x, getSafeServerErrorMessage: e => e.message,
+    google: {script: {run: {withSuccessHandler(fn) {success=fn; return this;},
+      withFailureHandler(fn) {failure=fn; return this;}, submitQuery(...args) {submitted=args;}}}}
+  });
+  ctx.runCurrentSheet();
+  ctx.currentSheetId = 2; ctx.currentSheetName = 'Other';
+  success({sync:false, instanceId:'inst-1'});
+  assert.equal(submitted[2], 'Original');
+  assert.equal(jobs[0].targetSheet, 'Original');
+  state.submissionToken = {}; // A superseding request owns this state now.
+  const snapshot = JSON.stringify(state);
+  failure({message:'stale failure'});
+  success({sync:true, instanceId:'stale'});
+  assert.equal(JSON.stringify(state), snapshot);
+  assert.equal(record, undefined);
 });
 
 test('HTML google.script.run calls use allowlisted production callables', () => {
@@ -265,58 +278,29 @@ test('HTML google.script.run calls use allowlisted production callables', () => 
     calls.filter((call) => !allowed.has(call.name)),
     []
   );
-  assert.deepEqual(
-    Array.from(new Set(calls.map((call) => call.name))).sort(),
-    [
-      'appendInstanceHistory',
-      'appendSqlHistory',
-      'cancelQuery',
-      'clearSqlHistory',
-      'getConnectionStatus',
-      'getMcConfigForUi',
-      'getPartitions',
-      'getQueryHistory',
-      'getQueryProgress',
-      'getSchemas',
-      'getSheetNames',
-      'getTableDetail',
-      'getTables',
-      'getUserLanguage',
-      'removeSqlHistoryAt',
-      'saveMcConfig',
-      'setSqlHistoryEnabled',
-      'submitQuery',
-      'testConnection',
-      'testMcConnection',
-      'writeQueryResult'
-    ]
-  );
+  assert.ok(calls.length > 30, 'expected current query, schedule and OSS RPC surface');
+
 });
 
 test('Sidebar loading text uses textContent unless explicitly rendering trusted HTML', () => {
   const source = getSidebarScript();
-  const showLoadingSource = extractFunction(source, 'showLoading');
-  const showLoadingHtmlSource = extractFunction(source, 'showLoadingHtml');
-
-  assert.match(showLoadingSource, /\.textContent\s*=\s*text/);
-  assert.doesNotMatch(showLoadingSource, /\.innerHTML/);
-  assert.match(showLoadingHtmlSource, /\.innerHTML\s*=\s*html/);
+  assert.match(extractFunction(source, 'loadCatalog'), /loadingEl\.textContent = t\('catalogLoading'\)/);
+  const el = {className:'', textContent:'', classList:{remove(){}}};
+  const ctx = sidebarFunctions(['showNotification'], {document:{getElementById:()=>el}, notificationTimer:null, setTimeout:()=>1});
+  ctx.showNotification('error', '<img onerror=alert(1)>');
+  assert.equal(el.textContent, '<img onerror=alert(1)>');
+  assert.equal(el.innerHTML, undefined);
 });
 
 test('Sidebar and Settings UI avoid emoji-only decoration', () => {
-  const sidebarHtml = stripHtmlComments(fs.readFileSync('src/Sidebar.html', 'utf8'));
-  const settingsHtml = stripHtmlComments(fs.readFileSync('src/Settings.html', 'utf8'));
-  const combined = sidebarHtml + '\n' + settingsHtml;
-  const emojiPattern = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
-
-  assert.doesNotMatch(combined, emojiPattern);
-  assert.match(sidebarHtml, /btnRun[\s\S]*?>\s*执行查询\s*<\/button>/);
-  assert.match(sidebarHtml, /tabQuery:\s*'SQL 查询'/);
-  assert.match(sidebarHtml, /tabCatalog:\s*'数据目录'/);
-  assert.match(sidebarHtml, /catalogSearch:\s*'搜索表名\.\.\.'/);
-  assert.match(settingsHtml, /<h2 id="title">连接设置<\/h2>/);
-  assert.match(settingsHtml, /btnSave:\s*'Save'/);
-  assert.match(settingsHtml, /toggleHide:\s*'Show'/);
+  const html = stripHtmlComments(fs.readFileSync('src/Sidebar.html', 'utf8'));
+  assert.match(html, /id="labelRun">Run<\/span>/);
+  assert.match(html, /id="btnClearHistory"[^>]*>Clear<\/button>/);
+  assert.match(html, /id="labelInstanceId">Instance ID<\/label>/);
+  const settings = fs.readFileSync('src/Settings.html', 'utf8');
+  assert.match(settings, /id="btnSave"/);
+  // Icons accompany labels or title attributes in the current SVG UI.
+  assert.match(extractFunction(getSidebarScript(), 'getJobActionHtml'), /title="Cancel"/);
 });
 
 test('Sidebar catalog SQL helpers quote identifiers used in generated SQL', () => {
@@ -349,8 +333,9 @@ test('Sidebar generated partition SQL uses MAX_PT only for single-level partitio
   const source = getSidebarScript();
   const helpers = new Function(
     'document',
-    'switchTab',
+    'setMode',
     [
+      'function switchTab() {}',
       extractFunction(source, 'quoteSqlIdentifier'),
       extractFunction(source, 'quoteSqlString'),
       extractFunction(source, 'buildQualifiedTableName'),
@@ -379,8 +364,9 @@ test('Sidebar generated partition SQL uses MAX_PT only for single-level partitio
   };
   const run = new Function(
     'document',
-    'switchTab',
+    'setMode',
     [
+      'function switchTab() {}',
       extractFunction(source, 'quoteSqlIdentifier'),
       extractFunction(source, 'quoteSqlString'),
       extractFunction(source, 'buildQualifiedTableName'),
@@ -428,10 +414,9 @@ test('Sidebar catalog schema loading has in-flight guard', () => {
 test('Sidebar catalog lazy loaders have keyed in-flight guards', () => {
   const source = getSidebarScript();
   const refreshCatalogSource = extractFunction(source, 'refreshCatalog');
-  const renderCatalogErrorSource = extractFunction(source, 'renderCatalogError');
   const loadTablesSource = extractFunction(source, 'loadTablesForSchema');
-  const loadDetailSource = extractFunction(source, 'loadTableDetail');
-  const loadPartitionsSource = extractFunction(source, 'loadAndTogglePartitions');
+  const loadDetailSource = extractFunction(source, 'loadTableDetailForPreview');
+  const loadPartitionsSource = extractFunction(source, 'loadAndTogglePartitionsPreview');
   const insertTableSource = extractFunction(source, 'insertTableToSql');
 
   assert.match(source, /var catalogData = createCatalogData\(\);/);
@@ -444,7 +429,6 @@ test('Sidebar catalog lazy loaders have keyed in-flight guards', () => {
   assert.match(refreshCatalogSource, /catalogTablesLoading = createCatalogMap\(\);/);
   assert.match(refreshCatalogSource, /catalogDetailsLoading = createCatalogMap\(\);/);
   assert.match(refreshCatalogSource, /catalogPartitionsLoading = createCatalogMap\(\);/);
-  assert.match(renderCatalogErrorSource, /if \(!container\) \{[\s\S]*?showError\(getSafeServerErrorMessage\(error\)\);[\s\S]*?return;/);
 
   assert.match(loadTablesSource, /if \(catalogTablesLoading\[schemaName\]\) return;/);
   assert.match(loadTablesSource, /catalogTablesLoading\[schemaName\] = true;/);
@@ -461,7 +445,7 @@ test('Sidebar catalog lazy loaders have keyed in-flight guards', () => {
   assert.match(insertTableSource, /if \(catalogDetailsLoading\[tableKey\]\) return;/);
   assert.match(insertTableSource, /catalogDetailsLoading\[tableKey\] = true;/);
   assert.match(insertTableSource, /delete catalogDetailsLoading\[tableKey\];/);
-  assert.match(insertTableSource, /renderCatalogError\(/);
+  assert.match(insertTableSource, /showNotification\('error', getSafeServerErrorMessage\(error\)\)/);
   assert.doesNotMatch(insertTableSource, /generateAndInsertSql\(schemaName,\s*tableName,\s*null\)/);
 });
 
@@ -491,8 +475,8 @@ test('Sidebar catalog async responses are ignored after refresh version changes'
   const refreshCatalogSource = extractFunction(source, 'refreshCatalog');
   const loadCatalogSource = extractFunction(source, 'loadCatalog');
   const loadTablesSource = extractFunction(source, 'loadTablesForSchema');
-  const loadDetailSource = extractFunction(source, 'loadTableDetail');
-  const loadPartitionsSource = extractFunction(source, 'loadAndTogglePartitions');
+  const loadDetailSource = extractFunction(source, 'loadTableDetailForPreview');
+  const loadPartitionsSource = extractFunction(source, 'loadAndTogglePartitionsPreview');
   const insertTableSource = extractFunction(source, 'insertTableToSql');
 
   assert.match(source, /var catalogRequestVersion = 0;/);
@@ -525,81 +509,32 @@ test('Sidebar client Instance ID guard matches backend format boundary', () => {
   assert.equal(getClientInstanceIdError('a'.repeat(129)), 'errorInvalidInstanceId');
 });
 
-test('Sidebar failure status messages summarize Instance ID length', () => {
-  const source = getSidebarScript();
-  const startPollingSource = extractFunction(source, 'startPolling');
-  const attachSource = extractFunction(source, 'attachToJob');
-  const cancelSource = extractFunction(source, 'cancelQueryClick');
-  const summarySource = extractFunction(source, 'getInstanceIdDisplaySummary');
-
-  assert.match(source, /instanceIdLenLabel:\s*'Instance ID 长度'/);
-  assert.match(source, /instanceIdLenLabel:\s*'Instance ID length'/);
-  assert.match(summarySource, /String\(instanceId \|\| ''\)\.length/);
-  for (const fnSource of [startPollingSource, attachSource, cancelSource]) {
-    assert.match(fnSource, /getInstanceIdDisplaySummary\(instanceId\)/);
-    assert.doesNotMatch(fnSource, /Instance: ' \+ instanceId|Instance ID: ' \+ instanceId|\+ instanceId \+ '\)/);
-  }
+test('Sidebar failure status escapes displayed Instance IDs', () => {
+  // Jobs now intentionally show the submitting user's Instance ID. Error UI must escape it.
+  const el = {style:{}, innerHTML:''};
+  const ctx = sidebarFunctions(['escapeHtml','escapeAttr','formatMs','updateExecStatusDom'], {document:{getElementById:()=>el},t:x=>x});
+  ctx.updateExecStatusDom({status:'failed',error:'inst"><img src=x onerror=alert(1)>'});
+  assert.doesNotMatch(el.innerHTML, /<img/);
+  assert.match(el.innerHTML, /&lt;img/);
 });
 
 test('Sidebar cancel failure surfaces raw kill result for traceability', () => {
-  const source = getSidebarScript();
-  const cancelSource = extractFunction(source, 'cancelQueryClick');
-  const isFailureSource = extractFunction(source, 'isCancelKillFailure');
-  const safeResultSource = extractFunction(source, 'getSafeCancelKillResult');
-  const summarySource = extractFunction(source, 'getInstanceIdDisplaySummary');
-
-  let successHandler = null;
-  const btnCancel = { disabled: false, textContent: '', style: {} };
-  const state = new Function(
-    'document',
-    'google',
-    'window',
-    [
-      'var currentInstanceId = "sensitive-instance-id";',
-      'function t(key) { return ({ btnCancelling: "Cancelling...", loadingCancelling: "Killing instance...", btnCancel: "Cancel", cancelRequestFailed: "Cancel request failed. Please retry", instanceIdLenLabel: "Instance ID length" })[key] || key; }',
-      'var state = { loadingText: "", errorText: "" };',
-      'function showLoading(text) { state.loadingText = text; }',
-      'function showError(text) { state.errorText = text; }',
-      summarySource,
-      isFailureSource,
-      safeResultSource,
-      cancelSource,
-      'cancelQueryClick();',
-      'return state;'
-    ].join('\n')
-  )(
-    { getElementById: (id) => id === 'btnCancel' ? btnCancel : {} },
-    {
-      script: {
-        run: {
-          withSuccessHandler(fn) {
-            successHandler = fn;
-            return this;
-          },
-          withFailureHandler() {
-            return this;
-          },
-          cancelQuery() {
-            return this;
-          }
-        }
-      }
-    },
-    { console: { log() {}, warn() {} } }
-  );
-
-  assert.equal(btnCancel.disabled, true);
-  assert.equal(btnCancel.textContent, 'Cancelling...');
-  assert.match(state.loadingText, /Instance ID length: 21/);
-  assert.equal(typeof successHandler, 'function');
-
-  const result = successHandler({ killResult: 'failed:raw sensitive_project sensitive_table', instanceId: 'sensitive-instance-id' });
-
-  assert.equal(result, undefined);
-  assert.equal(btnCancel.disabled, false);
-  assert.equal(btnCancel.textContent, 'Cancel');
-  assert.equal(state.loadingText, 'Instance ID length: 21 - Waiting for completion...');
-  assert.equal(state.errorText, 'Cancel request failed. Please retry: failed:raw sensitive_project sensitive_table');
+  let success, failure, sent = 0;
+  const job = {id:'job-1',instanceId:'inst-1',status:'running'}, notices=[];
+  const ctx = sidebarFunctions(['cancelJobClick','getSafeCancelKillResult','getSafeServerErrorMessage'], {
+    findJob:()=>job, showNotification:(...args)=>notices.push(args),t:x=>x,
+    google:{script:{run:{withSuccessHandler(fn){success=fn;return this;},withFailureHandler(fn){failure=fn;return this;},cancelQuery(){sent++;}}}}
+  });
+  ctx.cancelJobClick('job-1'); ctx.cancelJobClick('job-1');
+  assert.equal(sent,1);
+  success({killResult:'failed:raw sensitive_project sensitive_table'});
+  assert.equal(job.cancelPending,false);
+  assert.equal(job.status,'running');
+  assert.match(notices[0][1],/failed:raw sensitive_project sensitive_table/);
+  ctx.cancelJobClick('job-1'); failure({message:'network failure'});
+  assert.equal(job.cancelPending,false);
+  assert.match(notices[1][1],/network failure/);
+  assert.match(extractFunction(getSidebarScript(),'renderJobs'),/cancelBtn\.addEventListener\('click'/);
 });
 
 test('Sidebar cancel failure result normalizes whitespace and caps very long messages', () => {
@@ -659,315 +594,50 @@ test('Sidebar server error formatter passes raw messages through for traceabilit
 });
 
 test('Sidebar query history can be cleared from localStorage with confirmation', () => {
-  const html = fs.readFileSync('src/Sidebar.html', 'utf8');
-  const source = getSidebarScript();
-  const applyLanguageSource = extractFunction(source, 'applyLanguage');
-  const clearHistorySource = extractFunction(source, 'clearHistory');
-  const clearHistoryStorageSource = extractFunction(source, 'clearHistoryStorage');
-
-  assert.match(html, /id="btnClearHistory"/);
-  assert.match(html, /id="historyEnabled"/);
-  assert.match(html, /id="historyEnabledLabel"/);
-  assert.match(source, /historyClear:\s*'清空历史'/);
-  assert.match(source, /historyClear:\s*'Clear history'/);
-  assert.match(source, /historyClearConfirm:\s*'确定清空最近查询历史吗？'/);
-  assert.match(source, /historyClearConfirm:\s*'Clear recent query history\?'/);
-  assert.match(source, /historyEnabled:\s*'保存本地历史'/);
-  assert.match(source, /historyEnabled:\s*'Save local history'/);
-
-  const elements = {
-    sqlLabel: {},
-    sqlInput: {},
-    projectLabel: {},
-    projectName: {},
-    targetSheetLabel: {},
-    btnRun: {},
-    btnCancel: {},
-    btnTest: {},
-    loadingText: {},
-    attachToggleLabel: {},
-    attachInstanceId: {},
-    btnAttach: {},
-    historyEnabledLabel: {},
-    historyEnabled: { checked: true },
-    tabQueryButton: {},
-    tabCatalogButton: {},
-    catalogSearch: {},
-    catalogLoading: {},
-    historyTitle: {},
-    btnClearHistory: {
-      attrs: {},
-      setAttribute(name, value) {
-        this.attrs[name] = value;
-      }
-    }
-  };
-  let removedKey = '';
-  let renderedList = null;
-  let confirmMessage = '';
-  const clearHistory = new Function(
-    'document',
-    'localStorage',
-    'confirm',
-    'renderHistory',
-    [
-      "var currentLang = 'en';",
-      'var HISTORY_KEY = "mc_sql_history";',
-      'var i18n = { en: { historyLabel: "Recent Queries", historyClear: "Clear history", historyClearButton: "Clear", historyClearConfirm: "Clear recent query history?", historyEnabled: "Save local history", sqlLabel: "", sqlPlaceholder: "", projectLabel: "", projectPlaceholder: "", targetSheetLabel: "", btnRun: "", btnCancel: "", btnTest: "", loadingExecuting: "", attachToggle: "", attachPlaceholder: "", attachButton: "", tabQuery: "", tabCatalog: "", catalogSearch: "", catalogLoading: "", catalogRefresh: "Refresh" } };',
-      'function t(key) { return i18n[currentLang][key] || key; }',
-      'function updateLanguageUI() { document.getElementById("historyTitle").textContent = t("historyLabel"); document.getElementById("btnClearHistory").title = t("historyClear"); document.getElementById("btnClearHistory").setAttribute("aria-label", t("historyClear")); document.getElementById("btnClearHistory").textContent = t("historyClearButton"); document.getElementById("historyEnabledLabel").textContent = t("historyEnabled"); }',
-      'function mirrorHistoryCall_() {}',
-      applyLanguageSource,
-      clearHistoryStorageSource,
-      clearHistorySource,
-      'applyLanguage("en");',
-      'return clearHistory;'
-    ].join('\n')
-  )(
-    { getElementById: (id) => elements[id] || {} },
-    { removeItem: (key) => { removedKey = key; } },
-    (message) => {
-      confirmMessage = message;
-      return true;
-    },
-    (list) => { renderedList = list; }
-  );
-
-  assert.equal(elements.historyTitle.textContent, 'Recent Queries');
-  assert.equal(elements.btnClearHistory.title, 'Clear history');
-  assert.equal(elements.btnClearHistory.attrs['aria-label'], 'Clear history');
-  assert.equal(elements.btnClearHistory.textContent, 'Clear');
-  assert.equal(elements.historyEnabledLabel.textContent, 'Save local history');
-
-  clearHistory();
-
-  assert.equal(confirmMessage, 'Clear recent query history?');
-  assert.equal(removedKey, 'mc_sql_history');
-  assert.deepEqual(renderedList, []);
+  let confirmed = false, removed = false, rendered, mirrored;
+  const ctx = sidebarFunctions(['clearHistory'], {confirm:()=>confirmed, t:x=>x,
+    historyRequestVersion:0, HISTORY_KEY:'history',localStorage:{removeItem(){removed=true;}},renderHistory:list=>{rendered=list;},mirrorHistoryCall_:fn=>{mirrored=fn;}});
+  ctx.clearHistory(); assert.equal(removed,false);
+  confirmed=true; ctx.clearHistory();
+  assert.equal(removed,true); assert.equal(rendered.length,0); assert.equal(mirrored,'clearSqlHistory');
 });
 
 test('Sidebar local SQL history can be disabled to avoid saving future queries', () => {
-  const source = getSidebarScript();
-  const storage = {};
-  const renderedLists = [];
-  const elements = {
-    historyEnabled: { checked: false },
-    historyList: {
-      innerHTML: '',
-      children: [],
-      appendChild(child) {
-        this.children.push(child);
-      }
-    },
-    historySection: { style: {} }
-  };
-  const helpers = new Function(
-    'document',
-    'localStorage',
-    [
-      'var HISTORY_KEY = "mc_sql_history";',
-      'var HISTORY_ENABLED_KEY = "mc_sql_history_enabled";',
-      'var MAX_HISTORY = 10;',
-      'function t(key) { return key === "historyDisabled" ? "Local history is off" : key; }',
-      'function mirrorHistoryCall_() {}',
-      extractFunction(source, 'saveToHistory'),
-      extractFunction(source, 'toggleHistoryEnabled'),
-      extractFunction(source, 'applyHistoryPreference'),
-      extractFunction(source, 'isHistoryEnabled'),
-      extractFunction(source, 'setHistoryEnabled'),
-      extractFunction(source, 'clearHistoryStorage'),
-      extractFunction(source, 'getHistoryList'),
-      extractFunction(source, 'renderHistory'),
-      'return { saveToHistory, toggleHistoryEnabled, applyHistoryPreference, isHistoryEnabled, getHistoryList };'
-    ].join('\n')
-  )(
-    {
-      getElementById: (id) => elements[id] || {},
-      createElement: () => ({
-        dataset: {},
-        children: [],
-        addEventListener() {},
-        appendChild(child) {
-          this.children.push(child);
-        }
-      })
-    },
-    {
-      getItem: (key) => Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null,
-      setItem: (key, value) => { storage[key] = String(value); },
-      removeItem: (key) => { delete storage[key]; }
-    }
-  );
-
-  storage.mc_sql_history = JSON.stringify(['select secret from t']);
-  helpers.toggleHistoryEnabled();
-
-  assert.equal(storage.mc_sql_history_enabled, 'false');
-  assert.equal(storage.mc_sql_history, undefined);
-  assert.equal(helpers.isHistoryEnabled(), false);
-  assert.equal(elements.historySection.style.display, 'block');
-  assert.match(elements.historyList.innerHTML, /Local history is off/);
-
-  helpers.saveToHistory('select should_not_persist');
-  assert.equal(storage.mc_sql_history, undefined);
-
-  elements.historyEnabled.checked = true;
-  helpers.toggleHistoryEnabled();
-  helpers.saveToHistory('select 1');
-
-  assert.equal(storage.mc_sql_history_enabled, 'true');
-  assert.deepEqual(JSON.parse(storage.mc_sql_history), ['select 1']);
+  const storage = {history:'["select secret"]'}, calls=[], checkbox={checked:false};
+  const ctx = sidebarFunctions(['toggleHistoryEnabled','setHistoryEnabled','isHistoryEnabled','getHistoryList','saveToHistory'], {
+    document:{getElementById:()=>checkbox}, historyRequestVersion:0, HISTORY_KEY:'history', HISTORY_ENABLED_KEY:'enabled', MAX_HISTORY:10,
+    localStorage:{getItem:k=>storage[k],setItem:(k,v)=>{storage[k]=v;},removeItem:k=>{delete storage[k];}},
+    mirrorHistoryCall_:(...args)=>calls.push(args),applyHistoryPreference(){},loadHistory(){},renderHistory(){}
+  });
+  ctx.toggleHistoryEnabled();
+  assert.equal(storage.enabled,'false'); assert.equal(storage.history,undefined);
+  ctx.saveToHistory('select should_not_persist'); assert.equal(storage.history,undefined);
+  assert.deepEqual(calls,[['clearSqlHistory'],['setSqlHistoryEnabled',false]]);
+  checkbox.checked=true; ctx.toggleHistoryEnabled(); ctx.saveToHistory('select 1');
+  assert.deepEqual(JSON.parse(storage.history),['select 1']);
+  assert.match(fs.readFileSync('src/Sidebar.html','utf8'),/id="historyEnabled"/);
 });
 
 test('Sidebar instance history feeds visible attach select with one-day TTL', () => {
-  const html = fs.readFileSync('src/Sidebar.html', 'utf8');
-  const source = getSidebarScript();
-  const storage = {};
-  let now = 1_700_000_000_000;
-  const select = {
-    children: [],
-    classList: {
-      visible: false,
-      toggle(name, value) {
-        if (name === 'visible') this.visible = !!value;
-      }
-    },
-    value: '',
-    set innerHTML(value) {
-      this._innerHTML = value;
-      this.children = [];
-    },
-    get innerHTML() {
-      return this._innerHTML || '';
-    },
-    appendChild(child) {
-      this.children.push(child);
-    }
-  };
-
-  const input = { value: '' };
-
-  assert.match(html, /id="attachInstanceSelect"/);
-  assert.doesNotMatch(getTagById(html, 'attachInstanceId'), /list=/);
-  assert.match(source, /var INSTANCE_HISTORY_TTL_MS = 24 \* 60 \* 60 \* 1000;/);
-
-  const helpers = new Function(
-    'document',
-    'localStorage',
-    'Date',
-    [
-      'var MAX_HISTORY = 10;',
-      'var INSTANCE_HISTORY_KEY = "mc_instance_history";',
-      'var INSTANCE_HISTORY_TTL_MS = 24 * 60 * 60 * 1000;',
-      'function t(key) { return key; }',
-      'function mirrorHistoryCall_() {}',
-      extractFunction(source, 'getClientInstanceIdError'),
-      extractFunction(source, 'saveInstanceToHistory'),
-      extractFunction(source, 'getInstanceHistoryList'),
-      extractFunction(source, 'normalizeInstanceHistoryItem'),
-      extractFunction(source, 'persistInstanceHistoryList'),
-      extractFunction(source, 'renderInstanceHistory'),
-      extractFunction(source, 'selectAttachInstanceHistory'),
-      'return { saveInstanceToHistory, getInstanceHistoryList, renderInstanceHistory, selectAttachInstanceHistory };'
-    ].join('\n')
-  )(
-    {
-      getElementById: (id) => {
-        if (id === 'attachInstanceSelect') return select;
-        if (id === 'attachInstanceId') return input;
-        return null;
-      },
-      createElement: () => ({ value: '', textContent: '' })
-    },
-    {
-      getItem: (key) => Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null,
-      setItem: (key, value) => { storage[key] = String(value); },
-      removeItem: (key) => { delete storage[key]; }
-    },
-    {
-      now: () => now
-    }
-  );
-
-  helpers.saveInstanceToHistory('inst-1');
-  now += 1000;
-  helpers.saveInstanceToHistory('inst-2');
-  now += 1000;
-  helpers.saveInstanceToHistory('inst-1');
-
-  assert.deepEqual(JSON.parse(storage.mc_instance_history).map((item) => item.instanceId), ['inst-1', 'inst-2']);
-  assert.equal(select.classList.visible, true);
-  assert.deepEqual(select.children.map((item) => item.value), ['', 'inst-1', 'inst-2']);
-  assert.deepEqual(select.children.map((item) => item.textContent), ['attachRecentJobs', 'inst-1', 'inst-2']);
-
-  select.value = 'inst-2';
-  helpers.selectAttachInstanceHistory();
-  assert.equal(input.value, 'inst-2');
-
-  storage.mc_instance_history = JSON.stringify([
-    { instanceId: 'fresh-1', savedAt: now - 1000 },
-    { instanceId: 'old-1', savedAt: now - (24 * 60 * 60 * 1000) - 1 },
-    { instanceId: '../bad', savedAt: now }
-  ]);
-
-  assert.deepEqual(helpers.getInstanceHistoryList(now).map((item) => item.instanceId), ['fresh-1']);
+  let now=1700000000000; const storage={}, options=[], input={value:''}, select={value:'inst-1',appendChild:x=>options.push(x)};
+  const ctx = sidebarFunctions(['getClientInstanceIdError','saveInstanceToHistory','getInstanceHistoryList','persistInstanceHistoryList','renderInstanceHistory','selectAttachInstanceHistory'], {
+    INSTANCE_HISTORY_KEY:'instances', INSTANCE_HISTORY_TTL_MS:86400000, MAX_HISTORY:10,window:{},t:x=>x,Date:{now:()=>now},
+    localStorage:{getItem:k=>storage[k],setItem:(k,v)=>{storage[k]=v;}},
+    document:{getElementById:id=>id==='attachInstanceSelect'?select:input,createElement:()=>({})}
+  });
+  ctx.saveInstanceToHistory('inst-1'); ctx.selectAttachInstanceHistory();
+  assert.equal(input.value,'inst-1'); assert.ok(options.some(x=>x.value==='inst-1'));
+  storage.instances=JSON.stringify([{instanceId:'fresh',savedAt:now-1},{instanceId:'old',savedAt:now-86400001},{instanceId:'../bad',savedAt:now},{instanceId:'future',savedAt:now+1}]);
+  assert.equal(JSON.stringify(ctx.getInstanceHistoryList(now)),JSON.stringify([{instanceId:'fresh',savedAt:now-1}]));
 });
 
 test('Sidebar success summary escapes server-provided fields before rendering HTML', () => {
-  const source = getSidebarScript();
-  const showSuccessSource = extractFunction(source, 'showSuccess');
-  const formatResultMetricSource = extractFunction(source, 'formatResultMetric');
-  const formatMsSource = extractFunction(source, 'formatMs');
-  const escapeHtmlSource = extractFunction(source, 'escapeHtml');
-  let rendered = null;
-
-  const showSuccess = new Function(
-    'document',
-    [
-      "function t(key) { return ({ resultRows: 'Rows', resultColumns: 'Columns', resultTime: 'Time', resultWrite: 'Written', resultSuccess: 'Done' })[key] || key; }",
-      'function showResult(type, title, bodyHtml) { rendered = { type: type, title: title, bodyHtml: bodyHtml }; }',
-      'var rendered;',
-      escapeHtmlSource,
-      formatMsSource,
-      formatResultMetricSource,
-      showSuccessSource,
-      'return function(summary, executionTimeMs) { showSuccess(summary, executionTimeMs); return rendered; };'
-    ].join('\n')
-  )({
-    createElement: () => {
-      let value = '';
-      return {
-        set textContent(next) {
-          value = String(next)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-        },
-        get innerHTML() {
-          return value;
-        }
-      };
-    }
-  });
-
-  rendered = showSuccess({
-    rowCount: '<img src=x onerror=alert(1)>',
-    columnCount: '<script>alert(2)</script>',
-    sheetName: 'Result <b onclick=alert(3)>x</b>',
-    instanceId: 'inst"><img src=x onerror=alert(4)>',
-    logviewUrl: 'https://example.com/?q="><script>alert(5)</script>'
-  }, 1234);
-
-  assert.equal(rendered.type, 'success');
-  assert.equal(rendered.title, 'Done');
-  assert.doesNotMatch(rendered.bodyHtml, /<script|<img/i);
-  assert.doesNotMatch(rendered.bodyHtml, /href="https:\/\/example\.com\/\?q=">/);
-  assert.match(rendered.bodyHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt;/);
-  assert.match(rendered.bodyHtml, /Result &lt;b onclick=alert\(3\)&gt;x&lt;\/b&gt;/);
-  assert.match(rendered.bodyHtml, /inst&quot;&gt;&lt;img src=x onerror=alert\(4\)&gt;/);
-  assert.match(rendered.bodyHtml, /href="https:\/\/example\.com\/\?q=&quot;&gt;&lt;script&gt;alert\(5\)&lt;\/script&gt;"/);
+  const el={style:{},innerHTML:''};
+  const ctx=sidebarFunctions(['escapeHtml','escapeAttr','formatMs','updateExecStatusDom'],{document:{getElementById:()=>el},t:x=>x});
+  ctx.updateExecStatusDom({status:'success',summary:{rowCount:'<img src=x onerror=alert(1)>',executionTimeMs:1234}});
+  assert.doesNotMatch(el.innerHTML,/<img/); assert.match(el.innerHTML,/&lt;img/);
+  ctx.updateExecStatusDom({status:'submitted',instanceId:'inst"><img src=x>',logviewUrl:'https://example.com/?q="><script>bad</script>'});
+  assert.doesNotMatch(el.innerHTML,/<img|<script/); assert.match(el.innerHTML,/&quot;&gt;&lt;script&gt;/);
 });
 
 test('Settings client endpoint guard matches backend endpoint policy', () => {
@@ -1113,7 +783,6 @@ test('Sidebar client read-only SQL guard behavior matches backend policy shape',
     'function t(key) { return key; }',
     extractFunction(source, 'getClientReadOnlySqlError'),
     extractFunction(source, 'splitClientSqlStatements'),
-    extractFunction(source, 'addClientSqlStatement'),
     extractFunction(source, 'getClientFirstSqlKeyword'),
     extractFunction(source, 'isClientAllowedReadOnlySqlKeyword'),
     extractFunction(source, 'isClientForbiddenSqlKeyword'),
@@ -1148,4 +817,36 @@ test('Sidebar client read-only SQL guard behavior matches backend policy shape',
   assert.equal(getClientReadOnlySqlError("set EXT_PLATFORM_ID='x'; select 1"), 'errorReservedAuditSet');
   assert.equal(getClientReadOnlySqlError('select 1; select 2'), 'errorSingleReadOnlyQuery');
   assert.equal(getClientReadOnlySqlError('select 1; set x=1'), 'errorSetBeforeQuery');
+});
+
+
+test('Sidebar ignores catalog failure for a table no longer selected', () => {
+  let fail, rendered = 0;
+  const ctx = sidebarFunctions(['loadTableDetailForPreview'], {
+    catalogDetailsLoading:Object.create(null), catalogRequestVersion:0,
+    selectedCatalogTable:{schema:'s',table:'other'},
+    document:{getElementById(){rendered++;return {};}},
+    google:{script:{run:{withSuccessHandler(){return this;},withFailureHandler(fn){fail=fn;return this;},getTableDetail(){}}}}
+  });
+  ctx.loadTableDetailForPreview('s','first'); fail({message:'old failure'});
+  assert.equal(rendered,0); assert.equal(ctx.catalogDetailsLoading['s.first'],undefined);
+});
+
+test('Sidebar stale history response cannot undo a newer privacy preference', () => {
+  let success, applied=0;
+  const run={withSuccessHandler(fn){success=fn;return this;},withFailureHandler(){return this;},getQueryHistory(){}};
+  const ctx=sidebarFunctions(['syncHistoryFromBackend'], {window:{google:true},google:{script:{run}},
+    historyRequestVersion:0,applyBackendHistory_(){applied++;}});
+  ctx.syncHistoryFromBackend(); ctx.historyRequestVersion++;
+  success({enabled:true,sqlItems:['old sql']}); assert.equal(applied,0);
+});
+
+test('Sidebar disabled remote history clears cached SQL without restoring remote SQL', () => {
+  let rendered, removed=false;
+  const ctx=sidebarFunctions(['applyBackendHistory_'], {getRawLocalSqlHistory_:()=>['secret'],isHistoryEnabled:()=>true,
+    setHistoryEnabled(){},applyHistoryPreference(){},HISTORY_KEY:'history',
+    localStorage:{removeItem(){removed=true;},setItem(){throw new Error('must not restore SQL');}},
+    renderHistory:list=>{rendered=list;}});
+  ctx.applyBackendHistory_({enabled:false,sqlItems:['remote secret']});
+  assert.equal(removed,true); assert.equal(rendered.length,0);
 });

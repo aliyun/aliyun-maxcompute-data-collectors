@@ -1,0 +1,11 @@
+.cache/
+.cpcache/
+.idea/
+.DS_Store
+dist/
+target/
+*.iml
+*.log
+*.pid
+*.pyc
+__pycache__/

@@ -43,7 +43,8 @@ METABASE_SOURCE_DIR=/path/to/metabase-v0.51.14 \
 ### Obtain the Driver
 
 #### Precompiled Releases
-
+The 0.1.1 artifact already bundles ODPS JDBC 3.10.14; 0.1.0 bundles 3.10.11. Do not install another
+ODPS JDBC JAR beside it.
 - [MaxCompute Metabase Driver 0.1.0](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/maxcompute-metabase-driver-0.1.0.jar)
   &mdash; target Metabase `>=0.51.14, <0.64.0`; verify against the
   [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/SHA256SUMS)

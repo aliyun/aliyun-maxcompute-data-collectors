@@ -41,8 +41,9 @@ METABASE_SOURCE_DIR=/path/to/metabase-v0.51.14 \
 ## Install
 
 1. Obtain the driver JAR (`maxcompute-metabase-driver-<driver-version>.jar`)
-   from the project release assets, or build it from source (see Build).
-2. Verify it with the published `SHA256SUMS`.
+   from the GitHub Release tagged `metabase-driver-v<driver-version>`, or build
+   it from source (see Build).
+2. Verify it with the `SHA256SUMS` published beside the JAR.
 3. Copy the JAR into the Metabase plugins directory.
 4. Remove older MaxCompute driver JARs and separately installed old ODPS JDBC
    JARs from that directory.
@@ -117,6 +118,24 @@ Every change must pass `scripts/check-repository.sh` and a clean build, and
 changes that affect the compatibility matrix must additionally pass the real
 MaxCompute E2E suite; `docs/e2e/` records sanitized evidence per release.
 Release tagging and asset publishing are performed by the maintainers.
+
+## Continuous integration
+
+The `Metabase Driver` workflow
+([`.github/workflows/metabase-driver.yml`](../.github/workflows/metabase-driver.yml))
+runs on every pull request and push that touch this directory. It installs the
+Clojure CLI pinned by `scripts/install-clojure-cli.sh`, executes
+`scripts/check-repository.sh`, `scripts/build-driver.sh`, and
+`scripts/verify-artifact.sh` against the Metabase source pinned in
+`.metabase-version`, finishes with the credential-free plugin load smoke
+(`scripts/run-load-smoke.sh`), and keeps `dist/` as a workflow artifact.
+
+Pushing a `metabase-driver-vX.Y.Z` tag that matches `VERSION` adds a second job
+that publishes the JAR, `SHA256SUMS`, the CycloneDX SBOM and the build provenance
+JSON as the assets of that GitHub Release; that release is what the Install
+section points at. The real MaxCompute E2E suite is intentionally outside CI
+because it needs MaxCompute credentials; release owners run it before promoting a
+Metabase range to `supported` in `compatibility.yaml`.
 
 ## License
 

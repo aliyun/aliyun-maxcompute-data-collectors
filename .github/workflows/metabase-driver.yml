@@ -8,7 +8,8 @@ name: Metabase Driver
 #   smoke, then keeps dist/ as a downloadable workflow artifact.
 # - A GitHub Release carrying the driver JAR, SHA256SUMS, CycloneDX SBOM and
 #   build provenance is published only when a maintainer pushes a
-#   metabase-driver-vX.Y.Z tag that matches the VERSION file.
+#   metabase-<driver-version> tag that matches the VERSION file. That tag form
+#   follows the releases this project already publishes (presto-0.287, trino).
 #
 # The real MaxCompute end-to-end suite is deliberately not part of this
 # workflow: it needs MaxCompute credentials and a dedicated test project. The
@@ -24,7 +25,7 @@ on:
     branches:
       - master
     tags:
-      - "metabase-driver-v*"
+      - "metabase-*"
     paths:
       - "metabase-maxcompute-driver/**"
       - ".github/workflows/metabase-driver.yml"
@@ -153,7 +154,7 @@ jobs:
   release:
     name: Publish release assets
     needs: build
-    if: startsWith(github.ref, 'refs/tags/metabase-driver-v')
+    if: startsWith(github.ref, 'refs/tags/metabase-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -164,7 +165,7 @@ jobs:
       - name: Check that the tag matches VERSION
         run: |
           set -euo pipefail
-          expected="metabase-driver-v$(tr -d '[:space:]' < metabase-maxcompute-driver/VERSION)"
+          expected="metabase-$(tr -d '[:space:]' < metabase-maxcompute-driver/VERSION)"
           if [ "$GITHUB_REF_NAME" != "$expected" ]; then
             echo "ERROR: tag $GITHUB_REF_NAME does not match the driver version (expected $expected)" >&2
             exit 1
@@ -212,7 +213,7 @@ jobs:
               --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$GITHUB_REF_NAME" \
-              --title "MaxCompute Metabase Driver $DRIVER_VERSION" \
+              --title "Metabase Driver $DRIVER_VERSION" \
               --notes-file release-notes.md \
               --repo "$GITHUB_REPOSITORY" \
               "$jar_name" SHA256SUMS "$sbom" "$provenance"

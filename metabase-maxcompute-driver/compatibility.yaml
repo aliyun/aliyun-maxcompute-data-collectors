@@ -6,6 +6,17 @@ driver:
   artifact_pattern: maxcompute-metabase-driver-{driver_version}.jar
 
 releases:
+  - driver_version: 0.1.1
+    status: verification-pending
+    artifact: maxcompute-metabase-driver-0.1.1.jar
+    metabase:
+      target_range:
+        min_inclusive: 0.51.14
+        max_exclusive: 0.64.0
+      build_baseline: 0.51.14
+    odps_jdbc:
+      version: 3.10.14
+      distribution: bundled
   - driver_version: 0.1.0
     status: range-verification-in-progress
     artifact: maxcompute-metabase-driver-0.1.0.jar

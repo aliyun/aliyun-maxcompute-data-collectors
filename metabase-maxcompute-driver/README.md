@@ -48,7 +48,7 @@ METABASE_SOURCE_DIR=/path/to/metabase-v0.51.14 \
    JARs from that directory.
 5. Restart Metabase and add a database using the `MaxCompute` driver.
 
-The 0.1.x artifact already bundles ODPS JDBC 3.10.11. Do not install another
+The 0.1.1 artifact already bundles ODPS JDBC 3.10.14; 0.1.0 bundles 3.10.11. Do not install another
 ODPS JDBC JAR beside it.
 
 ## Build

@@ -280,7 +280,7 @@
                   {:classname   "com.aliyun.odps.jdbc.OdpsDriver"
                    :subprotocol "odps"
                    :subname     (str endpoint "?project=" project
-                                     "&enableOdpsLogger=true&charset=UTF-8&interactiveMode=true&enableLimit=false"
+                                     "&enableOdpsLogger=true&charset=UTF-8&interactiveMode=true&enableLimit=false&legacyArrayGetObject=false"
                                      (if (nil? quotaName) "" (str "&quotaName=" quotaName))
                                      "&settings=" (json/generate-string settings-map))
                    :user        ak

@@ -1,0 +1,220 @@
+name: Metabase Driver
+
+# CI for the MaxCompute Metabase driver maintained in metabase-maxcompute-driver/.
+#
+# - Every pull request or push that touches that directory runs the repository
+#   consistency checks, a clean build against the Metabase source pinned in
+#   .metabase-version, artifact verification, and a credential-free plugin load
+#   smoke, then keeps dist/ as a downloadable workflow artifact.
+# - A GitHub Release carrying the driver JAR, SHA256SUMS, CycloneDX SBOM and
+#   build provenance is published only when a maintainer pushes a
+#   metabase-<driver-version> tag that matches the VERSION file. That tag form
+#   follows the releases this project already publishes (presto-0.287, trino).
+#
+# The real MaxCompute end-to-end suite is deliberately not part of this
+# workflow: it needs MaxCompute credentials and a dedicated test project. The
+# load smoke below is the credential-free CI gate; release owners run
+# scripts/run-real-e2e.sh out of band, as the driver README describes.
+
+on:
+  pull_request:
+    paths:
+      - "metabase-maxcompute-driver/**"
+      - ".github/workflows/metabase-driver.yml"
+  push:
+    branches:
+      - master
+    tags:
+      - "metabase-*"
+    paths:
+      - "metabase-maxcompute-driver/**"
+      - ".github/workflows/metabase-driver.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: metabase-driver-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Check, build and load-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DRIVER_DIR: metabase-maxcompute-driver
+    outputs:
+      driver_version: ${{ steps.pin.outputs.driver_version }}
+      metabase_version: ${{ steps.pin.outputs.metabase_version }}
+      matrix_sha256: ${{ steps.pin.outputs.matrix_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned versions
+        id: pin
+        run: |
+          set -euo pipefail
+          driver_version="$(tr -d '[:space:]' < "$DRIVER_DIR/VERSION")"
+          metabase_version="$(tr -d '[:space:]' < "$DRIVER_DIR/.metabase-version")"
+          matrix_sha256="$(awk '$1 == "sha256:" { print $2; exit }' "$DRIVER_DIR/compatibility.yaml")"
+          {
+            printf 'driver_version=%s\n' "$driver_version"
+            printf 'metabase_version=%s\n' "$metabase_version"
+            printf 'matrix_sha256=%s\n' "$matrix_sha256"
+          } >> "$GITHUB_OUTPUT"
+
+      # JDK 21 is the documented minimum for source builds. The release runtime
+      # that compatibility.yaml certifies may be newer; move this value together
+      # with that file's java section when the build baseline moves.
+      - name: Set up the JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache the pinned Metabase source checkout
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/maxcompute-metabase-driver
+          key: metabase-source-${{ runner.os }}-${{ steps.pin.outputs.metabase_version }}
+          restore-keys: metabase-source-${{ runner.os }}-
+
+      - name: Cache Clojure and Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ steps.pin.outputs.metabase_version }}-${{ hashFiles('metabase-maxcompute-driver/deps.edn') }}
+          restore-keys: |
+            m2-${{ runner.os }}-${{ steps.pin.outputs.metabase_version }}-
+            m2-${{ runner.os }}-
+
+      - name: Install the pinned Clojure CLI
+        run: |
+          set -euo pipefail
+          "./$DRIVER_DIR/scripts/install-clojure-cli.sh" "$RUNNER_TEMP/clojure"
+          echo "$RUNNER_TEMP/clojure/bin" >> "$GITHUB_PATH"
+
+      - name: Repository consistency checks
+        working-directory: metabase-maxcompute-driver
+        run: ./scripts/check-repository.sh
+
+      - name: Build the driver against the pinned Metabase source
+        working-directory: metabase-maxcompute-driver
+        run: ./scripts/build-driver.sh
+
+      - name: Verify the built artifact
+        working-directory: metabase-maxcompute-driver
+        run: ./scripts/verify-artifact.sh
+
+      - name: Plugin load smoke against the pinned Metabase source
+        working-directory: metabase-maxcompute-driver
+        env:
+          METABASE_VERSION: ${{ steps.pin.outputs.metabase_version }}
+        run: |
+          set -euo pipefail
+          export METABASE_SOURCE_DIR="$HOME/.cache/maxcompute-metabase-driver/$METABASE_VERSION"
+          ./scripts/run-load-smoke.sh
+
+      - name: Upload release-ready assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabase-driver-dist-${{ steps.pin.outputs.driver_version }}
+          path: metabase-maxcompute-driver/dist
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize the build
+        env:
+          DRIVER_VERSION: ${{ steps.pin.outputs.driver_version }}
+          METABASE_VERSION: ${{ steps.pin.outputs.metabase_version }}
+          MATRIX_SHA: ${{ steps.pin.outputs.matrix_sha256 }}
+        run: |
+          set -euo pipefail
+          built_sha="$(awk '{ print $1; exit }' "$DRIVER_DIR/dist/SHA256SUMS")"
+          {
+            echo "### MaxCompute Metabase driver $DRIVER_VERSION"
+            echo
+            echo "- Metabase build baseline: \`$METABASE_VERSION\`"
+            echo "- Built driver SHA-256: \`$built_sha\`"
+            echo "- SHA-256 recorded in compatibility.yaml: \`$MATRIX_SHA\`"
+            if [ "$built_sha" = "$MATRIX_SHA" ]; then
+              echo "- The CI artifact is byte-identical to the artifact the compatibility matrix certifies."
+            else
+              echo "- The CI digest differs from the certified artifact, which came from the release runtime recorded in compatibility.yaml. Release owners reconcile that matrix entry before publishing a tag."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Publish release assets
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/metabase-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches VERSION
+        run: |
+          set -euo pipefail
+          expected="metabase-$(tr -d '[:space:]' < metabase-maxcompute-driver/VERSION)"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "ERROR: tag $GITHUB_REF_NAME does not match the driver version (expected $expected)" >&2
+            exit 1
+          fi
+
+      - name: Download the CI build
+        uses: actions/download-artifact@v4
+        with:
+          name: metabase-driver-dist-${{ needs.build.outputs.driver_version }}
+          path: release-assets
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIVER_VERSION: ${{ needs.build.outputs.driver_version }}
+          METABASE_VERSION: ${{ needs.build.outputs.metabase_version }}
+          MATRIX_SHA: ${{ needs.build.outputs.matrix_sha256 }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum --check SHA256SUMS
+          jar_name="$(awk '{ print $2; exit }' SHA256SUMS)"
+          built_sha="$(awk '{ print $1; exit }' SHA256SUMS)"
+          {
+            echo "## MaxCompute Metabase Driver $DRIVER_VERSION"
+            echo
+            echo "These assets are built by CI at this tag against Metabase \`$METABASE_VERSION\`."
+            echo
+            echo "- Driver JAR SHA-256: \`$built_sha\`"
+            echo "- Digest certified in compatibility.yaml: \`$MATRIX_SHA\`"
+            echo
+            echo "Install: verify the JAR against \`SHA256SUMS\`, copy it into the Metabase"
+            echo "plugins directory, remove older MaxCompute driver and stand-alone ODPS JDBC"
+            echo "JARs, then restart Metabase. See"
+            echo "[the driver README](../blob/master/metabase-maxcompute-driver/README.md)"
+            echo "and [compatibility.yaml](../blob/master/metabase-maxcompute-driver/compatibility.yaml)."
+          } > release-notes.md
+          sbom="$(ls ./*.cdx.json)"
+          provenance="$(ls ./*.build-info.json)"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber \
+              "$jar_name" SHA256SUMS "$sbom" "$provenance" \
+              --repo "$GITHUB_REPOSITORY"
+            gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Metabase Driver $DRIVER_VERSION" \
+              --notes-file release-notes.md \
+              --repo "$GITHUB_REPOSITORY" \
+              "$jar_name" SHA256SUMS "$sbom" "$provenance"
+          fi

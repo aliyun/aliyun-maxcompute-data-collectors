@@ -38,46 +38,47 @@ METABASE_SOURCE_DIR=/path/to/metabase-v0.51.14 \
   ./scripts/run-load-smoke.sh
 ```
 
-## Install
+## Installation
 
-1. Obtain the driver JAR (`maxcompute-metabase-driver-<driver-version>.jar`)
-   from the project release assets, or build it from source (see Build).
-2. Verify it with the published `SHA256SUMS`.
-3. Copy the JAR into the Metabase plugins directory.
-4. Remove older MaxCompute driver JARs and separately installed old ODPS JDBC
-   JARs from that directory.
-5. Restart Metabase and add a database using the `MaxCompute` driver.
+### Obtain the Driver
 
+#### Precompiled Releases
 The 0.1.1 artifact already bundles ODPS JDBC 3.10.14; 0.1.0 bundles 3.10.11. Do not install another
 ODPS JDBC JAR beside it.
+- [MaxCompute Metabase Driver 0.1.0](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/maxcompute-metabase-driver-0.1.0.jar)
+  &mdash; target Metabase `>=0.51.14, <0.64.0`; verify against the
+  [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/SHA256SUMS)
+  published beside it.
 
-## Build
+Driver releases use a `metabase-<driver-version>` tag, in the same shape as the
+`presto-<version>` release this project already publishes, and the assets are
+produced by the `Metabase Driver` workflow (see Continuous integration below).
 
-Prerequisites:
-
-- Git
-- Clojure CLI
-- JDK 21 or newer for source builds
-- JDK 25 for parity with the Metabase 0.63 official runtime
-
-Build against the pinned Metabase source:
+#### Build from Source
 
 ```bash
 ./scripts/build-driver.sh
 ```
 
-To build against an existing checkout:
+Prerequisites: Git, a JDK (21 or newer for source builds, 25 for parity with
+the Metabase 0.63 official runtime), and the Clojure CLI pinned by
+`scripts/install-clojure-cli.sh`. The build checks out the Metabase source
+named in `.metabase-version`; pass `METABASE_SOURCE_DIR=/path/to/metabase` to
+build against an existing checkout.
 
-```bash
-METABASE_SOURCE_DIR=/path/to/metabase ./scripts/build-driver.sh
-```
+Artifacts are written to `dist/`: the versioned driver JAR, `SHA256SUMS`, a
+CycloneDX SBOM, and a build provenance JSON.
 
-Artifacts are written to `dist/`:
+### Install into Metabase
 
-- versioned driver JAR
-- `SHA256SUMS`
-- CycloneDX SBOM
-- build provenance JSON
+1. Verify the JAR against `SHA256SUMS`.
+2. Copy the JAR into the Metabase plugins directory.
+3. Remove older MaxCompute driver JARs and separately installed old ODPS JDBC
+   JARs from that directory.
+4. Restart Metabase and add a database using the `MaxCompute` driver.
+
+The 0.1.x artifact already bundles ODPS JDBC 3.10.11. Do not install another
+ODPS JDBC JAR beside it.
 
 ## Real E2E
 
@@ -116,7 +117,28 @@ maxcompute-metabase-driver-0.1.0.jar
 Every change must pass `scripts/check-repository.sh` and a clean build, and
 changes that affect the compatibility matrix must additionally pass the real
 MaxCompute E2E suite; `docs/e2e/` records sanitized evidence per release.
-Release tagging and asset publishing are performed by the maintainers.
+Maintainers cut a release by pushing a `metabase-<driver-version>` tag, and the
+`Metabase Driver` workflow attaches the JAR, `SHA256SUMS`, SBOM and provenance
+to that GitHub Release.
+
+## Continuous integration
+
+The `Metabase Driver` workflow
+([`.github/workflows/metabase-driver.yml`](../.github/workflows/metabase-driver.yml))
+runs on every pull request and push that touch this directory. It installs the
+Clojure CLI pinned by `scripts/install-clojure-cli.sh`, executes
+`scripts/check-repository.sh`, `scripts/build-driver.sh`, and
+`scripts/verify-artifact.sh` against the Metabase source pinned in
+`.metabase-version`, finishes with the credential-free plugin load smoke
+(`scripts/run-load-smoke.sh`), and keeps `dist/` as a workflow artifact.
+
+Pushing a `metabase-<driver-version>` tag that matches `VERSION` adds a second
+job that publishes the JAR, `SHA256SUMS`, the CycloneDX SBOM and the build
+provenance JSON as the assets of that GitHub Release; that release is what the
+Precompiled Releases list above points at. The real MaxCompute E2E suite is
+intentionally outside CI because it needs MaxCompute credentials; release owners
+run it before promoting a Metabase range to `supported` in
+`compatibility.yaml`.
 
 ## License
 

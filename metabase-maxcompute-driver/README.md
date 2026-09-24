@@ -21,13 +21,25 @@ backported to them. As of this writing the supported line is **0.63.x**.
 | Driver | Supported Metabase range | Verified with this artifact | ODPS JDBC | Status |
 | --- | --- | --- | --- | --- |
 | 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.18 reads `ARRAY` columns as real arrays; 0.56.25.1 and 0.60.15 also pass but are outside the window | 3.10.14, bundled | Supported on 0.63.x (ARRAY read verified; full-range E2E still open) |
-| 0.1.0 | `>=0.51.14, <0.64.0` | 0.51.14, 0.56.25.1, 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Superseded by 0.1.1 |
+| 0.1.0 | `>=0.51.14, <0.64.0` (historical) | 0.51.14, 0.56.25.1, 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Superseded by 0.1.1 |
 | 0.0.5 | `>=0.50.0, <0.51.0` | 0.50.21 | External JDBC | Legacy |
 
-One known gap is worth stating plainly: on **Metabase 0.51.x** an `ARRAY`
-column from driver 0.1.1 reaches the UI as an unrendered object reference
-instead of a list. 0.51.x is outside the supported window and will not be
-backported — move to the current stable minor.
+Two gaps are worth stating plainly, both on driver 0.1.1 and both outside the
+supported window. Neither is being backported; the fix is to move Metabase to
+the current stable minor.
+
+- On **0.51.x** an `ARRAY` column reaches the UI as an unrendered object
+  reference (`com.aliyun.odps.jdbc.data.OdpsArray@…`) instead of a list.
+- On **0.52.x – 0.55.x** the driver loads but creating the database fails,
+  because the Metabase secret-value function this driver resolves at runtime
+  was renamed in 0.52 and moved to another namespace in 0.55.
+
+The per-version observations, pinned to the published artifact's SHA-256, are
+in
+[`docs/e2e/v0.1.1-metabase-supported-window.md`](docs/e2e/v0.1.1-metabase-supported-window.md).
+
+A Metabase release newer than the upper bound of the window is untested, not
+implicitly supported: check the matrix before upgrading past it.
 
 The exact, machine-readable matrix is in
 [`compatibility.yaml`](compatibility.yaml). A release contains one driver JAR,
@@ -52,10 +64,17 @@ METABASE_SOURCE_DIR=/path/to/metabase-v0.63.18 \
 ### Obtain the Driver
 
 #### Precompiled Releases
-The 0.1.1 artifact already bundles ODPS JDBC 3.10.14; 0.1.0 bundles 3.10.11. Do not install another
-ODPS JDBC JAR beside it.
+Each driver JAR already bundles its ODPS JDBC driver (3.10.14 for 0.1.1, 3.10.11
+for 0.1.0). Do not install another ODPS JDBC JAR beside it.
+
+- [MaxCompute Metabase Driver 0.1.1](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/maxcompute-metabase-driver-0.1.1.jar)
+  &mdash; supported on Metabase `>=0.63.0, <0.64.0`; verify against the
+  [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/SHA256SUMS)
+  published beside it.
 - [MaxCompute Metabase Driver 0.1.0](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/maxcompute-metabase-driver-0.1.0.jar)
-  &mdash; target Metabase `>=0.51.14, <0.64.0`; verify against the
+  &mdash; superseded by 0.1.1. Its historical target range
+  `>=0.51.14, <0.64.0` predates the supported-window policy and is not a
+  support claim for Metabase 0.51.x – 0.55.x; verify against the
   [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/SHA256SUMS)
   published beside it.
 
@@ -86,8 +105,8 @@ CycloneDX SBOM, and a build provenance JSON.
    JARs from that directory.
 4. Restart Metabase and add a database using the `MaxCompute` driver.
 
-The 0.1.x artifact already bundles ODPS JDBC 3.10.11. Do not install another
-ODPS JDBC JAR beside it.
+The plugin JAR already bundles the ODPS JDBC driver, so a separately installed
+ODPS JDBC JAR in the same plugins directory is a conflict, not a fallback.
 
 ## Real E2E
 
@@ -120,7 +139,7 @@ Driver releases use semantic versions independently of Metabase. One immutable
 artifact is tested across the declared Metabase range:
 
 ```text
-maxcompute-metabase-driver-0.1.0.jar
+maxcompute-metabase-driver-0.1.1.jar
 ```
 
 Every change must pass `scripts/check-repository.sh` and a clean build, and

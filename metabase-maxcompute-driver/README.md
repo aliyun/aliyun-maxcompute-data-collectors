@@ -13,28 +13,37 @@ supported on Metabase Cloud.
 
 ## Compatibility
 
-| Driver | Target Metabase range | Verified anchors | ODPS JDBC | Status |
+**Supported window: the current Metabase stable minor.** This driver tracks
+Metabase's latest stable line. Metabase minors that are no longer current are
+outside the supported window: they are not tested for, and fixes are not
+backported to them. As of this writing the supported line is **0.63.x**.
+
+| Driver | Supported Metabase range | Verified with this artifact | ODPS JDBC | Status |
 | --- | --- | --- | --- | --- |
-| 0.1.0 | `>=0.51.14, <0.64.0` | 0.51.14, 0.56.25.1, and 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Range verification |
+| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.18 reads `ARRAY` columns as real arrays; 0.56.25.1 and 0.60.15 also pass but are outside the window | 3.10.14, bundled | Supported on 0.63.x (ARRAY read verified; full-range E2E still open) |
+| 0.1.0 | `>=0.51.14, <0.64.0` | 0.51.14, 0.56.25.1, 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Superseded by 0.1.1 |
 | 0.0.5 | `>=0.50.0, <0.51.0` | 0.50.21 | External JDBC | Legacy |
+
+One known gap is worth stating plainly: on **Metabase 0.51.x** an `ARRAY`
+column from driver 0.1.1 reaches the UI as an unrendered object reference
+instead of a list. 0.51.x is outside the supported window and will not be
+backported — move to the current stable minor.
 
 The exact, machine-readable matrix is in
 [`compatibility.yaml`](compatibility.yaml). A release contains one driver JAR,
-not one JAR per Metabase version. Every compatibility cell must test the same
-artifact SHA-256.
+not one JAR per Metabase version, and every compatibility cell must test the
+same artifact SHA-256.
 
-The target range is promoted to supported only after the same JAR passes plugin
-load smoke tests on the latest patch of every included Metabase minor and full
-real-MaxCompute E2E at the production version, range boundaries, and selected
-API-transition anchors. The matrix distinguishes target, tested, and supported
-claims.
+The 0.1.1 JAR is still compiled against 0.51.14 as its build baseline and was
+verified forward from there. The next driver release moves the build baseline
+and the CI pin into the supported window, so the artifact people install is
+built against the Metabase line it claims to support.
 
-The release JAR is compiled against the minimum verified Metabase version and
-then tested forward. Run a source-level plugin load check for an exact version
-without MaxCompute credentials:
+Run a source-level plugin load check for an exact version without MaxCompute
+credentials:
 
 ```bash
-METABASE_SOURCE_DIR=/path/to/metabase-v0.51.14 \
+METABASE_SOURCE_DIR=/path/to/metabase-v0.63.18 \
   ./scripts/run-load-smoke.sh
 ```
 

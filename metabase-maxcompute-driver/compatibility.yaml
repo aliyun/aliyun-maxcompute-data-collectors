@@ -22,12 +22,12 @@ policy:
 
 releases:
   - driver_version: 0.1.1
-    status: supported
+    status: verification-pending
     artifact: maxcompute-metabase-driver-0.1.1.jar
     release_url: https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/tag/metabase-0.1.1
     artifact_sha256: b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd
     metabase:
-      supported_range:
+      target_range:
         min_inclusive: 0.63.0
         max_exclusive: 0.64.0
       # The released 0.1.1 JAR is still compiled against the 0.51.14 baseline.
@@ -39,7 +39,7 @@ releases:
         Narrowed from the pre-policy target range ">=0.51.14, <0.64.0" to the
         current stable minor. Metabase 0.51.x and 0.52.x-0.55.x are documented
         as failing for two independent reasons and are not backported.
-      verified_versions:
+      observed_versions:
         - version: 0.63.18
           tested_at: "2026-09-24"
           in_supported_window: true
@@ -94,7 +94,13 @@ releases:
           note: >-
             Same failure as 0.52.x-0.54.x; there the function also moved to the
             metabase.secrets.models.secret namespace.
+      # These observations do not satisfy CONTRIBUTING.md's full acceptance suite.
+      # Promote this release only after all five checks pass on this artifact.
       not_verified:
+        - name: native_select_1_e2e
+          reason: The recorded 0.1.1 evidence covers the ARRAY query, not the required SELECT 1 probe.
+        - name: mbql_query_e2e
+          reason: No MBQL query against a synced real table is recorded for this artifact.
         - name: full_schema_sync_e2e
           reason: >-
             Sync cost scales with table count and the shared test project used

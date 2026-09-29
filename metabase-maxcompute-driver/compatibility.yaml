@@ -5,21 +5,114 @@ driver:
   maintainer: Alibaba Cloud MaxCompute
   artifact_pattern: maxcompute-metabase-driver-{driver_version}.jar
 
+policy:
+  # Human-readable version of this block: README.md, "Compatibility".
+  # A driver release declares one supported Metabase window, and the window is
+  # the Metabase stable minor that is current when the driver ships.
+  supported_window: current_stable_metabase_minor
+  # Metabase minors that are no longer current are outside the window: they are
+  # not tested for, and fixes are not backported to them.
+  backport_to_non_current_minors: false
+  # A Metabase version newer than the declared upper bound is untested, not
+  # implicitly supported.
+  newer_than_window: untested
+  # Every verified cell must come from the released artifact named by
+  # artifact_sha256, not from a local rebuild of the same source.
+  verified_cells_require_released_artifact: true
+
 releases:
   - driver_version: 0.1.1
-    status: verification-pending
+    status: supported
     artifact: maxcompute-metabase-driver-0.1.1.jar
+    release_url: https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/tag/metabase-0.1.1
+    artifact_sha256: b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd
     metabase:
-      target_range:
-        min_inclusive: 0.51.14
+      supported_range:
+        min_inclusive: 0.63.0
         max_exclusive: 0.64.0
+      # The released 0.1.1 JAR is still compiled against the 0.51.14 baseline.
+      # Moving the build baseline and the CI pin inside the supported range is
+      # a driver code change (the Metabase secret-value function differs before
+      # and after 0.56) and lands before 0.1.2.
       build_baseline: 0.51.14
+      window_note: >-
+        Narrowed from the pre-policy target range ">=0.51.14, <0.64.0" to the
+        current stable minor. Metabase 0.51.x and 0.52.x-0.55.x are documented
+        as failing for two independent reasons and are not backported.
+      verified_versions:
+        - version: 0.63.18
+          tested_at: "2026-09-24"
+          in_supported_window: true
+          plugin_load: pass
+          database_connection: pass
+          array_column_native_query: pass
+          note: ARRAY columns return real arrays; a NULL array column returns null.
+        - version: 0.60.15
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: pass
+          array_column_native_query: pass
+          note: Observation only; outside the window and not re-tested per release.
+        - version: 0.56.25.1
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: pass
+          array_column_native_query: pass
+          note: Observation only; outside the window and not re-tested per release.
+        - version: 0.51.14
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: pass
+          array_column_native_query: fail
+          note: ARRAY columns reach the UI as the unrendered OdpsArray object reference because that host does not serialize java.sql.Array.
+        - version: 0.52.14
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: fail
+          note: >-
+            Database creation returns HTTP 400: the secret-value function was
+            renamed to value-as-string in 0.52 and takes an extra argument.
+        - version: 0.53.12
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: fail
+        - version: 0.54.10
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: fail
+        - version: 0.55.10
+          tested_at: "2026-09-24"
+          in_supported_window: false
+          plugin_load: pass
+          database_connection: fail
+          note: >-
+            Same failure as 0.52.x-0.54.x; there the function also moved to the
+            metabase.secrets.models.secret namespace.
+      not_verified:
+        - name: full_schema_sync_e2e
+          reason: >-
+            Sync cost scales with table count and the shared test project used
+            for this artifact holds tens of thousands of tables; the runs did
+            not complete inside the sync window. Reported as not verified.
+    evidence:
+      - docs/e2e/v0.1.1-metabase-supported-window.md
     odps_jdbc:
       version: 3.10.14
       distribution: bundled
   - driver_version: 0.1.0
-    status: range-verification-in-progress
+    status: superseded
+    superseded_by: 0.1.1
     artifact: maxcompute-metabase-driver-0.1.0.jar
+    # Retained as a historical verification record. Its target range below
+    # predates the supported-window policy and is not a support claim for
+    # Metabase 0.51.x-0.55.x; on 0.51.14 only plugin load was checked, never a
+    # data-path cell.
     metabase:
       target_range:
         min_inclusive: 0.51.14

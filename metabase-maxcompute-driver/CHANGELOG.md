@@ -4,6 +4,10 @@ All notable changes to the MaxCompute Metabase Driver are recorded here.
 
 ## [Unreleased]
 
+- Correct the 0.1.1 compatibility status to verification-pending. Keep the
+  artifact-specific ARRAY observations, but require full schema sync, native
+  SELECT 1 and MBQL evidence before declaring the target window supported.
+
 - Declare the supported scope as the current Metabase stable minor, in
   `compatibility.yaml` and `README.md`. Metabase minors that are no longer
   current are outside the window and fixes are not backported to them; the

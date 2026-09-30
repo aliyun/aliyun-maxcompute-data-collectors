@@ -16,11 +16,13 @@ supported on Metabase Cloud.
 **Supported window: the current Metabase stable minor.** This driver tracks
 Metabase's latest stable line. Metabase minors that are no longer current are
 outside the supported window: they are not tested for, and fixes are not
-backported to them. As of this writing the supported line is **0.63.x**.
+backported to them. The declared target line for 0.1.1 is **0.63.x**; full acceptance of that
+artifact is still pending. The support policy does not replace the five checks
+in [CONTRIBUTING.md](CONTRIBUTING.md#compatibility-claims).
 
-| Driver | Supported Metabase range | Verified with this artifact | ODPS JDBC | Status |
+| Driver | Target Metabase range | Evidence for this artifact | ODPS JDBC | Status |
 | --- | --- | --- | --- | --- |
-| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.18 reads `ARRAY` columns as real arrays; 0.56.25.1 and 0.60.15 also pass but are outside the window | 3.10.14, bundled | Supported on 0.63.x (ARRAY read verified; full-range E2E still open) |
+| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.18 reads `ARRAY` columns as real arrays; 0.56.25.1 and 0.60.15 pass the same ARRAY probe outside the target window | 3.10.14, bundled | Verification pending: full sync, SELECT 1 and MBQL acceptance are not recorded |
 | 0.1.0 | `>=0.51.14, <0.64.0` (historical) | 0.51.14, 0.56.25.1, 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Superseded by 0.1.1 |
 | 0.0.5 | `>=0.50.0, <0.51.0` | 0.50.21 | External JDBC | Legacy |
 
@@ -46,8 +48,8 @@ The exact, machine-readable matrix is in
 not one JAR per Metabase version, and every compatibility cell must test the
 same artifact SHA-256.
 
-The 0.1.1 JAR is still compiled against 0.51.14 as its build baseline and was
-verified forward from there. The next driver release moves the build baseline
+The 0.1.1 JAR is still compiled against 0.51.14 as its build baseline and has
+partial runtime observations on newer versions. The next driver release moves the build baseline
 and the CI pin into the supported window, so the artifact people install is
 built against the Metabase line it claims to support.
 
@@ -68,7 +70,7 @@ Each driver JAR already bundles its ODPS JDBC driver (3.10.14 for 0.1.1, 3.10.11
 for 0.1.0). Do not install another ODPS JDBC JAR beside it.
 
 - [MaxCompute Metabase Driver 0.1.1](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/maxcompute-metabase-driver-0.1.1.jar)
-  &mdash; supported on Metabase `>=0.63.0, <0.64.0`; verify against the
+  &mdash; targets Metabase `>=0.63.0, <0.64.0`, with full acceptance pending; verify against the
   [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/SHA256SUMS)
   published beside it.
 - [MaxCompute Metabase Driver 0.1.0](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/maxcompute-metabase-driver-0.1.0.jar)

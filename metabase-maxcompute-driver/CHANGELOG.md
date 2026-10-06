@@ -4,6 +4,13 @@ All notable changes to the MaxCompute Metabase Driver are recorded here.
 
 ## [Unreleased]
 
+- Record the 0.1.1 range evidence on the published JAR: plugin load on the
+  latest patch of every minor 0.51-0.63 (13/13), and on Metabase 0.63.19 the
+  in-window data-path cells driver registration, real database creation and
+  native `SELECT 1`. `0.64.0-beta` loads with an identical dependency surface
+  to 0.63.19 and is recorded as a boundary candidate excluded from the window,
+  not as a reason to raise the upper bound. Full schema sync and MBQL remain
+  unrecorded, so 0.1.1 stays verification-pending.
 - Correct the 0.1.1 compatibility status to verification-pending. Keep the
   artifact-specific ARRAY observations, but require full schema sync, native
   SELECT 1 and MBQL evidence before declaring the target window supported.

@@ -40,6 +40,18 @@ releases:
         current stable minor. Metabase 0.51.x and 0.52.x-0.55.x are documented
         as failing for two independent reasons and are not backported.
       observed_versions:
+        - version: 0.63.19
+          tested_at: "2026-10-06"
+          in_supported_window: true
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          array_column_native_query: not_run
+          note: >-
+            Latest stable patch of the current window (image digest
+            sha256:7324f83713df9851c6c7b6c8247098de14c0924fc3b868202f886df4877cd4ff). The ARRAY cell was not re-run here; 0.63.18 in the same minor
+            holds it. Full schema sync and MBQL stay unverified, so this row
+            does not promote the release.
         - version: 0.63.18
           tested_at: "2026-09-24"
           in_supported_window: true
@@ -96,11 +108,42 @@ releases:
             metabase.secrets.models.secret namespace.
       # These observations do not satisfy CONTRIBUTING.md's full acceptance suite.
       # Promote this release only after all five checks pass on this artifact.
+      range_load_smoke:
+        method: release-image-plugin-load
+        coverage: latest published patch of every minor in the pre-policy range ">=0.51.14, <0.64.0"
+        tested_at: "2026-10-06"
+        artifact_sha256: b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd
+        result: pass
+        versions: 0.51.14, 0.52.17, 0.53.18, 0.54.24, 0.55.24, 0.56.25, 0.57.20, 0.58.35, 0.59.31, 0.60.27, 0.61.21, 0.62.19, 0.63.19
+        note: >-
+          Plugin load only, on the published bytes. Per the supported-window
+          policy these out-of-window minors are observations, not commitments.
+      boundary_candidates:
+        - version: 0.64.0-beta
+          release_image: metabase/metabase:v0.64.0-beta
+          image_digest: sha256:b419625d1d4a15581a18752d0d80e6e6f9d71bc2350f5bf8fda752436c208de8
+          tested_at: "2026-10-06"
+          plugin_load: pass
+          dependency_surface: >-
+            All 48 Metabase namespaces and vars this driver requires or extends
+            resolve identically to 0.63.19.
+          in_supported_window: false
+          decision: excluded
+          reason: >-
+            Pre-release, no stable 0.64 exists yet, and no data-path cell has
+            been run above 0.63.19. Re-test when the first stable 0.64 patch
+            ships; the upper bound is not raised on a load result alone.
       not_verified:
-        - name: native_select_1_e2e
-          reason: The recorded 0.1.1 evidence covers the ARRAY query, not the required SELECT 1 probe.
+        - name: full_schema_sync_e2e
+          reason: >-
+            Sync cost scales with table count; the shared test project used for
+            this artifact holds tens of thousands of tables and three bounded
+            windows (1,800 s x2 and one solo 4,500 s) did not complete. Not
+            verified, not a pass.
         - name: mbql_query_e2e
-          reason: No MBQL query against a synced real table is recorded for this artifact.
+          reason: >-
+            MBQL needs synced table metadata, so it cannot be exercised while
+            the sync cell above is open.
         - name: full_schema_sync_e2e
           reason: >-
             Sync cost scales with table count and the shared test project used
@@ -108,6 +151,7 @@ releases:
             not complete inside the sync window. Reported as not verified.
     evidence:
       - docs/e2e/v0.1.1-metabase-supported-window.md
+      - docs/e2e/v0.1.1-range-load-smoke-2026-10-06.md
     odps_jdbc:
       version: 3.10.14
       distribution: bundled

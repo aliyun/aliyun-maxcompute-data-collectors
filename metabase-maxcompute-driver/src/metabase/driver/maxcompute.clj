@@ -99,7 +99,7 @@
                               ;; Does this driver support standard deviation and variance aggregations? Note that if variance is not supported
                               ;; directly, you can calculate it manually by taking the square of the standard deviation. See the MongoDB driver
                               ;; for example.
-                              :standard-deviation-aggregations        false
+                              :standard-deviation-aggregations        true
 
                               ;; Does this driver support expressions (e.g. adding the values of 2 columns together)?
                               :expressions                            true
@@ -136,7 +136,7 @@
                               :persist-models-enabled                 false
 
                               ;; Does the driver support binning as specified by the `binning-strategy` clause?
-                              :binning                                false
+                              :binning                                true
 
                               ;; Does this driver not let you specify whether or not our string search filter clauses (`:contains`,
                               ;; `:starts-with`, and `:ends-with`, collectively the equivalent of SQL `LIKE`) are case-senstive or not? This
@@ -149,15 +149,15 @@
                               :left-join                              true
                               :right-join                             true
                               :inner-join                             true
-                              :full-join                              false
+                              :full-join                              true
 
-                              :regex                                  false
+                              :regex                                  true
 
                               ;; Does the driver support advanced math expressions such as log, power, ...
-                              :advanced-math-expressions              false
+                              :advanced-math-expressions              true
 
                               ;; Does the driver support percentile calculations (including median)
-                              :percentile-aggregations                false
+                              :percentile-aggregations                true
 
                               ;; Does the driver support date extraction functions? (i.e year('1970/03/09'))
                               ;; DEFAULTS TO TRUE
@@ -172,7 +172,7 @@
 
                               ;; Does the driver support converting timezone?
                               ;; DEFAULTS TO FALSE
-                              :convert-timezone                       false
+                              :convert-timezone                       true
 
                               ;; Does the driver support :datetime-diff functions
                               :datetime-diff                          true
@@ -257,6 +257,24 @@
 
 ;; this convert "a"."b"."c" to `a`.`b`.`c`, which is necessary for maxcompute
 (defmethod sql.qp/quote-style :maxcompute [_] :mysql)
+
+;; SQL that Metabase shows in the UI / query log goes through sql-formatter
+;; (`metabase.driver.sql.util/dialects`). There is no :maxcompute entry, so it
+;; falls back to StandardSql, which does not understand backtick identifiers and
+;; renders `tbl`.`col` as ` tbl `.` col ` — SQL that the engine rejects with
+;; ODPS-0130071 "column ... cannot be resolved" if a user copies it out of the UI.
+;; MaxCompute's quoting is MySQL-style, so format with that dialect.
+(add-optional-method!
+  'metabase.driver/prettify-native-form
+  :maxcompute
+  (fn [_driver s] (sql.u/format-sql :mysql s)))
+
+;; 2026-09-08 engine-audit fix: without this, grouping by Week throws
+;; "No method in multimethod 'db-start-of-week'". MaxCompute DATETRUNC 'week'
+;; is Monday-based, which is Metabase's default start of week.
+(defmethod driver/db-start-of-week :maxcompute
+  [_]
+  :monday)
 
 (defmethod sql-jdbc.conn/connection-details->spec :maxcompute
            [driver details-map]
@@ -370,39 +388,11 @@
                   (catch Throwable e
                     (.close stmt)
                     (throw e)))))
-(defmethod sql.qp/->honeysql [:maxcompute :datetime-diff]
-           [driver [_ x y unit]]
-           (let [x (sql.qp/->honeysql driver x)
-                 y (sql.qp/->honeysql driver y)]
-                (:raw (if (nil? unit)
-                        (str "DATEDIFF(" x ", " y ")")
-                        (str "DATEDIFF(" x ", " y ", '-" unit "')")))))
-
 (defn ^:private project-id-for-current-query
       []
       (when (qp.store/initialized?)
             (when-let [{:keys [details]} (lib.metadata/database (qp.store/metadata-provider))]
                       (:project details))))
-
-(defn should-qualify-identifier? [_] true)                  ;
-
-
-(defmethod sql.qp/->honeysql [:maxcompute ::h2x/identifier]
-           [_driver identifier]
-           (letfn [(prefix-components [[dataset-id table & more :as _components]]
-                                      (cons (str (when-let [proj-id (project-id-for-current-query)]
-                                                           (str proj-id \.))
-                                                 dataset-id
-                                                 \.
-                                                 table)
-                                            more))
-
-                   (update-identifier-prefix-components [[_tag identifier-type components]]
-                                                        (apply h2x/identifier identifier-type (prefix-components components)))]
-
-                  (cond-> identifier
-                          (should-qualify-identifier? identifier) update-identifier-prefix-components
-                          true (vary-meta assoc ::do-not-qualify? true))))
 
 (defn- valid-project-identifier?
        "Is String `s` a valid MaxCompute project identifier (a.k.a. project-id)? Identifiers are only allowed to contain
@@ -667,21 +657,31 @@
                ((get-method ->temporal-type :default) target-type clause))
              target-type))
 
+;; 2026-09-08 engine-audit fix (read-only tests on live project demo_project):
+;; MaxCompute does NOT accept 'minute'/'second' as DATETRUNC/DATEADD datepart
+;; tokens — only 'mi'/'ss' style short tokens, plus 'dd','hh','mm','yyyy',
+;; 'day','month','year','week'. The 3-arg (timezone) form of DATETRUNC is also
+;; invalid here (ODPS-0130121) — session tz comes from the connection settings.
+(def ^:private mbql-unit->datepart-token
+  "MBQL unit -> MaxCompute datepart token. NOTE: :quarter maps to 'quarter',
+  which is valid for DATEADD (engine-verified) but NOT for DATETRUNC — the
+  [:maxcompute :quarter] date method never routes through `trunc`, it builds
+  the month-shift composite instead."
+  {:second "ss" :minute "mi" :hour "hh" :day "dd"
+   :month "mm" :year "yyyy" :week "week" :quarter "quarter"})
+
 (defn- format-trunc
-       [_tag [expr unit report-timezone :as _args]]
-       (let [t               (or (temporal-type expr) :datetime)
-             f               (case t
-                                   :date      :datetrunc
-                                   :time      :datetrunc
-                                   :datetime  :datetrunc
-                                   :timestamp :datetrunc
-                                   :timestamp_ntz :datetrunc)
-             unit-expr       (h2x/literal (name unit))
-             expr            (if (and report-timezone
-                                      (= f :datetrunc))
-                               [f expr unit-expr (h2x/literal report-timezone)]
-                               [f expr unit-expr])]
-            (sql/format-expr expr {:nested true})))
+       [_tag [expr unit _report-timezone :as _args]]
+       ;; report-timezone arg ignored: MaxCompute DATETRUNC has no 3-arg form.
+       (let [t         (or (temporal-type expr) :datetime)
+             f         (case t
+                             :date      :datetrunc
+                             :time      :datetrunc
+                             :datetime  :datetrunc
+                             :timestamp :datetrunc
+                             :timestamp_ntz :datetrunc)
+             token     (get mbql-unit->datepart-token unit (name unit))]
+            (sql/format-expr [f expr (h2x/literal token)] {:nested true})))
 
 (sql/register-fn! ::trunc #'format-trunc)
 
@@ -705,15 +705,19 @@
 (def ^:private valid-time-extract-units
   #{:microsecond :millisecond :second :minute :hour})
 
+;; 2026-09-08 engine-audit fix: `EXTRACT(dayofweek FROM x)` etc. are parse
+;; errors on MaxCompute (invalid token 'FROM') — only a fixed spell set works
+;; (day/month/…). dayofweek/dayofyear/isoweek must be computed via composites.
+;; Also the 3-arg EXTRACT(x, tz) form is invalid on this engine.
+;; -> temp: keep `extract*` for the supported spell set only. The unsupported
+;; units are rerouted by the [:maxcompute …] `sql.qp/date` methods below.
 (defn- format-extract
-       [_tag [unit expr timezone]]
-       (let [[expr-sql & expr-args] (sql/format-expr expr {:nested true})
-             [zone-sql & zone-args] (when timezone
-                                          (sql/format-expr (h2x/literal timezone) {:nested true}))]
+       [_tag [unit expr _timezone]]
+       ;; timezone arg ignored: 3-arg EXTRACT is invalid on MaxCompute.
+       (let [[expr-sql & expr-args] (sql/format-expr expr {:nested true})]
             (into [((clojure.core/format "EXTRACT(%s FROM %s)" (name unit) expr-sql))]
                   cat
-                  [expr-args
-                   zone-args])))
+                  [expr-args])))
 
 (sql/register-fn! ::extract #'format-extract)
 
@@ -749,121 +753,228 @@
               ;; for datetimes or anything without a known temporal type, cast to timestamp and go from there
               (recur unit (->temporal-type :timestamp expr))))
 
+;; 2026-09-08 engine-audit fix: rewritten against engine-verified token set
+;; (live demo_project). Changed units carry a note; unchanged ones were OK.
 (defmethod sql.qp/date [:maxcompute :second-of-minute] [_ _ expr] (extract :second    expr))
-(defmethod sql.qp/date [:maxcompute :minute]           [_ _ expr] (trunc   :minute    expr))
+(defmethod sql.qp/date [:maxcompute :minute]           [_ _ expr] (trunc   :minute    expr)) ; 'minute'->'mi' in format-trunc (was 0130071)
 (defmethod sql.qp/date [:maxcompute :minute-of-hour]   [_ _ expr] (extract :minute    expr))
-(defmethod sql.qp/date [:maxcompute :hour]             [_ _ expr] (trunc   :hour      expr))
+(defmethod sql.qp/date [:maxcompute :hour]             [_ _ expr] (trunc   :hour      expr)) ; 'hour' token OK
 (defmethod sql.qp/date [:maxcompute :hour-of-day]      [_ _ expr] (extract :hour      expr))
 (defmethod sql.qp/date [:maxcompute :day]              [_ _ expr] (trunc   :day       expr))
 (defmethod sql.qp/date [:maxcompute :day-of-month]     [_ _ expr] (extract :day       expr))
-(defmethod sql.qp/date [:maxcompute :day-of-year]      [_ _ expr] (extract :dayofyear expr))
+;; 'dayofyear' is not an EXTRACT spelling on MaxCompute (parse error) —
+;; engine-verified composite: DATEDIFF(x, year-trunc(x), 'dd') + 1.
+(defmethod sql.qp/date [:maxcompute :day-of-year]
+           [_driver _unit expr]
+           (h2x/+ [:datediff expr (trunc :year expr) (h2x/literal "dd")] [:inline 1]))
 (defmethod sql.qp/date [:maxcompute :month]            [_ _ expr] (trunc   :month     expr))
 (defmethod sql.qp/date [:maxcompute :month-of-year]    [_ _ expr] (extract :month     expr))
-(defmethod sql.qp/date [:maxcompute :quarter]          [_ _ expr] (trunc   :quarter   expr))
-(defmethod sql.qp/date [:maxcompute :quarter-of-year]  [_ _ expr] (extract :quarter   expr))
+;; 'quarter' is NOT a DATETRUNC token (0130071). Re-engine-verified 2026-10-22
+;; against the live project through the driver's own generated SQL:
+;;   * DATEADD takes a BIGINT shift — integer `/` yields DOUBLE on this engine
+;;     (ODPS-0130071 "dateadd cannot match any overloaded functions with
+;;     (DATETIME, DOUBLE, STRING)"), so the shift is CAST(... AS BIGINT);
+;;   * the back-off is `-((month - 1) % 3)` months, NOT `(month-1)/3*3`: with
+;;     the old arithmetic Oct landed on Jan 1 instead of Oct 1;
+;;   * `[:*-1 ...]` is not a HoneySQL operator — it rendered as `*-1(...)`, an
+;;     invalid function call. Use `[:* [:inline -1] ...]`.
+;; Verified: Oct/Dec -> Oct 1, Jun -> Apr 1, Jan -> Jan 1.
+(defmethod sql.qp/date [:maxcompute :quarter]
+           [_driver _unit expr]
+           [:dateadd
+            (trunc :month expr)
+            (h2x/cast :bigint
+                      (h2x/* [:inline -1]
+                             (h2x/mod (h2x/- [:datepart expr (h2x/literal "mm")] [:inline 1])
+                                      [:inline 3])))
+            (h2x/literal "mm")])
+(defmethod sql.qp/date [:maxcompute :quarter-of-year]
+           [_driver _unit expr]
+           (h2x/cast :bigint (h2x// (h2x/+ [:datepart expr (h2x/literal "mm")] [:inline 2]) [:inline 3])))
 (defmethod sql.qp/date [:maxcompute :year]             [_ _ expr] (trunc   :year      expr))
 (defmethod sql.qp/date [:maxcompute :year-of-era]      [_ _ expr] (extract :year      expr))
 
-(defn- format-mod
-       "MaxCompute mod is a function like mod(x, y) rather than an operator like x mod y."
-       [_tag [x y :as _args]]
-       (let [[x-sql & x-args] (sql/format-expr x {:nested true})
-             [y-sql & y-args] (sql/format-expr y {:nested true})]
-            (into [(format "mod(%s, %s)" x-sql y-sql)]
-                  cat
-                  [x-args y-args])))
+;; 2026-09-08 engine-audit fix: there is NO `mod(x,y)` function on MaxCompute
+;; (ODPS-0130071) — the `%` operator is the only remaining form (A9/A10 audit).
+;; The day-of-week method below switched from the (removed) ::mod clause to
+;; h2x/mod, which renders the `%` operator.
 
-(sql/register-fn! ::mod #'format-mod)
-
+;; `EXTRACT(dayofweek FROM x)` is a parse error on MaxCompute and
+;; `DATEPART(x, 'dayofweek')` is 0130071, so day-of-week is a WEEKDAY composite.
+;; WEEKDAY(x) = Mon=0..Sun=6, and `adjust-day-of-week` requires the value the
+;; driver hands it to be 1..7 with 1 = `db-start-of-week` — which this driver
+;; declares as :monday. Hence `((WEEKDAY(x) % 7) + 1)`: Mon=1 … Sun=7.
+;;
+;; WEEKDAY accepts DATETIME only — on a TIMESTAMP argument the engine raises
+;; ODPS-0130121 "invalid type TIMESTAMP of argument 1 for function weekday,
+;; expect DATETIME", which broke every day-of-week bucket on timestamp-typed or
+;; unix-ms-coerced columns. Cast first (verified 2026-10-22 through the driver's
+;; own generated SQL: Fri=5, Sun=7, Mon=1 after the start-of-week shift,
+;; Fri=6 under the default Sunday start-of-week).
 (defmethod sql.qp/date [:maxcompute :day-of-week]
            [driver _ expr]
            (sql.qp/adjust-day-of-week
              driver
-             (extract :dayofweek expr)
+             (h2x/+ (h2x/mod [:weekday (h2x/cast :datetime expr)] [:inline 7]) [:inline 1])
              (driver.common/start-of-week-offset driver)
-             (fn [x y]
-                 [::mod x y])))
+             h2x/mod))
 
+;; 2026-09-08 review fix: :week now honours the instance's start-of-week
+;; setting. Native DATETRUNC 'week' is always Monday-based (G/O audits), and
+;; engine-verified 'week(sunday)' / the O4 shift-composite exist for the
+;; Sunday-start case ('week(sunday)' audit O3). Using the setting-aware
+;; spelling keeps bucket edges aligned when the admin changes start-of-week.
 (defmethod sql.qp/date [:maxcompute :week]
            [_driver _unit expr]
-           (trunc (keyword (format "week(%s)" (name (setting-get-value-of-type :keyword :start-of-week)))) expr))
+           (trunc (keyword (format "week(%s)"
+                                   (name (driver/db-start-of-week :maxcompute))))
+                  expr))
 
-;; TODO: maxcompute supports week(weekday), maybe we don't have to do the complicated math for maxcompute?
+;; 'isoweek' is not an EXTRACT spelling on MaxCompute (parse error) and
+;; DATEPART 'isoweek' returns 0 (wrong) — WEEKOFYEAR matches ISO week on all
+;; probed edge dates (J audit: 2027-01-01→53, 2026-12-28→53, 2026-01-01→1).
 (defmethod sql.qp/date [:maxcompute :week-of-year-iso]
            [_driver _unit expr]
-           (extract :isoweek expr))
+           [:weekofyear expr])
 
-(doseq [[unix-timestamp-type maxcompute-fn] {:seconds      :timestamp_seconds
-                                           :milliseconds :timestamp_millis
-                                           :microseconds :timestamp_micros}]
+;; 2026-09-07/08 unix-timestamp fix (engine-verified, see PR #2 + skill notes):
+;; previous impl emitted nonexistent `TIMESTAMP_MILLIS/SECONDS/MICROS(x)` built-ins
+;; (ODPS-0130071 live), and the :sql :milliseconds default leaked
+;; `FROM_UNIXTIME(x / 1000.0)` into generated SQL: `/` on integers returns DOUBLE
+;; and FROM_UNIXTIME only takes BIGINT → ODPS-0130121 (the visible-query-builder bug).
+;;
+;; Engine-verified replacements (all read-only tested 2026-09-07):
+;;   :seconds      → CAST(FROM_UNIXTIME(CAST(x AS BIGINT)) AS TIMESTAMP)   — exact
+;;   :milliseconds → CAST(CONCAT(TO_CHAR(FROM_UNIXTIME(CAST(x / 1000 AS BIGINT)),'yyyy-mm-dd hh:mi:ss'),
+;;                             '.', LPAD(CAST(x % 1000 AS STRING), 3, '0')) AS TIMESTAMP)
+;;                   CAST(x / 1000 AS BIGINT) truncates toward zero == DIV; `%` keeps ms.
+;;   :microseconds → same shape with 1e6/6-digit padding.
+;; CAST(DATETIME AS TIMESTAMP) and CAST(STRING AS TIMESTAMP) (fractional seconds ok)
+;; are both supported conversions; MOD must use the `%` operator (MaxCompute has no
+;; MOD function — ODPS-0130071 on `mod(x,y)`).
+(defn- unix-s->honeysql
+  [expr]
+  (h2x/cast :timestamp [:from_unixtime (h2x/cast :bigint expr)]))
+
+(defn- split-unix-n
+  "Shared shape for ms/µs: seconds via BIGINT-truncating division (`CAST(x / N AS BIGINT)`
+  truncates toward zero, same as DIV), remainder via `%`; recombined as a
+  'yyyy-mm-dd hh:mi:ss.f{digits}' string and cast to TIMESTAMP. `digits` is 3 (ms) or 6 (µs)."
+  [expr divisor digits]
+  (let [divisor-expr [:inline divisor]
+        seconds      (h2x/cast :bigint (h2x// expr divisor-expr))
+        frac         (h2x/mod expr divisor-expr)
+        datetime-str [:concat
+                      [:to_char [:from_unixtime seconds] (h2x/literal "yyyy-mm-dd hh:mi:ss")]
+                      (h2x/literal ".")
+                      [:lpad [:cast frac :string] [:inline digits] (h2x/literal "0")]]]
+    (h2x/cast :timestamp datetime-str)))
+
+(doseq [[unix-timestamp-type impl-fn] {:seconds      unix-s->honeysql
+                                       :milliseconds #(split-unix-n % 1000 3)
+                                       :microseconds #(split-unix-n % 1000000 6)}]
        (defmethod sql.qp/unix-timestamp->honeysql [:maxcompute unix-timestamp-type]
                   [_driver _unix-timestamp-type expr]
-                  (-> [maxcompute-fn expr]
+                  (-> (impl-fn expr)
                       (with-temporal-type :timestamp)
                       (h2x/with-database-type-info "timestamp")
                       (with-temporal-type :timestamp))))
 
+;; 2026-09-08 engine-audit fix: `DATETIME(x, tz)` does NOT exist on MaxCompute
+;; (ODPS-0130071, E9 audit). Engine-verified path: TIMESTAMP(x, tz) works
+;; (E8), CAST(TIMESTAMP(x, 'UTC') AS datetime) shifts the wall clock (S1):
+;; from 12:34 → 20:34 with Asia/Shanghai target.
+;; MBQL 5 may carry a clause metadata map as the first argument (e.g. a
+;; percentile aggregation or expression renamed in the GUI arrives as
+;; [:percentile {name ...} expr 0.9]). Any custom ->honeysql implementation that
+;; destructures positional arguments must strip those maps first, otherwise the
+;; map is handed to ->honeysql and blows up with "Unexpected ->honeysql call on a
+;; map" (reproduced in production 2026-10-22).
+(defn- drop-clause-metadata
+       [clause]
+       (remove map? (rest clause)))
+
 (defmethod sql.qp/->honeysql [:maxcompute :convert-timezone]
-           [driver [_ arg target-timezone source-timezone]]
-           (let [datetime     (fn [x target-timezone]
-                                  [:datetime x target-timezone])
+           [driver clause]
+           (let [[arg target-timezone source-timezone] (drop-clause-metadata clause)
                  hsql-form    (sql.qp/->honeysql driver arg)
                  timestamptz? (h2x/is-of-type? hsql-form "timestamp")]
                 (sql.u/validate-convert-timezone-args timestamptz? target-timezone source-timezone)
-                (-> (if timestamptz?
-                      hsql-form
-                      [:timestamp hsql-form (or source-timezone (qp.timezone/results-timezone-id))])
-                    (datetime target-timezone)
-                    (with-temporal-type :datetime))))
+                (as-> (if timestamptz?
+                        hsql-form
+                        [:timestamp hsql-form (h2x/literal (or source-timezone (qp.timezone/results-timezone-id)))]) form
+                    [:cast
+                     [:timestamp form (h2x/literal target-timezone)]
+                     :datetime]
+                    (with-temporal-type form :datetime))))
 
+;; 2026-09-08 engine-audit fix: MaxCompute has no `float64` type (ODPS-0130071, E1
+;; audit); DOUBLE is the native spelling (E2).
+(defmethod sql.qp/->float :maxcompute
+           [_ value]
+           (h2x/cast :double value))
+
+;; 2026-09-08 engine-audit fix: MaxCompute has no `float64` type (ODPS-0130071);
+;; DOUBLE is the native spelling. Registered for cores that took `->float` away
+;; in favour of `float-dbtype` (the `->float` defmethod above covers older cores).
 (add-optional-method!
   'metabase.driver.sql.query-processor/float-dbtype
   :maxcompute
-  (fn [_driver] :float64))
+  (fn [_driver] :double))
+
+;; `LIKE` on MaxCompute has a built-in backslash escape and does NOT accept the
+;; SQL-standard ESCAPE clause — `... LIKE '%2026%' ESCAPE '\'` is ODPS-0130161
+;; "invalid token", and `ESCAPE '!'` fails the same way. Engine-verified that the
+;; escaping itself works without the clause:
+;;   'a%b' LIKE 'a\%b' -> true      'axb' LIKE 'a\%b' -> false
+;;   'a_b' LIKE 'a\_b' -> true      'axb' LIKE 'a\_b' -> false
+;; Core 0.59+ adds the clause via transform-literal-like-pattern-honeysql, which
+;; broke every :contains / :starts-with / :ends-with filter (found by the
+;; 2026-10-22 sweep). Drop the wrapper for this driver.
+(add-optional-method!
+  'metabase.driver.sql.query-processor/transform-literal-like-pattern-honeysql
+  :maxcompute
+  (fn [_driver like-rhs-honeysql] like-rhs-honeysql))
 
 (defmethod sql.qp/->honeysql [:maxcompute :regex-match-first]
-           [driver [_ arg pattern]]
-           [:regexp_extract (sql.qp/->honeysql driver arg) (sql.qp/->honeysql driver pattern)])
+           [driver clause]
+           (let [[arg pattern] (drop-clause-metadata clause)]
+                [:regexp_extract (sql.qp/->honeysql driver arg) (sql.qp/->honeysql driver pattern)]))
 
-(defn- percentile->quantile
-       [x]
-       (loop [x     (double x)
-              power (int 0)]
-             (if (zero? (- x (Math/floor x)))
-               [(Math/round x) (Math/round (Math/pow 10 power))]
-               (recur (* 10 x) (inc power)))))
-
-(defn- format-approx-quantiles
-       [_tag [expr offset quantiles :as _args]]
-       (let [[expr-sql & expr-args]           (sql/format-expr expr {:nested true})
-             [offset-sql & offset-args]       (sql/format-expr offset {:nested true})
-             [quantiles-sql & quantiles-args] (sql/format-expr quantiles {:nested true})]
-            (into [(format "APPROX_QUANTILES(%s, %s)[OFFSET(%s)]" expr-sql quantiles-sql offset-sql)]
+(defn- format-percentile
+       [_tag [expr p :as _args]]
+       (let [[expr-sql & expr-args] (sql/format-expr expr {:nested true})
+             [p-sql & p-args]       (sql/format-expr p {:nested true})]
+            (into [(format "PERCENTILE(%s, %s)" expr-sql p-sql)]
                   cat
-                  [expr-args quantiles-args offset-args])))
+                  [expr-args p-args])))
 
-(sql/register-fn! ::approx-quantiles #'format-approx-quantiles)
+(sql/register-fn! ::percentile #'format-percentile)
 
-(defn- approx-quantiles
-       "HoneySQL form for the APPROX_QUANTILES invocation. The [OFFSET(...)] part after the function call is odd and
-       needs special treatment."
-       [expr offset quantiles]
-       (let [offset    (if (number? offset)
-                         [:inline offset]
-                         offset)
-             quantiles (if (number? quantiles)
-                         [:inline quantiles]
-                         quantiles)]
-            [::approx-quantiles expr offset quantiles]))
-
+;; 2026-10-22 engine-verified (live demo_project): PERCENTILE(x, p) is the native
+;; form and takes p as a 0..1 fraction — 1..10 gives p50=5.5 / p90=9.1, and
+;; MEDIAN(x) == PERCENTILE(x, 0.5). The previous implementation emitted
+;; APPROX_QUANTILES(x, n)[OFFSET(k)], a BigQuery function this engine does not
+;; have (ODPS-0130071; the `odps.sql.bigquery.compatible` connection setting does
+;; not enable it either — SAFE_DIVIDE fails the same way), so the code path was
+;; dead while the feature flag kept it out of the UI.
+;; MBQL 5 may carry a clause metadata map as the first argument — a percentile
+;; aggregation renamed in the GUI arrives as
+;;   [:percentile {:name "input_p90" :display-name "input_p90" ...} expr 0.9]
+;; Core's [:sql :percentile] does not expect that shape either, so passing the map
+;; straight to ->honeysql failed with "Unexpected ->honeysql call on a map"
+;; (reproduced 2026-10-22 through /api/dataset/native on the production instance).
+;; Drop any map arguments before destructuring.
 (defmethod sql.qp/->honeysql [:maxcompute :percentile]
-           [driver [_ expr p]]
-           (let [[offset quantiles] (percentile->quantile p)]
-                (approx-quantiles (sql.qp/->honeysql driver expr) offset quantiles)))
+           [driver clause]
+           (let [[expr p] (drop-clause-metadata clause)]
+                [::percentile (sql.qp/->honeysql driver expr)
+                 (if (number? p) [:inline (double p)] p)]))
 
 (defmethod sql.qp/->honeysql [:maxcompute :median]
-           [driver [_ arg]]
-           (sql.qp/->honeysql driver [:percentile arg 0.5]))
+           [driver clause]
+           (let [[arg] (drop-clause-metadata clause)]
+                (sql.qp/->honeysql driver [:percentile arg 0.5])))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -886,6 +997,17 @@
          (::do-not-qualify? (meta identifier))
          false
 
+         ;; Fields rendered inside a source query / join are still real columns of a
+         ;; real table until an alias takes over; MaxCompute only resolves a column
+         ;; qualifier when the full `<project>.<schema>.<table>` is quoted as ONE
+         ;; identifier (`a.b.c`.`col`) — `schema`.`table`.`col` fails with
+         ;; ODPS-0130071 "column ... cannot be resolved" (verified on the production
+         ;; project 2026-10-22). Aliased fields carry two components ([alias col]) and
+         ;; stay unqualified; three-or-more components mean a real table, qualify it.
+         (and (= identifier-type :field)
+              (>= (count components) 3))
+         true
+
          ;; If we're currently using a Table alias, don't qualify the alias with the dataset name
          *field-is-from-join-or-source-query?*
          false
@@ -902,7 +1024,7 @@
 
 (defmethod sql.qp/cast-temporal-string [:maxcompute :Coercion/YYYYMMDDHHMMSSString->Temporal]
            [_driver _coercion-strategy expr]
-           [:parse_datetime (h2x/literal "%Y%m%d%H%M%S") expr])
+           [:to_date expr (h2x/literal "yyyymmddhhmiss")])
 
 (defmethod sql.qp/->honeysql [:maxcompute ::h2x/identifier]
            [_driver identifier]
@@ -954,73 +1076,138 @@
                                :type  qp.error-type/invalid-query}))))
 
 (defmethod sql.qp/->honeysql [:maxcompute :datetime-diff]
-           [driver [_ x y unit]]
-           (let [x (sql.qp/->honeysql driver x)
+           [driver clause]
+           (let [[x y unit] (drop-clause-metadata clause)
+                 x (sql.qp/->honeysql driver x)
                  y (sql.qp/->honeysql driver y)]
                 (datetime-diff-check-args x y)
                 (sql.qp/datetime-diff driver unit x y)))
 
-(defn- timestamp-diff [unit x y]
-       [:timestamp_diff
-        (->temporal-type :timestamp y)
-        (->temporal-type :timestamp x)
-        [:raw (name unit)]])
-
+;; 2026-09-08 engine-audit fixes — datetime-diff family (Z/AA audit):
+;; TIMESTAMP_DIFF / DATETIME_DIFF built-ins DO NOT exist on MaxCompute
+;; (ODPS-0130071). DATEDIFF(x, y, token) is the engine-verified native
+;; form (accepts DATETIME or TIMESTAMP args, AA1 audit) with short tokens
+;; 'dd','hh','mi','ss','mm','yyyy'. Month semantics: calendar-month
+;; boundaries; whole months = subtract 1 when day(x) < day(y) AND x>=y
+;; (Z1: 22→21; Z-negative dir unchanged: -22 for x<y dir, Z5/Z6 audit).
 (defmethod sql.qp/datetime-diff [:maxcompute :year]
            [driver _unit x y]
-           (h2x// (sql.qp/datetime-diff driver :month x y) 12))
-
+           (h2x/cast :bigint (h2x// (sql.qp/datetime-diff driver :month x y) [:inline 12])))
 (defmethod sql.qp/datetime-diff [:maxcompute :quarter]
            [driver _unit x y]
-           (h2x// (sql.qp/datetime-diff driver :month x y) 3))
-
+           (h2x/cast :bigint (h2x// (sql.qp/datetime-diff driver :month x y) [:inline 3])))
 (defmethod sql.qp/datetime-diff [:maxcompute :month]
            [_driver _unit x y]
-           ;; Only maxcompute's `datetime_diff` supports months. We need to convert args to datetime to use it.
-           ;; Also `<` and `>` comparisons can only be made on the same type.
-           (let [x' (->temporal-type :datetime x)
-                 y' (->temporal-type :datetime y)]
-                (h2x/+ [:datetime_diff y' x' [:raw "month"]]
-                       ;; datetime_diff counts month boundaries not whole months, so we need to adjust
-                       ;; if x<y but x>y in the month calendar then subtract one month
-                       ;; if x>y but x<y in the month calendar then add one month
-                       [:case
-                        [:and [:< x' y'] [:> (extract :day x) (extract :day y)]]
-                        -1
-                        [:and [:> x' y'] [:< (extract :day x) (extract :day y)]]
-                        1
-                        :else 0])))
-
+           (h2x/- [:datediff x y (h2x/literal "mm")]
+                  [:case
+                   [:< [:datepart x (h2x/literal "dd")] [:datepart y (h2x/literal "dd")]] [:inline 1]
+                   :else [:inline 0]]))
 (defmethod sql.qp/datetime-diff [:maxcompute :week]
            [driver _unit x y]
-           (h2x// (sql.qp/datetime-diff driver :day x y) 7))
-
+           (h2x/cast :bigint (h2x// (sql.qp/datetime-diff driver :day x y) [:inline 7])))
 (defmethod sql.qp/datetime-diff [:maxcompute :day]
            [_driver _unit x y]
-           (timestamp-diff :day (trunc :day x) (trunc :day y)))
+           [:datediff (trunc :day x) (trunc :day y) (h2x/literal "dd")])
+(defmethod sql.qp/datetime-diff [:maxcompute :hour]
+           [_driver _unit x y]
+           [:datediff x y (h2x/literal "hh")])
+(defmethod sql.qp/datetime-diff [:maxcompute :minute]
+           [_driver _unit x y]
+           [:datediff x y (h2x/literal "mi")])
+(defmethod sql.qp/datetime-diff [:maxcompute :second]
+           [_driver _unit x y]
+           [:datediff x y (h2x/literal "ss")])
 
-(defmethod sql.qp/datetime-diff [:maxcompute :hour] [_driver _unit x y] (timestamp-diff :hour x y))
-(defmethod sql.qp/datetime-diff [:maxcompute :minute] [_driver _unit x y] (timestamp-diff :minute x y))
-(defmethod sql.qp/datetime-diff [:maxcompute :second] [_driver _unit x y] (timestamp-diff :second x y))
+(defn- crc32-hex
+  "CRC32 of `s`'s UTF-8 bytes as 8-char zero-padded hex, e.g. `30de4302`.
+   Mirrors lib/util/unique-name-generator's `crc32-checksum` (same algorithm core
+   uses for truncated aliases), re-implemented here so the driver stays self-contained
+   across metabase-core versions."
+  ^String [^String s]
+  (let [raw (Long/toHexString (.getValue (doto (java.util.zip.CRC32.)
+                                           (.update (.getBytes s "UTF-8")))))]
+    (loop [r raw]
+      (if (< (count r) 8)
+        (recur (str \0 r))
+        r))))
+
+(defn- collision-safe-escape-alias
+  "Escape `s` to a valid MaxCompute identifier; when the fold is LOSSY (it actually
+   replaced characters), also append the original string's CRC32.
+
+   Why: core add-alias-info uniquifies join aliases BEFORE escaping
+   (`(comp escape-fn unique-name-generator)` — uniquify first, escape second, in
+   that order). Distinct non-ASCII aliases like 「用户个人认证记录 - user_id」 and
+   「用户累计其他消费 - user_id」 both fold to underscore mush like `___________user_id`,
+   so distinct joins collide and MaxCompute rejects the SQL with ODPS-0130071
+   (`user_id is ambiguous`). Core is unaware of the collision because its uniquify
+   pass ran on the PRE-fold names; upstream master still has this order today.
+   Appending a hash of the ORIGINAL (pre-fold) string makes post-fold results
+   distinct again, deterministically, for any pair of distinct originals.
+
+   Lossless folds keep <= v0.0.7 behavior byte-for-byte (no suffix), so existing
+   queries compile to exactly the same SQL as before."
+  [driver s]
+  (let [normalized (-> (str/trim s)
+                       u/remove-diacritical-marks)
+        folded    (-> normalized
+                      (str/replace #"[^\w\d_]" "_")
+                      (str/replace #"(^\d)" "_$1"))]
+    (if (= folded s)
+      ;; lossless fold: the identifier equals the original string unchanged —
+      ;; identical behavior to v0.0.7 and earlier, byte-for-byte.
+      ((get-method driver/escape-alias :metabase.driver/driver) driver folded)
+      ;; LOSSY fold (trim, diacritics, char replacement, or digit prefix — any
+      ;; change vs the ORIGINAL string): two distinctly-written originals can
+      ;; collide onto the same identifier (e.g. 「用户个人认证记录 - user_id」 vs
+      ;; 「用户累计其他消费 - user_id」, or 「café」 vs 「cafe」, or 「9x」 vs
+      ;; 「_9x」). Disambiguate with a deterministic hash of the original.
+      (let [hashed (str folded \_ (crc32-hex s))]
+        ((get-method driver/escape-alias :metabase.driver/driver) driver hashed)))))
 
 (defmethod driver/escape-alias :maxcompute
            [driver s]
            ;; Convert field alias `s` to a valid MaxCompute field identifier. From the dox: Fields must contain only letters,
            ;; numbers, and underscores, start with a letter or underscore, and be at most 128 characters long.
-           (let [s (-> (str/trim s)
-                       u/remove-diacritical-marks
-                       (str/replace #"[^\w\d_]" "_")
-                       (str/replace #"(^\d)" "_$1"))]
-                ((get-method driver/escape-alias :sql) driver s)))
+           (collision-safe-escape-alias driver s))
+
+
+;;; |                                             inline-value impls                                                |
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; sql.qp/inline-value is the mechanism for inlining temporal literals when *compile-with-inline-parameters*
+;;; is true (used for native query compilation and certain prepared-statement fallback paths). It replaced the
+;;; legacy `unprepare/unprepare-value` multimethod, which up to 0.1.1 this driver also implemented.
 
 (defmethod sql.qp/inline-value [:maxcompute String]
            [_ s]
-           ;; escape single-quotes like Cam's String -> Cam\'s String
-           (str \' (str/replace s "'" "\\\\'") \'))
+           ;; escape single-quotes like Cam's String -> Cam\'s String.
+           ;; Engine-verified: `'Cam\'s String'` returns Cam's String, while the
+           ;; doubled-backslash form upstream shipped (Cam\\'s String) breaks the
+           ;; literal, and SQL-standard doubled quotes ('it''s') silently evaluate
+           ;; to a literal concatenation ("its") rather than escaping the quote.
+           (str \' (str/replace s "'" "\\'") \'))
+
+;; Temporal literal forms, engine-verified 2026-10-22 on the production project:
+;;   datetime"2026-10-15 23:00:00"        -> OK   (wall clock)
+;;   date"2026-10-15"                     -> OK
+;;   timestamp"2026-10-15 23:00:00"       -> OK
+;;   timestamp"2026-10-15 23:00:00Z"      -> OK   (Z is honoured: 23:00Z = 07:00+08:00)
+;;   timestamp"2026-10-16 07:00:00+08:00" -> OK but the offset is IGNORED (read as wall clock)
+;;   datetime"2026-10-15 23:00:00Z"       -> ODPS-0130161 invalid DATETIME format
+;;   datetime"2026-10-15 23:00:00+08:00"  -> ODPS-0130161 invalid DATETIME format
+;;   datetime"23:00:00"                   -> ODPS-0130161 invalid DATETIME format
+;; So: instants must be inlined as `timestamp"<UTC wall clock>Z"` (a `datetime`
+;; literal may never carry a zone), and time-of-day values need a date anchor.
+(defn- inline-utc-timestamp
+       "A timestamp literal for an instant-like value: UTC wall clock plus a Z suffix."
+       ^String [t]
+       (let [utc (t/offset-date-time t (t/zone-offset 0))]
+            (format "timestamp\"%sZ\"" (u.date/format-sql (t/local-date-time utc)))))
 
 (defmethod sql.qp/inline-value [:maxcompute LocalTime]
            [_ t]
-           (format "datetime\"%s\"" (u.date/format-sql t)))
+           ;; no TIME literal on this engine; anchor the wall clock to the epoch date
+           (format "datetime\"1970-01-01 %s\"" (u.date/format-sql t)))
 
 (defmethod sql.qp/inline-value [:maxcompute LocalDate]
            [_ t]
@@ -1032,21 +1219,21 @@
 
 (defmethod sql.qp/inline-value [:maxcompute Instant]
            [_ t]
-           (format "timestamp\"%s\"" (u.date/format-sql t)))
+           (inline-utc-timestamp t))
 
 (defmethod sql.qp/inline-value [:maxcompute OffsetTime]
            [_ t]
            ;; convert to a LocalTime in UTC
            (let [local-time (t/local-time (t/with-offset-same-instant t (t/zone-offset 0)))]
-                (format "datetime\"%s\"" (u.date/format-sql local-time))))
+                (format "datetime\"1970-01-01 %s\"" (u.date/format-sql local-time))))
 
 (defmethod sql.qp/inline-value [:maxcompute OffsetDateTime]
            [_ t]
-           (format "datetime\"%s\"" (u.date/format-sql t)))
+           (inline-utc-timestamp t))
 
 (defmethod sql.qp/inline-value [:maxcompute ZonedDateTime]
            [_ t]
-           (format "datetime\"%s %s\"" (u.date/format-sql (t/local-date-time t)) (.getId (t/zone-id t))))
+           (inline-utc-timestamp t))
 
 (def ^:private ^:dynamic *compiling-cumulative-aggregation* false)
 
@@ -1222,19 +1409,17 @@
                        :mbql?      true)))
 
 (defn- format-current-moment
-       [_tag [target-type report-timezone :as _args]]
-       (let [f           (case (or target-type :timestamp)
-                               :time      :current_timestamp
-                               :date      :current_timestamp
-                               :datetime  :current_timestamp
-                               :timestamp_ntz :current_timestamp
-                               :timestamp :current_timestamp)
-             is-timestamp (when (not= target-type :timestamp) true)]
-            (sql/format-expr
-              (if is-timestamp
-                [:cast [f] target-type]
-                [:cast [f] target-type])
-              {:nested true})))
+       [_tag [target-type _report-timezone :as _args]]
+       (sql/format-expr
+         [:cast
+          [:getdate]
+          [:raw (case (or target-type :timestamp)
+                  :time      "datetime"
+                  :date      "date"
+                  :datetime  "datetime"
+                  :timestamp_ntz "datetime"
+                  "timestamp")]]
+         {:nested true}))
 
 (sql/register-fn! ::current-moment #'format-current-moment)
 
@@ -1257,8 +1442,9 @@
 
 ;; In MaxCompute, log syntax is `log(x, base)`
 (defmethod sql.qp/->honeysql [:maxcompute :log]
-           [driver [_ field]]
-           [:log (sql.qp/->honeysql driver field) [:inline 10]])
+           [driver clause]
+           (let [[field] (drop-clause-metadata clause)]
+                [:log [:inline 10] (sql.qp/->honeysql driver field)]))
 
 (defmethod sql.qp/quote-style :maxcompute
            [_driver]
@@ -1300,12 +1486,23 @@
 
 (defmethod sql.qp/cast-temporal-string [:maxcompute :Coercion/ISO8601->DateTime]
            [_driver _semantic_type expr]
-           (h2x/->datetime expr))
+           (h2x/->datetime [:replace [:replace expr (h2x/literal "T") (h2x/literal " ")]
+                                     (h2x/literal "Z") (h2x/literal "")]))
 
 (defmethod sql.qp/cast-temporal-string [:maxcompute :Coercion/ISO8601->Date]
            [_driver _semantic_type expr]
-           (h2x/->date expr))
+           (h2x/->date [:replace [:replace expr (h2x/literal "T") (h2x/literal " ")]
+                                (h2x/literal "Z") (h2x/literal "")]))
 
+;; 2026-09-08 review round-2 fix (engine probes): CAST(str AS datetime|timestamp)
+;; on MaxCompute accepts ONLY 'yyyy-mm-dd hh:mi:ss[.fff]' — colon-milliseconds
+;; ('hh:mi:ss:fff') and ' +0800' suffix silently return NULL. Probe-verified safe
+;; universal form: SUBSTR to the canonical 19 chars, then cast.
+(defmethod sql.qp/cast-temporal-string [:maxcompute :Coercion/String->Temporal]
+           [_driver _coercion-strategy expr]
+           (h2x/->datetime [:substr expr [:inline 1] [:inline 19]]))
+
+;; No TIME type on MaxCompute — leave the generic cast (unsupported target).
 (defmethod sql.qp/cast-temporal-string [:maxcompute :Coercion/ISO8601->Time]
            [_driver _semantic_type expr]
            (h2x/->time expr))

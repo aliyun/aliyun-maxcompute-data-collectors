@@ -113,6 +113,22 @@ jobs:
         working-directory: metabase-maxcompute-driver
         run: ./scripts/verify-artifact.sh
 
+      # SiliconFlow fork: the engine-semantics fixes carry unit tests that assert
+      # the exact SQL shapes MaxCompute accepts. Upstream's workflow stops at the
+      # load smoke; these tests are the guard against reintroducing engine-invalid
+      # forms (PARSE_DATETIME, 3-arg DATETRUNC, TIMESTAMP_MILLIS, ...).
+      - name: Run driver unit tests
+        env:
+          METABASE_VERSION: ${{ steps.pin.outputs.metabase_version }}
+        run: |
+          set -euo pipefail
+          metabase_dir="$HOME/.cache/maxcompute-metabase-driver/$METABASE_VERSION"
+          driver_dir="$PWD/metabase-maxcompute-driver"
+          test -d "$metabase_dir" || { echo "missing Metabase checkout at $metabase_dir"; exit 1; }
+          cd "$metabase_dir"
+          clojure -Sdeps "{:aliases {:maxcompute {:extra-deps {maxcompute/maxcompute {:local/root \"$driver_dir\" :exclusions [metabase/metabase-core]}}, :extra-paths [\"$driver_dir/test\"]}}}" \
+            -X:dev:test:maxcompute :only metabase.driver.maxcompute-test
+
       - name: Plugin load smoke against the pinned Metabase source
         working-directory: metabase-maxcompute-driver
         env:

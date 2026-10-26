@@ -21,6 +21,26 @@ policy:
   verified_cells_require_released_artifact: true
 
 releases:
+  - driver_version: 0.1.2
+    status: verification-pending
+    artifact: maxcompute-metabase-driver-0.1.2.jar
+    # Not released yet: this entry is declared by the change that moves the build
+    # baseline inside the supported window. The artifact and its SHA256 are
+    # published by the release workflow on tag, which is when evidence can be
+    # recorded against the released artifact.
+    metabase:
+      target_range:
+        min_inclusive: 0.63.0
+        max_exclusive: 0.64.0
+      build_baseline: 0.63.16
+      window_note: >-
+        Baseline moved from 0.51.14 to 0.63.16, inside the window declared by
+        0.1.1. Engine-level evidence for these changes is recorded in
+        docs/e2e/engine-sql-matrix-metabase-v0.63.18.md.
+    evidence: []
+    odps_jdbc:
+      version: 3.10.14
+      distribution: bundled
   - driver_version: 0.1.1
     status: verification-pending
     artifact: maxcompute-metabase-driver-0.1.1.jar

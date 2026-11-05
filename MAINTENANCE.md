@@ -10,7 +10,7 @@ This file answers it per directory with evidence a reader can re-check: what the
 as its target, when the directory last changed, how many test sources it tracks, whether any
 artifact exists today, and the status we propose for it.
 
-Reference point: `master` at `59550835b`, read on 2026-10-12. The commands that produce every
+Reference point: `master` at `fc31a5a30`, read on 2026-11-05. The commands that produce every
 number below are at the end — re-run them instead of trusting this table, and update the table in
 the same commit when you do.
 
@@ -27,9 +27,9 @@ the same commit when you do.
 
 | Directory | Declared target | Last change | Test sources it tracks | What a user can get today | Proposed status |
 | --- | --- | --- | --- | --- | --- |
-| `metabase-maxcompute-driver` | Metabase current stable minor (`0.63.x` for driver 0.1.1), JDK 21+; policy in `compatibility.yaml` | 2026-09-30 | none as unit tests; `scripts/check-repository.sh`, `build-driver.sh`, `verify-artifact.sh` and a plugin-load smoke run in CI | GitHub Release `metabase-0.1.1`: driver jar + `SHA256SUMS` + CycloneDX SBOM, built by CI at the tag | **Supported** |
+| `metabase-maxcompute-driver` | Metabase current stable minor (`0.63.x` for driver 0.1.1), JDK 21+; policy in `compatibility.yaml` | 2026-11-05 | none as unit tests; `scripts/check-repository.sh`, `build-driver.sh`, `verify-artifact.sh` and a plugin-load smoke run in CI | GitHub Release `metabase-0.1.1`: driver jar + `SHA256SUMS` + CycloneDX SBOM, built by CI at the tag | **Supported** |
 | `google-sheets-plugin` | Google Sheets add-on (Apps Script), Node.js >= 20 | 2026-09-21 | 8 `*.test.js` plus a Apps Script harness helper, run by `npm test` | `npm run release:local` bundles to `dist/apps-script/`; you deploy it with clasp — no hosted binary | **Supported** |
-| `spark-connector` | Spark 3.3.1 / Scala 2.12.10, MaxCompute SDK 0.61.2-public; the Spark Connector page states 3.2.x-3.5.x | 2026-09-18 | 11 Scala suites (they need a live project and credentials) | not published; `mvn clean package` in the directory — the official page says to clone and build this repo | **Supported** |
+| `spark-connector` | Spark 3.3.1 / Scala 2.12.10, MaxCompute SDK 0.61.2-public; the Spark Connector page states 3.2.x-3.5.x | 2026-11-03 | 11 Scala suites (they need a live project and credentials) | not published; `mvn clean package` in the directory — the official page says to clone and build this repo | **Supported** |
 | `presto-connector` | PrestoDB 0.287 (`presto.version`, and the GAV is `com.facebook.presto:presto-maxcompute:0.287`), JDK 8 | 2025-04-03 | 3 | GitHub Release `presto-0.287` (one jar); nothing on Maven Central | **Maintenance-limited** |
 | `trino-connector` | Trino 470 (`dep.trino.version`, and `<parent>` is `io.trino:trino-root:470`); the README also links a 422 build | 2025-04-03 | 2 | GitHub Release tag `trino`: `trino-maxcompute-422.zip`, `trino-maxcompute-470.zip` | **Maintenance-limited** |
 | `flink-connector-odps` | Flink 1.14.3 / Scala 2.11.12, SDK 0.36.7-public | 2024-07-04 | 19 | the dependency the README prints (`com.aliyun.odps:flink-connector-odps:1.14-SNAPSHOT`) is not published; build from source | **Legacy, frozen** |
@@ -64,7 +64,7 @@ Three things this table says out loud that the README does not:
 Checked here: the last commit per directory, the tracked test sources, the version each module
 declares as its target, the Java source levels, the published artifacts on Maven Central and GitHub
 Releases, and whether the third-party parents and engine artifacts a source build needs are
-resolvable (for example `io.trino:trino-root:470` is published on Central — HTTP 200 on 2026-10-12,
+resolvable (for example `io.trino:trino-root:470` is published on Central — HTTP 200 re-checked on 2026-11-05,
 which matters because the `<relativePath>` in `trino-connector/pom.xml` points at `../../pom.xml`,
 a path that does not exist in a checkout of this repository).
 

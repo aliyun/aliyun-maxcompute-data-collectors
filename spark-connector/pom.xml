@@ -93,6 +93,10 @@
                                     <include>xpp3:xpp3</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                     <include>net.sourceforge.javacsv:javacsv</include>
+                                    <!-- for odps sdk table api transport -->
+                                    <include>com.squareup.okhttp3:*</include>
+                                    <include>com.squareup.okio:*</include>
+                                    <include>org.jetbrains.kotlin:*</include>
                                     <!-- for arrow -->
                                     <include>org.apache.arrow:*</include>
                                     <include>com.google.flatbuffers:*</include>
@@ -113,6 +117,18 @@
                                 <relocation>
                                     <pattern>com.google.flatbuffers</pattern>
                                     <shadedPattern>spark.odps.runtime.com.google.flatbuffers</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>okhttp3</pattern>
+                                    <shadedPattern>spark.odps.runtime.okhttp3</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>okio</pattern>
+                                    <shadedPattern>spark.odps.runtime.okio</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>kotlin</pattern>
+                                    <shadedPattern>spark.odps.runtime.kotlin</shadedPattern>
                                 </relocation>
                             </relocations>
                             <filters>

@@ -36,6 +36,25 @@ grep -Fq "artifact: maxcompute-metabase-driver-$version.jar" \
   "$repo_dir/compatibility.yaml" ||
   fail "compatibility.yaml does not declare the release artifact"
 
+# Every metabase-<version> release link quoted in README.md must point at a
+# release that compatibility.yaml declares. Installation docs otherwise promise
+# a download this repository does not publish, and a reader cannot tell a
+# removed asset from one that never existed.
+readme_release_versions="$(
+  grep -Eo 'releases/(download|tag)/metabase-[0-9]+\.[0-9]+\.[0-9]+' \
+    "$repo_dir/README.md" | sed -E 's#.*/metabase-##' | sort -u || true
+)"
+declared_release_versions="$(
+  grep -Eo 'release_url: https://[^[:space:]]*releases/tag/metabase-[0-9]+\.[0-9]+\.[0-9]+' \
+    "$repo_dir/compatibility.yaml" | sed -E 's#.*/metabase-##' | sort -u || true
+)"
+for linked in $readme_release_versions; do
+  case " $declared_release_versions " in
+    *" $linked "*) ;;
+    *) fail "README.md links metabase-$linked release assets but compatibility.yaml declares no such release" ;;
+  esac
+done
+
 if grep -Eq '^dependencies:' "$repo_dir/resources/metabase-plugin.yaml"; then
   fail "bundled JDBC drivers must not be declared as external plugin dependencies"
 fi

@@ -4,6 +4,17 @@ All notable changes to the MaxCompute Metabase Driver are recorded here.
 
 ## [Unreleased]
 
+- Record the full acceptance gate on the released 0.1.1 JAR against Metabase
+  0.63.22, on a project without the schema model: plugin load, database
+  creation, native `SELECT 1` and full schema sync (18 tables / 42 fields)
+  pass, while MBQL returns HTTP 400. A measured failure moves out of
+  `not_verified` into a new `known_failures` entry, and `not_verified` is
+  narrowed to the two things still without any reading: sync at
+  large-project scale, and MBQL on a schema-enabled project. Includes a
+  0.51.14 control row, reported without interpretation.
+- Fix a duplicated `full_schema_sync_e2e` entry in `not_verified` left by the
+  2026-11-01 evidence update.
+
 - Record the 0.1.1 range evidence on the published JAR: plugin load on the
   latest patch of every minor 0.51-0.63 (13/13), and on Metabase 0.63.19 the
   in-window data-path cells driver registration, real database creation and

@@ -121,6 +121,37 @@ releases:
             metabase.secrets.models.secret namespace.
       # These observations do not satisfy CONTRIBUTING.md's full acceptance suite.
       # Promote this release only after all five checks pass on this artifact.
+        - version: 0.63.22
+          tested_at: "2026-11-08"
+          in_supported_window: true
+          run: repository real-E2E gate (plugin load / database / native SELECT 1 / full sync / MBQL)
+          image_digest: sha256:c8677c9cab17a39b7167f04e0bec57c0cfa5d55906d8ba0a0408f55c417a4e4a
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          table_count: 18
+          field_count: 42
+          mbql_query: fail
+          array_column_native_query: not_run
+          note: >-
+            Same published bytes, project without the schema model. Full sync
+            finished (18 tables / 42 fields, 20.8 s); the MBQL query then
+            returned HTTP 400 with the failure inside this driver's
+            execute_reducible_query. See known_failures - a measured failure is
+            not filed as a gap.
+        - version: 0.51.14
+          tested_at: "2026-11-08"
+          in_supported_window: false
+          run: repository real-E2E gate, control reading only
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          mbql_query: pass
+          note: >-
+            Reported as a control, not as support: this line is outside the
+            window and the difference against 0.63.22 is not interpreted here.
       range_load_smoke:
         method: release-image-plugin-load
         coverage: latest published patch of every minor in the pre-policy range ">=0.51.14, <0.64.0"
@@ -158,22 +189,31 @@ releases:
             in the driver's build repository, which tests this same published
             artifact against the current 0.64 GA patch; that line supersedes this
             row when it lands. Nothing here raises the upper bound.
-      not_verified:
-        - name: full_schema_sync_e2e
-          reason: >-
-            Sync cost scales with table count; the shared test project used for
-            this artifact holds tens of thousands of tables and three bounded
-            windows (1,800 s x2 and one solo 4,500 s) did not complete. Not
-            verified, not a pass.
+      known_failures:
         - name: mbql_query_e2e
+          applies_to: projects without the schema model (two-layer)
+          observed_on: 0.63.22
+          observed_at: "2026-11-08"
+          symptom: >-
+            A synced table queried through MBQL returns HTTP 400 while native
+            SQL on the same connection and project shape works. Reproduce with
+            the module's own scripts/run-real-e2e-docker.sh against a project
+            that has no schema model enabled.
+          status: >-
+            A fix is under review in the driver's build repository. Until it
+            lands in a released artifact and is re-verified here, 0.1.1 is not
+            presented as working for MBQL on that project shape.
+      not_verified:
+        - name: full_schema_sync_e2e_large_project
           reason: >-
-            MBQL needs synced table metadata, so it cannot be exercised while
-            the sync cell above is open.
-        - name: full_schema_sync_e2e
+            The sync pass above is a small project (18 tables). Scale is still
+            unproven: the shared large project (tens of thousands of tables)
+            did not finish inside bounded windows (1,800 s x2 and one solo
+            4,500 s run). Not verified, not a pass.
+        - name: mbql_query_e2e_schema_enabled
           reason: >-
-            Sync cost scales with table count and the shared test project used
-            for this artifact holds tens of thousands of tables; the runs did
-            not complete inside the sync window. Reported as not verified.
+            No MBQL reading exists for a project with the schema model enabled,
+            in either direction. It is not claimed as working.
     evidence:
       - docs/e2e/v0.1.1-metabase-supported-window.md
       - docs/e2e/v0.1.1-range-load-smoke-2026-10-06.md

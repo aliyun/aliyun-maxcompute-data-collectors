@@ -22,7 +22,7 @@ in [CONTRIBUTING.md](CONTRIBUTING.md#compatibility-claims).
 
 | Driver | Target Metabase range | Evidence for this artifact | ODPS JDBC | Status |
 | --- | --- | --- | --- | --- |
-| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.22 plugin load, database creation and native `SELECT 1` (0.63.19 the same, 2026-10-06); 0.63.18 reads `ARRAY` columns as real arrays; plugin load on the latest patch of every minor 0.51-0.63 and on 0.64.0-beta | 3.10.14, bundled | Verification pending: full sync and MBQL acceptance are not recorded |
+| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.22 plugin load, database creation and native `SELECT 1` (0.63.19 the same, 2026-10-06); 0.63.18 reads `ARRAY` columns as real arrays; plugin load on the latest patch of every minor 0.51-0.63 and on 0.64.0-beta | 3.10.14, bundled | Verification pending: full sync and MBQL acceptance are not recorded; MBQL additionally fails on projects without the schema model, see [Known limitations](#known-limitations) |
 | 0.1.0 | `>=0.51.14, <0.64.0` (historical) | 0.51.14, 0.56.25.1, 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Superseded by 0.1.1 |
 | 0.0.5 | `>=0.50.0, <0.51.0` | 0.50.21 | External JDBC | Legacy |
 
@@ -77,6 +77,52 @@ DRIVER_JAR=/path/to/maxcompute-metabase-driver-0.1.1.jar \
   METABASE_IMAGE=metabase/metabase:v0.63.19 \
   ./scripts/run-load-smoke-image.sh
 ```
+
+## Known limitations
+
+### MBQL needs a MaxCompute project with the schema model enabled (0.1.1)
+
+A project that does not use the schema model addresses objects as
+`project.table`. On such a project the released 0.1.1 JAR registers the plugin,
+creates the database, completes a full schema sync and answers native SQL, but
+**every Metabase question built from a synced table fails before returning
+rows**:
+
+```text
+ODPS-0130071:[2,55] Semantic analysis exception - column
+  <project>.<table>.<column> cannot be resolved
+```
+
+The driver qualifies the project twice. Syncing such a project stores the
+project name in the table's schema field, and the query processor prepends the
+project again, so the `FROM` clause compiles into one quoted
+`<project>.<project>.<table>` while each selected column is still written as
+three separately quoted parts (`<project>`, `<table>` and `<column>` joined by
+dots). Nothing on the server joins those two shapes, so the statement is
+rejected. Read a table, use the question editor's
+preview, or open any dashboard built on that database and each one fails the
+same way; a native SQL question on the same table works, because the driver
+does not rewrite it.
+
+Recorded on 2026-11-08 against a real project without the schema model (18
+synced tables, 42 fields) using the published JAR, checksum
+`b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd`, on Metabase
+0.64.3, 0.64.4, 0.65.2 and 0.65.3: all 18 MBQL queries failed with
+`ODPS-0130071` on every one of those versions, while plugin registration,
+database creation, full sync (inside a 240 s bound) and native `SELECT 1`
+passed. The generated statement and its `queryHash` were identical across the
+versions, so this is a property of the driver and of the project shape, not of a
+Metabase release. It is a driver defect, not a project misconfiguration:
+`project.table` is how a MaxCompute project looks until its owner turns on the
+schema model.
+
+Until a driver release carries the fix, on a project without the schema model
+expect MBQL to fail and use native SQL questions for that database. A project
+that does use the schema model is not double-qualified — there the driver emits
+the single `project.schema.table` component, and that is the component a real
+three-tier project accepts (checked 2026-11-08 with `EXPLAIN`, which compiles a
+statement without executing it). An end-to-end MBQL acceptance run on a
+three-tier project has not been recorded in the matrix above and is still open.
 
 ## Installation
 

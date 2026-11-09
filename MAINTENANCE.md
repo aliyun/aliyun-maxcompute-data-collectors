@@ -71,7 +71,8 @@ a path that does not exist in a checkout of this repository).
 Not checked here: whether each module still compiles. There is no CI for that — the only workflow in
 this repository is `.github/workflows/metabase-driver.yml`, and its triggers are scoped to
 `metabase-maxcompute-driver/**`, so a green check on a pull request says nothing about the Maven
-modules. Before this file is merged, the two Supported rows that users build from source
+modules; that sentence is re-checkable too, with the `what CI actually covers` commands at the
+end of this file. Before this file is merged, the two Supported rows that users build from source
 (`spark-connector`, and the two query-engine rows marked Maintenance-limited) should be built once
 per stated JDK and have the result recorded in the row; until then those rows describe what the
 module declares and what is published, not a build we have run.
@@ -140,4 +141,13 @@ grep -rhoE '<(source|target|java\.version|maven\.compiler\.source)>[^<]*' */pom.
 # published artifacts: release tags and assets, and the Maven Central answer
 gh api repos/aliyun/aliyun-maxcompute-data-collectors/releases --jq '.[] | .tag_name + " " + (.assets | map(.name) | join(","))'
 curl -s -o /dev/null -w '%{http_code}\n' https://repo1.maven.org/maven2/com/aliyun/odps/spark-connector/
+
+# what CI actually covers: the workflow files themselves, and the path filters inside them
+gh api repos/aliyun/aliyun-maxcompute-data-collectors/contents/.github/workflows --jq '.[].name'
+git ls-tree -r --name-only origin/master -- .github/workflows
+grep -rn -A3 "paths:" .github/workflows/*.yml
+
+# the module set: this matrix has one row per top-level directory, so these two numbers must match
+git ls-tree --name-only -d origin/master | grep -vc '^\.'
+awk '/^## Matrix/{f=1;next} /^## /{f=0} f && /^\| `/{n++} END{print n}' MAINTENANCE.md
 ```

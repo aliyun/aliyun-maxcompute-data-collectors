@@ -83,19 +83,24 @@ DRIVER_JAR=/path/to/maxcompute-metabase-driver-0.1.1.jar \
 ### Obtain the Driver
 
 #### Precompiled Releases
-Each driver JAR already bundles its ODPS JDBC driver (3.10.14 for 0.1.1, 3.10.11
-for 0.1.0). Do not install another ODPS JDBC JAR beside it.
+Each published driver JAR bundles its ODPS JDBC driver: the 0.1.1 asset ships
+3.10.14, and the 0.1.0 source state pins 3.10.11. Do not install another ODPS
+JDBC JAR beside it.
 
 - [MaxCompute Metabase Driver 0.1.1](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/maxcompute-metabase-driver-0.1.1.jar)
   &mdash; targets Metabase `>=0.63.0, <0.64.0`, with full acceptance pending; verify against the
   [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/SHA256SUMS)
   published beside it.
-- [MaxCompute Metabase Driver 0.1.0](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/maxcompute-metabase-driver-0.1.0.jar)
-  &mdash; superseded by 0.1.1. Its historical target range
-  `>=0.51.14, <0.64.0` predates the supported-window policy and is not a
-  support claim for Metabase 0.51.x – 0.55.x; verify against the
-  [SHA256SUMS](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.0/SHA256SUMS)
-  published beside it.
+
+0.1.1 is the only driver version published as precompiled assets here. There is
+no `metabase-0.1.0` tag, release or asset in this repository, so 0.1.0 lists no
+download link: the digest its `compatibility.yaml` entry records identifies the
+JAR those verification cells were run with, and nothing published here can be
+compared against it. 0.1.0 is superseded by 0.1.1, and its historical target
+range `>=0.51.14, <0.64.0` predates the supported-window policy, so it is not a
+support claim for Metabase 0.51.x – 0.55.x. If you have to run that exact source
+state, build it from source (see Build from Source below); a source rebuild is
+not expected to match the recorded digest byte for byte.
 
 Driver releases use a `metabase-<driver-version>` tag, in the same shape as the
 `presto-<version>` release this project already publishes, and the assets are

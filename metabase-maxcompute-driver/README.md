@@ -83,8 +83,9 @@ DRIVER_JAR=/path/to/maxcompute-metabase-driver-0.1.1.jar \
 ### Obtain the Driver
 
 #### Precompiled Releases
-Each driver JAR already bundles its ODPS JDBC driver (3.10.14 for 0.1.1, 3.10.11
-for 0.1.0). Do not install another ODPS JDBC JAR beside it.
+Each published driver JAR bundles its ODPS JDBC driver: the 0.1.1 asset ships
+3.10.14, and the 0.1.0 source state pins 3.10.11. Do not install another ODPS
+JDBC JAR beside it.
 
 - [MaxCompute Metabase Driver 0.1.1](https://github.com/aliyun/aliyun-maxcompute-data-collectors/releases/download/metabase-0.1.1/maxcompute-metabase-driver-0.1.1.jar)
   &mdash; targets Metabase `>=0.63.0, <0.64.0`, with full acceptance pending; verify against the

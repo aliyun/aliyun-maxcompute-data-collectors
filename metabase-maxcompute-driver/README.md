@@ -95,7 +95,7 @@ schema model (18 synced tables, 42 fields) with the released JAR, checksum
 
 | Metabase | column reference in the same statement | result |
 | --- | --- | --- |
-| 0.63.22 | also one quoted component, same string as `FROM` | 16 of 18 questions return rows; the 2 that fail do so for reasons unrelated to naming |
+| 0.63.22 | also one quoted component, same string as `FROM` | 16 of 18 questions succeed (11 come back with a row, the other 5 tables are empty); the 2 that fail do so for reasons unrelated to naming |
 | 0.64.3, 0.64.4, 0.65.2, 0.65.3 | three separately quoted parts `<project>`.`<table>`.`<column>` | **all 18 fail** |
 
 On 0.63.x the doubled name is written the same way in both places, so the

@@ -80,49 +80,51 @@ DRIVER_JAR=/path/to/maxcompute-metabase-driver-0.1.1.jar \
 
 ## Known limitations
 
-### MBQL needs a MaxCompute project with the schema model enabled (0.1.1)
+### MBQL fails on projects without the schema model from Metabase 0.64 onward (0.1.1)
 
 A project that does not use the schema model addresses objects as
-`project.table`. On such a project the released 0.1.1 JAR registers the plugin,
-creates the database, completes a full schema sync and answers native SQL, but
-**every Metabase question built from a synced table fails before returning
-rows**:
+`project.table`. Syncing such a project stores the project name in the table's
+schema field, and the driver then prepends the project again and writes the
+result as **one** quoted component, so the `FROM` clause compiles to
+`` `<project>.<project>.<table>` ``.
+
+What happens next depends on how the Metabase build qualifies the selected
+columns, and both shapes were measured against a real project without the
+schema model (18 synced tables, 42 fields) with the released JAR, checksum
+`b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd`:
+
+| Metabase | column reference in the same statement | result |
+| --- | --- | --- |
+| 0.63.22 | also one quoted component, same string as `FROM` | 16 of 18 questions return rows; the 2 that fail do so for reasons unrelated to naming |
+| 0.64.3, 0.64.4, 0.65.2, 0.65.3 | three separately quoted parts `<project>`.`<table>`.`<column>` | **all 18 fail** |
+
+On 0.63.x the doubled name is written the same way in both places, so the
+statement is self-consistent and MaxCompute resolves it. From 0.64.x Metabase
+emits the column qualifier as separate parts, the two sides no longer match,
+and every question built from a synced table fails before returning rows:
 
 ```text
 ODPS-0130071:[2,55] Semantic analysis exception - column
   <project>.<table>.<column> cannot be resolved
 ```
 
-The driver qualifies the project twice. Syncing such a project stores the
-project name in the table's schema field, and the query processor prepends the
-project again, so the `FROM` clause compiles into one quoted
-`<project>.<project>.<table>` while each selected column is still written as
-three separately quoted parts (`<project>`, `<table>` and `<column>` joined by
-dots). Nothing on the server joins those two shapes, so the statement is
-rejected. Read a table, use the question editor's
-preview, or open any dashboard built on that database and each one fails the
-same way; a native SQL question on the same table works, because the driver
-does not rewrite it.
+Plugin registration, database creation, full schema sync and native SQL are
+unaffected on either shape - a native question is passed through unchanged.
 
-Recorded on 2026-11-08 against a real project without the schema model (18
-synced tables, 42 fields) using the published JAR, checksum
-`b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd`, on Metabase
-0.64.3, 0.64.4, 0.65.2 and 0.65.3: all 18 MBQL queries failed with
-`ODPS-0130071` on every one of those versions, while plugin registration,
-database creation, full sync (inside a 240 s bound) and native `SELECT 1`
-passed. The generated statement and its `queryHash` were identical across the
-versions, so this is a property of the driver and of the project shape, not of a
-Metabase release. It is a driver defect, not a project misconfiguration:
-`project.table` is how a MaxCompute project looks until its owner turns on the
-schema model.
+Scope: a project **without** the schema model, on Metabase **0.64 or newer**.
+A project without the schema model on 0.63.x works today; a project that does
+use the schema model is not doubled - the driver writes
+`` `<project>.<schema>.<table>` `` as one component there, which is the shape
+those projects resolve (checked 2026-11-08 and 2026-11-10 with `EXPLAIN`, which
+compiles a statement without executing it). An end-to-end MBQL acceptance run on
+a three-tier project has still not been recorded in the matrix above and stays
+open.
 
-Until a driver release carries the fix, on a project without the schema model
-expect MBQL to fail and use native SQL questions for that database. A project
-that does use the schema model is not double-qualified — there the driver emits
-the single `project.schema.table` component, and that is the component a real
-three-tier project accepts (checked 2026-11-08 with `EXPLAIN`, which compiles a
-statement without executing it). An end-to-end MBQL acceptance run on a
-three-tier project has not been recorded in the matrix above and is still open.
+The driver-side fix is to stop doubling the name and write
+`` `<project>`.`<table>` `` as separate components for a table whose synced
+schema is already the project name - the shape MaxCompute resolves on both a
+two-tier and a three-tier project. No release carries it yet, so this section
+stays until one does; the released 0.1.1 JAR is immutable.
 
 ## Installation
 

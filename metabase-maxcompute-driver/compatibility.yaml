@@ -132,14 +132,23 @@ releases:
           full_schema_sync: pass
           table_count: 18
           field_count: 42
-          mbql_query: fail
+          mbql_query: not_determined_by_this_gate
           array_column_native_query: not_run
+          corrected_at: "2026-11-11"
           note: >-
-            Same published bytes, project without the schema model. Full sync
-            finished (18 tables / 42 fields, 20.8 s); the MBQL query then
-            returned HTTP 400 with the failure inside this driver's
-            execute_reducible_query. See known_failures - a measured failure is
-            not filed as a gap.
+            CORRECTED 2026-11-11: this row read mbql_query: fail when the PR was
+            first pushed. That was an over-claim taken from the gate's exit
+            status, not from a query result. The gate's MBQL cell loops over
+            candidate tables under set -euo pipefail, so the first table that
+            answers HTTP 400 aborts the whole cell, and its success test does not
+            accept the asynchronous 202 [ASYNC: completed] response this Metabase
+            line returns. Measured per table on 2026-11-10 against the same
+            artifact and the same image, 16 of 18 synced tables answer MBQL on
+            0.63.22; the two that do not fail for their own reasons (a view whose
+            base table was deleted, and a table that errors while loading column
+            statistics), not because of identifier qualification. Plugin load,
+            database creation, native SELECT 1 and full schema sync (18 tables /
+            42 fields, 20.8 s) are separate observations and stand.
         - version: 0.51.14
           tested_at: "2026-11-08"
           in_supported_window: false
@@ -150,8 +159,11 @@ releases:
           full_schema_sync: pass
           mbql_query: pass
           note: >-
-            Reported as a control, not as support: this line is outside the
-            window and the difference against 0.63.22 is not interpreted here.
+            Reported as a control, not as support, and it is also what shows the
+            gate's success criterion itself is not broken: the identical check
+            completes here. That pairing is why the 0.63.22 row above is scoped
+            as a limitation of the gate rather than a driver verdict. The
+            difference between the two Metabase lines is not interpreted here.
       range_load_smoke:
         method: release-image-plugin-load
         coverage: latest published patch of every minor in the pre-policy range ">=0.51.14, <0.64.0"
@@ -191,18 +203,34 @@ releases:
             row when it lands. Nothing here raises the upper bound.
       known_failures:
         - name: mbql_query_e2e
-          applies_to: projects without the schema model (two-layer)
-          observed_on: 0.63.22
-          observed_at: "2026-11-08"
+          applies_to: >-
+            projects without the schema model (two-layer) AND Metabase 0.64 or
+            later - that is, outside the window declared above. Corrected
+            2026-11-11: this entry was first written as if it also applied to
+            0.63.22.
+          observed_on: 0.64.4 and 0.65.2
+          observed_at: "2026-11-10"
+          still_works_on: >-
+            0.63.22 - 16 of 18 synced tables answer MBQL with this artifact. The
+            table name is still written twice in the generated FROM clause, but
+            0.63.x emits the column reference in the matching shape, so the
+            server resolves it.
           symptom: >-
-            A synced table queried through MBQL returns HTTP 400 while native
-            SQL on the same connection and project shape works. Reproduce with
-            the module's own scripts/run-real-e2e-docker.sh against a project
-            that has no schema model enabled.
+            From Metabase 0.64 on, every question built from a synced table of
+            such a project fails with ODPS-0130071 (column cannot be resolved),
+            while plugin load, database creation, full schema sync and native SQL
+            all work on the same connection.
           status: >-
-            A fix is under review in the driver's build repository. Until it
-            lands in a released artifact and is re-verified here, 0.1.1 is not
-            presented as working for MBQL on that project shape.
+            A fix is under review in the driver's build repository. It is
+            expected to restore 16 of 18 on 0.63.x without changing behaviour
+            there, and to make 0.64 and later answer the same 16. The
+            user-facing wording is in pull request #167.
+          gate_caveat: >-
+            Do not use this module's scripts/run-real-e2e-docker.sh for the MBQL
+            verdict: its candidate loop aborts at the first HTTP 400 and its
+            success test cannot read the asynchronous response, so it can
+            currently report neither a pass nor a meaningful fail. The gate's own
+            fix is tracked separately.
       not_verified:
         - name: full_schema_sync_e2e_large_project
           reason: >-

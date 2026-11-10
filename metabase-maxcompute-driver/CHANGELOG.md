@@ -4,6 +4,15 @@ All notable changes to the MaxCompute Metabase Driver are recorded here.
 
 ## [Unreleased]
 
+- Retract my own 2026-11-08 MBQL claim. The released 0.1.1 JAR answers MBQL on
+  16 of 18 synced tables of a project without the schema model when run on
+  Metabase 0.63.22; the hard failure (`ODPS-0130071`, every question) begins at
+  Metabase 0.64, outside the declared window. The earlier `fail` came from the
+  repository gate aborting its candidate loop at the first HTTP 400 under
+  `set -euo pipefail`, plus a success check that cannot read the asynchronous
+  `202` response - a gate limitation, not a driver verdict, and the gate is now
+  documented as not usable as the MBQL oracle.
+
 - Record the full acceptance gate on the released 0.1.1 JAR against Metabase
   0.63.22, on a project without the schema model: plugin load, database
   creation, native `SELECT 1` and full schema sync (18 tables / 42 fields)

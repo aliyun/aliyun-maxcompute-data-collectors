@@ -1,0 +1,239 @@
+name: Java Modules
+
+# Credential-free build gate for the Maven modules of this repository.
+#
+# Why this file exists: until now the only workflow here was metabase-driver.yml,
+# whose `paths` filter is limited to metabase-maxcompute-driver/** plus that file,
+# so a change under any of the eleven Maven modules in the root pom reached master
+# with nothing but the CodeQL analysers attached (compare master commits f08295d,
+# 006f388 and e950286, which touched only module directories, against 5a5032fa,
+# which touched the driver directory and got Check, build and load-smoke). These
+# legs build - and where a suite can run offline, test - the part of that surface
+# a runner can verify without a MaxCompute project.
+#
+# Scope of each leg, measured at fc31a5a on Linux x86-64 with Maven 3.8.7 and
+# OpenJDK 8/17/25:
+#
+#   * The two test legs assert that the expected number of tests actually ran,
+#     because "BUILD SUCCESS with 0 tests executed" is a shape several modules in
+#     this repository do produce.
+#   * The other legs compile main + test sources only, on purpose:
+#       - table-api-tunnel-impl: TableApiTunnelImplTest.setUp() builds an
+#         AliyunAccount and aborts with "AccessId should not be empty".
+#       - flink-connector-odps: the module pom pins <maven.test.skip>true</maven.test.skip>,
+#         so a plain test-compile ignores the 19 files under src/test. The leg
+#         overrides that property so those files keep compiling; running the whole
+#         suite is not possible offline ("accessId is whitespace or null!" plus
+#         live-service ICases). OdpsCatalogFactoryTest, PartitionAssignerTest and
+#         OdpsDynamicTableFactoryTest do pass offline - naming them is a follow-up.
+#       - spark-connector/datasource and .../hive: OdpsTableSuite and SQLQuerySuite
+#         need a real project (measured: 18 run, 18 failed, all "Identifier project
+#         cannot be null is empty string!").
+#       - presto-connector: surefire picks the TestNG provider because TestNG is on
+#         the classpath while both test classes are annotated with org.junit.Test,
+#         so `mvn test` reports a green TestSuite with 0 tests. That is a
+#         test-infrastructure defect worth its own issue; compile is what can be
+#         honestly claimed here.
+#   * odps-sqoop gets no leg deliberately. Its pom is <packaging>pom</packaging>
+#     and its tests sit in src/test rather than src/test/java, so the Maven
+#     lifecycle never compiles any of its 689 main or 193 test files - a Maven step
+#     there would be green forever and prove nothing. That module builds with its
+#     own Ant/Ivy files.
+#   * trino-connector is left out until its inherited enforcer floor (Maven
+#     >= 3.9.8, JDK >= 23, Temurin or Oracle vendor, from trino-parent 470, and
+#     -Denforcer.skip=true does not bypass it) is confirmed on a runner.
+#   * Outside this gate: google-sheets-plugin (an npm package), and
+#     hive_data_transfer_udtf, odps-data-carrier, spark-datasource-v2.3 and
+#     spark-datasource-v3.1 - the last four carry a pom but are not modules of the
+#     root pom, so Maven cannot even select them ("Could not find the selected
+#     project in the reactor").
+#
+# JDK 8 is pinned everywhere: `common` declares source/target 1.6, which JDK 17
+# and newer javac refuse outright, and the Spark columnar readers need Arrow's
+# --add-opens workaround on 17. No leg publishes, deploys, or reads secrets.
+
+on:
+  pull_request:
+    paths:
+      - "pom.xml"
+      - "common/**"
+      - "cupid-table-api/**"
+      - "table-api-tunnel-impl/**"
+      - "flume-plugin/**"
+      - "kettle-plugin/**"
+      - "ogg-plugin/**"
+      - "presto-connector/**"
+      - "flink-connector-odps/**"
+      - "spark-connector/**"
+      - ".github/workflows/java-modules.yml"
+  push:
+    branches: ["master"]
+    paths:
+      - "pom.xml"
+      - "common/**"
+      - "cupid-table-api/**"
+      - "table-api-tunnel-impl/**"
+      - "flume-plugin/**"
+      - "kettle-plugin/**"
+      - "ogg-plugin/**"
+      - "presto-connector/**"
+      - "flink-connector-odps/**"
+      - "spark-connector/**"
+      - ".github/workflows/java-modules.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: java-modules-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  modules:
+    name: ${{ matrix.leg }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: "ogg-plugin: compile and run 22 unit tests"
+            jdk: "8"
+            scope: "ogg-plugin"
+            command: "mvn -B --no-transfer-progress -pl ogg-plugin clean test"
+            # 22 TestNG cases over the DataHub record/config writers, offline:
+            # measured rc=0 in 7 s from a clean target on both JDK 8 and 17.
+            min_tests: "22"
+
+          - leg: "spark-odps-common: compile and run 71 unit tests"
+            jdk: "8"
+            scope: "spark-connector/common"
+            # 71 ScalaTest cases over interrupt handling, the columnar readers and
+            # predicate conversion. -am is needed for the parent poms. Measured
+            # rc=0, 9 reports, 71 tests, 0 failures in 47 s on a clean tree.
+            command: "mvn -B --no-transfer-progress -pl spark-connector/common -am clean test"
+            min_tests: "71"
+
+          - leg: "flink-connector-odps: compile main and test sources"
+            jdk: "8"
+            scope: "flink-connector-odps"
+            command: >-
+              mvn -B --no-transfer-progress -pl flink-connector-odps -am clean
+              test-compile -Dmaven.test.skip=false
+
+          - leg: "legacy modules: compile main and test sources"
+            jdk: "8"
+            scope: "common,cupid-table-api,table-api-tunnel-impl,kettle-plugin,flume-plugin"
+            # These carry no runnable suite; compiling them is the whole claim.
+            # Measured rc=0, reactor of 6 projects, in 6 s.
+            command: >-
+              mvn -B --no-transfer-progress
+              -pl common,cupid-table-api,table-api-tunnel-impl,kettle-plugin,flume-plugin
+              -am clean test-compile
+
+          - leg: "presto-connector: compile main and test sources"
+            jdk: "8"
+            scope: "presto-connector"
+            command: "mvn -B --no-transfer-progress -pl presto-connector clean test-compile"
+
+          - leg: "spark-connector: compile all children"
+            jdk: "8"
+            scope: "spark-connector"
+            # Naming only the aggregator (`-pl spark-connector`) selects the pom and
+            # builds nothing - measured reactor=2 with a scalatest DiscoverySuite of
+            # 0 tests - which is exactly how a fake green gets written here, so the
+            # children are listed. Measured rc=0, reactor=5, in 67 s.
+            command: >-
+              mvn -B --no-transfer-progress
+              -pl spark-connector/common,spark-connector/datasource,spark-connector/hive
+              -am clean test-compile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up the JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: java-modules-m2-${{ runner.os }}-jdk${{ matrix.jdk }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            java-modules-m2-${{ runner.os }}-jdk${{ matrix.jdk }}-
+            java-modules-m2-${{ runner.os }}-
+
+      - name: Build
+        shell: bash
+        # tee keeps the reactor output for the summary below. `shell: bash` runs
+        # with set -eo pipefail, so a failing mvn still fails the step.
+        run: ${{ matrix.command }} 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Assert the tests this leg claims actually ran
+        if: ${{ matrix.min_tests != '' }}
+        shell: bash
+        env:
+          SCOPE: ${{ matrix.scope }}
+          MIN_TESTS: ${{ matrix.min_tests }}
+          LEG: ${{ matrix.leg }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$MIN_TESTS" =~ ^[0-9]+$ ]]; then
+            echo "::error::min_tests is not a number: '$MIN_TESTS'"
+            exit 1
+          fi
+          # surefire and scalatest disagree about the attribute order inside the
+          # <testsuite .../> tag, so every attribute is scanned on the original line.
+          # shellcheck disable=SC2016
+          counts=$(find "$SCOPE" -path '*/target/surefire-reports/TEST-*.xml' -print0 |
+                   xargs -0 -r awk '
+                       { line = $0
+                         buf = line
+                         while (match(buf, /tests="[0-9]+"/))    { t += substr(buf, RSTART+7, RLENGTH-8);   buf = substr(buf, RSTART+RLENGTH) }
+                         buf = line
+                         while (match(buf, /failures="[0-9]+"/)) { f += substr(buf, RSTART+10, RLENGTH-11);  buf = substr(buf, RSTART+RLENGTH) }
+                         buf = line
+                         while (match(buf, /errors="[0-9]+"/))   { e += substr(buf, RSTART+8, RLENGTH-9);    buf = substr(buf, RSTART+RLENGTH) }
+                       }
+                       END { printf "%d %d %d", t+0, f+0, e+0 }')
+          # No reports at all is the other way a leg can look green while testing
+          # nothing, so an empty reading is treated as zero, not as success.
+          if [ -z "$counts" ]; then counts="0 0 0"; fi
+          read -r tests failed errored <<<"$counts"
+          if ! [[ "$tests" =~ ^[0-9]+$ ]]; then
+            echo "::error::could not read a test count from the reports ('$tests')"
+            exit 1
+          fi
+          echo "leg=$LEG executed=$tests failed_or_errored=$((failed + errored)) expected_at_least=$MIN_TESTS"
+          if [ "$tests" -lt "$MIN_TESTS" ]; then
+            echo "::error::this leg ran $tests test(s) but must run at least $MIN_TESTS; a green build with no tests is not a gate"
+            exit 1
+          fi
+
+      - name: Summarize what the reactor did
+        if: always()
+        shell: bash
+        env:
+          LEG: ${{ matrix.leg }}
+          COMMAND: ${{ matrix.command }}
+          JDK: ${{ matrix.jdk }}
+        run: |
+          set -uo pipefail
+          {
+            echo "### $LEG"
+            echo
+            echo "- JDK $JDK"
+            echo "- command: \`$COMMAND\`"
+            if [ -f "$RUNNER_TEMP/build.log" ]; then
+              echo
+              echo '```'
+              grep -E "^\[INFO\] (Building [A-Za-z]|BUILD |Tests run:)" "$RUNNER_TEMP/build.log" | tail -40
+              echo '```'
+            else
+              echo "- no build log was captured"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

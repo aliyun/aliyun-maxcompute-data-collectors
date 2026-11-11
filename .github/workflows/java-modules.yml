@@ -101,9 +101,19 @@ jobs:
           - leg: "ogg-plugin: compile and run 22 unit tests"
             jdk: "8"
             scope: "ogg-plugin"
-            command: "mvn -B --no-transfer-progress -pl ogg-plugin clean test"
+            command: >-
+              mvn -B --no-transfer-progress -pl ogg-plugin clean test-compile
+              org.apache.maven.plugins:maven-surefire-plugin:2.22.2:test
             # 22 TestNG cases over the DataHub record/config writers, offline:
-            # measured rc=0 in 7 s from a clean target on both JDK 8 and 17.
+            # rc=0 in 7 s from a clean target on JDK 8 and on 17.
+            # The surefire version is spelled out because the module declares none
+            # and the runner's default differs from mine: surefire 3.5.4 auto-detects
+            # JUnitPlatformProvider here (junit-jupiter-api is a test dependency with
+            # no engine behind it) and reports "Tests run: 0, BUILD SUCCESS", while
+            # 2.12.4 and 2.22.2 both pick the TestNG provider and run the 22 cases.
+            # Measured: 2.22.2 -> Tests run: 22, 0 failures; 3.5.4 -> Tests run: 0.
+            # The provider collision is a defect in the module's own test wiring and
+            # is reported separately; this leg only pins what it verifies.
             min_tests: "22"
 
           - leg: "spark-odps-common: compile and run 71 unit tests"

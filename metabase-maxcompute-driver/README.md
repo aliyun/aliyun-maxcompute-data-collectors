@@ -89,14 +89,17 @@ result as **one** quoted component, so the `FROM` clause compiles to
 `` `<project>.<project>.<table>` ``.
 
 What happens next depends on how the Metabase build qualifies the selected
-columns, and both shapes were measured against a real project without the
-schema model (18 synced tables, 42 fields) with the released JAR, checksum
-`b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd`:
+columns. Both shapes were measured against a real project without the schema
+model (18 synced tables, 42 fields) with the released JAR, checksum
+`b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd`, one question
+per synced table on each version, 2026-11-08 through 2026-11-11. The counts
+below are per-question results, not the single-candidate verdict the repository's
+own E2E script reports:
 
 | Metabase | column reference in the same statement | result |
 | --- | --- | --- |
-| 0.63.22 | also one quoted component, same string as `FROM` | 16 of 18 questions succeed (11 come back with a row, the other 5 tables are empty); the 2 that fail do so for reasons unrelated to naming |
-| 0.64.3, 0.64.4, 0.65.2, 0.65.3 | three separately quoted parts `<project>`.`<table>`.`<column>` | **all 18 fail** |
+| 0.63.19, 0.63.22 | also one quoted component, same string as `FROM` | 16 of 18 questions succeed (11 come back with a row, the other 5 tables are empty); the 2 that fail do so for reasons unrelated to naming |
+| 0.64.0-beta, 0.64.1, 0.64.3, 0.64.4, 0.65.2, 0.65.3 | three separately quoted parts `<project>`.`<table>`.`<column>` | **all 18 fail** |
 
 On 0.63.x the doubled name is written the same way in both places, so the
 statement is self-consistent and MaxCompute resolves it. From 0.64.x Metabase
@@ -111,7 +114,9 @@ ODPS-0130071:[2,55] Semantic analysis exception - column
 Plugin registration, database creation, full schema sync and native SQL are
 unaffected on either shape - a native question is passed through unchanged.
 
-Scope: a project **without** the schema model, on Metabase **0.64 or newer**.
+Scope: a project **without** the schema model, on Metabase **0.64 or newer** -
+the first build measured to fail is `0.64.0-beta`, and `0.63.22` is the last one
+measured to work, so the boundary is the 0.64 line itself, not a later patch.
 A project without the schema model on 0.63.x works today; a project that does
 use the schema model is not doubled - the driver writes
 `` `<project>.<schema>.<table>` `` as one component there, which is the shape

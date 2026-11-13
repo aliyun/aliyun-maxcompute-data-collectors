@@ -121,6 +121,165 @@ releases:
             metabase.secrets.models.secret namespace.
       # These observations do not satisfy CONTRIBUTING.md's full acceptance suite.
       # Promote this release only after all five checks pass on this artifact.
+        - version: 0.63.22
+          tested_at: "2026-11-08"
+          in_supported_window: true
+          run: repository real-E2E gate (plugin load / database / native SELECT 1 / full sync / MBQL)
+          image_digest: sha256:c8677c9cab17a39b7167f04e0bec57c0cfa5d55906d8ba0a0408f55c417a4e4a
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          table_count: 18
+          field_count: 42
+          mbql_query: not_determined
+          array_column_native_query: not_run
+          corrected_at: "2026-11-11"
+          corrected_again_at: "2026-11-13"
+          superseded_by: >-
+            the three 2026-11-11 rows below - same image, same released artifact,
+            same project shape, MBQL cell with its early-abort and one-row
+            assumptions removed.
+          note: >-
+            CORRECTED 2026-11-11: this row read mbql_query: fail when the pull
+            request was first pushed. That was an over-claim taken from the gate's
+            exit status, not from a query result. CORRECTED AGAIN 2026-11-13,
+            because the first correction added two claims of its own that no
+            reading supported: that the cell's success test cannot read the
+            asynchronous 202 response, and that the second non-answering table
+            fails while loading column statistics. Both are wrong. Every answered
+            candidate on 0.51.14, 0.63.22 and 0.64.4 returns HTTP 202 whose body is
+            already terminal (status "completed", data.rows present), so the status
+            code was never the problem; and the fixed cell names the two failing
+            tables - a view whose base table was deleted (ODPS-0130071, HTTP 400)
+            and a table holding a Long value below -2^63 (HTTP 500, InvalidData:
+            Bigint out of range). What the cell as shipped here really does is stop
+            at the first HTTP 400 (each candidate is read with curl -fsS inside a
+            command substitution under set -euo pipefail, scripts/run-real-e2e.sh:3
+            and :310-337) and require exactly one row (line 330), so five
+            completed-empty candidates in this project could never satisfy it
+            either. The value stays not_determined, matching the same cell in the
+            driver's build repository, and here it means one thing only: this run
+            produced no verdict for that cell. Plugin load, database creation,
+            native SELECT 1 and full schema sync (18 tables / 42 fields, 20.8 s)
+            are separate observations and stand.
+        - version: 0.51.14
+          tested_at: "2026-11-08"
+          in_supported_window: false
+          run: repository real-E2E gate, control reading only
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          mbql_query: pass
+          corrected_again_at: "2026-11-13"
+          note: >-
+            Reported as a control, not as support. Why the identical cell went
+            green here and died on 0.63.22 over the same artifact and the same
+            project is now measured, and it is not sync versus async: on 0.51.14 a
+            failing candidate arrives as HTTP 202 with the failure inside the body,
+            so curl -f never saw an error and the loop kept going; on 0.63.22 the
+            same kind of failure arrives as HTTP 400 and ends the cell. The driver
+            did not change and neither did the project - only where Metabase
+            carries a query error. Re-measured with the fixed cell in the rows
+            below, where this line answers the same 16 of 18 as 0.63.22.
+        - version: 0.63.22
+          tested_at: "2026-11-11"
+          in_supported_window: true
+          run: >-
+            repository real-E2E gate, MBQL cell fixed (the cell in
+            scripts/run-real-e2e.sh as shipped here stops at the first HTTP 400 and
+            demands exactly one row; these rows were produced with that behaviour
+            removed, and that change is under review in the driver's build
+            repository, not merged)
+          image_digest: sha256:c8677c9cab17a39b7167f04e0bec57c0cfa5d55906d8ba0a0408f55c417a4e4a
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          table_count: 18
+          field_count: 42
+          mbql_query: pass
+          mbql_candidates:
+            probed: 18
+            answered: 16
+            answered_with_rows: 11
+            answered_empty: 5
+            error: 2
+          mbql_response_shape:
+            http: 202
+            status: completed
+            terminal_in_first_response: true
+            waited_for_async_job: false
+          note: >-
+            In-window cell, decided from the gate itself. 16 of 18 active synced
+            tables answer MBQL with this released artifact; the 2 that do not are
+            named by the cell and are project housekeeping, not an MBQL
+            limitation. 5 candidates answer with no rows, which the shipped cell
+            cannot count as a pass. One small two-layer project: sync at
+            large-project scale and MBQL on a schema-enabled project stay open
+            below, and nothing here says the cell in this directory is fixed.
+        - version: 0.51.14
+          tested_at: "2026-11-11"
+          in_supported_window: false
+          run: repository real-E2E gate, MBQL cell fixed, control reading only
+          image_digest: sha256:5024b74e767a3dc050b82f2dd65934ed3871b798e316ab2c42c8b1f89e22e1ea
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          table_count: 18
+          field_count: 42
+          mbql_query: pass
+          mbql_candidates:
+            probed: 18
+            answered: 16
+            answered_with_rows: 11
+            answered_empty: 5
+            error: 2
+          mbql_response_shape:
+            http: 202
+            status: completed
+            terminal_in_first_response: true
+            waited_for_async_job: false
+          note: >-
+            Control on the build baseline, outside the window. Same counts as the
+            0.63.22 row, and the same two tables are the failures.
+        - version: 0.64.4
+          tested_at: "2026-11-11"
+          in_supported_window: false
+          run: repository real-E2E gate, MBQL cell fixed
+          image_digest: sha256:91b1af493aa75dcb53085d3dd53caca1ca0089af2150a9dc07025be4f786f9fe
+          plugin_load: pass
+          database_connection: pass
+          native_select_1: pass
+          full_schema_sync: pass
+          table_count: 18
+          field_count: 42
+          mbql_query: fail
+          mbql_candidates:
+            probed: 18
+            answered: 0
+            answered_with_rows: 0
+            answered_empty: 0
+            error: 18
+          mbql_response_shape:
+            http: 400
+            status: failed
+            error_code: ODPS-0130071
+            terminal_in_first_response: true
+            waited_for_async_job: false
+          note: >-
+            Outside the window, and now a decided reading rather than an aborted
+            one: all 18 candidates answer HTTP 400 with ODPS-0130071, the
+            two-layer double-qualification defect. Native SELECT 1 passes on the
+            same connection and project shape in the same run, so this is specific
+            to the MBQL path. As a control, a locally built artifact carrying the
+            fix under review turns this same cell green on the same image and
+            project - 16 of 18 answered. That control is an observation only: it is
+            not a released artifact, so under
+            policy.verified_cells_require_released_artifact it is not a verified
+            cell and moves no boundary in this matrix.
       range_load_smoke:
         method: release-image-plugin-load
         coverage: latest published patch of every minor in the pre-policy range ">=0.51.14, <0.64.0"
@@ -158,22 +317,60 @@ releases:
             in the driver's build repository, which tests this same published
             artifact against the current 0.64 GA patch; that line supersedes this
             row when it lands. Nothing here raises the upper bound.
-      not_verified:
-        - name: full_schema_sync_e2e
-          reason: >-
-            Sync cost scales with table count; the shared test project used for
-            this artifact holds tens of thousands of tables and three bounded
-            windows (1,800 s x2 and one solo 4,500 s) did not complete. Not
-            verified, not a pass.
+      known_failures:
         - name: mbql_query_e2e
+          applies_to: >-
+            projects without the schema model (two-layer) AND Metabase 0.64 or
+            later - that is, outside the window declared above. Corrected
+            2026-11-11: this entry was first written as if it also applied to
+            0.63.22.
+          observed_on: 0.64.4 and 0.65.2
+          observed_at: "2026-11-10"
+          still_works_on: >-
+            0.63.22 - 16 of 18 synced tables answer MBQL with this artifact. The
+            table name is still written twice in the generated FROM clause, but
+            0.63.x emits the column reference in the matching shape, so the
+            server resolves it.
+          symptom: >-
+            From Metabase 0.64 on, every question built from a synced table of
+            such a project fails with ODPS-0130071 (column cannot be resolved),
+            while plugin load, database creation, full schema sync and native SQL
+            all work on the same connection.
+          status: >-
+            A fix is under review in the driver's build repository. It is
+            expected to restore 16 of 18 on 0.63.x without changing behaviour
+            there, and to make 0.64 and later answer the same 16. The
+            user-facing wording is in pull request #167.
+          gate_caveat: >-
+            Do not use this module's scripts/run-real-e2e.sh as the MBQL oracle in
+            the shape it ships today: every candidate is read with curl -fsS inside
+            a command substitution under set -euo pipefail (lines 3 and 310-337),
+            so the first HTTP 400 ends the whole cell and no failing table is named,
+            and the success test requires exactly one row (line 330), so a table
+            that completes with no rows cannot pass. Corrected 2026-11-13: an
+            earlier revision of this note also blamed the asynchronous 202 response,
+            which is false - the 202 body is terminal and readable, and the fix that
+            produced the rows above keeps reading it. A patch to this cell is under
+            review in the driver's build repository; until it lands here, re-running
+            the shipped script on this project reproduces the no-verdict row.
+      not_verified:
+        - name: full_schema_sync_e2e_large_project
           reason: >-
-            MBQL needs synced table metadata, so it cannot be exercised while
-            the sync cell above is open.
-        - name: full_schema_sync_e2e
+            The sync pass above is a small project (18 tables). Scale is still
+            unproven: the shared large project (tens of thousands of tables)
+            did not finish inside bounded windows (1,800 s x2 and one solo
+            4,500 s run). Not verified, not a pass.
+        - name: mbql_query_e2e_schema_enabled
           reason: >-
-            Sync cost scales with table count and the shared test project used
-            for this artifact holds tens of thousands of tables; the runs did
-            not complete inside the sync window. Reported as not verified.
+            No MBQL reading exists for a project with the schema model enabled,
+            in either direction. It is not claimed as working. Attempted again
+            2026-11-13 with MAXCOMPUTE_NAMESPACE_SCHEMA=true on the two-layer
+            project these cells use: the run stops in the sync step because the
+            server reports that project is not a 3-tier model project, while the
+            gate waits out its 300 s budget on a sync it has already marked
+            aborted instead of reading that state back, so neither 0.63.22 nor
+            0.64.4 produced an MBQL result. This cell needs a genuinely
+            schema-enabled project, not another attempt on this one.
     evidence:
       - docs/e2e/v0.1.1-metabase-supported-window.md
       - docs/e2e/v0.1.1-range-load-smoke-2026-10-06.md

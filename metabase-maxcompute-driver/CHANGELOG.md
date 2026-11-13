@@ -4,6 +4,22 @@ All notable changes to the MaxCompute Metabase Driver are recorded here.
 
 ## [Unreleased]
 
+- Decide the MBQL cell from the gate itself and correct two claims inside my own
+  2026-11-11 retraction. The cell does not fail because of the asynchronous `202`
+  response - that body is terminal and readable on 0.51.14, 0.63.22 and 0.64.4;
+  what breaks the shipped cell is `curl -fsS` inside a command substitution under
+  `set -euo pipefail` (`scripts/run-real-e2e.sh:3`, `:310-337`) stopping at the
+  first HTTP 400, plus a success test that requires exactly one row (line 330).
+  And the second non-answering table holds a Long value below -2^63
+  (`InvalidData: Bigint out of range`, HTTP 500), not a column-statistics error.
+  With the cell fixed: 0.63.22 **pass** (16 of 18 answered - 11 with rows, 5
+  completed empty, 2 housekeeping errors), 0.51.14 control pass, 0.64.4 **fail**
+  (18 of 18 `ODPS-0130071`, the defect whose fix is under review). The
+  2026-11-08 row keeps `mbql_query: not_determined` - the same enum as the driver's
+  build repository - is marked superseded, and stays as what actually ran;
+  `scripts/run-real-e2e.sh` in this directory still has the unfixed cell, so
+  re-running it reproduces that no-verdict row.
+
 - Retract my own 2026-11-08 MBQL claim. The released 0.1.1 JAR answers MBQL on
   16 of 18 synced tables of a project without the schema model when run on
   Metabase 0.63.22; the hard failure (`ODPS-0130071`, every question) begins at
@@ -11,7 +27,9 @@ All notable changes to the MaxCompute Metabase Driver are recorded here.
   repository gate aborting its candidate loop at the first HTTP 400 under
   `set -euo pipefail`, plus a success check that cannot read the asynchronous
   `202` response - a gate limitation, not a driver verdict, and the gate is now
-  documented as not usable as the MBQL oracle.
+  documented as not usable as the MBQL oracle. (Kept as written; the second blame
+  in this sentence is itself corrected by the entry above - the 202 body is
+  terminal and readable.)
 
 - Record the full acceptance gate on the released 0.1.1 JAR against Metabase
   0.63.22, on a project without the schema model: plugin load, database

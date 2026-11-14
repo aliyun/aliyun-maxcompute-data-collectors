@@ -126,10 +126,20 @@ a three-tier project has still not been recorded in the matrix above and stays
 open.
 
 The driver-side fix is to stop doubling the name and write
-`` `<project>`.`<table>` `` as separate components for a table whose synced
-schema is already the project name - the shape MaxCompute resolves on both a
-two-tier and a three-tier project. No release carries it yet, so this section
-stays until one does; the released 0.1.1 JAR is immutable.
+`` `<project>`.`<table>` `` as separate components - but only for a connection
+that is used **without** the schema model. The limit is not caution: measured
+2026-11-15 against a real three-tier project, that same two-part name is not an
+error at all, it silently resolves in the `default` schema (a two-part lookup
+returned a row while the table actually addressed, in another schema, had none),
+and that project contains a schema named after itself - 1 of 6,021 names listed
+by `SHOW SCHEMAS`. Applying the de-duplication there would trade a loud
+`ODPS-0130071` for a wrong result set. Three-tier projects therefore keep the
+single-component form they use today, unchanged.
+
+With the fix built that way, the same two-tier project returns 16 of 18 questions
+on Metabase 0.64.4 (01:31) and 16 of 18 on 0.63.22 (01:33), the same two
+exceptions and the same two unrelated causes. No release carries it yet, so this
+section stays until one does; the released 0.1.1 JAR is immutable.
 
 ## Installation
 

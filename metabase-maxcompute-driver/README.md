@@ -22,7 +22,7 @@ in [CONTRIBUTING.md](CONTRIBUTING.md#compatibility-claims).
 
 | Driver | Target Metabase range | Evidence for this artifact | ODPS JDBC | Status |
 | --- | --- | --- | --- | --- |
-| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.22 plugin load, database creation and native `SELECT 1` (0.63.19 the same, 2026-10-06); 0.63.18 reads `ARRAY` columns as real arrays; plugin load on the latest patch of every minor 0.51-0.63 and on 0.64.0-beta | 3.10.14, bundled | Verification pending: full sync and MBQL acceptance are not recorded |
+| 0.1.1 | `>=0.63.0, <0.64.0` | 0.63.22 plugin load, database creation and native `SELECT 1` (0.63.19 the same, 2026-10-06); 0.63.18 reads `ARRAY` columns as real arrays; plugin load on the latest patch of every minor 0.51-0.63 and on 0.64.0-beta | 3.10.14, bundled | Verification pending: full sync and MBQL acceptance are not recorded; MBQL additionally fails on projects without the schema model, see [Known limitations](#known-limitations) |
 | 0.1.0 | `>=0.51.14, <0.64.0` (historical) | 0.51.14, 0.56.25.1, 0.60.15 load smoke; 0.63.1.12 full E2E | 3.10.11, bundled | Superseded by 0.1.1 |
 | 0.0.5 | `>=0.50.0, <0.51.0` | 0.50.21 | External JDBC | Legacy |
 
@@ -77,6 +77,69 @@ DRIVER_JAR=/path/to/maxcompute-metabase-driver-0.1.1.jar \
   METABASE_IMAGE=metabase/metabase:v0.63.19 \
   ./scripts/run-load-smoke-image.sh
 ```
+
+## Known limitations
+
+### MBQL fails on projects without the schema model from Metabase 0.64 onward (0.1.1)
+
+A project that does not use the schema model addresses objects as
+`project.table`. Syncing such a project stores the project name in the table's
+schema field, and the driver then prepends the project again and writes the
+result as **one** quoted component, so the `FROM` clause compiles to
+`` `<project>.<project>.<table>` ``.
+
+What happens next depends on how the Metabase build qualifies the selected
+columns. Both shapes were measured against a real project without the schema
+model (18 synced tables, 42 fields) with the released JAR, checksum
+`b3beee5a5386152944cf160b01eefbf7b13bbbf443ce8b036c4c40ff9d3bf1fd`, one question
+per synced table on each version, 2026-11-08 through 2026-11-11. The counts
+below are per-question results, not the single-candidate verdict the repository's
+own E2E script reports:
+
+| Metabase | column reference in the same statement | result |
+| --- | --- | --- |
+| 0.63.19, 0.63.22 | also one quoted component, same string as `FROM` | 16 of 18 questions succeed (11 come back with a row, the other 5 tables are empty); the 2 that fail do so for reasons unrelated to naming |
+| 0.64.0-beta, 0.64.1, 0.64.3, 0.64.4, 0.65.2, 0.65.3 | three separately quoted parts `<project>`.`<table>`.`<column>` | **all 18 fail** |
+
+On 0.63.x the doubled name is written the same way in both places, so the
+statement is self-consistent and MaxCompute resolves it. From 0.64.x Metabase
+emits the column qualifier as separate parts, the two sides no longer match,
+and every question built from a synced table fails before returning rows:
+
+```text
+ODPS-0130071:[2,55] Semantic analysis exception - column
+  <project>.<table>.<column> cannot be resolved
+```
+
+Plugin registration, database creation, full schema sync and native SQL are
+unaffected on either shape - a native question is passed through unchanged.
+
+Scope: a project **without** the schema model, on Metabase **0.64 or newer** -
+the first build measured to fail is `0.64.0-beta`, and `0.63.22` is the last one
+measured to work, so the boundary is the 0.64 line itself, not a later patch.
+A project without the schema model on 0.63.x works today; a project that does
+use the schema model is not doubled - the driver writes
+`` `<project>.<schema>.<table>` `` as one component there, which is the shape
+those projects resolve (checked 2026-11-08 and 2026-11-10 with `EXPLAIN`, which
+compiles a statement without executing it). An end-to-end MBQL acceptance run on
+a three-tier project has still not been recorded in the matrix above and stays
+open.
+
+The driver-side fix is to stop doubling the name and write
+`` `<project>`.`<table>` `` as separate components - but only for a connection
+that is used **without** the schema model. The limit is not caution: measured
+2026-11-15 against a real three-tier project, that same two-part name is not an
+error at all, it silently resolves in the `default` schema (a two-part lookup
+returned a row while the table actually addressed, in another schema, had none),
+and that project contains a schema named after itself - 1 of 6,021 names listed
+by `SHOW SCHEMAS`. Applying the de-duplication there would trade a loud
+`ODPS-0130071` for a wrong result set. Three-tier projects therefore keep the
+single-component form they use today, unchanged.
+
+With the fix built that way, the same two-tier project returns 16 of 18 questions
+on Metabase 0.64.4 (01:31) and 16 of 18 on 0.63.22 (01:33), the same two
+exceptions and the same two unrelated causes. No release carries it yet, so this
+section stays until one does; the released 0.1.1 JAR is immutable.
 
 ## Installation
 
